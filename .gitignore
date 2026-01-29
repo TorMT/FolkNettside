@@ -1,0 +1,6 @@
+# ignore local and large data
+semestre/
+temp/
+diverse/
+*.bak
+index.json

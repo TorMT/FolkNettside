@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<title>HTML viewer</title>
+<style>
+  html,body{ margin:0; padding:0; height:100%; background:#fff; }
+  iframe{ width:100%; height:100%; border:none; }
+</style>
+</head>
+<body>
+<iframe id="frame"></iframe>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const file = params.get("file");
+  const frame = document.getElementById("frame");
+
+  if (!file) {
+    document.body.innerHTML = "<h3>Mangler fil</h3>";
+    throw new Error("Missing ?file=");
+  }
+
+  // --- THEME SYNC ---
+  function copyThemeToIframe() {
+    try {
+      const parentRoot = window.parent.document.documentElement;
+      const parentStyle = getComputedStyle(parentRoot);
+
+      const doc = frame.contentDocument;
+      if (!doc) return;
+
+      const childRoot = doc.documentElement;
+
+      // speil data-theme (dark/light)
+      const themeAttr = parentRoot.getAttribute("data-theme");
+      if (themeAttr) childRoot.setAttribute("data-theme", themeAttr);
+      else childRoot.removeAttribute("data-theme");
+
+      // kopier alle CSS custom properties (--) fra parent
+      // (tar også med de du bruker: --bg-main, --primary osv.)
+      for (let i = 0; i < parentStyle.length; i++) {
+        const name = parentStyle[i];
+        if (!name.startsWith("--")) continue;
+        const val = parentStyle.getPropertyValue(name);
+        if (val) childRoot.style.setProperty(name, val.trim());
+      }
+    } catch (e) {
+      // typisk bare hvis cross-origin (skal ikke skje hos deg)
+    }
+  }
+
+  // last inn siden
+  frame.src = file;
+
+  // sync når iframe er lastet
+  frame.addEventListener("load", () => {
+    copyThemeToIframe();
+
+    // 1) observer data-theme endringer i parent (theme switcher)
+    try {
+      const parentRoot = window.parent.document.documentElement;
+      const mo = new MutationObserver(() => copyThemeToIframe());
+      mo.observe(parentRoot, { attributes: true, attributeFilter: ["data-theme", "style", "class"] });
+    } catch {}
+
+    // 2) ekstra robust: re-sync av og til (hvis theme endres via CSS/JS uten attribute mutation)
+    setInterval(copyThemeToIframe, 500);
+  });
+</script>
+</body>
+</html>

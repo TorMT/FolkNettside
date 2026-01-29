@@ -1,0 +1,64 @@
+/* ============================================================================
+   navbar-theme-fix.css
+   ============================================================================
+   
+   Fikser navbar dropdowns slik at de bruker theme-variabler
+   
+   BRUK: Inkluder ETTER themes.css i <head>
+   
+============================================================================ */
+
+/* ===== NAVBAR DROPDOWNS ===== */
+.navbar .dropdown-content {
+  background: var(--navbar-bg, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+  color: var(--navbar-text, #ffffff) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.navbar .dropdown-content a {
+  color: var(--navbar-text, #ffffff) !important;
+  transition: background 0.2s ease;
+}
+
+.navbar .dropdown-content a:hover {
+  background: var(--navbar-hover, rgba(255,255,255,0.1)) !important;
+}
+
+/* ===== THEME-SPECIFIC NAVBAR ===== */
+
+/* Dark theme */
+[data-theme="dark"] .navbar .dropdown-content {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+}
+
+/* Forest theme */
+[data-theme="forest"] .navbar .dropdown-content {
+  background: linear-gradient(135deg, #065f46 0%, #064e3b 100%) !important;
+}
+
+/* Sunset theme */
+[data-theme="sunset"] .navbar .dropdown-content {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+}
+
+/* Ocean theme */
+[data-theme="ocean"] .navbar .dropdown-content {
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%) !important;
+}
+
+/* Purple theme */
+[data-theme="purple"] .navbar .dropdown-content {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+}
+
+/* Minimal theme */
+[data-theme="minimal"] .navbar .dropdown-content {
+  background: #18181b !important;
+  border-color: #27272a !important;
+}
+
+/* NTNU theme */
+[data-theme="ntnu"] .navbar .dropdown-content {
+  background: linear-gradient(135deg, #00509e 0%, #003d7a 100%) !important;
+}

@@ -1,0 +1,70 @@
+{
+  "title": "Fag – Temaquiz",
+  "description": "30 tilfeldig trukket spørsmål hver runde.",
+  "select": 30,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "single",
+      "text": "Hvilken påstand stemmer best for figuren?",
+      "image": "filer/bilder/figur1.png",
+      "options": [
+        "Areal-loven",
+        "Energibevaring",
+        "Impulsloven"
+      ],
+      "answer": [
+        1
+      ],
+      "optionExplanations": [
+        "Gjelder planbevegelse, men beskriver ikke fenomenet her.",
+        "Riktig: Energibevaring forklarer endringen i systemet.",
+        "Impulsloven handler om kraft over tid – ikke hovedpoenget her."
+      ],
+      "explanation": "Ser du på energiregnskapet, faller brikkene på plass."
+    },
+    {
+      "id": "q2",
+      "type": "multiple",
+      "text": "Hvilke utsagn er korrekte? (flere riktige)",
+      "options": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "optionExplanations": [
+        "A er korrekt pga ...",
+        "B stemmer ikke når ...",
+        "C mangler forutsetning ...",
+        "D er korrekt fordi ..."
+      ]
+    },
+    {
+      "id": "q3",
+      "type": "truefalse",
+      "text": "Påstanden er sann.",
+      "options": [
+        "Sant",
+        "Usant"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "q4",
+      "type": "text",
+      "text": "Skriv et nøkkelord som beskriver prinsippet.",
+      "answer": [
+        "f=ma",
+        "newtons andre lov"
+      ],
+      "explanation": "Begge variantene aksepteres."
+    }
+  ]
+}

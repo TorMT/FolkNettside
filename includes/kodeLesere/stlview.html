@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>STL Viewer</title>
+
+  <style>
+    :root{
+      /* FolkNettsideFolk tokens (fallback) */
+      --bg-main: var(--bg-main, var(--bg, #ffffff));
+      --bg-card: var(--bg-card, var(--card-bg, #f7f8fb));
+      --bg-alt:  var(--bg-alt, #f3f4f6);
+
+      --text-main: var(--text-main, var(--text, #111827));
+      --text-muted: var(--text-muted, rgba(17,24,39,.60));
+      --border-color: var(--border-color, rgba(17,24,39,.14));
+      --border-hover: var(--border-hover, rgba(17,24,39,.22));
+
+      --primary: var(--primary, var(--theme-accent, var(--accent, #2f6fed)));
+      --primary-contrast: #fff;
+
+      --shadow: var(--shadow-lg, 0 12px 26px -14px rgba(0,0,0,.35));
+      --shadow-soft: var(--shadow-md, 0 8px 18px -12px rgba(0,0,0,.25));
+
+      --radius: var(--radius-lg, 16px);
+      --radius-sm: var(--radius-md, 12px);
+    }
+
+    html,body{
+      margin:0; padding:0; height:100%;
+      overflow:hidden;
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: system-ui, Segoe UI, Arial;
+    }
+
+    /* Canvas fyller */
+    #canvasHost{
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+    canvas{ display:block; }
+
+    /* HUD */
+    #hud{
+      position:fixed; left:12px; top:12px; z-index:200;
+      background: var(--bg-card);
+      border:1px solid var(--border-color);
+      box-shadow: var(--shadow-soft);
+      padding:10px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      max-width: min(520px, calc(100vw - 24px));
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #hud.bad{
+      border-color: rgba(239,68,68,.4);
+      background: color-mix(in srgb, var(--bg-card) 85%, rgba(239,68,68,.08) 15%);
+    }
+
+    /* Toolbar */
+    #uiWrap{
+      position:fixed; left:50%; transform:translateX(-50%);
+      top: 8px; z-index:180;
+      width: min(1240px, calc(100vw - 24px));
+      pointer-events:none;
+    }
+    #toolbar{
+      pointer-events:auto;
+      background: var(--bg-card);
+      border:1px solid var(--border-color);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding:10px 12px;
+      display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    }
+
+    .sep{ width:1px; height:30px; background:var(--border-color); }
+
+    .btn{
+      appearance:none;
+      border:1px solid var(--border-color);
+      background: color-mix(in srgb, var(--bg-main) 70%, var(--bg-card) 30%);
+      color: var(--text-main);
+      border-radius: 999px;
+      padding:8px 12px;
+      font-size: 13px;
+      font-weight: 900;
+      cursor:pointer;
+      white-space:nowrap;
+      user-select:none;
+    }
+    .btn:hover{ border-color: var(--border-hover); }
+    .btn.primary{ background: var(--primary); color: var(--primary-contrast); border-color: color-mix(in srgb, var(--primary) 55%, var(--border-color) 45%); }
+    .btn.ghost{ background:transparent; }
+
+    .dd{ position:relative; }
+    .menu{
+      position:absolute; top: calc(100% + 10px); left:0;
+      min-width:360px;
+      background: var(--bg-main);
+      border:1px solid var(--border-color);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding:12px;
+      display:none;
+      z-index:300;
+      max-height: min(76vh, 720px);
+      overflow:auto;
+    }
+    .menu.open{ display:block; }
+    .row{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 6px; }
+    .row.slim{ padding:6px 6px; }
+    label.chk{ display:flex; align-items:center; gap:10px; font-weight:800; }
+    input[type="range"]{ width:190px; }
+    .val{ font-weight:900; font-variant-numeric:tabular-nums; }
+
+    select, input[type="number"], input[type="text"]{
+      border:1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-main);
+      border-radius: 12px;
+      padding:8px 10px;
+      font-weight:800;
+    }
+
+    .chip{
+      display:inline-block;
+      margin-left:8px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--border-color);
+      background: color-mix(in srgb, var(--bg-card) 60%, var(--bg-main) 40%);
+      color: var(--text-main);
+      font-weight:800;
+      font-size:12px;
+    }
+
+    /* Help layout */
+    .helpCard{
+      min-width: 720px;
+      max-width: 860px;
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+    }
+    .helpHeader{ display:flex; flex-direction:column; gap:4px; padding: 6px 6px 10px 6px; }
+    .helpTitle{ font-weight:900; font-size:16px; color:var(--text-main); }
+    .helpSubtitle{ color:var(--text-muted); font-size:12px; }
+
+    .helpGrid{
+      display:grid;
+      grid-template-columns: 220px 1fr;
+      gap:12px;
+    }
+    .helpNav{ display:flex; flex-direction:column; gap:8px; }
+    .helpNav .btn{
+      width:100%;
+      justify-content:flex-start;
+      border-radius:12px;
+      font-weight:900;
+    }
+    .helpNav .btn.active{
+      background: var(--primary);
+      color: var(--primary-contrast);
+    }
+    .helpContent{
+      border:1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      background: color-mix(in srgb, var(--bg-main) 86%, var(--bg-card) 14%);
+    }
+    .helpContent h3{ margin:0 0 10px 0; }
+    .helpContent p{ margin:6px 0; line-height:1.45; }
+    .helpContent ul{ margin:6px 0 6px 18px; }
+
+    /* Mobil */
+    @media (max-width: 920px){
+      .menu{ min-width: min(92vw, 420px); }
+      .helpCard{ min-width: min(92vw, 420px); }
+      .helpGrid{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="canvasHost"></div>
+  <div id="hud">Laster STL…</div>
+
+  <div id="uiWrap">
+    <div id="toolbar">
+
+      <button class="btn ghost" id="btnMobileMenu" style="display:none;">☰</button>
+
+      <div class="btn ghost" style="font-weight:900; font-size:15px;">STL Viewer</div>
+      <div class="sep"></div>
+
+      <!-- Quick -->
+      <button id="btnFit" class="btn primary">Fit</button>
+      <button id="btnReset" class="btn">Reset</button>
+      <button id="btnZoomIn" class="btn">Zoom+</button>
+      <button id="btnZoomOut" class="btn">Zoom-</button>
+      <button id="btnDownload" class="btn">Last ned</button>
+
+      <div class="sep"></div>
+
+      <!-- Align -->
+      <div class="dd" data-menu="menuAlign">
+        <button class="btn ddBtn" id="chipAlignBtn">Align <span class="chip" id="chipAlign">import</span></button>
+        <div class="menu" id="menuAlign">
+          <div class="row">
+            <button id="btnAutoAlign" class="btn primary">Auto (Boat)</button>
+            <button id="btnAlignReset" class="btn">Reset align</button>
+          </div>
+          <div class="row slim" style="color:var(--text-muted); font-weight:800;">
+            Import har fast -90° X for å rette STL’en. Deretter kan du Auto Align (Boat) eller hurtig-swap.
+          </div>
+          <div class="row">
+            <button id="btnSwapYZ" class="btn">Swap Y/Z</button>
+            <button id="btnSwapXZ" class="btn">Swap X/Z</button>
+            <button id="btnSwapXY" class="btn">Swap X/Y</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- View -->
+      <div class="dd" data-menu="menuView">
+        <button class="btn ddBtn" id="chipViewBtn">View <span class="chip" id="chipView">kamera</span></button>
+        <div class="menu" id="menuView">
+          <div class="row">
+            <label>Preset</label>
+            <select id="selView">
+              <option value="iso">Isometrisk</option>
+              <option value="front">Front</option>
+              <option value="back">Back</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkAuto"> Auto-rotate</label>
+            <select id="selAutoSpeed">
+              <option value="slow">x0.5</option>
+              <option value="med" selected>x1</option>
+              <option value="fast">x2</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkAxes"> Vis XYZ-akse</label>
+          </div>
+
+          <div class="row" style="border-top:1px solid var(--border-color); margin-top:6px; padding-top:12px;">
+            <div style="font-weight:900;">Roter modell</div>
+            <div style="color:var(--text-muted); font-weight:800;">(ikke kamera)</div>
+          </div>
+
+          <div class="row">
+            <select id="selRotAxis">
+              <option value="x">X</option>
+              <option value="y">Y</option>
+              <option value="z" selected>Z</option>
+            </select>
+            <select id="selRotStep">
+              <option value="15">15°</option>
+              <option value="30">30°</option>
+              <option value="90" selected>90°</option>
+              <option value="180">180°</option>
+            </select>
+            <button id="btnRotApply" class="btn">Roter</button>
+          </div>
+
+          <div class="row">
+            <label>Fri vinkel</label>
+            <input id="numRotDeg" type="number" value="0" step="1" style="width:110px;">
+            <button id="btnRotApplyFree" class="btn">Apply</button>
+          </div>
+
+          <div class="row">
+            <button id="btnRotZero" class="btn">Nullstill rotasjon</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Render -->
+      <div class="dd" data-menu="menuRender">
+        <button class="btn ddBtn" id="chipRenderBtn">Render <span class="chip" id="chipRender">visning</span></button>
+        <div class="menu" id="menuRender">
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkWire"> Wireframe</label>
+            <label class="chk"><input type="checkbox" id="chkEdges"> Edges</label>
+          </div>
+
+          <div class="row">
+            <label>Shading</label>
+            <select id="selShade">
+              <option value="smooth" selected>Smooth</option>
+              <option value="flat">Flat</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>Opacity</label>
+            <input id="rngOpacity" type="range" min="0" max="1" step="0.01" value="1">
+            <span class="val" id="txtOpacity">1.00</span>
+          </div>
+
+          <div class="row" style="border-top:1px solid var(--border-color); margin-top:6px; padding-top:12px;">
+            <label class="chk"><input type="checkbox" id="chkBBox"> Bounding box</label>
+            <input id="colBBox" type="color" value="#111111" style="width:56px; height:38px; padding:0; border-radius:10px;">
+          </div>
+
+          <div class="row">
+            <label>BBox tykkelse</label>
+            <input id="rngBBoxW" type="range" min="1" max="6" step="1" value="2">
+            <span class="val" id="txtBBoxW">2</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Look -->
+      <div class="dd" data-menu="menuLook">
+        <button class="btn ddBtn" id="chipLookBtn">Look <span class="chip" id="chipLook">farger</span></button>
+        <div class="menu" id="menuLook">
+          <div class="row">
+            <label>Bakgrunn</label>
+            <input id="colBg" type="color" value="#ffffff" style="width:56px; height:38px; padding:0; border-radius:10px;">
+          </div>
+          <div class="row">
+            <label>Modellfarge</label>
+            <input id="colModel" type="color" value="#5da9ff" style="width:56px; height:38px; padding:0; border-radius:10px;">
+          </div>
+          <div class="row">
+            <button id="btnUseThemeColor" class="btn">Bruk theme-farge</button>
+            <div style="color:var(--text-muted); font-weight:800;">Modell = primary</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tools -->
+      <div class="dd" data-menu="menuTools">
+        <button class="btn ddBtn" id="chipToolsBtn">Tools <span class="chip" id="chipTools">clip/mål</span></button>
+        <div class="menu" id="menuTools">
+          <div style="font-weight:900; font-size:15px; padding:4px 6px 8px 6px;">Cutaway</div>
+
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkClip"> Cutaway</label>
+            <label class="chk"><input type="checkbox" id="chkClipInv"> invert</label>
+          </div>
+
+          <div class="row">
+            <div style="font-weight:900;">Axis</div>
+            <div style="color:var(--text-muted); font-weight:800;">X/Y/Z</div>
+            <select id="selClipAxis">
+              <option value="x" selected>X</option>
+              <option value="y">Y</option>
+              <option value="z">Z</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div>
+              <div style="font-weight:900;">Offset</div>
+              <div style="color:var(--text-muted); font-weight:800;">-1..1</div>
+            </div>
+            <input id="rngClip" type="range" min="-1" max="1" step="0.01" value="0">
+            <span class="val" id="txtClip">0.00</span>
+          </div>
+
+          <div style="border-top:1px solid var(--border-color); margin:10px 0;"></div>
+
+          <div style="font-weight:900; font-size:15px; padding:4px 6px 8px 6px;">Måling</div>
+
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkMeasure"> Measure</label>
+            <button id="btnClearMeasure" class="btn">Clear</button>
+          </div>
+
+          <div class="row">
+            <div>
+              <div style="font-weight:900;">Snapping</div>
+              <div style="color:var(--text-muted); font-weight:800;">vertex/edge</div>
+            </div>
+            <select id="selSnap">
+              <option value="none" selected>No snap</option>
+              <option value="vertex">Vertex</option>
+              <option value="edge">Edge</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div>
+              <div style="font-weight:900;">Snap tol</div>
+              <div style="color:var(--text-muted); font-weight:800;">world-enheter</div>
+            </div>
+            <input id="rngSnapTol" type="range" min="0.001" max="0.2" step="0.001" value="0.01">
+            <span class="val" id="txtSnapTol">0.010</span>
+          </div>
+
+          <div class="row">
+            <div style="font-weight:900;">Units</div>
+            <select id="selUnits">
+              <option value="units" selected>units</option>
+              <option value="m">m</option>
+              <option value="cm">cm</option>
+              <option value="mm">mm</option>
+              <option value="inch">inch</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="dd" data-menu="menuInfo">
+        <button class="btn ddBtn" id="chipInfoBtn">Info <span class="chip" id="chipInfo">CG/CB</span></button>
+        <div class="menu" id="menuInfo">
+          <div style="font-weight:900; font-size:15px; padding:4px 6px 8px 6px;">Geometri</div>
+
+          <div class="row">
+            <div>
+              <div style="font-weight:900;">Dims (L/B/H)</div>
+              <div style="color:var(--text-muted); font-weight:800;" id="txtDims">ΔX=–, ΔY=–, ΔZ=–</div>
+            </div>
+            <div style="text-align:right; font-weight:900;" id="txtDims2">– / – / –</div>
+          </div>
+
+          <div class="row">
+            <div>
+              <div style="font-weight:900;">Volum (totalt)</div>
+              <div style="color:var(--text-muted); font-weight:800;">lukket mesh</div>
+            </div>
+            <div style="font-weight:900;" id="txtVol">–</div>
+          </div>
+
+          <div class="row">
+            <div>
+              <div style="font-weight:900;">Tyngdepunkt (CG)</div>
+              <div style="color:var(--text-muted); font-weight:800;">uniform tetthet</div>
+            </div>
+            <div style="font-weight:900;" id="txtCG">–</div>
+          </div>
+
+          <div style="border-top:1px solid var(--border-color); margin:10px 0;"></div>
+
+          <div style="font-weight:900; font-size:15px; padding:4px 6px 8px 6px;">Hydro (world-plan)</div>
+          <div style="color:var(--text-muted); font-weight:800; padding:0 6px 10px 6px;">
+            Sub-volum og CB regnes under et fast world vannplan. Dette fungerer uansett rotasjon/orientering.
+          </div>
+
+          <div class="row"><div style="font-weight:900;">Submerged volum</div><div style="font-weight:900;" id="txtSubV">–</div></div>
+          <div class="row"><div style="font-weight:900;">Deplasement</div><div style="font-weight:900;" id="txtDisp">–</div></div>
+          <div class="row"><div style="font-weight:900;">Oppdriftspunkt (CB)</div><div style="font-weight:900;" id="txtCB">–</div></div>
+
+          <div class="row" style="justify-content:flex-start; gap:16px;">
+            <label class="chk"><input type="checkbox" id="chkShowCG" checked> Vis CG</label>
+            <label class="chk"><input type="checkbox" id="chkShowCB" checked> Vis CB</label>
+          </div>
+
+          <div class="row" style="border-top:1px solid var(--border-color); margin-top:6px; padding-top:12px;">
+            <div style="font-weight:900;">Kvalitet</div>
+            <div style="color:var(--text-muted); font-weight:800;">hurtig ↔ nøyere</div>
+            <select id="selHydroQ">
+              <option value="low">Low</option>
+              <option value="med" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <button id="btnRecalc" class="btn">Recalc nå</button>
+            <div id="txtHydroStatus" style="color:var(--text-muted); font-weight:900;">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hydro -->
+      <div class="dd" data-menu="menuHydro">
+        <button class="btn ddBtn" id="chipHydroBtn">Hydro <span class="chip" id="chipHydro">vannlinje</span></button>
+        <div class="menu" id="menuHydro">
+          <div style="font-weight:900; font-size:15px; padding:4px 6px 8px 6px;">Vannlinje (world)</div>
+
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkWL"> Vis vannlinje</label>
+            <div style="color:var(--text-muted); font-weight:800;">fast i world (ikke med båt)</div>
+          </div>
+
+          <div class="row">
+            <div>
+              <div style="font-weight:900;">Draft</div>
+              <div style="color:var(--text-muted); font-weight:800;">world Z</div>
+            </div>
+            <input type="range" id="rngDraft" min="0" max="1" step="0.001" value="0">
+            <span class="val" id="txtDraft">0.00 units</span>
+          </div>
+
+          <div style="border-top:1px solid var(--border-color); margin:10px 0;"></div>
+
+          <div style="font-weight:900; padding:4px 6px 8px 6px;">Trim / Heel</div>
+          <div style="color:var(--text-muted); font-weight:800; padding:0 6px 10px 6px;">
+            Dette roterer modellen. Vannlinja ligger fortsatt flatt i world.
+          </div>
+
+          <div class="row">
+            <div style="font-weight:900;">Trim</div>
+            <input type="range" id="rngTrim" min="-30" max="30" step="0.1" value="0">
+            <span class="val" id="txtTrim">0.0°</span>
+          </div>
+          <div class="row">
+            <div style="font-weight:900;">Heel</div>
+            <input type="range" id="rngHeel" min="-30" max="30" step="0.1" value="0">
+            <span class="val" id="txtHeel">0.0°</span>
+          </div>
+
+          <div class="row">
+            <button id="btnHydroZero" class="btn">Nullstill trim/heel</button>
+            <div style="color:var(--text-muted); font-weight:800;">setter begge = 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export -->
+      <div class="dd" data-menu="menuExport">
+        <button class="btn primary ddBtn" id="chipExportBtn">Export <span class="chip" id="chipExport">png</span></button>
+        <div class="menu" id="menuExport">
+          <div style="font-weight:900; font-size:15px; padding:4px 6px 8px 6px;">Snapshot</div>
+
+          <div class="row">
+            <div>
+              <div style="font-weight:900;">Oppløsning</div>
+              <div style="color:var(--text-muted); font-weight:800;">1x/2x/4x</div>
+            </div>
+            <select id="selSnapScale">
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <button id="btnSnap" class="btn primary" style="min-width:160px;">Lagre PNG</button>
+            <div style="color:var(--text-muted); font-weight:800;">bevarer canvas</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Help -->
+      <div class="dd" data-menu="menuHelp">
+        <button class="btn ddBtn" id="chipHelpBtn">Help <span class="chip" id="chipHelp">guide</span></button>
+        <div class="menu helpCard" id="menuHelp">
+          <div class="helpHeader">
+            <div class="helpTitle">STL Viewer – guide</div>
+            <div class="helpSubtitle">Velg tema i venstre meny.</div>
+          </div>
+          <div class="helpGrid">
+            <div id="helpNav" class="helpNav"></div>
+            <div id="helpContent" class="helpContent"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    // --- THEME SYNC (for iframe / same-site embeds) ---
+    function copyThemeToIframe(){
+      try{
+        const src = window.parent && window.parent !== window ? window.parent.document.documentElement : null;
+        if(!src) return;
+        const cs = window.parent.getComputedStyle(src);
+        const dst = document.documentElement;
+
+        const vars = [
+          "--primary","--primary-light","--primary-dark","--primary-transparent",
+          "--accent","--accent-light","--accent-dark",
+          "--bg-main","--bg-alt","--bg-card",
+          "--text-main","--text-secondary","--text-muted",
+          "--border-color","--border-hover",
+          "--shadow-sm","--shadow-md","--shadow-lg",
+          "--radius-sm","--radius-md","--radius-lg"
+        ];
+        for(const v of vars){
+          const val = cs.getPropertyValue(v);
+          if(val && val.trim()) dst.style.setProperty(v, val.trim());
+        }
+      }catch{}
+    }
+
+    window.addEventListener("load", () => {
+      copyThemeToIframe();
+      try{
+        const parentRoot = window.parent.document.documentElement;
+        const mo = new MutationObserver(() => copyThemeToIframe());
+        mo.observe(parentRoot, { attributes: true, attributeFilter: ["data-theme","style","class"] });
+      }catch{}
+      setInterval(copyThemeToIframe, 500);
+    });
+
+    // --- Imports (MODULER) ---
+    import * as THREE from "/includes/three/three.module.js";
+
+    import { STLViewerCore } from "/includes/three/STLViewerCore.js";
+    import { ModelLoader } from "/includes/three/ModelLoader.js";
+    import { HydroStatikk } from "/includes/three/HydroStatikk.js";
+    import { UIController } from "/includes/three/UIController.js";
+    import { ClippingController } from "/includes/three/ClippingController.js";
+    import { MeasureController } from "/includes/three/MeasureController.js";
+    import { AlignHelpers } from "/includes/three/AlignHelpers.js";
+    import { detectLang, getHelpData } from "/includes/three/HelpMenu.i18n.js";
+
+    const hud = document.getElementById("hud");
+
+    function setHud(msg, isBad=false){
+      hud.textContent = msg;
+      hud.classList.toggle("bad", !!isBad);
+    }
+
+    // --- Init core ---
+    const host = document.getElementById("canvasHost");
+    const core = new STLViewerCore(host);
+
+    // PATCH: Hydro/Measure forventer disse metodene + optional mesh-arg
+    if(typeof core.localToWorldPoint !== "function"){
+      core.localToWorldPoint = (v, meshOverride=null) => {
+        const m = meshOverride || core.mesh;
+        if(!m) return v?.clone ? v.clone() : null;
+        const out = v.clone();
+        m.updateMatrixWorld(true);
+        return out.applyMatrix4(m.matrixWorld);
+      };
+    } else {
+      const orig = core.localToWorldPoint.bind(core);
+      core.localToWorldPoint = (v, meshOverride=null) => {
+        try{ return orig(v, meshOverride); }catch{
+          const m = meshOverride || core.mesh;
+          if(!m) return v?.clone ? v.clone() : null;
+          const out = v.clone();
+          m.updateMatrixWorld(true);
+          return out.applyMatrix4(m.matrixWorld);
+        }
+      };
+    }
+
+    if(typeof core.worldToLocalPoint !== "function"){
+      core.worldToLocalPoint = (v, meshOverride=null) => {
+        const m = meshOverride || core.mesh;
+        if(!m) return v?.clone ? v.clone() : null;
+        const out = v.clone();
+        m.updateMatrixWorld(true);
+        const inv = m.matrixWorld.clone().invert();
+        return out.applyMatrix4(inv);
+      };
+    }
+
+    // FIX: ingen await import(...) inni funksjon
+    if(typeof core.localToWorldDir !== "function"){
+      core.localToWorldDir = (v, meshOverride=null) => {
+        const m = meshOverride || core.mesh;
+        if(!m) return v?.clone ? v.clone() : null;
+        const out = v.clone().normalize();
+        m.updateMatrixWorld(true);
+        const mat3 = new THREE.Matrix3().setFromMatrix4(m.matrixWorld);
+        return out.applyMatrix3(mat3).normalize();
+      };
+    }
+
+    if(typeof core.worldToLocalDir !== "function"){
+      core.worldToLocalDir = (v, meshOverride=null) => {
+        const m = meshOverride || core.mesh;
+        if(!m) return v?.clone ? v.clone() : null;
+        const out = v.clone().normalize();
+        m.updateMatrixWorld(true);
+        const inv = m.matrixWorld.clone().invert();
+        const mat3 = new THREE.Matrix3().setFromMatrix4(inv);
+        return out.applyMatrix3(mat3).normalize();
+      };
+    }
+
+    // bakgrunn: la CSS styre siden. Renderer alpha=true => transparent
+    try{
+      const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg-main").trim();
+      const hex = bg && bg.startsWith("#") ? bg : null;
+      core.setBackground(hex);
+    }catch{}
+
+    const hydro = new HydroStatikk(core);
+    const clipper = new ClippingController(core);
+    const measure = new MeasureController(core);
+    const ui = new UIController();
+
+    const lang = detectLang();
+    const helpData = getHelpData(lang);
+    ui.init(core, hydro, clipper, measure, { helpData, lang });
+
+    // --- Load model from ?file= ---
+    const params = new URLSearchParams(location.search);
+    let modelUrl = decodeURIComponent(params.get("file") || "");
+    if(!modelUrl){
+      setHud("Feil: mangler ?file=sti", true);
+      throw new Error("Mangler ?file=");
+    }
+    if(!modelUrl.startsWith("http") && !modelUrl.startsWith("/")) modelUrl = "/" + modelUrl;
+
+    // Loader timeout (stopper uendelig "Laster...")
+    const TIMEOUT_MS = 12000;
+    let timedOut = false;
+    const to = setTimeout(() => {
+      timedOut = true;
+      setHud("Init timeout (12s). Sjekk console (404/import) eller filsti.", true);
+    }, TIMEOUT_MS);
+
+    try{
+      setHud("Laster STL…");
+      const loader = new ModelLoader();
+      const { mesh, geometry, volume, centroidLocal } = await loader.load(modelUrl);
+
+      clearTimeout(to);
+      if(timedOut) throw new Error("Init timeout");
+
+      core.setMesh(mesh);
+      hydro.setMesh(mesh);
+
+      hydro.initDraftAtBottom();
+
+      ui.afterModelLoaded({ mesh, geometry, volume, centroidLocal, modelUrl });
+
+      const btnReset = document.getElementById("btnReset");
+      btnReset?.addEventListener("click", (e) => {
+        if(e.shiftKey){
+          core.rotateUser("y", Math.PI);
+          setHud("Flip (Y 180°)", false);
+        }
+      });
+
+      core.start();
+      setHud("Klar ✅");
+    }catch(err){
+      clearTimeout(to);
+      console.error(err);
+      setHud("Feil under init. Se console.", true);
+    }
+  </script>
+</body>
+</html>

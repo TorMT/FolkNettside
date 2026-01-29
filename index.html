@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html data-theme="default" lang="no">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Hjem • FolkNettsideFolk</title>
+
+<!-- Felles stilark -->
+<style>
+    body.home main.content{
+      margin: calc(var(--nav-h, 48px) + 2rem) auto 0;
+      padding: 0 1rem 4rem;
+      max-width: min(1200px, 95vw);
+      text-align: center;
+    }
+    body.home h1{
+      font-size: 2.4rem;
+      margin-bottom: 0.75rem;
+      color: var(--primary, #004f9f);
+    }
+    body.home p{
+      font-size: 1.15rem;
+      line-height: 1.6;
+      color: var(--text-main, #1a202c);
+    }
+
+    .home-cards{
+      margin-top: 3rem;
+      display: grid;
+      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      align-items: stretch;
+    }
+
+    .card{
+      background: var(--bg-card, #f6f7fa);
+      border: 1px solid var(--border-color, #d6d8dd);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      text-align: left;
+      box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05));
+      display: flex;
+      flex-direction: column;
+      color: var(--text-main, #1a202c);
+    }
+
+    .card h2{
+      margin-top: 0;
+      font-size: 1.3rem;
+      color: var(--primary, #004f9f);
+    }
+
+    .card ul{
+      margin: 0.5rem 0 0;
+      padding-left: 1.25rem;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 599px){
+      .home-cards{ grid-template-columns: 1fr; }
+    }
+
+    /* Dashboard container følger tema */
+    .analytics-wrapper{
+      margin-top: 3rem;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      background: var(--bg-card, #ffffff);
+      border: 1px solid var(--border-color, #d6d8dd);
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow-md, 0 4px 8px rgba(0,0,0,0.08));
+    }
+
+    .analytics-wrapper h2{
+      color: var(--primary, #004f9f);
+      margin-bottom: 1rem;
+    }
+</style>
+
+<link href="/assets/css/style.css" rel="stylesheet"/>
+<link href="/assets/css/themes.css" rel="stylesheet"/>
+<link href="/assets/css/mobile.css?v=4" media="(max-width: 768px)" rel="stylesheet"/>
+<link rel="stylesheet" href="/assets/css/sidebar-flyout-fix.css">
+<link rel="stylesheet" href="/assets/css/sidebar-loader-theme-override.css">
+<link rel="stylesheet" href="/assets/css/navbar-theme-fix.css">
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}  
+  gtag('js', new Date());
+  gtag('config', 'G-BJ41MZJP0L');
+</script>
+</head>
+
+<body class="home">
+<div id="navbar"></div>
+
+<main class="content">
+<h1>Velkommen til mi sia</h1>
+<p>
+  Dette er startsiden. Her finner du informasjon, navigasjon
+  og innganger til fag og ressurser, d fungere sånn ish.
+</p>
+
+<section class="home-cards">
+  <div class="card">
+    <h2>Nytt nytt og funksjoner</h2>
+    <ul>
+      <li>ChemDraw er nå importert (se organisk kjemi)</li>
+      <li>Støtte for å se 3d filer som stl samt vannlinjer og slikt (jobbes litt med, se marin intro båtprosjekt) </li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Gammelt nytt og funksjoner</h2>
+    <ul>
+      <li>Passordbeskyttede mapper</li>
+      <li>PDF‑viewer med fallback</li>
+      <li>Velkomstbilder per fagmappe</li>
+      <li>Bilder?! – kommer når jeg orker</li>
+      <li>Hydrometer‑tracker integrasjon</li>
+      <li>Kode kjøreren kan nå kjøre nestede pythonProgram dvs importere komponenter og ha filer som importeres av komponenter</li>
+      <li>Layout smoothness</li>
+      <li>Mobilvennlighet, endelig fikset dette</li>
+      <li>Viser data som stjeles mens du er på siden (foreløpig ikke så mye å skryte av)</li>
+      <li>Quiz til fag, forhåpentlig vis med scoreboard (par småfeil atm)</li>
+      <li>Du kan nå lese kode i farger WOOOOOO</li>
+      <li>Eksperimentell funksjon: kjør koden direkte på siden</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Pågående arbeid</h2>
+    <ul>
+      <li>Quiz-modul med scoreboard mangler forsatt</li>
+    </ul>
+  </div>
+</section>
+
+<!-- === GOOGLE ANALYTICS DASHBOARD (THEME-FRIENDLY) === -->
+<div class="analytics-wrapper" data-theme-aware>
+  <h2>Webstatistikk</h2>
+  <iframe
+      width="100%"
+      height="320"
+      src="https://lookerstudio.google.com/embed/reporting/d8f6526b-0ec4-4842-a7f2-f1232bb8bfca/page/8IWgF"
+      frameborder="0"
+      style="border:0; border-radius:8px;"
+      allowfullscreen
+      sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox">
+  </iframe>
+</div>
+
+</main>
+
+<script>
+  fetch('/includes/navbar.html', { cache: 'no-store' })
+    .then(r => r.text())
+    .then(html => { document.getElementById('navbar').innerHTML = html; });
+</script>
+
+<script src="/assets/js/theme-switcher.js"></script>
+<script src="/assets/js/flyout-theme-updater.js"></script>
+<script src="/includes/mobile-enhancer.js"></script>
+</body>
+</html>

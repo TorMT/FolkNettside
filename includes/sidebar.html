@@ -1,0 +1,64 @@
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BJ41MZJP0L');
+</script>
+
+<aside class="sidebar" role="complementary" aria-label="Kursmateriale">
+  <h3>Fag</h3>
+
+  <!-- Øvinger -->
+  <div class="dropdown-oving">
+    <button class="dropdown-btn">Øvinger</button>
+    <div class="dropdown-content">
+      <a href="filer/oving1.pdf">Øving 1</a>
+      <a href="filer/oving2.pdf">Øving 2</a>
+      <a href="filer/oving3.pdf">Øving 3</a>
+    </div>
+  </div>
+
+</aside>
+
+<style>
+/* Fortsatt dine styles for sidebar-link – men brukt på dropdown-content a */
+.sidebar .dropdown-content a {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.2s;
+}
+
+.sidebar .dropdown-content a:hover,
+.sidebar .dropdown-content a:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+  outline: 2px solid rgba(255, 255, 255, 0.3);
+  outline-offset: -2px;
+}
+
+.sidebar-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.sidebar-text {
+  flex: 1;
+}
+
+/* Mobil-optimalisering */
+@media (max-width: 768px) {
+  .sidebar .dropdown-content a {
+    padding: 1rem;
+    min-height: 48px;
+  }
+
+  .sidebar-icon {
+    font-size: 1.4rem;
+  }
+}
+</style>

@@ -1,0 +1,30 @@
+# Én modul pr linje. Tomme linjer/linjer som starter med # ignoreres.
+NumPy
+Pandas
+Matplotlib
+SciPy
+Scikit-learn
+SymPy
+Flask
+Requests
+Jinja2
+Pillow
+SQLite3
+PyTorch
+Numba
+Bokeh
+Statsmodels
+NetworkX
+Pygame
+OpenCV
+Seaborn
+lxml
+Beautiful Soup
+pytest
+Pytest-cov
+Dash
+Streamlit
+Shiny
+Vizro
+Solara
+Panel

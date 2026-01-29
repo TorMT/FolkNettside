@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<title>FBM viewer</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;font-family:system-ui,Segoe UI,Arial;}
+  .wrap{padding:16px;max-width:900px;}
+  .box{border:1px solid #ddd;border-radius:10px;padding:14px;background:#fafafa}
+  code{background:#eee;padding:2px 6px;border-radius:6px}
+  button{padding:10px 12px;border:0;border-radius:8px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>FBM</h2>
+  <div class="box" id="msg">Laster…</div>
+</div>
+
+<script>
+  const file = new URLSearchParams(location.search).get("file");
+  const msg = document.getElementById("msg");
+
+  if (!file){
+    msg.textContent = "Mangler ?file=";
+  } else {
+    msg.innerHTML =
+      "Denne nettsiden kan ikke rendere <b>DelfShip .fbm</b> direkte i nettleseren uten en egen FBM-parser.<br><br>" +
+      "Anbefalt: eksporter modellen fra DelfShip til <b>STL</b> eller <b>GLB</b>, så kan vi vise den interaktivt (roter/zoom/pan).<br><br>" +
+      "<button id='open'>Åpne FBM som fil</button> " +
+      "<span style='margin-left:10px;opacity:.8'>(" + file + ")</span>";
+
+    document.getElementById("open").onclick = () => window.open(file, "_blank");
+  }
+</script>
+</body>
+</html>

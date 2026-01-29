@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="no" data-theme="default">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-BJ41MZJP0L');
+  </script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#004f9f">
+  <meta name="description" content="{{DESCRIPTION}}">
+  <title>{{TITLE}} - Studieressurser</title>
+
+  <!-- Preload kritiske ressurser for raskere lasting -->
+  <link rel="preload" href="/assets/css/style.css" as="style">
+  <link rel="preload" href="/includes/sidebar-html-loader.js" as="script">
+  <link rel="preload" href="/includes/sidebar-loader.js" as="script">
+
+  <!-- Favicon (legg til hvis du har) -->
+  <!-- <link rel="icon" type="image/svg+xml" href="/favicon.svg"> -->
+
+  <!-- CSS - VIKTIG REKKEFØLGE! -->
+  <link rel="stylesheet" href="/assets/css/style.css?v=4">
+  <link rel="stylesheet" href="/assets/css/themes.css?v=4">
+  <link rel="stylesheet" href="/assets/css/sidebar-flyout-fix.css?v=4">
+  <link rel="stylesheet" href="/assets/css/sidebar-loader-theme-override.css?v=4">
+  <link rel="stylesheet" href="/assets/css/navbar-theme-fix.css?v=4">
+
+  <!-- ✨ QUIZ THEME CSS-FILER ✨ -->
+  <link rel="stylesheet" href="/assets/css/themes-quiz-extension.css?v=1">
+  <link rel="stylesheet" href="/assets/css/quiz-theme-fix.css?v=1">
+
+  <!-- Mobile CSS: KUN på mobil (hindrer at mobile.css overstyrer desktop) -->
+  <link rel="stylesheet" href="/assets/css/mobile.css?v=4" media="(max-width: 768px)">
+
+  <!-- MathJax for LaTeX-støtte i quiz (KRITISK!) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+      },
+      startup: {
+        pageReady: () => {
+          return MathJax.startup.defaultPageReady().then(() => {
+            console.log('[MathJax] Klar!');
+          });
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+
+<body>
+  <!-- Fallback for brukere uten JavaScript -->
+  <noscript>
+    <div style="padding: 2rem; background: #fff3cd; border: 2px solid #ffc107; margin: 1rem; border-radius: 8px;">
+      <strong>⚠️ JavaScript er deaktivert</strong>
+      <p>Denne siden krever JavaScript for full funksjonalitet. Vennligst aktiver JavaScript i nettleseren din.</p>
+    </div>
+  </noscript>
+
+  <div id="navbar" class="navbar"></div>
+
+  <div class="wrapper">
+    <!-- Tom sidebar - fylles av sidebar-html-loader.js fra sidebar.html -->
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="content">
+      <h1>{{TITLE}}</h1>
+      <p class="course-description">
+        {{DESCRIPTION}}
+      </p>
+
+      <!-- Velkomstbilde/quiz welcome container -->
+      <div id="welcome-container" style="text-align: center;">
+        <!-- Fylles av sidebar-loader.js -->
+      </div>
+
+      <!-- Viewer/Quiz containers -->
+      <div id="quiz-container" style="display:none"></div>
+      <div id="pdf-viewer-container" style="display:none">
+        <object id="pdf-viewer" type="application/pdf" data=""></object>
+      </div>
+    </main>
+  </div>
+
+  <!-- Hent navbar-markup med feilhåndtering
+       + last mobile-enhancer ETTER at navbar er injisert (robust mobil-knapp) -->
+  <script>
+    fetch('/includes/navbar.html', { cache: 'no-store' })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      })
+      .then(t => {
+        document.getElementById('navbar').innerHTML = t;
+
+        // Last mobile-enhancer etter at navbar finnes i DOM
+        const s = document.createElement('script');
+        s.src = '/includes/mobile-enhancer.js?v=3';
+        document.body.appendChild(s);
+      })
+      .catch(err => {
+        console.error('[navbar] Kunne ikke laste navbar:', err);
+        document.getElementById('navbar').innerHTML =
+          '<div style="padding:1rem;background:#f8d7da;color:#721c24;">⚠️ Navbar kunne ikke lastes</div>';
+      });
+  </script>
+
+  <!-- =====================================================
+       SCRIPTS - KRITISK REKKEFØLGE!
+       ===================================================== -->
+
+  <!-- 1. SIDEBAR MODULER (må lastes FØR sidebar-loader) -->
+  <script src="/includes/sidebar-search-module.js?v=1"></script>
+  <script src="/includes/sidebar-notifications-module.js?v=1.2"></script>
+
+  <!-- 2. SIDEBAR SYSTEM (NY VERSJON v11.11.0 med modulstøtte) -->
+  <script src="/includes/sidebar-html-loader.js"></script>
+  <script src="/includes/sidebar-loader.js?v=11.11.0"></script>
+
+  <!-- 3. Theme system -->
+  <script src="/assets/js/theme-switcher.js?v=4"></script>
+  <script src="/assets/js/flyout-theme-updater.js?v=4"></script>
+
+  <!-- NB: mobile-enhancer lastes via navbar-fetch over -->
+</body>
+</html>

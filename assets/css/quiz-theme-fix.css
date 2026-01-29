@@ -1,0 +1,280 @@
+/* ============================================================================
+   QUIZ THEME FIX v1.0
+   ============================================================================
+   Overskriver hardkodede farger i quiz-lite.js med theme-responsive farger.
+   Legges til ETTER quiz-lite.js laster sine styles.
+   
+   Inkluder i <head>:
+   <link rel="stylesheet" href="/includes/quiz-theme-fix.css">
+   ============================================================================ */
+
+/* ========================================
+   1. QUIZ CONTAINER & HEADER
+   ======================================== */
+
+.quiz-container {
+  background: var(--card-bg, #ffffff) !important;
+  color: var(--text-main, #2c3e50) !important;
+}
+
+.quiz-header {
+  background: var(--quiz-header-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+  color: var(--quiz-header-text, #ffffff) !important;
+}
+
+.quiz-header h2 {
+  color: inherit !important;
+}
+
+.quiz-header p {
+  color: var(--quiz-header-subtitle, rgba(255, 255, 255, 0.9)) !important;
+}
+
+/* ========================================
+   2. SVARALTERNATIVER (CRITICAL FIX!)
+   ======================================== */
+
+/* Quiz spørsmålsbokser */
+.quiz-q {
+  background: var(--card-bg, #ffffff) !important;
+  border: 1px solid var(--border-color, #e1e8ed) !important;
+  color: var(--text-main, #2c3e50) !important;
+}
+
+/* Svaralternativer - DETTE ER DET VIKTIGSTE! */
+.quiz-choice,
+.quiz-q label {
+  background: var(--quiz-choice-bg, #f8f9fa) !important;
+  color: var(--text-main, #2c3e50) !important;
+  border: 1px solid var(--border-color, #e1e8ed) !important;
+}
+
+/* Hover på svaralternativer */
+.quiz-choice:hover,
+.quiz-q label:hover {
+  background: var(--quiz-choice-hover, #e9ecef) !important;
+  border-color: var(--accent-color, #667eea) !important;
+}
+
+/* Valgte svaralternativer */
+.quiz-choice.selected,
+.quiz-q label.selected,
+input[type="radio"]:checked + .quiz-choice,
+input[type="checkbox"]:checked + .quiz-choice {
+  background: var(--quiz-choice-selected, #e7f0ff) !important;
+  border-color: var(--accent-color, #667eea) !important;
+  color: var(--text-main, #2c3e50) !important;
+}
+
+/* ========================================
+   3. FEEDBACK & RESULTAT
+   ======================================== */
+
+/* Riktig svar */
+.quiz-choice.correct,
+.quiz-fb.correct {
+  background: var(--success-bg, #d4edda) !important;
+  border-color: var(--success-color, #28a745) !important;
+  color: var(--success-text, #155724) !important;
+}
+
+/* Feil svar */
+.quiz-choice.wrong,
+.quiz-fb.wrong {
+  background: var(--error-bg, #f8d7da) !important;
+  border-color: var(--error-color, #dc3545) !important;
+  color: var(--error-text, #721c24) !important;
+}
+
+/* Feedback-boks */
+.quiz-fb {
+  background: var(--card-bg, #ffffff) !important;
+  border-left: 4px solid var(--accent-color, #667eea) !important;
+  color: var(--text-main, #2c3e50) !important;
+}
+
+/* ========================================
+   4. KNAPPER
+   ======================================== */
+
+.quiz-btn,
+.quiz-submit,
+.quiz-next {
+  background: var(--button-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+  color: var(--button-text, #ffffff) !important;
+  border: none !important;
+}
+
+.quiz-btn:hover,
+.quiz-submit:hover,
+.quiz-next:hover {
+  background: var(--button-hover, linear-gradient(135deg, #764ba2 0%, #667eea 100%)) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3) !important;
+}
+
+.quiz-btn:disabled {
+  background: var(--button-disabled, #cccccc) !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ========================================
+   5. FILTER & KONTROLLER
+   ======================================== */
+
+/* Antall spørsmål velger */
+.quiz-count-selector {
+  background: var(--card-bg, #ffffff) !important;
+  border: 1px solid var(--border-color, #e1e8ed) !important;
+  color: var(--text-main, #2c3e50) !important;
+}
+
+.quiz-count-option {
+  background: var(--quiz-choice-bg, #f8f9fa) !important;
+  color: var(--text-main, #2c3e50) !important;
+  border: 1px solid var(--border-color, #e1e8ed) !important;
+}
+
+.quiz-count-option.active,
+.quiz-count-option:hover {
+  background: var(--accent-color, #667eea) !important;
+  color: var(--button-text, #ffffff) !important;
+  border-color: var(--accent-color, #667eea) !important;
+}
+
+/* Kapittelfilter */
+.quiz-filter {
+  background: var(--card-bg, #ffffff) !important;
+  border: 1px solid var(--border-color, #e1e8ed) !important;
+}
+
+.quiz-chapter-toggle {
+  background: var(--quiz-choice-bg, #f8f9fa) !important;
+  color: var(--text-main, #2c3e50) !important;
+  border: 1px solid var(--border-color, #e1e8ed) !important;
+}
+
+.quiz-chapter-toggle.active,
+.quiz-chapter-toggle:hover {
+  background: var(--quiz-choice-selected, #e7f0ff) !important;
+  border-color: var(--accent-color, #667eea) !important;
+}
+
+/* ========================================
+   6. HISTORIKK-TABELL
+   ======================================== */
+
+.quiz-history table {
+  background: var(--card-bg, #ffffff) !important;
+  color: var(--text-main, #2c3e50) !important;
+  border-collapse: collapse;
+}
+
+.quiz-history th {
+  background: var(--table-header-bg, #f8f9fa) !important;
+  color: var(--text-main, #2c3e50) !important;
+  border-bottom: 2px solid var(--border-color, #dee2e6) !important;
+}
+
+.quiz-history td {
+  border-bottom: 1px solid var(--border-color, #dee2e6) !important;
+  color: var(--text-main, #2c3e50) !important;
+}
+
+.quiz-history tr:hover {
+  background: var(--table-row-hover, #f8f9fa) !important;
+}
+
+/* ========================================
+   7. INPUT FIELDS
+   ======================================== */
+
+input[type="text"].quiz-input,
+input[type="number"].quiz-input {
+  background: var(--input-bg, #ffffff) !important;
+  color: var(--text-main, #2c3e50) !important;
+  border: 1px solid var(--border-color, #ced4da) !important;
+}
+
+input[type="text"].quiz-input:focus,
+input[type="number"].quiz-input:focus {
+  border-color: var(--accent-color, #667eea) !important;
+  box-shadow: 0 0 0 3px var(--focus-shadow, rgba(102, 126, 234, 0.1)) !important;
+}
+
+/* ========================================
+   8. DARK THEME SPECIFICS
+   ======================================== */
+
+[data-theme="dark"] .quiz-container {
+  --quiz-choice-bg: #374151;
+  --quiz-choice-hover: #4b5563;
+  --quiz-choice-selected: #1e3a5f;
+  --table-header-bg: #374151;
+  --table-row-hover: #374151;
+  --input-bg: #374151;
+}
+
+[data-theme="dark"] .quiz-header {
+  --quiz-header-gradient: linear-gradient(135deg, #4338ca 0%, #5b21b6 100%);
+}
+
+[data-theme="dark"] .quiz-q {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* ========================================
+   9. LIGHT THEME SPECIFICS
+   ======================================== */
+
+[data-theme="light"] .quiz-container {
+  --quiz-choice-bg: #f8f9fa;
+  --quiz-choice-hover: #e9ecef;
+  --quiz-choice-selected: #e7f0ff;
+  --table-header-bg: #f8f9fa;
+  --table-row-hover: #f8f9fa;
+  --input-bg: #ffffff;
+}
+
+/* ========================================
+   10. RESPONSIVE & ACCESSIBILITY
+   ======================================== */
+
+@media (max-width: 768px) {
+  .quiz-choice,
+  .quiz-q label {
+    font-size: 0.95rem !important;
+    padding: 0.875rem !important;
+  }
+}
+
+/* Fokus-states for tastaturnavigering */
+.quiz-choice:focus-visible,
+.quiz-btn:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent-color, #667eea) !important;
+  outline-offset: 2px !important;
+}
+
+/* ========================================
+   11. CRITICAL OVERRIDES
+   ======================================== */
+
+/* Sørg for at inline styles fra quiz-lite.js blir overskrevet */
+.quiz-q[style],
+.quiz-choice[style],
+.quiz-fb[style] {
+  background: var(--card-bg, #ffffff) !important;
+  color: var(--text-main, #2c3e50) !important;
+}
+
+/* Force choice backgrounds to update */
+.quiz-q label[style] {
+  background: var(--quiz-choice-bg, #f8f9fa) !important;
+  color: var(--text-main, #2c3e50) !important;
+}
+
+/* ========================================
+   END OF QUIZ THEME FIX
+   ======================================== */

@@ -1,0 +1,140 @@
+PROMPT 1 – FULL (med opplasting av fagfiler)
+
+DU ER: En datasnekker som lager faglige flervalgsquizer som kan brukes på en statisk nettside (FolkQuiz v2).
+
+MÅL:
+
+Les vedlagte fagfiler (PDF/kompendier/forelesningsnotater) for faget: {{FAGNAVN}}.
+
+Lag en stor spørsmålsbank med totalt {{ANTALL_TOTAL}} spørsmål,
+bestående av miks av: single (ett riktig), multiple (flere riktige), truefalse (sant/usant) og text (kort fritekst).
+
+Hver oppgave skal ha:
+
+id (unik, f.eks. q001, q002, …)
+
+type: "single" | "multiple" | "truefalse" | "text"
+
+text: selve spørsmålet
+
+options: for single/multiple/truefalse (truefalse kan ha ["Sant","Usant"])
+
+answer: indekser (0-basert) for single/multiple/truefalse, eller liste med tekstvarianter for type "text"
+
+explanation: kort generell forklaring
+
+optionExplanations: FOR RIKTIGE ALTERNATIVER (array parallell til options) – 1–2 linjer om hvorfor de riktige er riktige
+
+image: relativ filsti til illustrasjonsbilde for oppgaven (når nyttig)
+
+chapter: streng eller liste av strenger som angir kapittel/tema (f.eks. "3.1 Substitusjonsreaksjoner" eller ["3.1 Substitusjonsreaksjoner","SN2"])
+
+Legg inn feltet "select": {{ANTALL_PER_RUNDE}} på rot, slik at {{ANTALL_PER_RUNDE}} trekkes tilfeldig hver runde.
+
+Quiz-tittel og beskrivelse: "title": "{{FAGNAVN}} – Quiz", "description": "Tilfeldig {{ANTALL_PER_RUNDE}} av {{ANTALL_TOTAL}} spørsmål hver runde."
+
+Kapitler (retningslinjer):
+
+Bruk konsekvent benevning: 1, 1.1, 2.3 … + kort tittel, f.eks. "1.2 Nukleofile substitusjoner (SN1/SN2)".
+
+Alle relevante spørsmål bør ha chapter satt, for å muliggjøre filtering per kapittel på nettsiden.
+
+Tverrtema kan bruke flere verdier i en liste.
+
+BILDER (VELG EN AV DISSE STRATEGIENE, pr spørsmål – prioritert rekkefølge):
+A) Finn fra datamaterialet du har fått lastet opp
+B) Bruk illustrasjoner/grafikk/reaksjonsmekanismer; last ned bildene og inkluder i ZIP. Legg med kort alt-tekst i egen images_attribution.json (id, kilde-URL, lisens, alt-text).
+C) Hvis du ikke finner frie bilder: generér enkle nøytrale skisser/diagrammer selv (SVG/PNG) basert på fagteksten og inkluder dem i ZIP. (Ingen logoer eller vernede figurer.)
+
+– Bildenavn: q<ID>_<kort-slug>.png (f.eks. q012_substitusjon.png).
+– Plassering i ZIP: /quiz/bilder/…
+– Sti i quiz.json: bruk bilder/<filnavn> (f.eks. "image": "bilder/q012_substitusjon.png").
+
+UTDATA (MÅLFORMAT):
+
+Lag ZIP som inneholder nøyaktig denne strukturen:
+
+/quiz/quiz.json
+
+/quiz/bilder/ (alle bilde-filer her)
+
+/quiz/bilder/images_attribution.json (valgfri, men anbefalt)
+
+quiz.json må validere mot følgende skjema (konseptuelt):
+
+{
+  "title": "string",
+
+
+
+
+KRAV TIL KVALITET:
+
+Unngå spørsmålsformuleringer som avhenger av kontekst vi ikke har i quizen.
+
+Én klar fasit; for multiple: alle riktige må velges.
+
+Forklaringer korte og presise; “lærer hvorfor”.
+
+Ingen opphavsrettsbelagt tekst kopiert fra lærebøker; skriv med egne ord.
+
+Variér vanskenivå (lett–middels–vanskelig) og dekk hele pensumspekteret.
+
+Kapittel-dekning: Sørg for at alle hovedkapitler i pensum har flere spørsmål. Bruk chapter konsekvent.
+
+OPPSUMMERING/VALIDERING:
+
+Gi en kort rapport: antall spørsmål per type, antall med bilder, liste over kapitler med antall spørsmål pr. kapittel, og tema-dekning.
+
+Valider at alle image-stier peker til faktiske filer i ZIP.
+
+Valider at chapter er satt på (nesten) alle spørsmål; rapportér eventuelle uten kapittel.
+
+Returnér ZIP-fil for nedlasting.
+
+Eksempelverdier:
+
+{{FAGNAVN}} = Organisk kjemi
+
+{{ANTALL_TOTAL}} = 200
+
+{{ANTALL_PER_RUNDE}} = 30
+
+PROMPT 2 – RASK VARIANT (uten opplasting av fagfiler)
+
+Lag en spørsmålsbank for {{FAGNAVN}} (nivå: {{NIVÅ}}) med {{ANTALL_TOTAL}} spørsmål (single/multiple/truefalse/text).
+Sørg for bred pensumsdekning. Bruk frie bilder/skisser og lever alt som ZIP med
+/quiz/quiz.json + /quiz/bilder/*. Sett "select": {{ANTALL_PER_RUNDE}}.
+Inkluder chapter for hvert spørsmål (se retningslinjene i PROMPT 1).
+Krav til schema, forklaringer, bilder og validering er identisk med PROMPT 1.
+
+Eksempelverdier:
+
+{{FAGNAVN}} = Organisk kjemi
+
+{{NIVÅ}} = Videregående/Universitet – årstrinn {{ÅRSTRINN}}
+
+{{ANTALL_TOTAL}} = 200
+
+{{ANTALL_PER_RUNDE}} = 30
+
+KORT SJEKKLISTE FØR IMPORT
+
+[ ] unike id'er (q001, q002, …)
+[ ] type ∈ {single,multiple,truefalse,text}
+[ ] options finnes for ikke-tekst-typer
+[ ] answer: indekser (0-basert) for single/multiple/truefalse, tekst for text
+[ ] optionExplanations skrevet for riktige alternativer
+[ ] image peker til faktisk fil under /quiz/bilder/ og stiene i JSON er bilder/...
+[ ] chapter er satt konsekvent (streng eller liste) og dekker alle hovedkapitler
+[ ] select er satt (30 anbefalt for store banker)
+
+
+
+OPPSETT PÅ SIDEN (kort)
+
+Pakk ut ZIP i fagmappa (f.eks. /semestre/2/organisk/).
+
+Sørg for at quiz-knappen er aktiv (sidebar-loader patch + /includes/quiz-lite.js).
+
+Åpne fagsiden i nettleser, trykk 🧩 Quiz, test og nullstill for ny trekning.

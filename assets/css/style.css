@@ -1,0 +1,256 @@
+/*
+ * ═══════════════════════════════════════════════════════════════
+ * Laget av Tor Markus Tønnessen 26.11.2025
+ * ═══════════════════════════════════════════════════════════════
+ */
+
+/* 1) OPPRETTER CSS-VARIABLER FOR ALLE FARGENE  ───────────────── */
+:root {
+  --ntnu-blue: #00509e;         /* Hovedfarge NTNU-blå */
+  --ntnu-gray-80: #575756;      /* Sekundærfarge – 80 % sort / grå */
+  --ntnu-yellowgreen: #d5d10e;  /* Støttefarge gulgrønn */
+  --ntnu-lightgreen: #c9d4b2;   /* Lysegrønn */
+
+  --ntnu-white: #ffffff;
+  --ntnu-black: #000000;
+
+  /* felles dimensjoner */
+  --nav-h : 48px;
+  --side-w: 198px;
+  --gap   : 28px;
+  --pad-left: calc(var(--side-w) + var(--gap));
+}
+
+/* 2) GRUNNLEGGENDE STIL FOR BODY  ─────────────────────────────── */
+body{
+  font-family: sans-serif;
+  margin: 0;
+  background-color: var(--ntnu-white);
+  color: var(--ntnu-black);
+
+  /* hindrer «hopp» når scrollbar dukker opp */
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+
+/* 3) NAVBAR-LENKER, DROPDOWNS m.m.  (uendret fra før) ----------- */
+.navbar-left, .navbar-right{display:flex;}
+
+.navbar a, .dropbtn{
+  display:block;color:var(--ntnu-white);
+  padding:14px 20px;text-decoration:none;
+  background:inherit;border:none;font-weight:bold;
+}
+
+.dropdown{position:relative;}
+.dropdown-content{
+  display:none;position:absolute;min-width:160px;
+  background:var(--ntnu-blue);box-shadow:0 8px 16px rgba(0,0,0,.2);
+  z-index:1;
+}
+.dropdown-content a{
+  color:var(--ntnu-white);padding:12px 16px;display:block;
+}
+.dropdown:hover .dropdown-content{display:block;}
+
+/* 4) SIDEBAR + INNHOLD  (fixed positioning) --------------------- */
+.sidebar{
+  position: fixed;
+  left: 0;
+  top: var(--nav-h);
+  width: var(--side-w);
+  height: calc(100vh - var(--nav-h));
+  background: var(--ntnu-blue);
+  padding: 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 100;
+}
+.sidebar a{display:block;color:var(--ntnu-white);margin-bottom:10px;text-decoration:none;}
+.sidebar a:hover{font-weight:bold;}
+
+.wrapper{display:flex;width:100%;margin:0;padding:0;margin-top:var(1.5rem);min-height:calc(100vh - var(--nav-h));}
+.content{
+  flex: 1;
+  margin-left: calc(var(--side-w) + var(--gap) + 20px);
+  padding: 0px 40px 40px 40px;
+  background: var(--ntnu-white);
+  min-height: calc(100vh - var(--nav-h));
+  max-width: calc(100% - var(--side-w) - var(--gap) - 20px);
+}
+h1{
+  color:var(--ntnu-blue);
+  margin-top:0;
+  margin-bottom:2px;
+  padding-top:0;
+  line-height:1.1;
+  font-size:2rem;
+}
+.course-description{
+  margin-top:0;
+  margin-bottom:10px;
+  padding-top:0;
+  line-height:1.4;
+}
+#welcome-container{
+  margin:10px 0 !important;
+}
+
+/* Dropdown-knapper i sidebaren */
+.dropdown-btn{
+  background:var(--ntnu-blue);color:var(--ntnu-white);
+  border:none;padding:8px 12px;width:100%;text-align:left;
+  font-weight:bold;cursor:pointer;outline:none;margin-bottom:4px;
+}
+.dropdown-btn:hover{background:var(--ntnu-gray-80);}
+.sidebar .dropdown-content{
+  display:none;padding:6px 12px;background:var(--ntnu-blue);
+}
+.sidebar .dropdown-oving:hover .dropdown-content{display:block;}
+.sidebar .dropdown-content a{margin:4px 0;color:var(--ntnu-white);}
+.sidebar .dropdown-content a:hover{text-decoration:underline;}
+
+/* Dropdown-offset-fix */
+.sidebar .dropdown-content{
+  position:static;margin-left:0.75rem;margin-top:0.25rem;
+}
+
+/* 5) RESPONSIV TILPASNING -------------------------------------- */
+@media (max-width:768px){
+  .wrapper{flex-direction:column;}
+  .sidebar{width:100%;overflow-x:auto;padding:0.5rem 0.75rem;}
+  .content{padding:1rem;}
+  #pdf-viewer{height:60vh;}
+  .dropdown-btn{width:100%;}
+}
+
+/* ───────────────────────────────────────────────────────────────
+   GLOBAL TOPPBAR – eneste .navbar-regel i hele prosjektet
+   ─────────────────────────────────────────────────────────────── */
+.navbar{
+  position:fixed;
+  inset:0 0 auto 0;          /* top:0; left:0; right:0 */
+  height:var(--nav-h);       /* 48 px */
+  z-index:1500;
+
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+
+  padding-left:1rem;         /* luft på venstre side */
+  padding-right:0;           /* ← fjerner «halen» */
+  background:#555;
+}
+
+/* Nedlastings-KNAPP (overstyrer generelle lenkestiler) */
+.content a.btn-download,
+.content a.btn-download:link,
+.content a.btn-download:visited {
+  display: inline-block;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  background: #2b4e9c;
+  color: #fff !important;
+  text-decoration: none !important;
+  font-weight: 700;
+  line-height: 1;
+  border: 2px solid #1f3a75;
+  box-shadow: 0 2px 6px rgba(0,0,0,.12);
+  transition: transform .02s ease, filter .15s ease, box-shadow .15s ease;
+}
+
+.content a.btn-download:hover,
+.content a.btn-download:focus {
+  filter: brightness(0.96);
+  box-shadow: 0 3px 10px rgba(0,0,0,.18);
+  transform: translateY(-1px);
+}
+
+.content a.btn-download:active {
+  transform: translateY(0);
+  filter: brightness(0.92);
+}
+
+
+/* --- Sideseksjoner (Om/Kontakt) --- */
+.page {
+  margin: calc(var(--nav-h) + 24px) auto 48px;
+  padding: 0 16px;
+  max-width: min(900px, 95vw);
+}
+.page-card {
+  background: #fff;
+  border: 1px solid #e4e6eb;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  padding: 24px 28px;
+}
+.page h1 { color: var(--ntnu-blue); margin: 0 0 12px; }
+.page p.lead { font-size: 1.125rem; margin: 0 0 18px; color: #333; }
+.meta { color:#666; font-size:.95rem; }
+
+/* knapper kan gjenbruke .btn-download; lag en nøytral variant */
+.btn {
+  display:inline-block; padding:.6rem 1rem; border-radius:8px;
+  border:1px solid #d0d3da; text-decoration:none; font-weight:700;
+  background:#f6f7fa; color:#1f2a44;
+}
+.btn:hover { filter:brightness(.98); }
+
+/* Grid for små info-bokser */
+.grid-2 {
+  display:grid; gap:16px; margin-top:18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+/* --- Kontakt-skjema --- */
+.form {
+  display:grid; gap:14px; margin-top:10px;
+}
+.form label { font-weight:700; font-size:.95rem; }
+.form input, .form textarea {
+  width:100%; padding:.65rem .75rem; border:1px solid #cfd4dc; border-radius:8px;
+  font:inherit; box-sizing:border-box;
+}
+.form textarea { min-height:140px; resize:vertical; }
+.form .actions { display:flex; gap:10px; align-items:center; }
+.form .help { color:#666; font-size:.9rem; }
+
+
+/* Kun mobil: skjermbredde ≤ 600px */
+@media (max-width: 600px) {
+  /* Sikre at viewport følger skjermbredden */
+  /* Meta-tag må fortsatt ligge i <head> i HTML: 
+     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+  */
+
+  /* Gjør navigasjonen vertikal */
+  nav ul {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Skjul sidebar */
+  .sidebar {
+    display: none;
+  }
+
+  /* Hovedinnhold full bredde */
+  .main-content {
+    width: 100%;
+  }
+
+  /* Flytende container kun for mobil */
+  .container {
+    width: 95%;
+    margin: 0 auto;
+  }
+
+  /* assets/css/style.css */
+
+
+
+
+
+
+}

@@ -1,0 +1,258 @@
+/* ============================================================================
+   Sidebar Flyout Theme Fix
+   ============================================================================
+   Fikser flyout-menyer fra sidebar slik at de bruker theme-variabler
+   og oppdateres når theme byttes.
+============================================================================ */
+
+/* ===== SIDEBAR FLYOUT BASE STYLES ===== */
+
+/* Flyout container */
+.sidebar .flyout,
+.sidebar .sub-menu,
+.sidebar .nested-menu,
+.sidebar-flyout,
+.nested-flyout {
+  background: var(--sidebar-bg, #2c3e50) !important;
+  color: var(--sidebar-text, #ffffff) !important;
+  border: 1px solid var(--sidebar-border, #34495e) !important;
+  box-shadow: var(--shadow-lg, 0 10px 15px rgba(0, 0, 0, 0.1)) !important;
+}
+
+/* Flyout items */
+.sidebar .flyout a,
+.sidebar .sub-menu a,
+.sidebar .nested-menu a,
+.sidebar-flyout a,
+.nested-flyout a,
+.sidebar .flyout-item,
+.sidebar-flyout-item,
+.nested-folder-item {
+  color: var(--sidebar-text, #ffffff) !important;
+  background: transparent !important;
+  transition: background 0.2s ease !important;
+}
+
+/* Hover states */
+.sidebar .flyout a:hover,
+.sidebar .sub-menu a:hover,
+.sidebar .nested-menu a:hover,
+.sidebar-flyout a:hover,
+.nested-flyout a:hover,
+.sidebar .flyout-item:hover,
+.sidebar-flyout-item:hover,
+.nested-folder-item:hover {
+  background: var(--sidebar-hover, rgba(255, 255, 255, 0.1)) !important;
+  color: var(--sidebar-text, #ffffff) !important;
+}
+
+/* Active/selected states */
+.sidebar .flyout a.active,
+.sidebar .sub-menu a.active,
+.sidebar .nested-menu a.active,
+.sidebar-flyout a.active,
+.nested-flyout a.active,
+.sidebar .flyout-item.active,
+.sidebar-flyout-item.active,
+.nested-folder-item.active {
+  background: var(--primary-transparent, rgba(0, 79, 159, 0.2)) !important;
+  color: var(--sidebar-text, #ffffff) !important;
+  font-weight: 600 !important;
+}
+
+/* Flyout ikoner */
+.sidebar .flyout svg,
+.sidebar .sub-menu svg,
+.sidebar .nested-menu svg,
+.sidebar-flyout svg,
+.nested-flyout svg,
+.sidebar .flyout-icon,
+.sidebar-flyout-icon,
+.nested-flyout .flyout-icon {
+  fill: var(--sidebar-text, #ffffff) !important;
+  color: var(--sidebar-text, #ffffff) !important;
+}
+
+/* Refresh ikoner (de grønne ikonene du ser) */
+.sidebar .flyout .refresh-icon,
+.sidebar .flyout [class*="refresh"],
+.sidebar .flyout [class*="reload"],
+.sidebar-flyout .refresh-icon,
+.nested-flyout .refresh-icon {
+  color: var(--success, #10b981) !important;
+  fill: var(--success, #10b981) !important;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .sidebar .flyout,
+[data-theme="dark"] .sidebar .sub-menu,
+[data-theme="dark"] .sidebar .nested-menu,
+[data-theme="dark"] .sidebar-flyout,
+[data-theme="dark"] .nested-flyout {
+  background: var(--sidebar-bg, #1e293b) !important;
+  border-color: var(--sidebar-border, #334155) !important;
+}
+
+/* Fjern hardkodede farger */
+.sidebar .flyout *,
+.sidebar .sub-menu *,
+.sidebar .nested-menu *,
+.sidebar-flyout *,
+.nested-flyout * {
+  /* Override any hardcoded colors */
+  border-color: inherit;
+}
+
+/* Separators i flyout */
+.sidebar .flyout hr,
+.sidebar .sub-menu hr,
+.sidebar-flyout hr,
+.nested-flyout hr,
+.sidebar .flyout-separator {
+  border-color: var(--sidebar-border, #34495e) !important;
+  opacity: 0.5;
+}
+
+/* Headings i flyout */
+.sidebar .flyout h1,
+.sidebar .flyout h2,
+.sidebar .flyout h3,
+.sidebar .flyout h4,
+.sidebar .flyout h5,
+.sidebar .flyout h6,
+.nested-flyout h1,
+.nested-flyout h2,
+.nested-flyout h3,
+.nested-flyout h4,
+.nested-flyout h5,
+.nested-flyout h6,
+.sidebar-flyout h1,
+.sidebar-flyout h2,
+.sidebar-flyout h3,
+.sidebar-flyout h4,
+.sidebar-flyout h5,
+.sidebar-flyout h6 {
+  color: var(--sidebar-text, #ffffff) !important;
+}
+
+/* Text i flyout */
+.sidebar .flyout p,
+.sidebar .flyout span,
+.sidebar .flyout div,
+.nested-flyout p,
+.nested-flyout span,
+.nested-flyout div,
+.sidebar-flyout p,
+.sidebar-flyout span,
+.sidebar-flyout div {
+  color: var(--sidebar-text, #ffffff) !important;
+}
+
+/* ===== SPECIAL CASES ===== */
+
+/* PDF viewer i flyout */
+.sidebar .flyout iframe,
+.nested-flyout iframe,
+.sidebar-flyout iframe {
+  border: 1px solid var(--sidebar-border, #34495e) !important;
+}
+
+/* Loading states */
+.sidebar .flyout .loading,
+.nested-flyout .loading,
+.sidebar-flyout .loading {
+  color: var(--sidebar-text, #ffffff) !important;
+  opacity: 0.7;
+}
+
+/* Error states */
+.sidebar .flyout .error,
+.nested-flyout .error,
+.sidebar-flyout .error {
+  color: var(--error, #ef4444) !important;
+}
+
+/* Success states */
+.sidebar .flyout .success,
+.nested-flyout .success,
+.sidebar-flyout .success {
+  color: var(--success, #10b981) !important;
+}
+
+/* ===== ANIMATIONS ===== */
+.sidebar .flyout,
+.nested-flyout,
+.sidebar-flyout {
+  transition: all 0.3s ease !important;
+}
+
+/* Fade in animation */
+@keyframes flyoutFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sidebar .flyout,
+.sidebar-flyout {
+  animation: flyoutFadeIn 0.2s ease;
+}
+
+/* ===== MOBILE RESPONSIVENESS ===== */
+@media (max-width: 768px) {
+  .sidebar .flyout,
+  .sidebar-flyout {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    max-height: 70vh !important;
+    border-radius: 12px 12px 0 0 !important;
+    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3) !important;
+  }
+}
+
+/* ===== THEME-SPECIFIC OVERRIDES ===== */
+
+/* Forest theme */
+[data-theme="forest"] .sidebar .flyout,
+[data-theme="forest"] .sidebar-flyout {
+  background: var(--sidebar-bg, #065f46) !important;
+}
+
+/* Sunset theme */
+[data-theme="sunset"] .sidebar .flyout,
+[data-theme="sunset"] .sidebar-flyout {
+  background: var(--sidebar-bg, #991b1b) !important;
+}
+
+/* Ocean theme */
+[data-theme="ocean"] .sidebar .flyout,
+[data-theme="ocean"] .sidebar-flyout {
+  background: var(--sidebar-bg, #164e63) !important;
+}
+
+/* Purple theme */
+[data-theme="purple"] .sidebar .flyout,
+[data-theme="purple"] .sidebar-flyout {
+  background: var(--sidebar-bg, #581c87) !important;
+}
+
+/* Minimal theme */
+[data-theme="minimal"] .sidebar .flyout,
+[data-theme="minimal"] .sidebar-flyout {
+  background: var(--sidebar-bg, #18181b) !important;
+  border-color: var(--sidebar-border, #27272a) !important;
+}
+
+/* NTNU theme */
+[data-theme="ntnu"] .sidebar .flyout,
+[data-theme="ntnu"] .sidebar-flyout {
+  background: var(--sidebar-bg, #003d7a) !important;
+}

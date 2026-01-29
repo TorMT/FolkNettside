@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+
+<html data-theme="default" lang="no">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<title>Kodevisning (C/C++/C#/Java – VS Code Dark+)</title>
+<style>
+    :root{
+      --bg:#1e1e1e; --fg:#d4d4d4; --muted:#9ca3af;
+      --kw:#c586c0;    /* keywords → lilla */
+      --str:#ce9178;   /* strings → oransje */
+      --com:#6a9955;   /* kommentarer → grønn */
+      --num:#4fc1ff;   /* tall → blå */
+      --fn:#dcdcaa;    /* funksjonsnavn → gul */
+      --pp:#569cd6;    /* preprocessor (#include) → blå-aktig */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0}
+    body{
+      background:var(--bg);color:var(--fg);
+      font:14px/1.6 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
+      display:flex;flex-direction:column;
+    }
+    header{
+      padding:8px 12px;border-bottom:1px solid #2a2a2a;
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap
+    }
+    header .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:44vw}
+    header a,header button,header label{
+      background:#2a2a2a;color:#cfe3ff;border:1px solid #3a3a3a;border-radius:6px;
+      padding:6px 10px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px
+    }
+    header a:hover,header button:hover,header label:hover{filter:brightness(1.06)}
+    main{flex:1 1 auto;overflow:auto}
+    pre{margin:0;padding:18px 20px;tab-size:4;white-space:pre;overflow:auto}
+    .wrap pre{white-space:pre-wrap;word-break:break-word}
+    .ln{display:inline-block;min-width:3.2ch;padding-right:1ch;opacity:.5;user-select:none}
+
+    .kw{color:var(--kw)} .str{color:var(--str)}
+    .com{color:var(--com)} .num{color:var(--num)}
+    .fn{color:var(--fn)} .pp{color:var(--pp)}
+  </style>
+
+  <link href="/assets/css/themes.css" rel="stylesheet"/>  <link rel="stylesheet" href="/assets/css/sidebar-flyout-fix.css">
+  <link rel="stylesheet" href="/assets/css/sidebar-loader-theme-override.css">
+  <link rel="stylesheet" href="/assets/css/navbar-theme-fix.css">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-BJ41MZJP0L');
+</script>
+</head>
+<body>
+<header>
+<div class="title" id="t">Kildekode</div>
+<a id="raw" rel="noopener" target="_blank">Åpne råfil</a>
+<button id="copy">Kopier</button>
+<label><input id="wrap" type="checkbox"/> Myk linjebryting</label>
+<label><input checked="" id="ln" type="checkbox"/> Linjenummer</label>
+<span id="msg" style="color:var(--muted)"></span>
+</header>
+<main><pre id="code">Laster…</pre></main>
+<script>
+    const qs   = new URL(location.href).searchParams;
+    const src  = qs.get('file') || qs.get('src') || '';
+    const tEl  = document.getElementById('t');
+    const rawA = document.getElementById('raw');
+    const code = document.getElementById('code');
+    const msg  = document.getElementById('msg');
+    const wrapBox = document.getElementById('wrap');
+    const lnBox   = document.getElementById('ln');
+
+    let RAW = '';
+
+    wrapBox.onchange = e => document.body.classList.toggle('wrap', e.target.checked);
+    lnBox.onchange   = () => render(lnBox.checked);
+
+    if (!src) {
+      code.textContent = 'Mangler ?file= i URL-en.\nEksempel: /includes/kodeLesere/codeview.html?file=/sti/fil.cpp';
+    } else {
+      tEl.textContent = decodeURIComponent(src.split('/').pop()) || 'Kildekode';
+      rawA.href = src;
+      fetch(src, {cache:'no-store'})
+        .then(r=>r.text())
+        .then(txt => { RAW = txt; render(true); })
+        .catch(e => { code.textContent = 'Kunne ikke laste '+src+'\n'+e; });
+    }
+
+    document.getElementById('copy').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(RAW);
+        msg.textContent='Kopiert!'; setTimeout(()=>msg.textContent='', 1500);
+      } catch {}
+    };
+
+    function render(withLineNumbers){
+      const html = colorize(RAW, detectLang(src));
+      if (!withLineNumbers){ code.innerHTML = html; return; }
+      const lines = html.split('\n');
+      code.innerHTML = lines
+        .map((ln,i)=>'<span class="ln">'+(i+1)+'</span>'+ln)
+        .join('\n');
+    }
+
+    function detectLang(path){
+      const p = (path||'').toLowerCase();
+      if (/\.(cs)$/.test(p))   return 'cs';
+      if (/\.java$/.test(p))   return 'java';
+      // default "c-family"
+      return 'cxx';
+    }
+
+    // Enkel highlight for C/C++/C#/Java (supersett av keywords)
+    function colorize(src, lang){
+      const esc = s => (s+'').replace(/[&<>]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]));
+      let h = esc(src);
+
+      // Preprocessor (C/C++)
+      h = h.replace(/(^|\n)\s*(#\s*(?:include|define|ifdef|ifndef|endif|pragma)[^\n]*)/g,
+                    (_,p1,p2)=> p1 + '<span class="pp">'+p2+'</span>');
+
+      // Kommentarer // ... og /* ... */
+      h = h.replace(/\/\/[^\n]*/g, m => '<span class="com">'+m+'</span>');
+      h = h.replace(/\/\*[\s\S]*?\*\//g, m => '<span class="com">'+m+'</span>');
+
+      // Strenger og char-litteraler
+      h = h.replace(/'([^'\\]|\\.)'/g, '<span class="str">$&</span>');
+      h = h.replace(/"([^"\\]|\\.)*"/g, '<span class="str">$&</span>');
+
+      // Tall
+      h = h.replace(/\b(0x[\da-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, '<span class="num">$1</span>');
+
+      // Keywords (supersett som dekker C/C++/C#/Java)
+      const KW = new RegExp(
+        '\\b(' + [
+          // kontroll
+          'if','else','for','while','do','switch','case','default','break','continue','return','goto',
+          'try','catch','finally','throw','throws',
+          // typer/lagring
+          'void','bool','char','short','int','long','float','double','signed','unsigned','size_t',
+          'string','var','decimal','auto','const','constexpr','volatile','static','register','extern','mutable',
+          // OOP / språkspesifikt
+          'class','struct','union','enum','interface','extends','implements','namespace','using','template','typename',
+          'public','private','protected','virtual','override','final','abstract','sealed','readonly','friend','operator','this','new','delete',
+          // C#
+          'async','await','Task','ref','out','in','params','is','as','lock','base','nameof',
+          // Java
+          'package','import','super','synchronized','transient','volatile'
+        ].join('|') + ')\\b','g'
+      );
+      h = h.replace(KW, '<span class="kw">$1</span>');
+
+      // Enkle funksjonskall: foo(  /  ns::foo(
+      h = h.replace(/(\b[A-Za-z_]\w*)(\s*\()/g, '<span class="fn">$1</span>$2');
+      h = h.replace(/(::)(\b[A-Za-z_]\w*)(\s*\()/g, '$1<span class="fn">$2</span>$3');
+
+      return h;
+    }
+  </script>
+
+  <script src="/assets/js/theme-switcher.js"></script>
+  <script src="/assets/js/flyout-theme-updater.js"></script>  <script src="/includes/mobile-enhancer.js"></script>
+</body>
+</html>

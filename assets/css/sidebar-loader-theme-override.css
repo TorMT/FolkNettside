@@ -1,0 +1,170 @@
+/* ============================================================================
+   sidebar-loader-theme-override.css
+   ============================================================================
+   
+   Overskriver hardkodede farger fra sidebar-loader.js med theme-variabler
+   
+   BRUK: Inkluder ETTER themes.css i <head>:
+   <link rel="stylesheet" href="/assets/css/themes.css">
+   <link rel="stylesheet" href="/assets/css/sidebar-flyout-fix.css">
+   <link rel="stylesheet" href="/assets/css/sidebar-loader-theme-override.css">
+   
+============================================================================ */
+
+/* ===== BODY & HTML ===== */
+html, body {
+  background: var(--bg-alt, #f6f7fa) !important;
+  color: var(--text-main, #1a202c) !important;
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  background: var(--sidebar-bg, #2c3e50) !important;
+  color: var(--sidebar-text, #ffffff) !important;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.sidebar h3 {
+  color: var(--sidebar-text, #ffffff) !important;
+}
+
+/* ===== DROPDOWN BUTTONS ===== */
+.dropdown-btn {
+  color: var(--sidebar-text, #ffffff) !important;
+  transition: background 0.2s ease;
+}
+
+.dropdown-btn:hover {
+  background: var(--sidebar-hover, rgba(255,255,255,0.1)) !important;
+}
+
+.dropdown-oving.active > .dropdown-btn {
+  background: var(--sidebar-hover, rgba(255,255,255,0.15)) !important;
+}
+
+/* ===== FLYOUT (DROPDOWN CONTENT) ===== */
+@media (min-width: 769px) {
+  .sidebar .dropdown-content,
+  .nested-flyout {
+    background: var(--sidebar-bg, #2c3e50) !important;
+    color: var(--sidebar-text, #ffffff) !important;
+    box-shadow: var(--shadow-lg, 0 10px 15px rgba(0,0,0,0.1)) !important;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  
+  .sidebar .dropdown-content a,
+  .nested-flyout a,
+  .nested-folder-item {
+    color: var(--sidebar-text, #ffffff) !important;
+    transition: background 0.2s ease;
+  }
+  
+  .sidebar .dropdown-content a:hover,
+  .nested-flyout a:hover,
+  .nested-folder-item:hover {
+    background: var(--sidebar-hover, rgba(255,255,255,0.1)) !important;
+  }
+}
+
+/* ===== WRAPPER & CONTENT ===== */
+.wrapper {
+  background: var(--bg-main, #ffffff) !important;
+  transition: background 0.3s ease;
+}
+
+.content {
+  background: var(--bg-main, #ffffff) !important;
+  color: var(--text-main, #1a202c) !important;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.content h1 {
+  color: var(--primary, #004f9f) !important;
+  transition: color 0.3s ease;
+}
+
+.course-description {
+  color: var(--text-secondary, #4a5568) !important;
+}
+
+/* ===== PDF VIEWER CONTAINER ===== */
+#pdf-viewer-container {
+  background: var(--bg-alt, #f6f7fa) !important;
+  transition: background 0.3s ease;
+}
+
+/* ===== RESIZE HANDLE ===== */
+#pdf-viewer-resize {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--border-color, #e5e5e5) 0 16px,
+    var(--border-hover, #d4d4d4) 16px 32px
+  ) !important;
+  border-color: var(--border-color, #cfcfcf) !important;
+}
+
+/* ===== ERROR MESSAGES ===== */
+.msg {
+  background: #fdecec !important;
+  color: #932323 !important;
+  border: 1px solid #f2bbbb !important;
+}
+
+/* ===== NAVBAR DROPDOWNS (hvis de bruker hardkodede farger) ===== */
+.navbar .dropdown-content {
+  background: var(--navbar-bg, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+  color: var(--navbar-text, #ffffff) !important;
+}
+
+.navbar .dropdown-content a {
+  color: var(--navbar-text, #ffffff) !important;
+}
+
+.navbar .dropdown-content a:hover {
+  background: var(--navbar-hover, rgba(255,255,255,0.1)) !important;
+}
+
+/* ===== THEME-SPECIFIC OVERRIDES ===== */
+
+/* Dark theme */
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] .sidebar .dropdown-content {
+  background: var(--sidebar-bg, #1e293b) !important;
+}
+
+/* Forest theme */
+[data-theme="forest"] .sidebar,
+[data-theme="forest"] .sidebar .dropdown-content {
+  background: var(--sidebar-bg, #065f46) !important;
+}
+
+/* Sunset theme */
+[data-theme="sunset"] .sidebar,
+[data-theme="sunset"] .sidebar .dropdown-content {
+  background: var(--sidebar-bg, #991b1b) !important;
+}
+
+/* Ocean theme */
+[data-theme="ocean"] .sidebar,
+[data-theme="ocean"] .sidebar .dropdown-content {
+  background: var(--sidebar-bg, #164e63) !important;
+}
+
+/* Purple theme */
+[data-theme="purple"] .sidebar,
+[data-theme="purple"] .sidebar .dropdown-content {
+  background: var(--sidebar-bg, #581c87) !important;
+}
+
+/* Minimal theme */
+[data-theme="minimal"] .sidebar,
+[data-theme="minimal"] .sidebar .dropdown-content {
+  background: var(--sidebar-bg, #18181b) !important;
+  border-color: var(--sidebar-border, #27272a) !important;
+}
+
+/* NTNU theme */
+[data-theme="ntnu"] .sidebar,
+[data-theme="ntnu"] .sidebar .dropdown-content {
+  background: var(--sidebar-bg, #003d7a) !important;
+}

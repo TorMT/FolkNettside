@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>STL Viewer</title>
+
+<style>
+  :root{
+    --bg-main: var(--bg, #ffffff);
+    --bg-card: var(--card-bg, #f7f8fb);
+    --text-main: var(--text, #111827);
+    --text-muted: rgba(17,24,39,.60);
+    --border-color: rgba(17,24,39,.14);
+    --primary: var(--theme-accent, var(--accent, #2f6fed));
+    --primary-contrast: #fff;
+    --shadow: 0 12px 26px -14px rgba(0,0,0,.35);
+    --shadow-soft: 0 8px 18px -12px rgba(0,0,0,.25);
+    --radius: 16px;
+    --radius-sm: 12px;
+  }
+
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-family: system-ui, Segoe UI, Arial;
+  }
+  canvas{ display:block; }
+
+  #hud{
+    position:fixed; left:12px; top:12px; z-index:80;
+    background: var(--bg-card);
+    border:1px solid var(--border-color);
+    box-shadow: var(--shadow-soft);
+    padding:10px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    line-height: 1.35;
+    max-width: min(980px, 92vw);
+  }
+  #hud small{ color: var(--text-muted); }
+
+  #uiWrap{
+    position:fixed; left:50%; transform:translateX(-50%);
+    top: 8px; z-index:85;
+    width: min(1240px, calc(100vw - 24px));
+    pointer-events:none;
+  }
+
+  #toolbar{
+    pointer-events:auto;
+    background: var(--bg-card);
+    border:1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    border-radius: var(--radius);
+    padding:10px 12px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:10px;
+  }
+
+  .sep{
+    width:1px; height:30px;
+    background: var(--border-color);
+    margin:0 4px;
+    opacity:.9;
+  }
+
+  .btn{
+    appearance:none;
+    border:1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-main) 70%, var(--bg-card) 30%);
+    color: var(--text-main);
+    border-radius: 999px;
+    padding:8px 12px;
+    font-size: 13px;
+    font-weight: 900;
+    cursor:pointer;
+    user-select:none;
+    white-space:nowrap;
+    transition: transform .06s ease, filter .15s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:hover{ filter: brightness(0.98); border-color: color-mix(in srgb, var(--border-color) 70%, var(--text-main) 30%); }
+  .btn:active{ transform: translateY(1px); }
+
+  .btn.primary{
+    background: var(--primary);
+    color: var(--primary-contrast);
+    border-color: color-mix(in srgb, var(--primary) 72%, #000 28%);
+  }
+  .btn.primary:hover{ filter: brightness(0.96); }
+
+  .btn.ghost{
+    background: transparent;
+    color: var(--text-main);
+  }
+  .btn.ghost:hover{
+    background: color-mix(in srgb, var(--bg-card) 70%, var(--bg-main) 30%);
+  }
+
+  .dd{ position:relative; }
+  .btn.ddBtn{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-weight:950;
+  }
+  .ddBtn .pill{
+    font-weight:900;
+    font-size:12px;
+    color: var(--text-muted);
+    border:1px solid var(--border-color);
+    padding:4px 8px;
+    border-radius:999px;
+    background: transparent;
+  }
+  .ddBtn .caret{ opacity:.7; font-size:12px; transform: translateY(1px); }
+
+  .menu{
+    position:absolute;
+    top: calc(100% + 10px);
+    left:0;
+    min-width: 360px;
+    max-width: min(720px, 92vw);
+    background: var(--bg-main);
+    border:1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    border-radius: var(--radius);
+    padding:12px;
+    display:none;
+    z-index:300;
+  }
+  .menu.open{ display:block; }
+
+  .menu h4{
+    margin:0 0 8px 0;
+    font-size: 13px;
+    font-weight: 950;
+    letter-spacing:.2px;
+  }
+  .muted{ color: var(--text-muted); font-size:12px; }
+
+  .row{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px;
+    padding:8px 6px;
+    border-radius: 12px;
+  }
+  .row:hover{ background: rgba(0,0,0,0.03); }
+
+  label.chk{
+    display:flex; align-items:center; gap:10px;
+    cursor:pointer;
+    user-select:none;
+    font-weight: 900;
+    font-size: 13px;
+  }
+
+  input[type="checkbox"]{ width:18px; height:18px; accent-color: var(--primary); }
+  input[type="range"]{ width: 190px; accent-color: var(--primary); }
+  input[type="color"]{
+    width:44px; height:34px;
+    border-radius: 12px;
+    border:1px solid var(--border-color);
+    background: transparent;
+    padding:3px;
+    cursor:pointer;
+  }
+  select, input[type="number"]{
+    border:1px solid var(--border-color);
+    background: var(--bg-main);
+    color: var(--text-main);
+    border-radius: 12px;
+    padding:8px 10px;
+    font-weight: 900;
+    font-size: 13px;
+    outline:none;
+  }
+
+  .val{ font-weight: 950; font-variant-numeric: tabular-nums; }
+
+  hr.sepLine{
+    border:none;
+    border-top:1px solid var(--border-color);
+    margin:10px 0;
+    opacity:.9;
+  }
+
+  .grid3{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap:10px;
+  }
+
+  .helpWrap{
+    display:grid;
+    grid-template-columns: 180px 1fr;
+    gap:12px;
+    align-items:start;
+  }
+  .helpSide{
+    border:1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--bg-card);
+    padding:8px;
+  }
+  .helpSide button{
+    width:100%;
+    text-align:left;
+    border-radius: 12px;
+    padding:10px 10px;
+    margin:4px 0;
+  }
+  .helpSide button.active{
+    outline: 2px solid rgba(0,0,0,0.10);
+  }
+  .helpMain{
+    border:1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--bg-main);
+    padding:12px 12px;
+  }
+  .helpMain h3{ margin:0 0 8px 0; font-size: 14px; font-weight: 950; }
+  .helpMain p{ margin:8px 0; line-height:1.45; }
+
+  #btnMobileMenu{ display:none; }
+  @media (max-width: 780px){
+    #btnMobileMenu{ display:inline-flex; }
+    .hideOnMobile{ display:none; }
+    #uiWrap{ width: calc(100vw - 16px); }
+    .menu{
+      left:0; right:0;
+      width: calc(100vw - 24px);
+      min-width: unset;
+      max-height: min(70vh, 620px);
+      overflow:auto;
+    }
+    input[type="range"]{ width: 160px; }
+    .helpWrap{ grid-template-columns: 1fr; }
+    .helpSide{ display:flex; gap:8px; overflow:auto; }
+    .helpSide button{ white-space:nowrap; width:auto; }
+  }
+</style>
+</head>
+
+<body>
+  <div id="hud">Laster STL…</div>
+
+  <div id="uiWrap">
+    <div id="toolbar">
+      <button id="btnMobileMenu" class="btn ghost" title="Vis/skjul meny">☰ Menu</button>
+
+      <div class="group">
+        <button id="btnFit" class="btn primary">Fit</button>
+        <button id="btnReset" class="btn primary">Reset</button>
+        <button id="btnZoomIn" class="btn primary" title="Zoom inn">Zoom+</button>
+        <button id="btnZoomOut" class="btn primary" title="Zoom ut">Zoom-</button>
+        <button id="btnDownload" class="btn primary">Last ned</button>
+      </div>
+
+      <div class="sep hideOnMobile"></div>
+
+      <div class="dd" data-menu="alignMenu">
+        <button class="btn ddBtn"><span>Align</span><span class="pill">import</span><span class="caret">▼</span></button>
+        <div class="menu" id="alignMenu">
+          <h4>Orientering</h4>
+          <div class="muted">“Import har ingen fast rotasjon. Bruk Auto Align / Swap ved behov.”</div>
+          <div class="row">
+            <button class="btn primary" id="btnAutoAlign">Auto (Boat)</button>
+            <button class="btn" id="btnAlignReset">Reset align</button>
+          </div>
+          <hr class="sepLine">
+          <h4>Hurtig-fiks</h4>
+          <div class="grid3">
+            <button class="btn" id="btnSwapYZ">Swap Y/Z</button>
+            <button class="btn" id="btnSwapXZ">Swap X/Z</button>
+            <button class="btn" id="btnSwapXY">Swap X/Y</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="viewMenu">
+        <button class="btn ddBtn"><span>View</span><span class="pill">kamera</span><span class="caret">▼</span></button>
+        <div class="menu" id="viewMenu">
+          <h4>Kamera</h4>
+          <div class="row">
+            <div><div class="val">Preset</div><div class="muted">Rask visning</div></div>
+            <select id="selView">
+              <option value="iso" selected>Isometrisk</option>
+              <option value="front">Front</option>
+              <option value="back">Bak</option>
+              <option value="left">Venstre</option>
+              <option value="right">Høyre</option>
+              <option value="top">Topp</option>
+              <option value="bottom">Bunn</option>
+            </select>
+          </div>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkAuto"> Auto-rotate</label>
+            <select id="selAutoSpeed">
+              <option value="0.5">x0.5</option>
+              <option value="1" selected>x1</option>
+              <option value="2">x2</option>
+              <option value="3">x3</option>
+            </select>
+          </div>
+          <hr class="sepLine">
+          <h4>Hjelpere</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkAxes"> Vis XYZ-akse</label>
+          </div>
+          <hr class="sepLine">
+          <h4>Roter modell</h4>
+          <div class="grid3">
+            <select id="selRotAxis">
+              <option value="x">X</option>
+              <option value="y">Y</option>
+              <option value="z" selected>Z</option>
+            </select>
+            <select id="selRotStep">
+              <option value="90" selected>90°</option>
+              <option value="180">180°</option>
+              <option value="270">270°</option>
+            </select>
+            <button class="btn" id="btnRotApply">Roter</button>
+          </div>
+          <div class="row">
+            <button class="btn" id="btnRotZero">Nullstill rotasjon</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="renderMenu">
+        <button class="btn ddBtn"><span>Render</span><span class="pill">visning</span><span class="caret">▼</span></button>
+        <div class="menu" id="renderMenu">
+          <h4>Visning</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkWire"> Wireframe</label>
+            <label class="chk"><input type="checkbox" id="chkEdges" checked> Edges</label>
+          </div>
+          <div class="row">
+            <div><div class="val">Shading</div></div>
+            <select id="selShade">
+              <option value="smooth" selected>Smooth</option>
+              <option value="flat">Flat</option>
+            </select>
+          </div>
+          <div class="row">
+            <div><div class="val">Opacity</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngOpacity" min="0.05" max="1" step="0.05" value="1">
+              <span class="val" id="txtOpacity">1.00</span>
+            </div>
+          </div>
+          <hr class="sepLine">
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkBBox"> Bounding box</label>
+            <input type="color" id="colBBox" value="#111111">
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="lookMenu">
+        <button class="btn ddBtn"><span>Look</span><span class="pill">farger</span><span class="caret">▼</span></button>
+        <div class="menu" id="lookMenu">
+          <h4>Farger</h4>
+          <div class="row">
+            <div><div class="val">Bakgrunn</div></div>
+            <input type="color" id="colBg" value="#ffffff">
+          </div>
+          <div class="row">
+            <div><div class="val">Modellfarge</div></div>
+            <input type="color" id="colModel" value="#5da9ff">
+          </div>
+          <div class="row">
+            <button class="btn" id="btnUseThemeColor">Bruk theme-farge</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="toolsMenu">
+        <button class="btn ddBtn"><span>Tools</span><span class="pill">clip</span><span class="caret">▼</span></button>
+        <div class="menu" id="toolsMenu">
+          <h4>Cutaway</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkClip"> Cutaway</label>
+            <label class="chk"><input type="checkbox" id="chkClipInv"> invert</label>
+          </div>
+          <div class="row">
+            <div><div class="val">Axis</div></div>
+            <select id="selClipAxis">
+              <option value="x" selected>X</option>
+              <option value="y">Y</option>
+              <option value="z">Z</option>
+            </select>
+          </div>
+          <div class="row">
+            <div><div class="val">Offset</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngClip" min="-1" max="1" step="0.01" value="0">
+              <span class="val" id="txtClip">0.00</span>
+            </div>
+          </div>
+          <hr class="sepLine">
+          <h4>Enheter</h4>
+          <div class="row">
+            <div><div class="val">Units</div></div>
+            <select id="selUnits">
+              <option value="units" selected>units</option>
+              <option value="mm">mm (1u=1m)</option>
+              <option value="cm">cm (1u=1m)</option>
+              <option value="m">m (1u=1m)</option>
+              <option value="inch">inch (1u=1m)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="infoMenu">
+        <button class="btn ddBtn"><span>Info</span><span class="pill">CG/CB</span><span class="caret">▼</span></button>
+        <div class="menu" id="infoMenu">
+          <h4>Geometri</h4>
+          <div class="row">
+            <div><div class="val">Dims (L/B/H)</div></div>
+            <div class="val" id="txtDims">—</div>
+          </div>
+          <div class="row">
+            <div><div class="val">Volum (totalt)</div></div>
+            <div class="val" id="txtVol">—</div>
+          </div>
+          <div class="row">
+            <div><div class="val">Tyngdepunkt (CG)</div></div>
+            <div class="val" id="txtCG">—</div>
+          </div>
+          <hr class="sepLine">
+          <h4>Hydro (world-plan)</h4>
+          <div class="row">
+            <div><div class="val">Submerged volum</div></div>
+            <div class="val" id="txtSubV">—</div>
+          </div>
+          <div class="row">
+            <div><div class="val">Deplasement</div></div>
+            <div class="val" id="txtDisp">—</div>
+          </div>
+          <div class="row">
+            <div><div class="val">Oppdriftspunkt (CB)</div></div>
+            <div class="val" id="txtCB">—</div>
+          </div>
+          <div class="row">
+            <div><div class="val">Kvalitet</div></div>
+            <select id="selHydroQ">
+              <option value="low">Low</option>
+              <option value="med" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="row">
+            <button class="btn" id="btnRecalc">Recalc nå</button>
+            <span class="muted" id="txtHydroStatus">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="hydroMenu">
+        <button class="btn ddBtn"><span>Hydro</span><span class="pill">vannlinje</span><span class="caret">▼</span></button>
+        <div class="menu" id="hydroMenu">
+          <h4>Vannlinje (world)</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkWL"> Vis vannlinje</label>
+          </div>
+          <div class="row">
+            <div><div class="val">Draft</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngDraft" min="0" max="1" step="0.001" value="0">
+              <span class="val" id="txtDraft">—</span>
+            </div>
+          </div>
+          <hr class="sepLine">
+          <h4>Markører</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkShowCG" checked> Vis CG</label>
+            <label class="chk"><input type="checkbox" id="chkShowCB" checked> Vis CB</label>
+          </div>
+          <hr class="sepLine">
+          <h4>Trim / Heel</h4>
+          <div class="row">
+            <div><div class="val">Trim</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngTrim" min="-20" max="20" step="0.1" value="0">
+              <span class="val" id="txtTrim">0.0°</span>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="val">Heel</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngHeel" min="-45" max="45" step="0.1" value="0">
+              <span class="val" id="txtHeel">0.0°</span>
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn" id="btnHydroZero">Nullstill trim/heel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="exportMenu">
+        <button class="btn ddBtn"><span>Export</span><span class="pill">png</span><span class="caret">▼</span></button>
+        <div class="menu" id="exportMenu">
+          <h4>Snapshot</h4>
+          <div class="row">
+            <div><div class="val">Oppløsning</div></div>
+            <select id="selSnapScale">
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+          </div>
+          <div class="row">
+            <button class="btn primary" id="btnSnap">Lagre PNG</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="helpMenu">
+        <button class="btn ddBtn"><span>Help</span><span class="pill">guide</span><span class="caret">▼</span></button>
+        <div class="menu" id="helpMenu">
+          <h4>STL Viewer – guide</h4>
+          <div class="helpWrap">
+            <div class="helpSide" id="helpSide">
+              <button class="btn active" data-help="basic">Basic</button>
+              <button class="btn" data-help="align">Align</button>
+              <button class="btn" data-help="hydro">Hydro</button>
+              <button class="btn" data-help="tools">Tools</button>
+              <button class="btn" data-help="render">Render</button>
+            </div>
+            <div class="helpMain" id="helpMain"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import { STLViewerCore } from "/includes/three/STLViewerCore.js";
+    import { HydroStatikk } from "/includes/three/HydroStatikk.js";
+    import { AlignHelpers } from "/includes/three/AlignHelpers.js";
+    import { ClippingController } from "/includes/three/ClippingController.js";
+    import { UIController } from "/includes/three/UIController.js";
+
+    // === Initialize ===
+    const ui = new UIController();
+    const core = new STLViewerCore(document.body);
+    const hydro = new HydroStatikk(core);
+    const clipper = new ClippingController(core);
+
+    // Register UI elements
+    const IDS = {
+      hud: "hud",
+      btnFit: "btnFit", btnReset: "btnReset", btnDownload: "btnDownload",
+      btnZoomIn: "btnZoomIn", btnZoomOut: "btnZoomOut",
+      btnMobileMenu: "btnMobileMenu", btnSnap: "btnSnap",
+      btnAutoAlign: "btnAutoAlign", btnAlignReset: "btnAlignReset",
+      btnSwapYZ: "btnSwapYZ", btnSwapXZ: "btnSwapXZ", btnSwapXY: "btnSwapXY",
+      selView: "selView", chkAuto: "chkAuto", selAutoSpeed: "selAutoSpeed",
+      selRotAxis: "selRotAxis", selRotStep: "selRotStep", btnRotApply: "btnRotApply",
+      btnRotZero: "btnRotZero", chkAxes: "chkAxes",
+      chkWire: "chkWire", chkEdges: "chkEdges", selShade: "selShade",
+      rngOpacity: "rngOpacity", txtOpacity: "txtOpacity",
+      colBg: "colBg", colModel: "colModel", btnUseThemeColor: "btnUseThemeColor",
+      chkBBox: "chkBBox", colBBox: "colBBox",
+      chkClip: "chkClip", chkClipInv: "chkClipInv", selClipAxis: "selClipAxis",
+      rngClip: "rngClip", txtClip: "txtClip",
+      selUnits: "selUnits",
+      chkWL: "chkWL", rngDraft: "rngDraft", txtDraft: "txtDraft",
+      rngTrim: "rngTrim", txtTrim: "txtTrim",
+      rngHeel: "rngHeel", txtHeel: "txtHeel",
+      btnHydroZero: "btnHydroZero",
+      txtDims: "txtDims", txtVol: "txtVol", txtCG: "txtCG",
+      txtSubV: "txtSubV", txtDisp: "txtDisp", txtCB: "txtCB",
+      selHydroQ: "selHydroQ", btnRecalc: "btnRecalc", txtHydroStatus: "txtHydroStatus",
+      chkShowCG: "chkShowCG", chkShowCB: "chkShowCB",
+      helpSide: "helpSide", helpMain: "helpMain"
+    };
+
+    Object.keys(IDS).forEach(key => ui.register(key, IDS[key]));
+
+    // === Units ===
+    let unitLabel = "units";
+    function unitFactor() {
+      const sel = ui.getValue("selUnits");
+      if (sel === "mm") return 1000;
+      if (sel === "cm") return 100;
+      if (sel === "m") return 1;
+      if (sel === "inch") return 39.3700787;
+      return 1;
+    }
+    function updateUnitLabel() {
+      const sel = ui.getValue("selUnits");
+      unitLabel = (sel === "units") ? "units" : sel;
+    }
+
+    // === Update Info UI ===
+    function updateInfoUI() {
+      if (!core.mesh) return;
+      updateUnitLabel();
+
+      const { size } = core.computeBoundsWorld(core.modelGroup);
+      const f = unitFactor();
+      ui.setText("txtDims", `${(size.x*f).toFixed(2)} / ${(size.y*f).toFixed(2)} / ${(size.z*f).toFixed(2)} ${unitLabel}`);
+
+      if (core.totalVolume != null) {
+        const Vdisp = core.totalVolume * Math.pow(f, 3);
+        const Vu = unitLabel === "mm" ? "mm³" : unitLabel === "cm" ? "cm³" : unitLabel === "inch" ? "in³" : unitLabel === "m" ? "m³" : "u³";
+        ui.setText("txtVol", `${Vdisp.toExponential(3)} ${Vu}`);
+      }
+
+      if (core.totalCentroidLocal) {
+        const cgW = core.localToWorldPoint(core.totalCentroidLocal);
+        ui.setText("txtCG", ui.formatVector(cgW, f, unitLabel));
+      }
+    }
+
+    // === Update Hydro UI ===
+    function updateHydroUI() {
+      updateUnitLabel();
+      const f = unitFactor();
+      const Vu = unitLabel === "mm" ? "mm³" : unitLabel === "cm" ? "cm³" : unitLabel === "inch" ? "in³" : unitLabel === "m" ? "m³" : "u³";
+
+      const results = hydro.getLastResults();
+      
+      if (results.subV != null) {
+        const Vdisp = results.subV * Math.pow(f, 3);
+        ui.setText("txtSubV", `${Vdisp.toExponential(3)} ${Vu}`);
+        ui.setText("txtDisp", `${Vdisp.toExponential(3)} ${Vu}`);
+      }
+
+      if (results.cbW) {
+        ui.setText("txtCB", ui.formatVector(results.cbW, f, unitLabel));
+      }
+
+      ui.setText("txtHydroStatus", hydro.isBusy() ? "beregner…" : "ok");
+    }
+
+    // === Align ===
+    function applyAlign(quat) {
