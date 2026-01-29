@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "[hooks] pre-push hook disabled — to enable, restore scripts/git-hooks/pre-push from VCS"
+exit 0
+

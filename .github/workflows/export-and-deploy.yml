@@ -1,0 +1,26 @@
+name: Disabled — export-and-deploy (manual)
+
+# This workflow was disabled from running on push to avoid automatically
+# publishing the export/ folder. It can be triggered manually from Actions
+# if you want to run the export+deploy process.
+on:
+  workflow_dispatch:
+
+jobs:
+  manual-export-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Run export script
+        run: |
+          python scripts/export_repo.py
+      - name: Deploy `export/` to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./export
+          publish_branch: gh-pages

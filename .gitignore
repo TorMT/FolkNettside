@@ -1,6 +1,13 @@
-# ignore local and large data
+## Local and generated data (merged)
+# Ignore export/ (we deploy from CI) and other local data
+export/
+
 semestre/
 temp/
 diverse/
 *.bak
 index.json
+
+# Personal or local folders not to push
+kontakt/
+om/

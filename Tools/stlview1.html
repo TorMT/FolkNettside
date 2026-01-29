@@ -1,0 +1,1804 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>STL Viewer</title>
+
+<style>
+  :root{
+    /* === Theme tokens (fallbacks) === */
+    --bg-main:      var(--bg, #ffffff);
+    --bg-card:      var(--card-bg, #f7f8fb);
+    --text-main:    var(--text, #111827);
+    --text-muted:   rgba(17,24,39,.60);
+    --border-color: rgba(17,24,39,.14);
+
+    --primary:      var(--theme-accent, var(--accent, #2f6fed));
+    --primary-contrast: #fff;
+
+    --shadow: 0 12px 26px -14px rgba(0,0,0,.35);
+    --shadow-soft: 0 8px 18px -12px rgba(0,0,0,.25);
+    --radius: 16px;
+    --radius-sm: 12px;
+
+    --stl-ui-top: 0px;
+  }
+
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-family: system-ui, Segoe UI, Arial;
+  }
+  canvas{ display:block; }
+
+  /* HUD */
+  #hud{
+    position:fixed;
+    left:12px;
+    top:12px;
+    z-index:80;
+    background: var(--bg-card);
+    border:1px solid var(--border-color);
+    box-shadow: var(--shadow-soft);
+    padding:10px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    line-height: 1.35;
+    max-width: min(980px, 92vw);
+  }
+  #hud small{ color: var(--text-muted); }
+
+  /* Toolbar wrap */
+  #uiWrap{
+    position:fixed;
+    left:50%;
+    transform:translateX(-50%);
+    top: 8px;                 /* <- helt opp */
+    z-index:85;
+    width: min(1240px, calc(100vw - 24px));
+    pointer-events:none;
+  }
+
+  #toolbar{
+    pointer-events:auto;
+    background: var(--bg-card);
+    border:1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    border-radius: var(--radius);
+    padding:10px 12px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:10px;
+  }
+
+  .sep{
+    width:1px; height:30px;
+    background: var(--border-color);
+    margin:0 4px;
+    opacity:.9;
+  }
+
+  /* =============================
+     BUTTONS (ikke hvite, theme-aware)
+     ============================= */
+  .btn{
+    appearance:none;
+    border:1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-main) 70%, var(--bg-card) 30%);
+    color: var(--text-main);
+    border-radius: 999px;
+    padding:8px 12px;
+    font-size: 13px;
+    font-weight: 900;
+    cursor:pointer;
+    user-select:none;
+    white-space:nowrap;
+    transition: transform .06s ease, filter .15s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:hover{ filter: brightness(0.98); border-color: color-mix(in srgb, var(--border-color) 70%, var(--text-main) 30%); }
+  .btn:active{ transform: translateY(1px); }
+
+  .btn.primary{
+    background: var(--primary);
+    color: var(--primary-contrast);
+    border-color: color-mix(in srgb, var(--primary) 72%, #000 28%);
+  }
+  .btn.primary:hover{ filter: brightness(0.96); }
+
+  .btn.ghost{
+    background: transparent;
+    color: var(--text-main);
+  }
+  .btn.ghost:hover{
+    background: color-mix(in srgb, var(--bg-card) 70%, var(--bg-main) 30%);
+  }
+
+  /* Dropdown button */
+  .dd{ position:relative; }
+  .btn.ddBtn{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-weight:950;
+  }
+  .ddBtn .pill{
+    font-weight:900;
+    font-size:12px;
+    color: var(--text-muted);
+    border:1px solid var(--border-color);
+    padding:4px 8px;
+    border-radius:999px;
+    background: transparent;
+  }
+  .ddBtn .caret{ opacity:.7; font-size:12px; transform: translateY(1px); }
+
+  .menu{
+    position:absolute;
+    top: calc(100% + 10px);
+    left:0;
+    min-width: 360px;
+    max-width: min(720px, 92vw);
+    background: var(--bg-main);
+    border:1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    border-radius: var(--radius);
+    padding:12px;
+    display:none;
+    z-index:300;
+  }
+  .menu.open{ display:block; }
+
+  .menu h4{
+    margin:0 0 8px 0;
+    font-size: 13px;
+    font-weight: 950;
+    letter-spacing:.2px;
+  }
+  .muted{ color: var(--text-muted); font-size:12px; }
+
+  .row{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px;
+    padding:8px 6px;
+    border-radius: 12px;
+  }
+  .row:hover{ background: rgba(0,0,0,0.03); }
+
+  label.chk{
+    display:flex; align-items:center; gap:10px;
+    cursor:pointer;
+    user-select:none;
+    font-weight: 900;
+    font-size: 13px;
+  }
+
+  input[type="checkbox"]{ width:18px; height:18px; accent-color: var(--primary); }
+  input[type="range"]{ width: 190px; accent-color: var(--primary); }
+
+  input[type="color"]{
+    width:44px; height:34px;
+    border-radius: 12px;
+    border:1px solid var(--border-color);
+    background: transparent;
+    padding:3px;
+    cursor:pointer;
+  }
+  select, input[type="number"]{
+    border:1px solid var(--border-color);
+    background: var(--bg-main);
+    color: var(--text-main);
+    border-radius: 12px;
+    padding:8px 10px;
+    font-weight: 900;
+    font-size: 13px;
+    outline:none;
+  }
+
+  .val{ font-weight: 950; font-variant-numeric: tabular-nums; }
+
+  hr.sepLine{
+    border:none;
+    border-top:1px solid var(--border-color);
+    margin:10px 0;
+    opacity:.9;
+  }
+
+  .grid3{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap:10px;
+  }
+
+  .helpWrap{
+    display:grid;
+    grid-template-columns: 180px 1fr;
+    gap:12px;
+    align-items:start;
+  }
+  .helpSide{
+    border:1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--bg-card);
+    padding:8px;
+  }
+  .helpSide button{
+    width:100%;
+    text-align:left;
+    border-radius: 12px;
+    padding:10px 10px;
+    margin:4px 0;
+  }
+  .helpSide button.active{
+    outline: 2px solid rgba(0,0,0,0.10);
+  }
+  .helpMain{
+    border:1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--bg-main);
+    padding:12px 12px;
+  }
+  .helpMain h3{ margin:0 0 8px 0; font-size: 14px; font-weight: 950; }
+  .helpMain p{ margin:8px 0; line-height:1.45; }
+
+  #btnMobileMenu{ display:none; }
+  @media (max-width: 780px){
+    #btnMobileMenu{ display:inline-flex; }
+    .hideOnMobile{ display:none; }
+    #uiWrap{ width: calc(100vw - 16px); }
+    .menu{
+      left:0; right:0;
+      width: calc(100vw - 24px);
+      min-width: unset;
+      max-height: min(70vh, 620px);
+      overflow:auto;
+    }
+    input[type="range"]{ width: 160px; }
+    .helpWrap{ grid-template-columns: 1fr; }
+    .helpSide{ display:flex; gap:8px; overflow:auto; }
+    .helpSide button{ white-space:nowrap; width:auto; }
+  }
+</style>
+</head>
+
+<body>
+  <div id="hud">Laster STL…</div>
+
+  <div id="uiWrap">
+    <div id="toolbar">
+      <button id="btnMobileMenu" class="btn ghost" title="Vis/skjul meny">☰ Menu</button>
+
+      <div class="group">
+        <button id="btnFit" class="btn primary">Fit</button>
+        <button id="btnReset" class="btn primary">Reset</button>
+
+        <button id="btnZoomIn" class="btn primary" title="Zoom inn">Zoom+</button>
+        <button id="btnZoomOut" class="btn primary" title="Zoom ut">Zoom-</button>
+
+        <button id="btnDownload" class="btn primary">Last ned</button>
+      </div>
+
+      <div class="sep hideOnMobile"></div>
+
+      <div class="dd" data-menu="alignMenu">
+        <button class="btn ddBtn"><span>Align</span><span class="pill">import</span><span class="caret">▼</span></button>
+        <div class="menu" id="alignMenu">
+          <h4>Orientering</h4>
+          <div class="muted">Import har fast <b>-90° X</b> for å rette STL’en. Deretter kan du Auto Align (Boat) eller hurtig-swap.</div>
+
+          <div class="row">
+            <button class="btn primary" id="btnAutoAlign">Auto (Boat)</button>
+            <button class="btn" id="btnAlignReset">Reset align</button>
+          </div>
+
+          <hr class="sepLine">
+
+          <h4>Hurtig-fiks</h4>
+          <div class="grid3">
+            <button class="btn" id="btnSwapYZ">Swap Y/Z</button>
+            <button class="btn" id="btnSwapXZ">Swap X/Z</button>
+            <button class="btn" id="btnSwapXY">Swap X/Y</button>
+          </div>
+
+          <div class="row">
+            <div class="muted">Tips: Hvis den fortsatt ligger feil, prøv swap-knappene.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="viewMenu">
+        <button class="btn ddBtn"><span>View</span><span class="pill">kamera</span><span class="caret">▼</span></button>
+        <div class="menu" id="viewMenu">
+          <h4>Kamera</h4>
+          <div class="row">
+            <div>
+              <div class="val">Preset</div>
+              <div class="muted">Rask visning</div>
+            </div>
+            <select id="selView">
+              <option value="iso" selected>Isometrisk</option>
+              <option value="front">Front</option>
+              <option value="back">Bak</option>
+              <option value="left">Venstre</option>
+              <option value="right">Høyre</option>
+              <option value="top">Topp</option>
+              <option value="bottom">Bunn</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkAuto"> Auto-rotate</label>
+            <select id="selAutoSpeed">
+              <option value="0.5">x0.5</option>
+              <option value="1" selected>x1</option>
+              <option value="2">x2</option>
+              <option value="3">x3</option>
+            </select>
+          </div>
+
+          <hr class="sepLine">
+
+          <h4>Hjelpere</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkAxes"> Vis XYZ-akse</label>
+            <span class="muted">viser retning</span>
+          </div>
+
+          <hr class="sepLine">
+
+          <h4>Roter modell</h4>
+          <div class="muted" style="margin-bottom:8px;">Roterer modellen (ikke kamera). Hydro bruker <b>world vannplan</b>.</div>
+
+          <div class="grid3">
+            <select id="selRotAxis">
+              <option value="x">X</option>
+              <option value="y">Y</option>
+              <option value="z" selected>Z</option>
+            </select>
+            <select id="selRotStep">
+              <option value="90" selected>90°</option>
+              <option value="180">180°</option>
+              <option value="270">270°</option>
+            </select>
+            <button class="btn" id="btnRotApply">Roter</button>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Fri vinkel</div>
+              <div class="muted">grader</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="number" id="numRotDeg" value="0" step="1" style="width:110px;">
+              <button class="btn" id="btnRotApplyFree">Apply</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <button class="btn" id="btnRotZero">Nullstill rotasjon</button>
+            <span class="muted">setter rot = 0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="renderMenu">
+        <button class="btn ddBtn"><span>Render</span><span class="pill">visning</span><span class="caret">▼</span></button>
+        <div class="menu" id="renderMenu">
+          <h4>Visning</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkWire"> Wireframe</label>
+            <label class="chk"><input type="checkbox" id="chkEdges" checked> Edges</label>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Shading</div>
+              <div class="muted">Smooth/Flat</div>
+            </div>
+            <select id="selShade">
+              <option value="smooth" selected>Smooth</option>
+              <option value="flat">Flat</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Opacity</div>
+              <div class="muted">modell</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngOpacity" min="0.05" max="1" step="0.05" value="1">
+              <span class="val" id="txtOpacity">1.00</span>
+            </div>
+          </div>
+
+          <hr class="sepLine">
+
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkBBox"> Bounding box</label>
+            <input type="color" id="colBBox" value="#111111">
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">BBox tykkelse</div>
+              <div class="muted">linjebredde</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngBBoxW" min="1" max="6" step="1" value="2">
+              <span class="val" id="txtBBoxW">2</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="lookMenu">
+        <button class="btn ddBtn"><span>Look</span><span class="pill">farger</span><span class="caret">▼</span></button>
+        <div class="menu" id="lookMenu">
+          <h4>Farger</h4>
+          <div class="row">
+            <div>
+              <div class="val">Bakgrunn</div>
+              <div class="muted">canvas</div>
+            </div>
+            <input type="color" id="colBg" value="#ffffff">
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Modellfarge</div>
+              <div class="muted">material</div>
+            </div>
+            <input type="color" id="colModel" value="#5da9ff">
+          </div>
+
+          <div class="row">
+            <button class="btn" id="btnUseThemeColor">Bruk theme-farge</button>
+            <span class="muted">Modell = primary</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="toolsMenu">
+        <button class="btn ddBtn"><span>Tools</span><span class="pill">clip/mål</span><span class="caret">▼</span></button>
+        <div class="menu" id="toolsMenu">
+          <h4>Cutaway</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkClip"> Cutaway</label>
+            <label class="chk"><input type="checkbox" id="chkClipInv"> invert</label>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Axis</div>
+              <div class="muted">X/Y/Z</div>
+            </div>
+            <select id="selClipAxis">
+              <option value="x" selected>X</option>
+              <option value="y">Y</option>
+              <option value="z">Z</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Offset</div>
+              <div class="muted">-1..1</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngClip" min="-1" max="1" step="0.01" value="0">
+              <span class="val" id="txtClip">0.00</span>
+            </div>
+          </div>
+
+          <hr class="sepLine">
+
+          <h4>Måling</h4>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkMeasure"> Measure</label>
+            <button class="btn" id="btnClearMeasure">Clear</button>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Snapping</div>
+              <div class="muted">vertex/edge</div>
+            </div>
+            <select id="selSnap">
+              <option value="none" selected>No snap</option>
+              <option value="vertex">Snap vertex</option>
+              <option value="edge">Snap edge</option>
+              <option value="both">Snap both</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Snap tol</div>
+              <div class="muted">world-enheter</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngSnapTol" min="0" max="0.05" step="0.001" value="0.010">
+              <span class="val" id="txtSnapTol">0.010</span>
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="val">Units</div>
+              <div class="muted">visning</div>
+            </div>
+            <select id="selUnits">
+              <option value="units" selected>units</option>
+              <option value="mm">mm (1u=1m)</option>
+              <option value="cm">cm (1u=1m)</option>
+              <option value="m">m (1u=1m)</option>
+              <option value="inch">inch (1u=1m)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="infoMenu">
+        <button class="btn ddBtn"><span>Info</span><span class="pill">CG/CB</span><span class="caret">▼</span></button>
+        <div class="menu" id="infoMenu">
+          <h4>Geometri</h4>
+          <div class="row">
+            <div>
+              <div class="val">Dims (L/B/H)</div>
+              <div class="muted" id="txtDims2">–</div>
+            </div>
+            <div class="val" id="txtDims">–</div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="val">Volum (totalt)</div>
+              <div class="muted">lukket mesh</div>
+            </div>
+            <div class="val" id="txtVol">–</div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="val">Tyngdepunkt (CG)</div>
+              <div class="muted">uniform tetthet</div>
+            </div>
+            <div class="val" id="txtCG">–</div>
+          </div>
+
+          <hr class="sepLine">
+
+          <h4>Hydro (world-plan)</h4>
+          <div class="muted" style="margin-bottom:8px;">
+            Sub-volum og CB regnes under et <b>fast world vannplan</b>. Dette fungerer uansett rotasjon/orientering.
+          </div>
+          <div class="row">
+            <div><div class="val">Submerged volum</div><div class="muted">z ≤ WL</div></div>
+            <div class="val" id="txtSubV">–</div>
+          </div>
+          <div class="row">
+            <div><div class="val">Deplasement</div><div class="muted">grovt: Vsub</div></div>
+            <div class="val" id="txtDisp">–</div>
+          </div>
+          <div class="row">
+            <div><div class="val">Oppdriftspunkt (CB)</div><div class="muted">centroid av sub-volum</div></div>
+            <div class="val" id="txtCB">–</div>
+          </div>
+          <div class="row">
+            <div><div class="val">Kvalitet</div><div class="muted">hurtig ↔ nøyere</div></div>
+            <select id="selHydroQ">
+              <option value="low">Low</option>
+              <option value="med" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="row">
+            <button class="btn" id="btnRecalc">Recalc nå</button>
+            <span class="muted" id="txtHydroStatus">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="hydroMenu">
+        <button class="btn ddBtn"><span>Hydro</span><span class="pill">vannlinje</span><span class="caret">▼</span></button>
+        <div class="menu" id="hydroMenu">
+          <h4>Vannlinje (world)</h4>
+
+          <!-- ✅ default AV -->
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkWL"> Vis vannlinje</label>
+            <span class="muted">fast i world (ikke med båt)</span>
+          </div>
+
+          <div class="row">
+            <div><div class="val">Draft</div><div class="muted">world Z</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngDraft" min="0" max="1" step="0.001" value="0">
+              <span class="val" id="txtDraft">—</span>
+            </div>
+          </div>
+
+          <hr class="sepLine">
+
+          <h4>Markører</h4>
+          <!-- ✅ toggles flyttet hit (slik du ba om) -->
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkShowCG" checked> Vis CG</label>
+            <label class="chk"><input type="checkbox" id="chkShowCB" checked> Vis CB</label>
+          </div>
+
+          <hr class="sepLine">
+
+          <h4>Trim / Heel</h4>
+          <div class="muted" style="margin-bottom:8px;">
+            Dette roterer <b>modellen</b>. Vannlinja ligger fortsatt flatt i world.
+          </div>
+          <div class="row">
+            <div><div class="val">Trim</div><div class="muted">rot om X</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngTrim" min="-20" max="20" step="0.1" value="0">
+              <span class="val" id="txtTrim">0.0°</span>
+            </div>
+          </div>
+
+          <div class="row">
+            <div><div class="val">Heel</div><div class="muted">rot om Y</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="range" id="rngHeel" min="-45" max="45" step="0.1" value="0">
+              <span class="val" id="txtHeel">0.0°</span>
+            </div>
+          </div>
+
+          <div class="row">
+            <button class="btn" id="btnHydroZero">Nullstill trim/heel</button>
+            <span class="muted">setter begge = 0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="exportMenu">
+        <button class="btn ddBtn"><span>Export</span><span class="pill">png</span><span class="caret">▼</span></button>
+        <div class="menu" id="exportMenu">
+          <h4>Snapshot</h4>
+          <div class="row">
+            <div><div class="val">Oppløsning</div><div class="muted">1x/2x/4x</div></div>
+            <select id="selSnapScale">
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+          </div>
+          <div class="row">
+            <button class="btn primary" id="btnSnap">Lagre PNG</button>
+            <span class="muted">bevarer canvas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dd" data-menu="helpMenu">
+        <button class="btn ddBtn"><span>Help</span><span class="pill">guide</span><span class="caret">▼</span></button>
+        <div class="menu" id="helpMenu">
+          <h4>STL Viewer – guide</h4>
+          <div class="muted" style="margin-bottom:10px;">Velg tema i venstre meny.</div>
+
+          <div class="helpWrap">
+            <div class="helpSide" id="helpSide">
+              <button class="btn active" data-help="basic">Basic</button>
+              <button class="btn" data-help="align">Align</button>
+              <button class="btn" data-help="hydro">Hydro</button>
+              <button class="btn" data-help="tools">Tools</button>
+              <button class="btn" data-help="render">Render</button>
+            </div>
+            <div class="helpMain" id="helpMain"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "/includes/three/three.module.js";
+    import { OrbitControls } from "/includes/three/OrbitControls.js";
+    import { STLLoader } from "/includes/three/STLLoader.js";
+
+    const UI = {
+      hud: "hud",
+      btnFit:"btnFit", btnReset:"btnReset", btnDownload:"btnDownload", btnSnap:"btnSnap",
+      btnZoomIn:"btnZoomIn", btnZoomOut:"btnZoomOut",
+      btnMobileMenu:"btnMobileMenu",
+
+      btnAutoAlign:"btnAutoAlign", btnAlignReset:"btnAlignReset",
+      btnSwapYZ:"btnSwapYZ", btnSwapXZ:"btnSwapXZ", btnSwapXY:"btnSwapXY",
+
+      selView:"selView", chkAuto:"chkAuto", selAutoSpeed:"selAutoSpeed",
+      selRotAxis:"selRotAxis", selRotStep:"selRotStep", numRotDeg:"numRotDeg",
+      btnRotApply:"btnRotApply", btnRotApplyFree:"btnRotApplyFree", btnRotZero:"btnRotZero",
+      chkAxes:"chkAxes",
+
+      chkWire:"chkWire", chkEdges:"chkEdges", selShade:"selShade",
+      rngOpacity:"rngOpacity", txtOpacity:"txtOpacity",
+      colBg:"colBg", colModel:"colModel", btnUseThemeColor:"btnUseThemeColor",
+      chkBBox:"chkBBox", colBBox:"colBBox", rngBBoxW:"rngBBoxW", txtBBoxW:"txtBBoxW",
+
+      chkClip:"chkClip", chkClipInv:"chkClipInv", selClipAxis:"selClipAxis", rngClip:"rngClip", txtClip:"txtClip",
+      chkMeasure:"chkMeasure", btnClearMeasure:"btnClearMeasure", selSnap:"selSnap",
+      rngSnapTol:"rngSnapTol", txtSnapTol:"txtSnapTol",
+      selUnits:"selUnits",
+
+      chkWL:"chkWL", rngDraft:"rngDraft", txtDraft:"txtDraft",
+      rngTrim:"rngTrim", txtTrim:"txtTrim",
+      rngHeel:"rngHeel", txtHeel:"txtHeel",
+      btnHydroZero:"btnHydroZero",
+
+      txtDims:"txtDims", txtDims2:"txtDims2", txtVol:"txtVol", txtCG:"txtCG",
+      txtSubV:"txtSubV", txtDisp:"txtDisp", txtCB:"txtCB",
+      selHydroQ:"selHydroQ", btnRecalc:"btnRecalc", txtHydroStatus:"txtHydroStatus",
+      chkShowCG:"chkShowCG", chkShowCB:"chkShowCB",
+
+      helpSide:"helpSide", helpMain:"helpMain"
+    };
+
+    const q = (id)=>document.getElementById(id);
+
+    const hud = q(UI.hud);
+    let hudTimer=null;
+    function setHud(html, ms=0){
+      hud.innerHTML = html;
+      hud.style.display="block";
+      if (hudTimer) clearTimeout(hudTimer);
+      if (ms>0) hudTimer = setTimeout(()=>hud.style.display="none", ms);
+    }
+
+    const params = new URLSearchParams(location.search);
+    const fileRaw = params.get("file") || "";
+    const file = decodeURIComponent(fileRaw);
+    let modelUrl = file;
+    if (modelUrl && !modelUrl.startsWith("http") && !modelUrl.startsWith("/")) modelUrl = "/" + modelUrl;
+    if (!modelUrl){
+      setHud(`Feil: Mangler ?file=<sti-til-stl>`, 0);
+      throw new Error("Missing ?file=");
+    }
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(devicePixelRatio || 1);
+    renderer.localClippingEnabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.01, 5000);
+    camera.position.set(3, 2.4, 3);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.screenSpacePanning = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(7, 10, 6);
+    scene.add(dir);
+
+    function cssVar(name, fallback){
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    }
+    function applyTheme(){
+      const bg = cssVar("--bg-main", cssVar("--bg", "#fff"));
+      scene.background = new THREE.Color(bg);
+    }
+    applyTheme();
+    new MutationObserver(applyTheme).observe(document.documentElement, { attributes:true, attributeFilter:["data-theme","class","style"] });
+
+    // ===== model transform stack =====
+    const modelGroup = new THREE.Group();
+    const importFixGroup = new THREE.Group();
+    const baseAlign = new THREE.Group();
+    const userRotGroup = new THREE.Group();
+    const hydroRotGroup = new THREE.Group();
+    scene.add(modelGroup);
+    modelGroup.add(importFixGroup);
+    importFixGroup.add(baseAlign);
+    baseAlign.add(userRotGroup);
+    userRotGroup.add(hydroRotGroup);
+
+    // ✅ Import fix
+    importFixGroup.rotation.x = -Math.PI/2;
+
+    let stlGeo=null, mesh=null, edges=null, bbox=null;
+    let axesHelper=null;
+
+    // ===== clipping (local) =====
+    let clipEnabled=false, clipAxis="x", clipInvert=false;
+    const clipPlane = new THREE.Plane(new THREE.Vector3(1,0,0), 0);
+    let clipBounds = {min:-1,max:1};
+
+    // ===== waterline WORLD (fast) =====
+    let waterPlane=null;
+    let wlVisible=false;                 // ✅ default AV
+    let draftZWorld=0;                   // world Z for WL
+
+    // total volume/cg in LOCAL
+    let totalVolume=null;
+    let totalCentroidLocal=null;
+
+    let cgMarker=null, cbMarker=null;
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let measureEnabled=false;
+    let snapMode="none";
+    let snapTol=0.010;
+    let measureFirstPoint=null;
+    let measureObjects=[];
+    const measureGroup = new THREE.Group();
+    scene.add(measureGroup);
+
+    function unitFactor(){
+      const sel = q(UI.selUnits).value;
+      if (sel === "mm") return 1000;
+      if (sel === "cm") return 100;
+      if (sel === "m") return 1;
+      if (sel === "inch") return 39.3700787;
+      return 1;
+    }
+    let unitLabel="units";
+    function updateUnitLabel(){
+      const sel = q(UI.selUnits).value;
+      unitLabel = (sel === "units") ? "units" : sel;
+    }
+    updateUnitLabel();
+
+    const mainMat = new THREE.MeshStandardMaterial({
+      color: 0x5da9ff,
+      metalness: 0.05,
+      roughness: 0.55,
+      transparent: false,
+      opacity: 1.0,
+      flatShading: false,
+      side: THREE.DoubleSide,
+      clippingPlanes: []
+    });
+
+    function setBackground(hex){ scene.background = new THREE.Color(hex); }
+    function setModelColor(hex){ mainMat.color = new THREE.Color(hex); mainMat.needsUpdate = true; }
+    function setOpacity(a){
+      const op = Math.max(0.05, Math.min(1, Number(a)));
+      mainMat.opacity = op;
+      mainMat.transparent = op < 1;
+      mainMat.needsUpdate = true;
+      q(UI.txtOpacity).textContent = op.toFixed(2);
+    }
+    function setWireframe(on){ mainMat.wireframe = !!on; mainMat.needsUpdate = true; }
+    function setShading(mode){
+      if (!mesh) return;
+      mainMat.flatShading = (mode === "flat");
+      mainMat.needsUpdate = true;
+      mesh.geometry.computeVertexNormals();
+      mesh.geometry.attributes.normal.needsUpdate = true;
+      rebuildEdges(q(UI.chkEdges).checked);
+    }
+
+    function computeBoundsWorld(object){
+      const box = new THREE.Box3().setFromObject(object);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const center = new THREE.Vector3(); box.getCenter(center);
+      const maxDim = Math.max(size.x,size.y,size.z) || 1;
+      return { box, size, center, maxDim };
+    }
+
+    function rebuildEdges(show){
+      if (!mesh) return;
+      if (edges){
+        hydroRotGroup.remove(edges);
+        edges.geometry.dispose();
+        edges.material.dispose();
+        edges = null;
+      }
+      if (!show) return;
+      const eg = new THREE.EdgesGeometry(mesh.geometry, 25);
+      const col = new THREE.Color(cssVar("--text-main", "#111111"));
+      const lm = new THREE.LineBasicMaterial({ color: col, transparent:true, opacity:0.55 });
+      edges = new THREE.LineSegments(eg, lm);
+      hydroRotGroup.add(edges);
+    }
+
+    function rebuildBBox(show){
+      if (!mesh) return;
+      if (bbox){
+        hydroRotGroup.remove(bbox);
+        bbox.geometry.dispose();
+        bbox.material.dispose();
+        bbox = null;
+      }
+      if (!show) return;
+
+      mesh.geometry.computeBoundingBox();
+      const box = mesh.geometry.boundingBox;
+      const min = box.min, max = box.max;
+
+      const pts = [];
+      const add=(a,b)=>pts.push(a.x,a.y,a.z,b.x,b.y,b.z);
+
+      const v000=new THREE.Vector3(min.x,min.y,min.z);
+      const v001=new THREE.Vector3(min.x,min.y,max.z);
+      const v010=new THREE.Vector3(min.x,max.y,min.z);
+      const v011=new THREE.Vector3(min.x,max.y,max.z);
+      const v100=new THREE.Vector3(max.x,min.y,min.z);
+      const v101=new THREE.Vector3(max.x,min.y,max.z);
+      const v110=new THREE.Vector3(max.x,max.y,min.z);
+      const v111=new THREE.Vector3(max.x,max.y,max.z);
+
+      add(v000,v100); add(v100,v101); add(v101,v001); add(v001,v000);
+      add(v010,v110); add(v110,v111); add(v111,v011); add(v011,v010);
+      add(v000,v010); add(v100,v110); add(v101,v111); add(v001,v011);
+
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+
+      const col = q(UI.colBBox).value || "#111111";
+      const m = new THREE.LineBasicMaterial({ color: new THREE.Color(col) });
+
+      bbox = new THREE.LineSegments(g, m);
+      hydroRotGroup.add(bbox);
+    }
+
+    function setAxesVisible(on){
+      if (!mesh) return;
+      if (!axesHelper){
+        const { maxDim } = computeBoundsWorld(modelGroup);
+        axesHelper = new THREE.AxesHelper(maxDim * 0.65);
+        hydroRotGroup.add(axesHelper);
+      }
+      axesHelper.visible = !!on;
+    }
+
+    let baseCameraPos = camera.position.clone();
+    let baseTarget = controls.target.clone();
+
+    function fitToModel(){
+      if (!mesh) return;
+      const { center, maxDim } = computeBoundsWorld(modelGroup);
+      const d = maxDim * 1.6;
+      controls.target.copy(center);
+      camera.position.set(center.x + d*0.75, center.y + d*0.55, center.z + d*0.75);
+      camera.near = maxDim / 1000;
+      camera.far  = maxDim * 1000;
+      camera.updateProjectionMatrix();
+      controls.update();
+      baseCameraPos = camera.position.clone();
+      baseTarget = controls.target.clone();
+    }
+    function resetView(){
+      controls.target.copy(baseTarget);
+      camera.position.copy(baseCameraPos);
+      controls.update();
+    }
+    function setPresetView(name){
+      if (!mesh) return;
+      const { center, maxDim } = computeBoundsWorld(modelGroup);
+      const d = maxDim * 1.7;
+      const dirMap = {
+        iso:    new THREE.Vector3( 1, 0.8,  1),
+        front:  new THREE.Vector3( 0, 0,  1),
+        back:   new THREE.Vector3( 0, 0, -1),
+        left:   new THREE.Vector3(-1, 0,  0),
+        right:  new THREE.Vector3( 1, 0,  0),
+        top:    new THREE.Vector3( 0, 1,  0),
+        bottom: new THREE.Vector3( 0,-1,  0),
+      };
+      const v = (dirMap[name] || dirMap.iso).clone().normalize();
+      controls.target.copy(center);
+      camera.position.copy(center).addScaledVector(v, d);
+      camera.near = maxDim / 1000;
+      camera.far  = maxDim * 1000;
+      camera.updateProjectionMatrix();
+      controls.update();
+    }
+
+    function setAutoRotate(on){ controls.autoRotate = !!on; }
+    function setAutoRotateSpeed(mult){
+      const m = Number(mult);
+      controls.autoRotateSpeed = isFinite(m) ? (1.0 * m) : 1.0;
+    }
+
+    function zoomBy(factor){
+      if (controls && typeof controls.dollyIn === "function"){
+        if (factor > 1) controls.dollyIn(factor);
+        else controls.dollyOut(1/factor);
+        controls.update();
+      } else {
+        const dir = camera.position.clone().sub(controls.target);
+        dir.multiplyScalar(factor > 1 ? 0.85 : 1.15);
+        camera.position.copy(controls.target.clone().add(dir));
+        controls.update();
+      }
+    }
+
+    function downloadSTL(){
+      const a = document.createElement("a");
+      a.href = modelUrl;
+      a.download = (modelUrl.split("/").pop() || "model.stl");
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    function snapshot(){
+      try{
+        const scale = Number(q("selSnapScale")?.value || 1);
+        const w = innerWidth, h = innerHeight;
+        const prevPR = renderer.getPixelRatio();
+        const prevSize = renderer.getSize(new THREE.Vector2());
+
+        renderer.setPixelRatio(1);
+        renderer.setSize(Math.round(w*scale), Math.round(h*scale), false);
+        renderer.render(scene, camera);
+
+        const dataURL = renderer.domElement.toDataURL("image/png");
+
+        renderer.setPixelRatio(prevPR);
+        renderer.setSize(prevSize.x, prevSize.y, false);
+
+        const a = document.createElement("a");
+        a.href = dataURL;
+        const base = (modelUrl.split("/").pop() || "model.stl").replace(/\.(stl)$/i, "");
+        const ts = new Date().toISOString().replace(/[:.]/g,"-");
+        a.download = `${base}-snapshot-${scale}x-${ts}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }catch(e){
+        console.error(e);
+        setHud("Snapshot feilet.", 2500);
+      }
+    }
+
+    // ===== clipping helpers (still local mesh bbox) =====
+    function updateClipBounds(){
+      if (!mesh) return;
+      mesh.geometry.computeBoundingBox();
+      const b = mesh.geometry.boundingBox;
+      if (clipAxis==="x") clipBounds={min:b.min.x,max:b.max.x};
+      if (clipAxis==="y") clipBounds={min:b.min.y,max:b.max.y};
+      if (clipAxis==="z") clipBounds={min:b.min.z,max:b.max.z};
+    }
+    function setClipAxis(ax){
+      clipAxis=ax; updateClipBounds();
+      setClipSlider(q(UI.rngClip).value);
+    }
+    function setClipInvert(on){
+      clipInvert=!!on;
+      setClipSlider(q(UI.rngClip).value);
+    }
+    function setClipEnabled(on){
+      clipEnabled=!!on;
+      mainMat.clippingPlanes = clipEnabled ? [clipPlane] : [];
+      mainMat.needsUpdate=true;
+      setHud(clipEnabled ? "Cutaway aktiv" : "Cutaway av", 1200);
+    }
+    function setClipSlider(val){
+      const t=Number(val);
+      q(UI.txtClip).textContent=t.toFixed(2);
+      const min=clipBounds.min, max=clipBounds.max;
+      const pos = min + ((t+1)/2)*(max-min);
+
+      const s = clipInvert ? -1 : 1;
+      const n = new THREE.Vector3(
+        clipAxis==="x"?1*s:0,
+        clipAxis==="y"?1*s:0,
+        clipAxis==="z"?1*s:0
+      );
+      clipPlane.normal.copy(n);
+      const p0 = new THREE.Vector3(
+        clipAxis==="x"?pos:0,
+        clipAxis==="y"?pos:0,
+        clipAxis==="z"?pos:0
+      );
+      clipPlane.constant = -n.dot(p0);
+    }
+
+    // ===== WORLD water plane =====
+    function ensureWaterPlane(){
+      if (!mesh || waterPlane) return;
+
+      const { maxDim, center } = computeBoundsWorld(modelGroup);
+      const planeSize = maxDim * 4.0;
+
+      const g = new THREE.PlaneGeometry(planeSize, planeSize);
+      const m = new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent:true, opacity:0.18, side:THREE.DoubleSide });
+      waterPlane = new THREE.Mesh(g, m);
+
+      waterPlane.rotation.set(0,0,0);      // flat (XY plane)
+      waterPlane.position.set(center.x, center.y, draftZWorld);
+      waterPlane.visible = wlVisible;
+
+      scene.add(waterPlane);               // ✅ not parented to model -> does NOT rotate with boat
+    }
+
+    function updateWaterPlane(){
+      if (!mesh) return;
+      ensureWaterPlane();
+      const { center } = computeBoundsWorld(modelGroup);
+      waterPlane.position.set(center.x, center.y, draftZWorld);
+      waterPlane.visible = wlVisible;
+    }
+
+    // draft slider: 0..1 mapped to world bbox zMin..zMax
+    function setDraftFromSlider(t){
+      if (!mesh) return;
+      const { box } = computeBoundsWorld(modelGroup);
+      const zMin = box.min.z, zMax = box.max.z;
+      const tt = Math.max(0, Math.min(1, Number(t)));
+      draftZWorld = zMin + tt*(zMax - zMin);
+
+      updateUnitLabel();
+      q(UI.txtDraft).textContent = `${(draftZWorld*unitFactor()).toFixed(2)} ${unitLabel}`;
+
+      updateWaterPlane();
+      scheduleHydroRecalc();
+    }
+
+    function initDraftDefaultBottom(){
+      // ✅ start "flatt" ved bunn (draft = zMin)
+      q(UI.rngDraft).value = "0";
+      setDraftFromSlider(0);
+    }
+
+    // ===== volume / centroid (local) =====
+    function computeVolumeAndCentroid(geo){
+      const pos = geo.attributes.position;
+      const idx = geo.index;
+
+      let V6 = 0;
+      let C = new THREE.Vector3(0,0,0);
+
+      const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3();
+      const cross = new THREE.Vector3();
+
+      const triCount = idx ? idx.count/3 : pos.count/3;
+
+      for (let t=0; t<triCount; t++){
+        let i0,i1,i2;
+        if (idx){
+          i0 = idx.getX(t*3+0);
+          i1 = idx.getX(t*3+1);
+          i2 = idx.getX(t*3+2);
+        } else {
+          i0 = t*3+0; i1=t*3+1; i2=t*3+2;
+        }
+
+        p0.set(pos.getX(i0), pos.getY(i0), pos.getZ(i0));
+        p1.set(pos.getX(i1), pos.getY(i1), pos.getZ(i1));
+        p2.set(pos.getX(i2), pos.getY(i2), pos.getZ(i2));
+
+        cross.copy(p1).cross(p2);
+        const v6 = p0.dot(cross);
+        V6 += v6;
+
+        const Ct = p0.clone().add(p1).add(p2).multiplyScalar(0.25);
+        C.addScaledVector(Ct, v6);
+      }
+
+      let V = V6 / 6;
+      if (Math.abs(V) < 1e-12) return { volume: 0, centroid: new THREE.Vector3(0,0,0) };
+
+      C.multiplyScalar(1 / (V6));
+      if (V < 0) V = -V;
+
+      return { volume: V, centroid: C };
+    }
+
+    function ensureMarkers(){
+      if (!mesh) return;
+      if (!cgMarker){
+        cgMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 14), new THREE.MeshBasicMaterial({ color: 0x22c55e }));
+        scene.add(cgMarker); // world marker
+      }
+      if (!cbMarker){
+        cbMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 14), new THREE.MeshBasicMaterial({ color: 0x60a5fa }));
+        scene.add(cbMarker); // world marker
+      }
+    }
+    function updateMarkerSizes(){
+      if (!mesh || !cgMarker || !cbMarker) return;
+      const { maxDim } = computeBoundsWorld(modelGroup);
+      const r = maxDim * 0.012;
+      cgMarker.scale.setScalar(r);
+      cbMarker.scale.setScalar(r);
+    }
+
+    // ✅ FIX for "et av punktene": marker-positions må være WORLD når markerene ligger i scene.
+    function localToWorldPoint(local){
+      const v = local.clone();
+      // mesh is child of hydroRotGroup => use mesh.matrixWorld
+      v.applyMatrix4(mesh.matrixWorld);
+      return v;
+    }
+
+    function formatVec(v){
+      const f = unitFactor();
+      return `(${(v.x*f).toFixed(2)}, ${(v.y*f).toFixed(2)}, ${(v.z*f).toFixed(2)}) ${unitLabel}`;
+    }
+
+    function updateInfoUIWorld(){
+      if (!mesh) return;
+      updateUnitLabel();
+
+      const { size } = computeBoundsWorld(modelGroup);
+      const f = unitFactor();
+      q(UI.txtDims).textContent = `${(size.x*f).toFixed(2)} / ${(size.y*f).toFixed(2)} / ${(size.z*f).toFixed(2)} ${unitLabel}`;
+      q(UI.txtDims2).textContent = `ΔX=${(size.x*f).toFixed(2)}, ΔY=${(size.y*f).toFixed(2)}, ΔZ=${(size.z*f).toFixed(2)} (${unitLabel})`;
+
+      if (totalVolume != null){
+        const Vdisp = totalVolume * Math.pow(f,3);
+        const Vu = (unitLabel==="mm")?"mm³":(unitLabel==="cm")?"cm³":(unitLabel==="inch")?"in³":(unitLabel==="m")?"m³":"u³";
+        q(UI.txtVol).textContent = `${Vdisp.toExponential(3)} ${Vu}`;
+      } else q(UI.txtVol).textContent = "–";
+
+      // show CG as WORLD value:
+      if (totalCentroidLocal){
+        const cgW = localToWorldPoint(totalCentroidLocal);
+        q(UI.txtCG).textContent = formatVec(cgW);
+      } else q(UI.txtCG).textContent = "–";
+
+      updateMarkerSizes();
+    }
+
+    // ===== hydro (WORLD plane z <= draftZWorld) =====
+    let hydroTimer=null;
+    let hydroBusy=false;
+    let lastHydro = { subV:null, cbW:null };
+
+    function scheduleHydroRecalc(){
+      if (!mesh) return;
+      if (hydroTimer) clearTimeout(hydroTimer);
+      hydroTimer = setTimeout(()=> recomputeHydroWorld(), 220);
+    }
+
+    function qualityToGrid(qv){
+      if (qv==="low") return { ny:34, nz:34 };
+      if (qv==="high") return { ny:80, nz:80 };
+      return { ny:52, nz:52 };
+    }
+
+    async function recomputeHydroWorld(){
+      if (!mesh || hydroBusy) return;
+      hydroBusy=true;
+      q(UI.txtHydroStatus).textContent = "beregner…";
+
+      try{
+        // world bbox of the transformed model
+        const { box } = computeBoundsWorld(modelGroup);
+        const min = box.min.clone(), max = box.max.clone();
+
+        const zMin = min.z;
+        const zMax = Math.min(draftZWorld, max.z);
+        if (zMax <= zMin + 1e-9){
+          lastHydro.subV = 0;
+          lastHydro.cbW = null;
+          updateHydroUI();
+          q(UI.txtHydroStatus).textContent = "0";
+          hydroBusy=false;
+          return;
+        }
+
+        const qv = q(UI.selHydroQ).value;
+        const { ny, nz } = qualityToGrid(qv);
+
+        const dy = (max.y - min.y) / ny;
+        const dz = (zMax - zMin) / nz;
+
+        const dirW = new THREE.Vector3(1,0,0);   // cast along +X in world
+        const eps = (max.x - min.x) * 0.02 + 1e-6;
+
+        let subV = 0;
+        let cbSum = new THREE.Vector3(0,0,0);
+
+        for (let iz=0; iz<nz; iz++){
+          const z = zMin + (iz+0.5)*dz;
+
+          for (let iy=0; iy<ny; iy++){
+            const y = min.y + (iy+0.5)*dy;
+
+            const oW = new THREE.Vector3(min.x - eps, y, z);
+            raycaster.set(oW, dirW);
+
+            const hits = raycaster.intersectObject(mesh, false);
+            if (!hits.length) continue;
+
+            // collect x's in world
+            const xs = hits.map(h => h.point.x).sort((a,b)=>a-b);
+
+            for (let k=0; k+1<xs.length; k+=2){
+              const x0 = xs[k], x1 = xs[k+1];
+              const len = Math.max(0, x1 - x0);
+              if (len <= 0) continue;
+
+              const cellV = len * dy * dz;
+              subV += cellV;
+
+              const xm = (x0 + x1) * 0.5;
+              cbSum.addScaledVector(new THREE.Vector3(xm, y, z), cellV);
+            }
+          }
+
+          if (iz % 10 === 0) await new Promise(r => setTimeout(r, 0));
+        }
+
+        let cbW = null;
+        if (subV > 0) cbW = cbSum.multiplyScalar(1/subV);
+
+        lastHydro.subV = subV;
+        lastHydro.cbW = cbW;
+
+        updateHydroUI();
+        q(UI.txtHydroStatus).textContent = "ok";
+      }catch(e){
+        console.error(e);
+        q(UI.txtHydroStatus).textContent = "feil";
+      }finally{
+        hydroBusy=false;
+      }
+    }
+
+    function updateHydroUI(){
+      updateUnitLabel();
+      const f = unitFactor();
+      const Vu = (unitLabel==="mm")?"mm³":(unitLabel==="cm")?"cm³":(unitLabel==="inch")?"in³":(unitLabel==="m")?"m³":"u³";
+
+      if (lastHydro.subV != null){
+        const Vdisp = lastHydro.subV * Math.pow(f,3);
+        q(UI.txtSubV).textContent = `${Vdisp.toExponential(3)} ${Vu}`;
+        q(UI.txtDisp).textContent = `${Vdisp.toExponential(3)} ${Vu}`;
+      } else {
+        q(UI.txtSubV).textContent = "–";
+        q(UI.txtDisp).textContent = "–";
+      }
+
+      if (lastHydro.cbW) q(UI.txtCB).textContent = formatVec(lastHydro.cbW);
+      else q(UI.txtCB).textContent = "–";
+
+      ensureMarkers();
+      updateMarkerSizes();
+
+      cgMarker.visible = q(UI.chkShowCG).checked;
+      cbMarker.visible = q(UI.chkShowCB).checked;
+
+      if (totalCentroidLocal){
+        const cgW = localToWorldPoint(totalCentroidLocal);
+        cgMarker.position.copy(cgW);
+      }
+      if (lastHydro.cbW) cbMarker.position.copy(lastHydro.cbW);
+    }
+
+    // ===== Auto align (same as before) =====
+    function bestBoatAlignQuaternion(geo){
+      const pos = geo.attributes.position;
+      const n = pos.count;
+      const step = Math.max(1, Math.floor(n / 5000));
+
+      const points = [];
+      for (let i=0; i<n; i+=step){
+        points.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
+      }
+
+      const axes = [
+        new THREE.Vector3(1,0,0),
+        new THREE.Vector3(0,1,0),
+        new THREE.Vector3(0,0,1),
+      ];
+
+      function matFromBasis(xAxis, yAxis, zAxis){
+        const m = new THREE.Matrix4();
+        m.makeBasis(xAxis, yAxis, zAxis);
+        return m;
+      }
+
+      function scoreMatrix(m){
+        let min = new THREE.Vector3( Infinity, Infinity, Infinity);
+        let max = new THREE.Vector3(-Infinity,-Infinity,-Infinity);
+        for (const p of points){
+          const qv = p.clone().applyMatrix4(m);
+          min.min(qv);
+          max.max(qv);
+        }
+        const s = max.clone().sub(min);
+        const sx = s.x, sy = s.y, sz = s.z;
+
+        let penalty = 0;
+        if (sx < sy) penalty += (sy - sx) / (sx + sy + 1e-9);
+        if (sy < sz) penalty += (sz - sy) / (sy + sz + 1e-9);
+        const ratio = (sz+1e-9)/(sx+1e-9);
+        penalty += ratio * 0.35;
+        if (!(sz <= sy && sz <= sx)) penalty += 2.0;
+        return penalty;
+      }
+
+      let best = { score: Infinity, quat: new THREE.Quaternion() };
+
+      const perms = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+      const signs = [-1, 1];
+
+      for (const p of perms){
+        for (const sx of signs){
+          for (const sy of signs){
+            for (const sz of signs){
+              const xA = axes[p[0]].clone().multiplyScalar(sx);
+              const yA = axes[p[1]].clone().multiplyScalar(sy);
+              const zA = axes[p[2]].clone().multiplyScalar(sz);
+
+              const cross = xA.clone().cross(yA);
+              if (cross.dot(zA) < 0.999) continue;
+
+              const m = matFromBasis(xA, yA, zA);
+              const sc = scoreMatrix(m);
+
+              if (sc < best.score){
+                const qAlign = new THREE.Quaternion().setFromRotationMatrix(m);
+                best = { score: sc, quat: qAlign };
+              }
+            }
+          }
+        }
+      }
+      return best.quat;
+    }
+
+    function applyAlignQuaternion(qAlign){
+      baseAlign.quaternion.copy(qAlign);
+      baseAlign.updateMatrixWorld(true);
+
+      updateClipBounds();
+      setClipSlider(q(UI.rngClip).value);
+
+      rebuildEdges(q(UI.chkEdges).checked);
+      rebuildBBox(q(UI.chkBBox).checked);
+
+      updateInfoUIWorld();
+      initDraftDefaultBottom();
+      updateWaterPlane();
+      scheduleHydroRecalc();
+
+      // ✅ start view "normal": alltid fit + iso
+      setPresetView("iso");
+      fitToModel();
+    }
+
+    function applyUserRotate(axis, deg){
+      const rad = THREE.MathUtils.degToRad(Number(deg)||0);
+      if (axis==="x") userRotGroup.rotation.x += rad;
+      if (axis==="y") userRotGroup.rotation.y += rad;
+      if (axis==="z") userRotGroup.rotation.z += rad;
+
+      // WL stays in world, but needs recenter (x/y) and hydro recompute
+      updateWaterPlane();
+      scheduleHydroRecalc();
+      fitToModel();
+    }
+
+    // ===== measure label helpers (unchanged) =====
+    function createLabel(text){
+      const div = document.createElement("div");
+      div.style.position = "fixed";
+      div.style.zIndex = "90";
+      div.style.background = "color-mix(in srgb, var(--bg-main) 40%, #000 60%)";
+      div.style.color = "var(--primary-contrast)";
+      div.style.padding = "6px 8px";
+      div.style.borderRadius = "10px";
+      div.style.font = "12px system-ui,Segoe UI,Arial";
+      div.style.pointerEvents = "none";
+      div.textContent = text;
+      document.body.appendChild(div);
+      return div;
+    }
+    function toScreenPosition(vec3){
+      const v = vec3.clone().project(camera);
+      return { x:(v.x*0.5+0.5)*innerWidth, y:(-v.y*0.5+0.5)*innerHeight };
+    }
+    function updateMeasureLabels(){
+      for (const o of measureObjects){
+        if (!o.label || !o.mid) continue;
+        const p = toScreenPosition(o.mid);
+        o.label.style.left = `${Math.round(p.x + 8)}px`;
+        o.label.style.top  = `${Math.round(p.y + 8)}px`;
+      }
+    }
+
+    // ===== menus =====
+    const menus = [...document.querySelectorAll(".menu")];
+    let openMenu = null;
+    function closeAllMenus(){ menus.forEach(m => m.classList.remove("open")); openMenu=null; }
+    function toggleMenu(menuId){
+      const m = document.getElementById(menuId);
+      if (!m) return;
+      if (openMenu && openMenu !== m) openMenu.classList.remove("open");
+      const willOpen = !m.classList.contains("open");
+      closeAllMenus();
+      if (willOpen){ m.classList.add("open"); openMenu=m; }
+    }
+    document.querySelectorAll(".dd").forEach(dd=>{
+      const menuId = dd.getAttribute("data-menu");
+      dd.querySelector(".ddBtn").addEventListener("click", (ev)=>{
+        ev.stopPropagation();
+        toggleMenu(menuId);
+      });
+    });
+    document.addEventListener("click", (ev)=>{
+      const inside = ev.target.closest(".menu") || ev.target.closest(".ddBtn");
+      if (!inside) closeAllMenus();
+    });
+
+    // mobile menu
+    let toolbarHiddenOnMobile = false;
+    q(UI.btnMobileMenu).addEventListener("click", ()=>{
+      toolbarHiddenOnMobile = !toolbarHiddenOnMobile;
+      document.querySelectorAll("#toolbar > :not(#btnMobileMenu)").forEach(el=>{
+        el.style.display = toolbarHiddenOnMobile ? "none" : "";
+      });
+      closeAllMenus();
+    });
+
+    // help pages
+    const helpPages = {
+      basic: { html: `
+        <h3>Basic</h3>
+        <p><b>Mus:</b> venstre-drag = roter, scroll = zoom, høyre-drag = pan.</p>
+        <p><b>Fit</b> zoomer inn riktig. <b>Reset</b> går tilbake til sist “fit”.</p>
+        <p><b>Zoom+/Zoom-</b> gir presis zoom uten scroll.</p>
+      `},
+      align: { html: `
+        <h3>Align</h3>
+        <p>Import har fast <b>-90° rundt X</b> for å rette STL’en.</p>
+        <p><b>Auto (Boat)</b> prøver å få Lengde→X, Bredde→Y, Opp→Z.</p>
+      `},
+      hydro: { html: `
+        <h3>Hydro</h3>
+        <p>Vannlinje ligger <b>flatt i world</b> (XY-plan). Den følger ikke båt-rotasjon.</p>
+        <p><b>Draft</b> flytter vannlinja langs <b>world Z</b>. Sub-volum/CB regnes som z ≤ WL.</p>
+      `},
+      tools: { html: `
+        <h3>Tools</h3>
+        <p><b>Cutaway</b> klipper lokalt langs X/Y/Z. “invert” snur siden.</p>
+        <p><b>Measure</b>: klikk to punkter.</p>
+      `},
+      render: { html: `
+        <h3>Render</h3>
+        <p>Wireframe/Edges for å se topologi. Shading smooth/flat.</p>
+      `}
+    };
+
+    function setHelpPage(key){
+      const page = helpPages[key] || helpPages.basic;
+      q(UI.helpMain).innerHTML = page.html;
+      q(UI.helpSide).querySelectorAll("button").forEach(b=>{
+        b.classList.toggle("active", b.dataset.help === key);
+      });
+    }
+    q(UI.helpSide).addEventListener("click", (e)=>{
+      const btn = e.target.closest("button[data-help]");
+      if (!btn) return;
+      setHelpPage(btn.dataset.help);
+    });
+    setHelpPage("basic");
+
+    function wireUI(){
+      q(UI.btnFit).addEventListener("click", fitToModel);
+      q(UI.btnReset).addEventListener("click", resetView);
+      q(UI.btnDownload).addEventListener("click", downloadSTL);
+      q(UI.btnSnap).addEventListener("click", snapshot);
+
+      q(UI.btnZoomIn).addEventListener("click", ()=> zoomBy(1.20));
+      q(UI.btnZoomOut).addEventListener("click", ()=> zoomBy(1/1.20));
+
+      q(UI.selView).addEventListener("change", e => setPresetView(e.target.value));
+      q(UI.chkAuto).addEventListener("change", e => setAutoRotate(e.target.checked));
+      q(UI.selAutoSpeed).addEventListener("change", e => setAutoRotateSpeed(e.target.value));
+      q(UI.chkAxes).addEventListener("change", e => setAxesVisible(e.target.checked));
+
+      q(UI.chkWire).addEventListener("change", e => setWireframe(e.target.checked));
+      q(UI.chkEdges).addEventListener("change", e => rebuildEdges(e.target.checked));
+      q(UI.selShade).addEventListener("change", e => setShading(e.target.value));
+
+      q(UI.colBg).addEventListener("input", e => setBackground(e.target.value));
+      q(UI.colModel).addEventListener("input", e => setModelColor(e.target.value));
+      q(UI.rngOpacity).addEventListener("input", e => setOpacity(e.target.value));
+
+      q(UI.chkBBox).addEventListener("change", e => rebuildBBox(e.target.checked));
+      q(UI.colBBox).addEventListener("input", e => { if (bbox) bbox.material.color = new THREE.Color(e.target.value); });
+      q(UI.rngBBoxW).addEventListener("input", e => { q(UI.txtBBoxW).textContent = e.target.value; rebuildBBox(q(UI.chkBBox).checked); });
+
+      q(UI.chkClip).addEventListener("change", e => setClipEnabled(e.target.checked));
+      q(UI.selClipAxis).addEventListener("change", e => setClipAxis(e.target.value));
+      q(UI.chkClipInv).addEventListener("change", e => setClipInvert(e.target.checked));
+      q(UI.rngClip).addEventListener("input", e => setClipSlider(e.target.value));
+
+      q(UI.selUnits).addEventListener("change", ()=>{
+        updateUnitLabel();
+        updateInfoUIWorld();
+        updateHydroUI();
+        q(UI.txtDraft).textContent = `${(draftZWorld*unitFactor()).toFixed(2)} ${unitLabel}`;
+      });
+
+      q(UI.btnUseThemeColor).addEventListener("click", ()=>{
+        const primary = cssVar("--primary", "#2f6fed");
+        q(UI.colModel).value = primary;
+        setModelColor(primary);
+        setHud("Modellfarge = theme primary", 1300);
+      });
+
+      q(UI.btnRotApply).addEventListener("click", ()=>{
+        applyUserRotate(q(UI.selRotAxis).value, q(UI.selRotStep).value);
+        setHud("Roterte modellen", 1000);
+      });
+      q(UI.btnRotApplyFree).addEventListener("click", ()=>{
+        applyUserRotate(q(UI.selRotAxis).value, q(UI.numRotDeg).value);
+        setHud("Roterte modellen", 1000);
+      });
+      q(UI.btnRotZero).addEventListener("click", ()=>{
+        userRotGroup.rotation.set(0,0,0);
+        hydroRotGroup.rotation.set(0,0,0);
+        updateWaterPlane();
+        scheduleHydroRecalc();
+        fitToModel();
+        setHud("Rotasjon nullstilt", 1200);
+      });
+
+      // ✅ WL toggle (default off)
+      q(UI.chkWL).addEventListener("change", e => {
+        wlVisible = e.target.checked;
+        if (waterPlane) waterPlane.visible = wlVisible;
+        scheduleHydroRecalc();
+      });
+
+      // draft = world z mapping
+      q(UI.rngDraft).addEventListener("input", e => setDraftFromSlider(e.target.value));
+
+      q(UI.rngTrim).addEventListener("input", e => {
+        const deg = Number(e.target.value);
+        hydroRotGroup.rotation.x = THREE.MathUtils.degToRad(deg);
+        q(UI.txtTrim).textContent = `${deg.toFixed(1)}°`;
+        updateWaterPlane();
+        scheduleHydroRecalc();
+      });
+
+      q(UI.rngHeel).addEventListener("input", e => {
+        const deg = Number(e.target.value);
+        hydroRotGroup.rotation.y = THREE.MathUtils.degToRad(deg);
+        q(UI.txtHeel).textContent = `${deg.toFixed(1)}°`;
+        updateWaterPlane();
+        scheduleHydroRecalc();
+      });
+
+      q(UI.btnHydroZero).addEventListener("click", ()=>{
+        q(UI.rngTrim).value = "0";
+        q(UI.rngHeel).value = "0";
+        hydroRotGroup.rotation.x = 0;
+        hydroRotGroup.rotation.y = 0;
+        q(UI.txtTrim).textContent = "0.0°";
+        q(UI.txtHeel).textContent = "0.0°";
+        updateWaterPlane();
+        scheduleHydroRecalc();
+        setHud("Trim/heel nullstilt", 1200);
+      });
+
+      q(UI.selHydroQ).addEventListener("change", ()=> scheduleHydroRecalc());
+      q(UI.btnRecalc).addEventListener("click", ()=> recomputeHydroWorld());
+
+      // marker toggles (in hydro menu)
+      q(UI.chkShowCG).addEventListener("change", ()=> updateHydroUI());
+      q(UI.chkShowCB).addEventListener("change", ()=> updateHydroUI());
+
+      // Align
+      q(UI.btnAutoAlign).addEventListener("click", ()=>{
+        if (!stlGeo) return;
+        const qA = bestBoatAlignQuaternion(stlGeo);
+        applyAlignQuaternion(qA);
+        setHud("Auto Align (Boat) brukt", 1800);
+      });
+      q(UI.btnAlignReset).addEventListener("click", ()=>{
+        baseAlign.quaternion.identity();
+        baseAlign.updateMatrixWorld(true);
+        updateInfoUIWorld();
+        initDraftDefaultBottom();
+        updateWaterPlane();
+        scheduleHydroRecalc();
+        setPresetView("iso");
+        fitToModel();
+        setHud("Align reset", 1400);
+      });
+
+      function applySimpleSwap(type){
+        const qRot = new THREE.Quaternion();
+        if (type==="yz"){ qRot.setFromEuler(new THREE.Euler(Math.PI/2, 0, 0)); }
+        if (type==="xz"){ qRot.setFromEuler(new THREE.Euler(0, Math.PI/2, 0)); }
+        if (type==="xy"){ qRot.setFromEuler(new THREE.Euler(0, 0, Math.PI/2)); }
+        baseAlign.quaternion.premultiply(qRot);
+        applyAlignQuaternion(baseAlign.quaternion.clone());
+      }
+      q(UI.btnSwapYZ).addEventListener("click", ()=>{ applySimpleSwap("yz"); setHud("Swap Y/Z", 1200); });
+      q(UI.btnSwapXZ).addEventListener("click", ()=>{ applySimpleSwap("xz"); setHud("Swap X/Z", 1200); });
+      q(UI.btnSwapXY).addEventListener("click", ()=>{ applySimpleSwap("xy"); setHud("Swap X/Y", 1200); });
+
+      window.addEventListener("keydown", (e)=>{
+        if (e.key === "+" || e.key === "=") zoomBy(1.12);
+        if (e.key === "-" || e.key === "_") zoomBy(1/1.12);
+      });
+    }
+    wireUI();
+
+    const loader = new STLLoader();
+    (async ()=>{
+      try{
+        setHud(`Laster STL: <small>${modelUrl}</small>`);
+        const res = await fetch(modelUrl, { cache:"no-store" });
+        if (!res.ok){
+          setHud(`Feil: HTTP ${res.status}<br><small>${modelUrl}</small>`, 0);
+          return;
+        }
+        const buf = await res.arrayBuffer();
+
+        stlGeo = loader.parse(buf);
+        stlGeo.computeVertexNormals();
+        stlGeo.computeBoundingBox();
+
+        mesh = new THREE.Mesh(stlGeo, mainMat);
+        hydroRotGroup.add(mesh);
+
+        setBackground(q(UI.colBg).value);
+        setModelColor(q(UI.colModel).value);
+        setOpacity(q(UI.rngOpacity).value);
+
+        const vc = computeVolumeAndCentroid(stlGeo);
+        totalVolume = vc.volume;
+        totalCentroidLocal = vc.centroid;
+
+        ensureMarkers();
+        updateMarkerSizes();
+
+        rebuildEdges(q(UI.chkEdges).checked);
+        rebuildBBox(q(UI.chkBBox).checked);
+
+        updateClipBounds();
+        setClipSlider(q(UI.rngClip).value);
+        setClipEnabled(q(UI.chkClip).checked);
+
+        // Auto align then normal view
+        const qA = bestBoatAlignQuaternion(stlGeo);
+        applyAlignQuaternion(qA);
+
+        // WL default off, draft at bottom
+        initDraftDefaultBottom();
+        updateWaterPlane();
+
+        updateInfoUIWorld();
+        setPresetView("iso");
+        fitToModel();
+        scheduleHydroRecalc();
+
+        setAxesVisible(q(UI.chkAxes).checked);
+
+        setHud(`STL lastet ✅<br><small>Drag=rotate, scroll=zoom, høyreklikk=pan</small>`, 2500);
+      }catch(e){
+        console.error(e);
+        setHud(`Kunne ikke laste/parse STL.`, 0);
+      }
+    })();
+
+    window.addEventListener("resize", ()=>{
+      camera.aspect = innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    (function animate(){
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+      updateMeasureLabels();
+    })();
+  </script>
+</body>
+</html>

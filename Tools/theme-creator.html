@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#004f9f">
+  <title>🎨 Theme Creator - FolkNettsideFolk</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      text-align: center;
+      color: #1a202c;
+      margin-bottom: 0.5rem;
+      font-size: 2.5rem;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #718096;
+      margin-bottom: 2rem;
+    }
+    
+    .layout {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+    
+    /* Control Panel */
+    .controls {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      height: fit-content;
+      position: sticky;
+      top: 2rem;
+    }
+    
+    .control-group {
+      margin-bottom: 1.5rem;
+    }
+    
+    .control-group h3 {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #718096;
+      margin-bottom: 0.75rem;
+    }
+    
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .control-item label {
+      flex: 1;
+      font-size: 0.95rem;
+      color: #4a5568;
+    }
+    
+    .color-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    input[type="color"] {
+      width: 60px;
+      height: 36px;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+    input[type="text"] {
+      width: 100px;
+      padding: 0.5rem;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    
+    input[type="text"]:focus,
+    input[type="color"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    
+    .theme-name-input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .emoji-picker {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    
+    .emoji-option {
+      width: 40px;
+      height: 40px;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .emoji-option:hover {
+      transform: scale(1.1);
+      border-color: #3b82f6;
+    }
+    
+    .emoji-option.selected {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+    
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+    
+    .btn {
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.95rem;
+    }
+    
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #2563eb;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+    
+    .btn-secondary {
+      background: #10b981;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: #059669;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+    
+    .btn-outline {
+      background: white;
+      color: #4a5568;
+      border: 2px solid #e2e8f0;
+    }
+    
+    .btn-outline:hover {
+      border-color: #3b82f6;
+      color: #3b82f6;
+    }
+    
+    /* Preview */
+    .preview {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    
+    .preview-navbar {
+      padding: 1rem 1.5rem;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.3s;
+    }
+    
+    .preview-navbar h2 {
+      font-size: 1.25rem;
+    }
+    
+    .preview-content {
+      display: flex;
+      min-height: 500px;
+    }
+    
+    .preview-sidebar {
+      width: 250px;
+      padding: 1.5rem;
+      color: white;
+      transition: background 0.3s;
+    }
+    
+    .preview-sidebar h3 {
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+    
+    .preview-sidebar-item {
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border-radius: 6px;
+      opacity: 0.9;
+      transition: all 0.2s;
+    }
+    
+    .preview-sidebar-item:hover {
+      opacity: 1;
+      background: rgba(255,255,255,0.1);
+    }
+    
+    .preview-main {
+      flex: 1;
+      padding: 2rem;
+      transition: background 0.3s, color 0.3s;
+    }
+    
+    .preview-main h1 {
+      margin-bottom: 1rem;
+      transition: color 0.3s;
+    }
+    
+    .preview-card {
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      transition: all 0.3s;
+    }
+    
+    .preview-button {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      color: white;
+      font-weight: 600;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    
+    /* Code Output */
+    .code-output {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .code-output h2 {
+      margin-bottom: 1rem;
+      color: #1a202c;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .copy-btn {
+      padding: 0.5rem 1rem;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    
+    .copy-btn:hover {
+      background: #2563eb;
+    }
+    
+    .copy-btn.copied {
+      background: #10b981;
+    }
+    
+    pre {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 1.5rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    
+    code {
+      font-family: 'Monaco', 'Courier New', monospace;
+    }
+    
+    .color-preview {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      border: 2px solid #e2e8f0;
+    }
+    
+    .tips {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 1rem;
+      border-radius: 6px;
+      margin-bottom: 1.5rem;
+    }
+    
+    .tips h4 {
+      color: #1e40af;
+      margin-bottom: 0.5rem;
+    }
+    
+    .tips ul {
+      margin-left: 1.5rem;
+      color: #1e40af;
+    }
+    
+    @media (max-width: 1200px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      
+      .controls {
+        position: static;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="/assets/css/sidebar-flyout-fix.css">
+  <link rel="stylesheet" href="/assets/css/sidebar-loader-theme-override.css">
+  <link rel="stylesheet" href="/assets/css/navbar-theme-fix.css">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-BJ41MZJP0L');
+</script>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Theme Creator</h1>
+    <p class="subtitle">Lag ditt eget theme visuelt - ingen koding nødvendig!</p>
+    
+    <div class="layout">
+      <!-- Controls -->
+      <div class="controls">
+        <div class="tips">
+          <h4>💡 Tips:</h4>
+          <ul>
+            <li>Velg farger og se live preview</li>
+            <li>Klikk "Generer CSS" for koden</li>
+            <li>Kopier og lim inn i themes.css</li>
+          </ul>
+        </div>
+        
+        <div class="control-group">
+          <h3>Theme Info</h3>
+          <input 
+            type="text" 
+            class="theme-name-input" 
+            id="themeName" 
+            placeholder="Theme navn (f.eks. 'mitt-theme')"
+            value="mitt-theme"
+          >
+          
+          <label style="display: block; margin-bottom: 0.5rem; color: #718096; font-size: 0.9rem;">
+            Velg emoji:
+          </label>
+          <div class="emoji-picker" id="emojiPicker">
+            <div class="emoji-option" data-emoji="🎨">🎨</div>
+            <div class="emoji-option" data-emoji="🔥">🔥</div>
+            <div class="emoji-option" data-emoji="⭐">⭐</div>
+            <div class="emoji-option" data-emoji="🌟">🌟</div>
+            <div class="emoji-option" data-emoji="💎">💎</div>
+            <div class="emoji-option" data-emoji="🚀">🚀</div>
+            <div class="emoji-option" data-emoji="🎯">🎯</div>
+            <div class="emoji-option" data-emoji="✨">✨</div>
+            <div class="emoji-option" data-emoji="🌈">🌈</div>
+            <div class="emoji-option" data-emoji="🎭">🎭</div>
+          </div>
+        </div>
+        
+        <div class="control-group">
+          <h3>Primary Colors</h3>
+          <div class="control-item">
+            <label>Primary</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="primary" value="#667eea">
+              <input type="text" id="primaryHex" value="#667eea">
+            </div>
+          </div>
+          <div class="control-item">
+            <label>Primary Light</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="primaryLight" value="#818cf8">
+              <input type="text" id="primaryLightHex" value="#818cf8">
+            </div>
+          </div>
+          <div class="control-item">
+            <label>Primary Dark</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="primaryDark" value="#4f46e5">
+              <input type="text" id="primaryDarkHex" value="#4f46e5">
+            </div>
+          </div>
+        </div>
+        
+        <div class="control-group">
+          <h3>Navbar</h3>
+          <div class="control-item">
+            <label>Navbar Start</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="navbarStart" value="#667eea">
+              <input type="text" id="navbarStartHex" value="#667eea">
+            </div>
+          </div>
+          <div class="control-item">
+            <label>Navbar End</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="navbarEnd" value="#764ba2">
+              <input type="text" id="navbarEndHex" value="#764ba2">
+            </div>
+          </div>
+          <div class="control-item">
+            <label>Navbar Text</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="navbarText" value="#ffffff">
+              <input type="text" id="navbarTextHex" value="#ffffff">
+            </div>
+          </div>
+        </div>
+        
+        <div class="control-group">
+          <h3>Sidebar</h3>
+          <div class="control-item">
+            <label>Sidebar BG</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="sidebarBg" value="#2c3e50">
+              <input type="text" id="sidebarBgHex" value="#2c3e50">
+            </div>
+          </div>
+          <div class="control-item">
+            <label>Sidebar Text</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="sidebarText" value="#ffffff">
+              <input type="text" id="sidebarTextHex" value="#ffffff">
+            </div>
+          </div>
+        </div>
+        
+        <div class="control-group">
+          <h3>Background</h3>
+          <div class="control-item">
+            <label>Main BG</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="bgMain" value="#ffffff">
+              <input type="text" id="bgMainHex" value="#ffffff">
+            </div>
+          </div>
+          <div class="control-item">
+            <label>Alt BG</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="bgAlt" value="#f6f7fa">
+              <input type="text" id="bgAltHex" value="#f6f7fa">
+            </div>
+          </div>
+        </div>
+        
+        <div class="control-group">
+          <h3>Text</h3>
+          <div class="control-item">
+            <label>Main Text</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="textMain" value="#1a202c">
+              <input type="text" id="textMainHex" value="#1a202c">
+            </div>
+          </div>
+          <div class="control-item">
+            <label>Secondary Text</label>
+            <div class="color-input-wrapper">
+              <input type="color" id="textSecondary" value="#4a5568">
+              <input type="text" id="textSecondaryHex" value="#4a5568">
+            </div>
+          </div>
+        </div>
+        
+        <div class="action-buttons">
+          <button class="btn btn-primary" onclick="generateCSS()">📋 Generer CSS</button>
+          <button class="btn btn-secondary" onclick="generateJS()">⚙️ Generer JS</button>
+          <button class="btn btn-outline" onclick="resetToDefaults()">↺ Tilbakestill</button>
+        </div>
+      </div>
+      
+      <!-- Preview -->
+      <div class="preview">
+        <div class="preview-navbar" id="previewNavbar">
+          <h2>Navbar Preview</h2>
+          <div>Hjem • Om • Kontakt</div>
+        </div>
+        <div class="preview-content">
+          <div class="preview-sidebar" id="previewSidebar">
+            <h3>Sidebar</h3>
+            <div class="preview-sidebar-item">📄 Øving 1</div>
+            <div class="preview-sidebar-item">📄 Øving 2</div>
+            <div class="preview-sidebar-item">📄 Øving 3</div>
+            <div class="preview-sidebar-item">🧩 Quiz</div>
+          </div>
+          <div class="preview-main" id="previewMain">
+            <h1 id="previewMainHeading">Velkommen til kurset</h1>
+            <div class="preview-card" id="previewCard">
+              <h3>Dette er et card</h3>
+              <p>Her kommer innholdet ditt. Alle farger oppdateres automatisk basert på ditt theme!</p>
+            </div>
+            <div class="preview-button" id="previewButton">
+              Klikk meg!
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Code Output -->
+    <div class="code-output" id="cssOutput" style="display: none;">
+      <h2>
+        CSS Kode
+        <button class="copy-btn" onclick="copyCSSCode()">📋 Kopier</button>
+      </h2>
+      <pre><code id="cssCode"></code></pre>
+    </div>
+    
+    <div class="code-output" id="jsOutput" style="display: none; margin-top: 1rem;">
+      <h2>
+        JavaScript Kode
+        <button class="copy-btn" onclick="copyJSCode()">📋 Kopier</button>
+      </h2>
+      <pre><code id="jsCode"></code></pre>
+    </div>
+  </div>
+
+  <script>
+    // Color sync
+    const colorInputs = [
+      'primary', 'primaryLight', 'primaryDark',
+      'navbarStart', 'navbarEnd', 'navbarText',
+      'sidebarBg', 'sidebarText',
+      'bgMain', 'bgAlt',
+      'textMain', 'textSecondary'
+    ];
+    
+    let selectedEmoji = '🎨';
+    
+    // Setup emoji picker
+    document.querySelectorAll('.emoji-option').forEach(option => {
+      option.addEventListener('click', function() {
+        document.querySelectorAll('.emoji-option').forEach(o => o.classList.remove('selected'));
+        this.classList.add('selected');
+        selectedEmoji = this.dataset.emoji;
+      });
+    });
+    
+    // Set first emoji as selected
+    document.querySelector('.emoji-option').classList.add('selected');
+    
+    // Setup color inputs
+    colorInputs.forEach(id => {
+      const colorInput = document.getElementById(id);
+      const hexInput = document.getElementById(id + 'Hex');
+      
+      colorInput.addEventListener('input', (e) => {
+        hexInput.value = e.target.value;
+        updatePreview();
+      });
+      
+      hexInput.addEventListener('input', (e) => {
+        if (/^#[0-9A-F]{6}$/i.test(e.target.value)) {
+          colorInput.value = e.target.value;
+          updatePreview();
+        }
+      });
+    });
+    
+    function updatePreview() {
+      const navbar = document.getElementById('previewNavbar');
+      const sidebar = document.getElementById('previewSidebar');
+      const main = document.getElementById('previewMain');
+      const heading = document.getElementById('previewMainHeading');
+      const card = document.getElementById('previewCard');
+      const button = document.getElementById('previewButton');
+      
+      const navbarStart = document.getElementById('navbarStart').value;
+      const navbarEnd = document.getElementById('navbarEnd').value;
+      const navbarText = document.getElementById('navbarText').value;
+      const sidebarBg = document.getElementById('sidebarBg').value;
+      const sidebarText = document.getElementById('sidebarText').value;
+      const bgMain = document.getElementById('bgMain').value;
+      const bgAlt = document.getElementById('bgAlt').value;
+      const textMain = document.getElementById('textMain').value;
+      const primary = document.getElementById('primary').value;
+      
+      navbar.style.background = `linear-gradient(135deg, ${navbarStart} 0%, ${navbarEnd} 100%)`;
+      navbar.style.color = navbarText;
+      
+      sidebar.style.background = sidebarBg;
+      sidebar.style.color = sidebarText;
+      
+      main.style.background = bgMain;
+      main.style.color = textMain;
+      
+      heading.style.color = primary;
+      
+      card.style.background = bgAlt;
+      card.style.borderLeft = `4px solid ${primary}`;
+      
+      button.style.background = primary;
+    }
+    
+    function generateCSS() {
+      const themeName = document.getElementById('themeName').value || 'mitt-theme';
+      
+      const css = `/* ============ ${themeName.toUpperCase()} THEME ============ */
+[data-theme="${themeName}"] {
+  /* Primary colors */
+  --primary: ${document.getElementById('primary').value};
+  --primary-light: ${document.getElementById('primaryLight').value};
+  --primary-dark: ${document.getElementById('primaryDark').value};
+  --primary-transparent: ${hexToRgba(document.getElementById('primary').value, 0.1)};
+  
+  /* Accent colors */
+  --accent: ${document.getElementById('primary').value};
+  --accent-light: ${document.getElementById('primaryLight').value};
+  --accent-dark: ${document.getElementById('primaryDark').value};
+  
+  /* Navbar */
+  --navbar-bg: linear-gradient(135deg, ${document.getElementById('navbarStart').value} 0%, ${document.getElementById('navbarEnd').value} 100%);
+  --navbar-text: ${document.getElementById('navbarText').value};
+  --navbar-hover: rgba(255, 255, 255, 0.1);
+  
+  /* Sidebar */
+  --sidebar-bg: ${document.getElementById('sidebarBg').value};
+  --sidebar-text: ${document.getElementById('sidebarText').value};
+  --sidebar-hover: rgba(255, 255, 255, 0.1);
+  --sidebar-border: ${adjustBrightness(document.getElementById('sidebarBg').value, 20)};
+  
+  /* Background */
+  --bg-main: ${document.getElementById('bgMain').value};
+  --bg-alt: ${document.getElementById('bgAlt').value};
+  --bg-card: ${document.getElementById('bgMain').value};
+  
+  /* Text */
+  --text-main: ${document.getElementById('textMain').value};
+  --text-secondary: ${document.getElementById('textSecondary').value};
+  --text-muted: ${adjustBrightness(document.getElementById('textSecondary').value, 30)};
+  
+  /* Borders */
+  --border-color: ${adjustBrightness(document.getElementById('bgAlt').value, -10)};
+  --border-hover: ${adjustBrightness(document.getElementById('bgAlt').value, -20)};
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 3px ${hexToRgba(document.getElementById('primary').value, 0.1)};
+  --shadow-md: 0 4px 6px ${hexToRgba(document.getElementById('primary').value, 0.1)};
+  --shadow-lg: 0 10px 15px ${hexToRgba(document.getElementById('primary').value, 0.1)};
+  
+  /* Success/Error/Warning */
+  --success: #10b981;
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --info: ${document.getElementById('primary').value};
+  
+  /* Quiz colors */
+  --quiz-primary: ${document.getElementById('primary').value};
+  --quiz-bg: ${document.getElementById('bgMain').value};
+  --quiz-border: ${adjustBrightness(document.getElementById('bgAlt').value, -10)};
+  --quiz-correct: #10b981;
+  --quiz-incorrect: #ef4444;
+}`;
+      
+      document.getElementById('cssCode').textContent = css;
+      document.getElementById('cssOutput').style.display = 'block';
+      document.getElementById('cssOutput').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    function generateJS() {
+      const themeName = document.getElementById('themeName').value || 'mitt-theme';
+      const themeDisplay = themeName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      
+      const js = `// Legg til i THEMES-objektet i theme-switcher.js:
+
+'${themeName}': {
+  name: '${themeDisplay}',
+  color: '${document.getElementById('primary').value}',
+  icon: '${selectedEmoji}'
+}
+
+// Full kode:
+const THEMES = {
+  // ... eksisterende themes
+  '${themeName}': {
+    name: '${themeDisplay}',
+    color: '${document.getElementById('primary').value}',
+    icon: '${selectedEmoji}'
+  }
+};`;
+      
+      document.getElementById('jsCode').textContent = js;
+      document.getElementById('jsOutput').style.display = 'block';
+      document.getElementById('jsOutput').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    function hexToRgba(hex, alpha) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    
+    function adjustBrightness(hex, percent) {
+      const num = parseInt(hex.slice(1), 16);
+      const amt = Math.round(2.55 * percent);
+      const R = (num >> 16) + amt;
+      const G = (num >> 8 & 0x00FF) + amt;
+      const B = (num & 0x0000FF) + amt;
+      return '#' + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+        (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+        (B < 255 ? B < 1 ? 0 : B : 255))
+        .toString(16).slice(1);
+    }
+    
+    function copyCSSCode() {
+      const code = document.getElementById('cssCode').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = event.target;
+        btn.textContent = '✓ Kopiert!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '📋 Kopier';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+    
+    function copyJSCode() {
+      const code = document.getElementById('jsCode').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = event.target;
+        btn.textContent = '✓ Kopiert!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '📋 Kopier';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+    
+    function resetToDefaults() {
+      document.getElementById('primary').value = '#667eea';
+      document.getElementById('primaryHex').value = '#667eea';
+      document.getElementById('primaryLight').value = '#818cf8';
+      document.getElementById('primaryLightHex').value = '#818cf8';
+      document.getElementById('primaryDark').value = '#4f46e5';
+      document.getElementById('primaryDarkHex').value = '#4f46e5';
+      document.getElementById('navbarStart').value = '#667eea';
+      document.getElementById('navbarStartHex').value = '#667eea';
+      document.getElementById('navbarEnd').value = '#764ba2';
+      document.getElementById('navbarEndHex').value = '#764ba2';
+      document.getElementById('navbarText').value = '#ffffff';
+      document.getElementById('navbarTextHex').value = '#ffffff';
+      document.getElementById('sidebarBg').value = '#2c3e50';
+      document.getElementById('sidebarBgHex').value = '#2c3e50';
+      document.getElementById('sidebarText').value = '#ffffff';
+      document.getElementById('sidebarTextHex').value = '#ffffff';
+      document.getElementById('bgMain').value = '#ffffff';
+      document.getElementById('bgMainHex').value = '#ffffff';
+      document.getElementById('bgAlt').value = '#f6f7fa';
+      document.getElementById('bgAltHex').value = '#f6f7fa';
+      document.getElementById('textMain').value = '#1a202c';
+      document.getElementById('textMainHex').value = '#1a202c';
+      document.getElementById('textSecondary').value = '#4a5568';
+      document.getElementById('textSecondaryHex').value = '#4a5568';
+      updatePreview();
+    }
+    
+    // Initial update
+    updatePreview();
+  </script>
+  <script src="/includes/mobile-enhancer.js"></script>
+  <script src="/assets/js/flyout-theme-updater.js"></script>
+</body>
+</html>
