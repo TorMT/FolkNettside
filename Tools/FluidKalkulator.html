@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluidegenskaps-kalkulator</title>
+    <style>
+        /* ============================================================
+           FLUIDKALKULATOR - INTEGRERT MED FOLKNETTSIDEFOLK THEME
+           Bruker samme CSS-variabler som resten av siden
+           ============================================================ */
+        
+        :root {
+            /* Fallback farger hvis ikke definert av theme */
+            --primary: #004f9f;
+            --primary-light: #0066cc;
+            --primary-dark: #003d7a;
+            --bg-main: #ffffff;
+            --bg-card: #f8f9fa;
+            --text-main: #1e293b;
+            --text-light: #64748b;
+            --border-color: #e2e8f0;
+            --success: #10b981;
+            --error: #ef4444;
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-main);
+            color: var(--text-main);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .calc-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            padding: 2rem;
+        }
+        
+        /* Header */
+        .calc-header {
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 1rem;
+        }
+        
+        .calc-header h1 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .calc-header p {
+            color: var(--text-light);
+            font-size: 0.95rem;
+        }
+        
+        /* Input section */
+        .input-section {
+            background: var(--bg-main);
+            padding: 1.5rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .input-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        select, input[type="number"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            background: var(--bg-main);
+            color: var(--text-main);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        select:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 79, 159, 0.1);
+        }
+        
+        .inline-group {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1rem;
+        }
+        
+        button {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: var(--shadow);
+        }
+        
+        button:hover {
+            background: var(--primary-light);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        /* Results grid */
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .result-card {
+            background: var(--bg-main);
+            padding: 1.5rem;
+            border-radius: var(--radius-sm);
+            border-left: 4px solid var(--primary);
+            box-shadow: var(--shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .result-label {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .result-value {
+            font-size: 1.8rem;
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .result-unit {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+        
+        /* Info box */
+        .info-box {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        .info-box strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .calc-container {
+                padding: 1rem;
+            }
+            
+            .calc-header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .inline-group {
+                grid-template-columns: 1fr;
+            }
+            
+            .result-value {
+                font-size: 1.5rem;
+            }
+        }
+        
+        /* Dark theme support (hvis theme-switcher er aktiv) */
+        [data-theme="dark"] {
+            --bg-main: #1e1e1e;
+            --bg-card: #2a2a2a;
+            --text-main: #e0e0e0;
+            --text-light: #a0a0a0;
+            --border-color: #404040;
+        }
+        
+        [data-theme="dark"] select,
+        [data-theme="dark"] input[type="number"] {
+            background: #1e1e1e;
+            color: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="calc-container">
+        <div class="calc-header">
+            <h1>🌊 Fluidegenskaps-kalkulator</h1>
+            <p>Beregn termodynamiske egenskaper for ulike fluider ved gitt temperatur</p>
+        </div>
+        
+        <div class="info-box">
+            <strong>ℹ️ Informasjon</strong>
+            Kalkulatoren bruker polynom-tilpasninger for å beregne egenskaper.
+            Gyldig for luft ved 1 atm (15-100°C), vann (0-100°C), og andre gasser ved normaltrykk.
+        </div>
+        
+        <div class="input-section">
+            <div class="input-group">
+                <label for="fluid">Velg fluid:</label>
+                <select id="fluid">
+                    <option value="air">Luft</option>
+                    <option value="water">Vann</option>
+                    <option value="co2">Karbondioksid (CO₂)</option>
+                    <option value="argon">Argon (Ar)</option>
+                    <option value="helium">Helium (He)</option>
+                    <option value="nitrogen">Nitrogen (N₂)</option>
+                </select>
+            </div>
+            
+            <div class="inline-group">
+                <div class="input-group">
+                    <label for="temperature">Temperatur:</label>
+                    <input type="number" id="temperature" value="20" step="0.1">
+                </div>
+                
+                <div class="input-group">
+                    <label for="unit">Enhet:</label>
+                    <select id="unit">
+                        <option value="C">°C</option>
+                        <option value="F">°F</option>
+                        <option value="K">K</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button onclick="calculate()">📊 Beregn egenskaper</button>
+        </div>
+        
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        // Koeffisienter for polynom-tilpasninger (samme som før)
+        const fluidData = {
+            air: {
+                name: 'Luft',
+                density: [1.2922, -0.0045, 0.0, 0.0],
+                viscosity: [1.716e-5, 5.0e-8, -3.0e-11, 0.0],
+                cp: [1005.0, 0.017, 0.00001, 0.0],
+                k: [0.02428, 0.0000758, -1.0e-8, 0.0]
+            },
+            water: {
+                name: 'Vann',
+                density: [999.8, -0.06, -0.0048, 0.0],
+                viscosity: [0.001792, -0.00005, 1.5e-6, -2.0e-8],
+                cp: [4217.0, -1.3, 0.009, 0.0],
+                k: [0.569, 0.0017, -6.0e-6, 0.0]
+            },
+            co2: {
+                name: 'Karbondioksid',
+                density: [1.977, -0.0073, 0.0, 0.0],
+                viscosity: [1.37e-5, 5.0e-8, 0.0, 0.0],
+                cp: [820.0, 0.45, 0.0005, 0.0],
+                k: [0.0146, 0.00007, 0.0, 0.0]
+            },
+            argon: {
+                name: 'Argon',
+                density: [1.784, -0.0066, 0.0, 0.0],
+                viscosity: [2.1e-5, 5.5e-8, 0.0, 0.0],
+                cp: [520.0, 0.0, 0.0, 0.0],
+                k: [0.0163, 0.00005, 0.0, 0.0]
+            },
+            helium: {
+                name: 'Helium',
+                density: [0.1785, -0.00066, 0.0, 0.0],
+                viscosity: [1.865e-5, 3.8e-8, 0.0, 0.0],
+                cp: [5193.0, 0.0, 0.0, 0.0],
+                k: [0.142, 0.00036, 0.0, 0.0]
+            },
+            nitrogen: {
+                name: 'Nitrogen',
+                density: [1.251, -0.0046, 0.0, 0.0],
+                viscosity: [1.663e-5, 5.0e-8, 0.0, 0.0],
+                cp: [1040.0, 0.01, 0.0, 0.0],
+                k: [0.0242, 0.00007, 0.0, 0.0]
+            }
+        };
+
+        function convertToC(temp, unit) {
+            if (unit === 'F') return (temp - 32) * 5/9;
+            if (unit === 'K') return temp - 273.15;
+            return temp;
+        }
+
+        function calcPoly(coeffs, T) {
+            return coeffs[0] + coeffs[1]*T + coeffs[2]*T*T + coeffs[3]*T*T*T;
+        }
+
+        function calculate() {
+            const fluid = document.getElementById('fluid').value;
+            const temp = parseFloat(document.getElementById('temperature').value);
+            const unit = document.getElementById('unit').value;
+            
+            const T = convertToC(temp, unit);
+            const props = fluidData[fluid];
+            
+            // Beregn egenskaper
+            const rho = calcPoly(props.density, T);
+            const mu = calcPoly(props.viscosity, T);
+            const cp = calcPoly(props.cp, T);
+            const k = calcPoly(props.k, T);
+            
+            // Avledede egenskaper
+            const nu = mu / rho;
+            const alpha = k / (rho * cp);
+            const Pr = (mu * cp) / k;
+            const beta = 1 / (T + 273.15);
+            
+            // Vis resultater
+            const results = [
+                { 
+                    label: 'Tetthet (ρ)', 
+                    value: rho.toFixed(3), 
+                    unit: 'kg/m³',
+                    desc: 'Masse per volumenhet'
+                },
+                { 
+                    label: 'Dynamisk viskositet (μ)', 
+                    value: (mu * 1000).toExponential(3), 
+                    unit: 'mPa·s',
+                    desc: 'Motstand mot deformasjon'
+                },
+                { 
+                    label: 'Kinematisk viskositet (ν)', 
+                    value: (nu * 1e6).toFixed(3), 
+                    unit: 'mm²/s',
+                    desc: 'Dynamisk viskositet / tetthet'
+                },
+                { 
+                    label: 'Spesifikk varme (cp)', 
+                    value: cp.toFixed(1), 
+                    unit: 'J/(kg·K)',
+                    desc: 'Energi for å øke temp. 1°C'
+                },
+                { 
+                    label: 'Varmeledningsevne (k)', 
+                    value: k.toFixed(4), 
+                    unit: 'W/(m·K)',
+                    desc: 'Evne til å lede varme'
+                },
+                { 
+                    label: 'Prandtl-tall (Pr)', 
+                    value: Pr.toFixed(3), 
+                    unit: '−',
+                    desc: 'Momentum/varmediffusivitet'
+                },
+                { 
+                    label: 'Termal diffusivitet (α)', 
+                    value: (alpha * 1e6).toFixed(3), 
+                    unit: 'mm²/s',
+                    desc: 'Spredning av varme'
+                },
+                { 
+                    label: 'Termisk ekspansjon (β)', 
+                    value: (beta * 1000).toFixed(3), 
+                    unit: '×10⁻³ K⁻¹',
+                    desc: 'Volumendring ved oppvarming'
+                }
+            ];
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = results.map(r => `
+                <div class="result-card" title="${r.desc}">
+                    <div class="result-label">${r.label}</div>
+                    <div class="result-value">${r.value}</div>
+                    <div class="result-unit">${r.unit}</div>
+                </div>
+            `).join('');
+        }
+        
+        // Beregn ved oppstart
+        calculate();
+        
+        // Lytt på theme changes (hvis theme-switcher er aktiv)
+        window.addEventListener('themechange', (e) => {
+            console.log('Theme changed:', e.detail?.theme);
+        });
+    </script>
+</body>
+</html>

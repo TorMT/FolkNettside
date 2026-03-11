@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Strukturtegner</title>
+
+  <style>
+    :root{
+      --primary:#2f6f4e;
+      --primary-light:#3b8a61;
+      --bg-main:#ffffff;
+      --bg-card:#f8fafc;
+      --bg-alt:#f1f5f9;
+      --text-main:#0f172a;
+      --text-light:#64748b;
+      --border-color:#dbe5dc;
+      --shadow-lg:0 10px 15px -3px rgb(0 0 0 / 0.10);
+      --shadow:0 1px 3px 0 rgb(0 0 0 / 0.08);
+      --radius:12px;
+      --radius-sm:10px;
+    }
+    [data-theme="dark"]{
+      --bg-main:#151515;
+      --bg-card:#1f1f1f;
+      --bg-alt:#252525;
+      --text-main:#e7e7e7;
+      --text-light:#a8a8a8;
+      --border-color:#3a3a3a;
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0; padding:20px; min-height:100vh;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:var(--bg-main); color:var(--text-main);
+    }
+    .container{
+      max-width:1200px; margin:0 auto;
+      background:var(--bg-card);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow-lg);
+      padding:24px;
+    }
+    .header{
+      padding-bottom:14px;
+      border-bottom:3px solid var(--primary);
+      margin-bottom:18px;
+    }
+    .header h1{
+      margin:0;
+      font-size:40px;
+      color:var(--primary);
+      display:flex; gap:12px; align-items:center;
+      letter-spacing:.2px;
+    }
+    .header p{ margin:8px 0 0; color:var(--text-light); font-size:16px; }
+    .note{
+      margin-top:10px;
+      background:color-mix(in oklab, var(--bg-main), var(--bg-alt) 55%);
+      border:1px dashed var(--border-color);
+      border-radius:10px;
+      padding:10px 12px;
+      color:var(--text-light);
+      font-size:14px;
+      line-height:1.35;
+    }
+    .note b{ color:var(--text-main); }
+    .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+
+    .toolbarCard{
+      background:var(--bg-main);
+      border:1px solid var(--border-color);
+      border-radius:var(--radius-sm);
+      padding:14px;
+      margin-bottom:14px;
+      box-shadow:var(--shadow);
+    }
+    .toolbar{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .group{
+      display:flex; gap:10px; align-items:center;
+      padding-right:12px;
+      border-right:1px solid var(--border-color);
+    }
+    .group:last-child{ border-right:none; padding-right:0; }
+    .spacer{ flex:1; }
+
+    .btn{
+      border:2px solid #cfead6;
+      background:var(--bg-alt);
+      color:var(--text-main);
+      border-radius:12px;
+      padding:14px 18px;
+      font-size:18px;
+      font-weight:800;
+      cursor:pointer;
+      user-select:none;
+      transition:transform .12s, filter .12s, border-color .12s;
+    }
+    [data-theme="dark"] .btn{
+      border-color:#315a45;
+      background:#1b1b1b;
+    }
+    .btn:hover{ transform:translateY(-1px); filter:brightness(.99); border-color:var(--primary); }
+    .btn:active{ transform:translateY(0); }
+    .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
+    .btn.primary{
+      background:var(--primary);
+      border-color:var(--primary);
+      color:#fff;
+    }
+    .btn.primary:hover{ background:var(--primary-light); }
+
+    .editorCard{
+      background:var(--bg-main);
+      border:1px solid var(--border-color);
+      border-radius:var(--radius-sm);
+      overflow:hidden;
+      box-shadow:var(--shadow);
+    }
+    .noteBar{
+      padding:12px 14px;
+      border-bottom:1px solid var(--border-color);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      color:var(--text-light);
+      font-size:16px;
+    }
+    .noteBar strong{ color:var(--text-main); }
+
+    .editorWrap{
+      position:relative;
+      height:640px;
+      background:var(--bg-main);
+    }
+    #composer{ width:100%; height:100%; }
+
+    .statusBar{
+      padding:10px 14px;
+      border-top:1px solid var(--border-color);
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      font-size:14px;
+      color:var(--text-light);
+    }
+
+    .overlay{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+      gap:10px;
+      background:color-mix(in oklab, var(--bg-main), transparent 5%);
+      z-index:80;
+    }
+    .spinner{
+      width:38px; height:38px;
+      border-radius:999px;
+      border:4px solid var(--border-color);
+      border-top-color:var(--primary);
+      animation:spin .9s linear infinite;
+    }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+    .overlay .title{ font-weight:900; font-size:18px; color:var(--text-main); }
+    .overlay .sub{ color:var(--text-light); font-size:14px; max-width:680px; text-align:center; line-height:1.35; }
+    .overlay .tiny{ margin-top:6px; font-size:12px; color:var(--text-light); max-width:740px; text-align:center; line-height:1.35; opacity:.95; }
+    .retryRow{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; justify-content:center; }
+
+    @media (max-width:768px){
+      body{ padding:12px; }
+      .container{ padding:14px; }
+      .header h1{ font-size:28px; }
+      .btn{ width:100%; font-size:16px; padding:12px 14px; }
+      .group{ border-right:none; padding-right:0; }
+      .editorWrap{ height:520px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🧪 Strukturtegner</h1>
+      <p>Tegn molekyler, importer/eksporter, kopier SMILES. Følger samme theme som resten av siden.</p>
+      <div class="note">
+        <b>Merk:</b> Editor-biblioteket lastes fra CDN første gang (kan ta noen sekunder).
+        Hvis spinner står mer enn ca. <b>12 sek</b>, får du feilmelding (og det logges i console).
+        Sjekk DevTools → Network om <span class="mono">unpkg.com</span> er blokkert.
+      </div>
+    </div>
+
+    <div class="toolbarCard">
+      <div class="toolbar">
+        <div class="group">
+          <button class="btn" id="btnNew">🆕 New</button>
+          <button class="btn" id="btnImport">📥 Import…</button>
+          <button class="btn" id="btnExportMol">⬇️ MOL</button>
+          <button class="btn primary" id="btnExportSmiles">⬇️ SMILES</button>
+        </div>
+
+        <div class="group">
+          <button class="btn" id="btnUndo">↶ Undo</button>
+          <button class="btn" id="btnRedo">↷ Redo</button>
+          <button class="btn" id="btnClean">🧹 Clean 2D</button>
+          <button class="btn" id="btnCopySmiles">📋 Copy SMILES</button>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="group">
+          <button class="btn" id="btnTips">❔ Tips</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="editorCard">
+      <div class="noteBar">
+        <div><strong>Tips:</strong> All tegning gjøres i editorens egen verktøylinje inne i canvas.</div>
+        <div class="mono" id="miniStatus">Laster…</div>
+      </div>
+
+      <div class="editorWrap" id="editorWrap">
+        <div id="composer"></div>
+
+        <div class="overlay" id="overlay">
+          <div class="spinner"></div>
+          <div class="title" id="overlayTitle">Laster kjemi-editor…</div>
+          <div class="sub" id="overlaySub">Henter bibliotek fra CDN (unpkg). Første gang kan dette ta noen sekunder.</div>
+          <div class="tiny" id="overlayTiny">Timeout er 12 sek. Hvis det feiler logges detalj i console.</div>
+
+          <div class="retryRow">
+            <button class="btn" id="btnRetry">🔄 Prøv igjen</button>
+            <button class="btn" id="btnShowHelp">🧩 Hva kan være galt?</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="statusBar">
+        <div id="statusLeft">Laster…</div>
+        <div class="mono" id="statusRight"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const statusLeft  = document.getElementById('statusLeft');
+  const statusRight = document.getElementById('statusRight');
+  const miniStatus  = document.getElementById('miniStatus');
+
+  const overlay      = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub   = document.getElementById('overlaySub');
+  const overlayTiny  = document.getElementById('overlayTiny');
+
+  const btnRetry    = document.getElementById('btnRetry');
+  const btnShowHelp = document.getElementById('btnShowHelp');
+
+  function setStatus(a, b=''){
+    statusLeft.textContent = a;
+    statusRight.textContent = b;
+    miniStatus.textContent = a;
+  }
+  function showOverlay(title, sub='', tiny=''){
+    overlayTitle.textContent = title;
+    overlaySub.textContent = sub;
+    overlayTiny.textContent = tiny || '';
+    overlay.style.display = 'flex';
+  }
+  function hideOverlay(){ overlay.style.display = 'none'; }
+
+  function withTimeout(promise, ms, msg){
+    return Promise.race([
+      promise,
+      new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))
+    ]);
+  }
+
+  const KEKULE_CDN = {
+    css: 'https://unpkg.com/kekule/dist/themes/default/kekule.css',
+    js:  'https://unpkg.com/kekule/dist/kekule.min.js',
+  };
+
+  let __kekuleLoadPromise = null;
+
+  function loadCssOnce(href){
+    return new Promise((res, rej) => {
+      if (document.querySelector(`link[data-kekule="css"][href="${href}"]`)) return res(true);
+      const l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = href;
+      l.setAttribute('data-kekule','css');
+      l.onload = () => res(true);
+      l.onerror = () => rej(new Error('CSS blocked/failed: ' + href));
+      document.head.appendChild(l);
+    });
+  }
+
+  function loadJsOnce(src){
+    return new Promise((res, rej) => {
+      if (window.Kekule && Kekule.Editor && Kekule.Editor.Composer) return res(true);
+
+      const existing = document.querySelector(`script[data-kekule="js"][src="${src}"]`);
+      if (existing){
+        existing.addEventListener('load', () => res(true), { once:true });
+        existing.addEventListener('error', () => rej(new Error('JS blocked/failed: ' + src)), { once:true });
+        return;
+      }
+
+      const s = document.createElement('script');
+      s.src = src;
+      s.defer = true;
+      s.setAttribute('data-kekule','js');
+      s.onload = () => res(true);
+      s.onerror = () => rej(new Error('JS blocked/failed: ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureKekule(){
+    if (window.Kekule && Kekule.Editor && Kekule.Editor.Composer) return true;
+
+    if (!__kekuleLoadPromise){
+      __kekuleLoadPromise = (async () => {
+        await loadCssOnce(KEKULE_CDN.css);
+        await loadJsOnce(KEKULE_CDN.js);
+
+        for (let i = 0; i < 60; i++){
+          if (window.Kekule && Kekule.Editor && Kekule.Editor.Composer) return true;
+          await new Promise(r => setTimeout(r, 50));
+        }
+        throw new Error('Kekule lastet, men global init kom aldri (uvanlig).');
+      })();
+    }
+    return __kekuleLoadPromise;
+  }
+
+  function installHotkeys(composer){
+    const wrap = document.getElementById('editorWrap');
+    wrap.tabIndex = 0;
+    wrap.style.outline = 'none';
+    wrap.addEventListener('mousedown', () => wrap.focus());
+    setTimeout(() => wrap.focus(), 0);
+
+    document.addEventListener('keydown', (e) => {
+      const ctrl = e.ctrlKey || e.metaKey;
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+
+      if (ctrl && e.key.toLowerCase() === 'z'){
+        e.preventDefault(); e.stopPropagation();
+        if (e.shiftKey) composer.redo(); else composer.undo();
+        return;
+      }
+      if (ctrl && e.key.toLowerCase() === 'y'){
+        e.preventDefault(); e.stopPropagation();
+        composer.redo();
+        return;
+      }
+      if (ctrl && e.key.toLowerCase() === 'l'){
+        e.preventDefault(); e.stopPropagation();
+        try { composer.execCommand && composer.execCommand('clean'); setStatus('Clean 2D'); }
+        catch { setStatus('Clean 2D ikke tilgjengelig'); }
+        return;
+      }
+      if (ctrl && e.key.toLowerCase() === 'm'){ e.preventDefault(); document.getElementById('btnExportMol')?.click(); return; }
+      if (ctrl && e.key.toLowerCase() === 'e'){ e.preventDefault(); document.getElementById('btnExportSmiles')?.click(); return; }
+      if (ctrl && e.key.toLowerCase() === 'k'){ e.preventDefault(); document.getElementById('btnCopySmiles')?.click(); return; }
+      if (ctrl && e.key.toLowerCase() === 'n'){ e.preventDefault(); document.getElementById('btnNew')?.click(); return; }
+      if (ctrl && e.key.toLowerCase() === 'i'){ e.preventDefault(); document.getElementById('btnImport')?.click(); return; }
+    }, { capture: true });
+  }
+
+  function downloadText(filename, text){
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function showHelpDialog(){
+    alert(
+`Hvis editoren ikke laster:
+1) DevTools → Network: sjekk om requests til https://unpkg.com/kekule/... feiler/blokkeres.
+2) Adblock/CSP kan blokkere unpkg.
+3) Hvis du vil ha 100% robust: legg inn lokal fallback (kan vi gjøre).`
+    );
+  }
+
+  let initRunning = false;
+
+  async function init(){
+    if (initRunning) return;
+    initRunning = true;
+
+    setStatus('Laster bibliotek…', 'CDN: unpkg');
+    showOverlay(
+      'Laster kjemi-editor…',
+      'Henter bibliotek fra CDN (unpkg). Første gang kan dette ta noen sekunder.',
+      'Timeout er 12 sek. Hvis det feiler logges detalj i console.'
+    );
+
+    const t0 = performance.now();
+
+    try{
+      await withTimeout(
+        ensureKekule(),
+        12000,
+        'Timeout: Kekule/CDN ble ikke lastet innen 12 sek (mulig blokkert).'
+      );
+
+      // Init composer
+      const composer = new Kekule.Editor.Composer(document.getElementById('composer'));
+      composer.setEnableOperHistory(true);
+      composer.setChemObj(new Kekule.StructureFragment());
+
+      // ✅ FIX: setAutoResize finnes ikke i denne builden -> ikke kall den
+      // Fallback: sett størrelse + prøv å trigge resize hvis API finnes
+      try { composer.setSize && composer.setSize('100%','100%'); } catch {}
+      window.addEventListener('resize', () => {
+        try {
+          // Noen builds har resize()/updateSize()/refresh()
+          if (composer.resize) composer.resize();
+          else if (composer.updateSize) composer.updateSize();
+          else if (composer.refresh) composer.refresh();
+        } catch {}
+      });
+
+      // Import
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.mol,.sdf,.rxn,.json,.kcx,.cml,.smi,.smiles,.txt';
+      fileInput.style.display = 'none';
+      document.body.appendChild(fileInput);
+
+      document.getElementById('btnImport').onclick = () => fileInput.click();
+      fileInput.onchange = async () => {
+        const f = fileInput.files && fileInput.files[0];
+        if (!f) return;
+        const text = await f.text();
+        try{
+          const obj = Kekule.IO.loadFormatData(text, null);
+          if (!obj) throw new Error('Format not recognized');
+          composer.setChemObj(obj);
+          setStatus(`Imported: ${f.name}`);
+        } catch (e){
+          console.error(e);
+          setStatus('Import feilet', 'Format ikke gjenkjent');
+        } finally {
+          fileInput.value = '';
+        }
+      };
+
+      // New / Undo / Redo / Clean
+      document.getElementById('btnNew').onclick = () => { composer.setChemObj(new Kekule.StructureFragment()); setStatus('New document'); };
+      document.getElementById('btnUndo').onclick = () => composer.undo();
+      document.getElementById('btnRedo').onclick = () => composer.redo();
+      document.getElementById('btnClean').onclick = () => {
+        try { composer.execCommand && composer.execCommand('clean'); setStatus('Clean 2D applied'); }
+        catch { setStatus('Clean 2D ikke tilgjengelig'); }
+      };
+
+      // Export
+      document.getElementById('btnExportMol').onclick = () => {
+        try{
+          const mol = Kekule.IO.saveFormatData(composer.getChemObj(), 'mol');
+          downloadText('structure.mol', mol);
+          setStatus('Exported MOL', `${mol.length} chars`);
+        } catch (e){
+          console.error(e);
+          setStatus('MOL export feilet');
+        }
+      };
+
+      document.getElementById('btnExportSmiles').onclick = () => {
+        try{
+          const smi = Kekule.IO.saveFormatData(composer.getChemObj(), 'smi');
+          downloadText('structure.smi', smi);
+          setStatus('Exported SMILES', smi.slice(0, 120));
+        } catch (e){
+          console.error(e);
+          setStatus('SMILES export feilet', 'Ikke støttet i denne builden');
+        }
+      };
+
+      document.getElementById('btnCopySmiles').onclick = async () => {
+        try{
+          const smi = Kekule.IO.saveFormatData(composer.getChemObj(), 'smi');
+          await navigator.clipboard.writeText(smi);
+          setStatus('Copied SMILES', smi.slice(0, 80));
+        } catch (e){
+          console.error(e);
+          setStatus('Copy feilet', 'Clipboard eller SMILES ikke tilgjengelig');
+        }
+      };
+
+      document.getElementById('btnTips').onclick = () => {
+        alert(
+`Hotkeys:
+- Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y: Undo/Redo
+- Ctrl+L: Clean 2D
+- Ctrl+M: Export MOL
+- Ctrl+E: Export SMILES
+- Ctrl+K: Copy SMILES
+- Ctrl+N: New
+- Ctrl+I: Import
+
+Klikk i editorområdet hvis hotkeys ikke trigges (fokus).`
+        );
+      };
+
+      installHotkeys(composer);
+
+      const dt = Math.round(performance.now() - t0);
+      hideOverlay();
+      setStatus('Ready', `Kekule loaded ✅ (${dt} ms)`);
+    }
+    catch(err){
+      console.error('[ChemDraw] Init failed:', err);
+      setStatus('Kunne ikke laste editor', String(err?.message || err));
+      showOverlay(
+        'Kunne ikke laste kjemi-editor',
+        'Noe feilet ved lasting eller init. Se console for detalj.',
+        'Vanligst: unpkg blokkert (CSP/adblock/nettverk) eller tregt. Timeout: 12 sek.'
+      );
+    }
+    finally{
+      initRunning = false;
+    }
+  }
+
+  btnRetry.onclick = () => init();
+  btnShowHelp.onclick = () => showHelpDialog();
+
+  init();
+})();
+</script>
+</body>
+</html>

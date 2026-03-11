@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+<title>Krystallstruktur – 3D</title>
+
+<style>
+  :root{
+    --bg-main: #ffffff;
+    --bg-card: #f7f8fb;
+    --bg-alt: #eef2f7;
+    --text-main: #111827;
+    --text-muted: rgba(17,24,39,.65);
+    --border-color: rgba(17,24,39,.14);
+
+    --primary: #2f6fed;
+    --primary-contrast: #ffffff;
+
+    --radius-lg: 18px;
+    --radius-md: 14px;
+    --shadow: 0 14px 30px -18px rgba(0,0,0,.35);
+    --shadow-soft: 0 10px 22px -18px rgba(0,0,0,.25);
+
+    --danger: #ef4444;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html, body{ 
+    height:100%; 
+    overflow:hidden;
+    position:fixed;
+    width:100%;
+  }
+
+  body{
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    touch-action: pan-y;
+  }
+
+  .wrap{
+    display:grid;
+    grid-template-columns: 360px 1fr;
+    gap: 14px;
+    padding: 14px;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  @media (max-width: 980px){
+    .wrap{
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      padding: 0;
+    }
+  }
+
+  .card{
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    overflow:hidden;
+    min-height: 0;
+  }
+
+  @media (max-width: 980px){
+    .card{
+      border-radius: 0;
+      border: none;
+    }
+  }
+
+  /* Panel: sticky header + scroll body */
+  .panel{
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+    max-height: 100vh;
+  }
+
+  @media (max-width: 980px){
+    .panel{
+      max-height: 50vh;
+    }
+  }
+
+  .panelHeader{
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    padding: 14px 14px 10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 10px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+    flex-shrink: 0;
+  }
+
+  .panelHeader .title{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .panelHeader h1{
+    font-size: 1.05rem;
+    margin:0;
+    letter-spacing:.2px;
+  }
+  .panelHeader .sub{
+    font-size:.85rem;
+    color: var(--text-muted);
+  }
+
+  .panelHeader .hdrBtns{
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+
+  .panelBody{
+    padding: 14px;
+    display:flex;
+    flex-direction:column;
+    gap: 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height:0;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* sections */
+  .section{
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-soft);
+    overflow:visible;
+  }
+
+  .sectionHead{
+    padding: 10px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 10px;
+    user-select:none;
+    cursor: pointer;
+  }
+  .sectionHead .label{
+    font-weight: 900;
+    font-size: .95rem;
+  }
+  .sectionHead .hint{
+    color: var(--text-muted);
+    font-size: .82rem;
+  }
+  .sectionBody{
+    padding: 12px;
+    border-top: 1px solid var(--border-color);
+    display:flex;
+    flex-direction:column;
+    gap: 10px;
+  }
+  .sectionBody.collapsed{
+    display: none;
+  }
+
+  .field{ display:flex; flex-direction:column; gap: 6px; }
+  label{ font-size:.82rem; color: var(--text-muted); }
+
+  select, input{
+    width:100%;
+    padding: 10px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-main);
+    color: var(--text-main);
+    outline:none;
+    font-size: 0.95rem;
+  }
+  select:focus, input:focus{
+    border-color: color-mix(in oklab, var(--primary), var(--border-color) 55%);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary), transparent 82%);
+  }
+
+  .row{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  .btnRow{
+    display:flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  button{
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 10px 12px;
+    cursor:pointer;
+    font-weight: 900;
+    letter-spacing:.1px;
+    user-select:none;
+    transition: transform .03s ease, filter .12s ease, background .12s ease, border-color .12s ease;
+    font-size: 0.9rem;
+  }
+  button:active{ transform: translateY(1px); }
+  button:disabled{
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btnPrimary{
+    background: var(--primary);
+    color: var(--primary-contrast);
+  }
+
+  .btnToggle{
+    background: transparent;
+    color: var(--text-main);
+    border-color: var(--border-color);
+  }
+  .btnToggle:hover:not(:disabled){
+    background: color-mix(in oklab, var(--bg-main), var(--text-main) 6%);
+  }
+  .btnToggle[data-on="1"]{
+    border-color: color-mix(in oklab, var(--primary), var(--border-color) 35%);
+    background: color-mix(in oklab, var(--primary), transparent 84%);
+    color: var(--text-main);
+  }
+
+  .chipBar{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    border-radius: 999px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-main);
+    font-weight: 950;
+    font-size:.88rem;
+    cursor: pointer;
+  }
+  .chip[data-active="1"]{
+    border-color: color-mix(in oklab, var(--primary), var(--border-color) 35%);
+    background: color-mix(in oklab, var(--primary), transparent 84%);
+  }
+
+  /* Plan-list */
+  .planList{ display:flex; flex-direction:column; gap:8px; }
+  .planItem{
+    display:grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items:center;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: color-mix(in oklab, var(--bg-main), var(--text-main) 3%);
+  }
+  .planItem .meta{
+    font-weight: 950;
+  }
+  .planItem .meta small{
+    display:block;
+    color: var(--text-muted);
+    font-weight: 800;
+    margin-top: 2px;
+  }
+  .iconBtn{
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    font-weight: 950;
+  }
+  .iconBtn[data-on="1"]{
+    border-color: color-mix(in oklab, var(--primary), var(--border-color) 35%);
+    background: color-mix(in oklab, var(--primary), transparent 84%);
+  }
+
+  /* Viewer */
+  .viewer{
+    position:relative;
+    min-height:0;
+    touch-action: none;
+  }
+  
+  @media (max-width: 980px){
+    .viewer{
+      height: 50vh;
+    }
+  }
+  
+  #viewerCanvasHost{
+    position:absolute;
+    inset:0;
+  }
+  
+  .viewerHud{
+    position:absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    display:flex;
+    justify-content:space-between;
+    gap: 10px;
+    pointer-events:none;
+    z-index: 2;
+    flex-wrap: wrap;
+  }
+  
+  @media (max-width: 980px){
+    .viewerHud{
+      top: 8px;
+      left: 8px;
+      right: 8px;
+    }
+  }
+  
+  .pill{
+    pointer-events:auto;
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: color-mix(in oklab, var(--bg-main), transparent 10%);
+    backdrop-filter: blur(6px);
+    box-shadow: var(--shadow-soft);
+    color: var(--text-main);
+    font-size: .9rem;
+  }
+  .pill small{ color: var(--text-muted); font-weight: 900; }
+
+  /* Modal */
+  .modalBackdrop{
+    position:fixed;
+    inset:0;
+    background: rgba(0,0,0,.35);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding: 16px;
+    z-index: 9999;
+  }
+  .modalBackdrop.show{ display:flex; }
+  .modal{
+    width: min(880px, 96vw);
+    max-height: 86vh;
+    overflow:auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+  .modalHdr{
+    position: sticky;
+    top:0;
+    z-index:2;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    padding: 14px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+  }
+  .modalHdr h2{ margin:0; font-size: 1.05rem; font-weight: 950; }
+  .modalBody{ padding: 14px; color: var(--text-main); }
+  .modalBody p{ margin: 0 0 10px; color: var(--text-muted); line-height:1.45; }
+  .modalBody .grid2{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 900px){
+    .modalBody .grid2{ grid-template-columns:1fr; }
+  }
+  .miniCard{
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-soft);
+    padding: 12px;
+  }
+  .miniCard h3{ margin:0 0 6px; font-size: .98rem; font-weight: 950; }
+  .miniCard ul{ margin: 6px 0 0 18px; color: var(--text-muted); }
+  .miniCard li{ margin: 6px 0; }
+
+  /* Toast */
+  .toast{
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    box-shadow: var(--shadow);
+    display:none;
+    z-index: 9998;
+  }
+  .toast.show{ display:block; }
+  .toast .tTitle{ font-weight: 950; margin-bottom: 2px; }
+  .toast .tBody{ color: var(--text-muted); font-size: .9rem; }
+
+  /* Range slider styling */
+  input[type="range"]{
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border-color);
+    height: 6px;
+    border-radius: 3px;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    border: none;
+  }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <!-- LEFT PANEL -->
+  <div class="card panel">
+    <div class="panelHeader">
+      <div class="title">
+        <h1>Krystall 3D</h1>
+        <div class="sub">Strukturer • Plan • Bindinger • Defekter</div>
+      </div>
+      <div class="hdrBtns">
+        <button id="helpBtn" class="btnToggle" data-on="0">Help</button>
+        <button id="resetView" class="btnToggle" data-on="0" title="Reset view">Reset</button>
+      </div>
+    </div>
+
+    <div class="panelBody">
+
+      <!-- Struktur -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Struktur</div>
+            <div class="hint">Velg type + replisering</div>
+          </div>
+          <div class="hint">Auto: <span id="autoRebuildBadge">ON</span></div>
+        </div>
+        <div class="sectionBody">
+
+          <div class="field">
+            <label>Krystalltype</label>
+            <select id="structure">
+              <option value="sc">Simple Cubic (SC)</option>
+              <option value="bcc">Body Centered Cubic (BCC)</option>
+              <option value="fcc">Face Centered Cubic (FCC)</option>
+              <option value="diamond">Diamond (Si/C)</option>
+              <option value="hcp">Hexagonal Close-Packed (HCP)</option>
+              <option value="nacl">NaCl (Rock Salt)</option>
+              <option value="cscl">CsCl (Cesium Chloride)</option>
+              <option value="zns">ZnS (Zinc Blende)</option>
+              <option value="caf2">CaF₂ (Fluorite)</option>
+              <option value="spinel">Spinel (forenklet)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Eksempel: vanlige stoffer</label>
+            <select id="elementPreset">
+              <option value="">— velg —</option>
+              <option value="Na">Na (SC)</option>
+              <option value="Fe">Fe (BCC)</option>
+              <option value="Cu">Cu (FCC)</option>
+              <option value="Al">Al (FCC)</option>
+              <option value="Ni">Ni (FCC)</option>
+              <option value="Si">Si (Diamond)</option>
+              <option value="C">C (Diamond)</option>
+              <option value="MgAl2O4">MgAl₂O₄ (Spinel)</option>
+              <option value="Fe3O4">Fe₃O₄ (Spinel)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Replisering (Nx Ny Nz)</label>
+            <div class="row">
+              <input id="nx" type="number" value="2" min="1" max="8" />
+              <input id="ny" type="number" value="2" min="1" max="8" />
+              <input id="nz" type="number" value="2" min="1" max="8" />
+            </div>
+          </div>
+
+          <div class="btnRow">
+            <button id="build" class="btnPrimary">Bygg</button>
+            <button id="autoRebuild" class="btnToggle" data-on="1">Auto</button>
+            <button id="toggleGrid" class="btnToggle" data-on="1">Grid</button>
+            <button id="toggleAxes" class="btnToggle" data-on="1">Aksene</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Material guess -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Gjetting</div>
+            <div class="hint">Basert på struktur/preset</div>
+          </div>
+          <div class="hint">ℹ</div>
+        </div>
+        <div class="sectionBody">
+          <div style="font-weight:950; margin-bottom:4px;">Forslag</div>
+          <div id="guessBox" style="color:var(--text-muted); line-height:1.35;">
+            Velg preset eller struktur for forslag.
+          </div>
+        </div>
+      </div>
+
+      <!-- Bindinger -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Bindinger</div>
+            <div class="hint">Nærmeste nabo + plan-kutt markør</div>
+          </div>
+          <div class="hint">—</div>
+        </div>
+        <div class="sectionBody">
+          <div class="btnRow">
+            <button id="toggleBonds" class="btnToggle" data-on="0">Bindinger</button>
+            <button id="rebuildBonds" class="btnToggle" data-on="0">Oppdater</button>
+            <button id="toggleCuts" class="btnToggle" data-on="1">Plan-kutt</button>
+          </div>
+
+          <div class="field">
+            <label>Terskel (avstand): <span id="bondDistValue">1.15</span></label>
+            <input id="bondDist" type="range" min="0.8" max="1.8" step="0.02" value="1.15">
+            <div style="color:var(--text-muted); font-size:.9rem;">
+              Bruk "Oppdater" for å regenerere.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plan -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Miller-plan</div>
+            <div class="hint">Legg til flere plan</div>
+          </div>
+          <div class="hint">hkl</div>
+        </div>
+        <div class="sectionBody">
+
+          <div class="field">
+            <label>Nytt plan (h k l)</label>
+            <div class="row">
+              <input id="h" type="number" value="1" min="0" />
+              <input id="k" type="number" value="1" min="0" />
+              <input id="l" type="number" value="1" min="0" />
+            </div>
+          </div>
+
+          <div class="btnRow">
+            <button id="addPlane" class="btnPrimary">Legg til</button>
+            <button id="clearPlanes" class="btnToggle" data-on="0">Tøm</button>
+          </div>
+
+          <div class="planList" id="planList"></div>
+
+          <div style="color:var(--text-muted); font-size:.9rem; line-height:1.35;">
+            Plan-kutt markør viser røde "snitt" der planet skjærer bindinger.
+          </div>
+        </div>
+      </div>
+
+      <!-- Placement -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Plassér (klikk i 3D)</div>
+            <div class="hint">Snap til atom/hull</div>
+          </div>
+          <div class="hint">🧲</div>
+        </div>
+        <div class="sectionBody">
+
+          <div class="field">
+            <label>Hva vil du plassere?</label>
+            <select id="placeMode">
+              <option value="none">Ingen (rotér som normalt)</option>
+              <option value="dopant">Dopant-atom (substitusjon)</option>
+              <option value="vacancy">Vacancy (fjern atom)</option>
+              <option value="interstitial">Interstitial atom (i hull)</option>
+              <option value="electron">Elektron (markør)</option>
+              <option value="hole">Hull (markør)</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label>Snap til</label>
+              <select id="snapTo">
+                <option value="both">Atomer + hull</option>
+                <option value="atoms">Kun atomer</option>
+                <option value="holes">Kun hull</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Snap-radius</label>
+              <input id="snapRadius" type="number" value="0.35" min="0.05" max="2" step="0.05">
+            </div>
+            <div class="field">
+              <label>Farge</label>
+              <select id="placeColor">
+                <option value="primary">Theme (primary)</option>
+                <option value="danger">Kontrast (rød)</option>
+                <option value="muted">Muted</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="color:var(--text-muted); font-size:.9rem; line-height:1.35;">
+            Tip: sett "Vacancy" og klikk på et atom. Sett "Interstitial" og klikk nær et hull.
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Hull-visualisering (NY!) -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Hull-visualisering</div>
+            <div class="hint">Tetraedre & Oktaedre</div>
+          </div>
+          <div class="hint">🔺🔷</div>
+        </div>
+        <div class="sectionBody">
+          <div class="btnRow">
+            <button id="toggleTetrahedral" class="btnToggle" data-on="0">Tetraedre</button>
+            <button id="toggleOctahedral" class="btnToggle" data-on="0">Oktaedre</button>
+          </div>
+          <div style="color:var(--text-muted); font-size:.88rem; line-height:1.35; margin-top:8px;">
+            Vis alle tetraedriske eller oktaedriske hull med koordinerende atomer.
+          </div>
+        </div>
+      </div>
+
+      <!-- Måleverktøy (NY!) -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Måleverktøy</div>
+            <div class="hint">Mål avstander med snap</div>
+          </div>
+          <div class="hint">📏</div>
+        </div>
+        <div class="sectionBody">
+          <div class="btnRow">
+            <button id="toggleMeasure" class="btnToggle" data-on="0">Aktiver måleverktøy</button>
+            <button id="clearMeasurements" class="btnToggle" data-on="0">Tøm målinger</button>
+          </div>
+          <div id="measurementInfo" style="color:var(--text-muted); font-size:.88rem; line-height:1.35; margin-top:8px;">
+            Klikk på to atomer for å måle avstand. Snap fungerer automatisk.
+          </div>
+          <div id="measurementList" style="margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <!-- Manuell atom-plassering (NY!) -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Bygg manuelt</div>
+            <div class="hint">Plasser egne atomer</div>
+          </div>
+          <div class="hint">⚛️</div>
+        </div>
+        <div class="sectionBody">
+          <div class="field">
+            <label>Atomtype</label>
+            <select id="manualAtomType">
+              <option value="fe">Fe (Jern)</option>
+              <option value="c">C (Karbon)</option>
+              <option value="cr">Cr (Krom)</option>
+              <option value="ni">Ni (Nikkel)</option>
+              <option value="cu">Cu (Kobber)</option>
+              <option value="al">Al (Aluminium)</option>
+              <option value="o">O (Oksygen)</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label>Radius</label>
+              <input id="manualRadius" type="number" value="0.25" min="0.1" max="0.5" step="0.01">
+            </div>
+            <div class="field">
+              <label>Farge</label>
+              <input id="manualColor" type="color" value="#3b82f6">
+            </div>
+          </div>
+
+          <div class="btnRow">
+            <button id="toggleManualPlace" class="btnToggle" data-on="0">Plasser fritt</button>
+            <button id="clearManualAtoms" class="btnToggle" data-on="0">Tøm manuelle</button>
+          </div>
+
+          <div style="color:var(--text-muted); font-size:.88rem; line-height:1.35; margin-top:8px;">
+            Aktiver og klikk i 3D for å plassere atom. AI vil analysere strukturen.
+          </div>
+        </div>
+      </div>
+      <!-- Intrinsic/extrinsic -->
+      <div class="section">
+        <div class="sectionHead">
+          <div>
+            <div class="label">Bærere</div>
+            <div class="hint">Intrinsisk / ekstrinsisk</div>
+          </div>
+          <div class="hint">e⁻ / h⁺</div>
+        </div>
+        <div class="sectionBody">
+          <div class="chipBar">
+            <button id="modeIntrinsic" class="chip" data-active="1">Intrinsisk</button>
+            <button id="modeExtrinsic" class="chip" data-active="0">Ekstrinsisk</button>
+          </div>
+
+          <div class="btnRow">
+            <button id="clearPlaced" class="btnToggle" data-on="0">Tøm plasserte</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- VIEWER -->
+  <div class="card viewer">
+    <div id="viewerCanvasHost"></div>
+    <div class="viewerHud">
+      <div class="pill"><small>Orbit</small> dra • <small>Zoom</small> scroll/pinch • <small>Plassér</small> klikk</div>
+      <div class="pill" id="statusPill">Klar</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- HELP MODAL -->
+<div class="modalBackdrop" id="helpModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Help">
+    <div class="modalHdr">
+      <h2>Help / forklaring</h2>
+      <button id="helpClose" class="btnToggle" data-on="0">Lukk</button>
+    </div>
+    <div class="modalBody">
+      <div class="grid2">
+        <div class="miniCard">
+          <h3>Struktur</h3>
+          <ul>
+            <li>SC/BCC/FCC/Diamond er illustrasjoner av gitter + basis.</li>
+            <li>Spinel her er forenklet (pedagogisk).</li>
+            <li>"Auto" bygger på nytt når du endrer valg.</li>
+          </ul>
+        </div>
+
+        <div class="miniCard">
+          <h3>Plan (Miller)</h3>
+          <ul>
+            <li>Legg til flere plan (h,k,l). Du kan toggle/ta bort.</li>
+            <li>"Plan-kutt" viser røde markører der planet skjærer bindinger.</li>
+          </ul>
+        </div>
+
+        <div class="miniCard">
+          <h3>Bindinger</h3>
+          <ul>
+            <li>Bindinger er "nabo-linjer" innen terskelavstand.</li>
+            <li>Øk terskel → flere bindinger.</li>
+          </ul>
+        </div>
+
+        <div class="miniCard">
+          <h3>Plassér / defekter</h3>
+          <ul>
+            <li>Velg modus, så klikker du i 3D.</li>
+            <li>Snap finner nærmeste atom/hull nær muse-rayen.</li>
+            <li>Vacancy fjerner atom (nærmeste).</li>
+          </ul>
+        </div>
+
+        <div class="miniCard">
+          <h3>Hull-visualisering (NY!)</h3>
+          <ul>
+            <li>Vis tetraedriske hull (4 atomer) eller oktaedriske hull (6 atomer).</li>
+            <li>Se polyedrene med kanter og sentrumpunkt.</li>
+            <li>Fungerer for FCC, Diamond, NaCl, ZnS, CaF₂.</li>
+          </ul>
+        </div>
+
+        <div class="miniCard">
+          <h3>Måleverktøy (NY!)</h3>
+          <ul>
+            <li>Aktiver måleverktøy og klikk på to atomer.</li>
+            <li>Snap fungerer automatisk til nærmeste atom.</li>
+            <li>Avstand vises i Ångström (Å).</li>
+          </ul>
+        </div>
+
+        <div class="miniCard">
+          <h3>Manuell plassering (NY!)</h3>
+          <ul>
+            <li>Velg atomtype (Fe, C, Cr, Ni, Cu, etc.).</li>
+            <li>Plasser fritt i 3D-scenen.</li>
+            <li>AI analyserer og foreslår struktur (f.eks. karbonstål!).</li>
+          </ul>
+        </div>
+
+        <div class="miniCard">
+          <h3>AI-Gjenkjennelse (NY!)</h3>
+          <ul>
+            <li>Analyserer koordinasjonstall og atomforhold.</li>
+            <li>Identifiserer strukturer: FCC, BCC, NaCl, osv.</li>
+            <li>Detekterer legeringer: karbonstål, rustfritt stål.</li>
+            <li>Viser konfidensverdi og avvik.</li>
+          </ul>
+        </div>
+      </div>
+
+      <p>
+        <strong>Nye funksjoner i denne versjonen:</strong> Hull-visualisering, måleverktøy, manuell atompl assering, og AI-basert strukturgjenkjennelse.
+        Dette er en pedagogisk viewer for materialvitenskap og kjemi. 10+ strukturer tilgjengelig: FCC, BCC, SC, Diamond, HCP, NaCl, CsCl, ZnS, CaF₂, Spinel.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="tTitle" id="toastTitle"></div>
+  <div class="tBody" id="toastBody"></div>
+</div>
+
+<!-- Load new modules -->
+<script src="./js/polyhedra.js"></script>
+<script src="./js/measurement-tool.js"></script>
+<script src="./js/structure-analyzer.js"></script>
+<script src="./js/manual-atoms.js"></script>
+
+<script type="module">
+import * as THREE from "/includes/three/three.module.js";
+import { OrbitControls } from "/includes/three/OrbitControls.js";
+
+/* ---------- helpers ---------- */
+const $ = (id)=>document.getElementById(id);
+
+function toast(title, body, ms=2200){
+  $("toastTitle").textContent = title;
+  $("toastBody").textContent = body || "";
+  $("toast").classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>$("toast").classList.remove("show"), ms);
+}
+
+function setStatus(txt){ $("statusPill").textContent = txt; }
+
+function setBtnOn(btn, on){ btn.dataset.on = on ? "1" : "0"; }
+
+function clampInt(v,a,b){
+  const n = Math.max(a, Math.min(b, parseInt(v,10) || a));
+  return n;
+}
+
+function cssVar(name, fallback){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
+function parseCssColorToThree(cssColor, fallbackHex=0xffffff){
+  try{
+    const tmp = document.createElement("div");
+    tmp.style.color = cssColor;
+    document.body.appendChild(tmp);
+    const rgb = getComputedStyle(tmp).color;
+    tmp.remove();
+    const m = rgb.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if(!m) return new THREE.Color(fallbackHex);
+    return new THREE.Color((+m[1])/255,(+m[2])/255,(+m[3])/255);
+  }catch{
+    return new THREE.Color(fallbackHex);
+  }
+}
+
+function colorByChoice(choice){
+  if(choice==="danger") return parseCssColorToThree(cssVar("--danger","#ef4444"), 0xef4444);
+  if(choice==="muted") return parseCssColorToThree(cssVar("--text-muted","rgba(17,24,39,.65)"), 0x6b7280);
+  return parseCssColorToThree(cssVar("--primary","#2f6fed"), 0x2f6fed);
+}
+
+/* ---------- modal wiring ---------- */
+function openHelp(){
+  $("helpModal").classList.add("show");
+}
+function closeHelp(){
+  $("helpModal").classList.remove("show");
+}
+$("helpBtn").addEventListener("click", openHelp);
+$("helpClose").addEventListener("click", closeHelp);
+$("helpModal").addEventListener("click", (e)=>{ if(e.target === $("helpModal")) closeHelp(); });
+window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeHelp(); });
+
+/* ---------- scene setup ---------- */
+const host = $("viewerCanvasHost");
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(45, host.clientWidth/host.clientHeight, 0.1, 2000);
+camera.position.set(6,6,6);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.setSize(host.clientWidth, host.clientHeight);
+host.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.maxDistance = 50;
+controls.minDistance = 2;
+
+const lightKey = new THREE.DirectionalLight(0xffffff, 1.0);
+lightKey.position.set(6, 10, 8);
+scene.add(lightKey);
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+
+let axes = new THREE.AxesHelper(3);
+scene.add(axes);
+
+let grid = new THREE.GridHelper(40, 40);
+scene.add(grid);
+
+let crystalGroup = new THREE.Group(); scene.add(crystalGroup);
+let placedGroup  = new THREE.Group(); scene.add(placedGroup);
+let bondGroup    = new THREE.Group(); scene.add(bondGroup);
+let planeGroup   = new THREE.Group(); scene.add(planeGroup);
+let cutGroup     = new THREE.Group(); scene.add(cutGroup);
+
+/* hover/snap ghost */
+let ghost = null;
+const ghostGeom = new THREE.SphereGeometry(0.12, 16, 16);
+const ghostMat  = new THREE.MeshStandardMaterial({ color: 0x000000, transparent:true, opacity:0.25 });
+ghost = new THREE.Mesh(ghostGeom, ghostMat);
+ghost.visible = false;
+scene.add(ghost);
+
+/* state */
+let mode = "intrinsic";
+let bondLines = null;
+let cutLines = null;
+let isBuilding = false;
+
+/* atoms & snap points */
+const atomPositions = [];
+const snapPoints = [];
+const atomMeshes = [];
+
+/* ---------- theme sync ---------- */
+function applyThemeToScene(){
+  const bg = parseCssColorToThree(cssVar("--bg-main","#ffffff"), 0xffffff);
+  renderer.setClearColor(bg, 1);
+
+  const gridCol = parseCssColorToThree(cssVar("--border-color","rgba(0,0,0,.14)"), 0xcccccc);
+  if(grid && grid.material){
+    if(Array.isArray(grid.material)){
+      grid.material.forEach(m=>{ m.color.copy(gridCol); m.opacity=0.55; m.transparent=true; });
+    }else{
+      grid.material.color.copy(gridCol); grid.material.opacity=0.55; grid.material.transparent=true;
+    }
+  }
+  if(bondLines && bondLines.material){
+    bondLines.material.opacity = 0.55;
+    bondLines.material.transparent = true;
+  }
+  if(cutLines && cutLines.material){
+    cutLines.material.opacity = 0.95;
+    cutLines.material.transparent = true;
+  }
+}
+applyThemeToScene();
+
+/* ---------- util: group clearing ---------- */
+function clearGroup(g){
+  while(g.children.length){
+    const c = g.children.pop();
+    if(c.geometry) c.geometry.dispose();
+    if(c.material){
+      if(Array.isArray(c.material)) c.material.forEach(m=>m.dispose());
+      else c.material.dispose();
+    }
+  }
+}
+
+function clearCrystal(){
+  clearGroup(crystalGroup);
+  atomPositions.length = 0;
+  atomMeshes.length = 0;
+  rebuildSnapPoints();
+}
+
+function clearPlaced(){
+  clearGroup(placedGroup);
+}
+
+function clearBonds(){
+  if(bondLines){
+    bondGroup.remove(bondLines);
+    bondLines.geometry.dispose();
+    bondLines.material.dispose();
+    bondLines = null;
+  }
+  clearCuts();
+}
+
+function clearCuts(){
+  if(cutLines){
+    cutGroup.remove(cutLines);
+    cutLines.geometry.dispose();
+    cutLines.material.dispose();
+    cutLines = null;
+  }
+}
+
+/* ---------- atoms/materials ---------- */
+const atomGeom = new THREE.SphereGeometry(0.15, 18, 18);
+
+function makeAtomMaterial(color){
+  return new THREE.MeshStandardMaterial({ color, roughness:0.35, metalness:0.05 });
+}
+
+function addAtom(x,y,z, mat){
+  const s = new THREE.Mesh(atomGeom, mat);
+  s.position.set(x,y,z);
+  crystalGroup.add(s);
+  atomPositions.push(new THREE.Vector3(x,y,z));
+  atomMeshes.push(s);
+}
+
+/* ---------- build structures ---------- */
+function buildSC(nx,ny,nz, matA){
+  for(let i=0;i<nx;i++)
+    for(let j=0;j<ny;j++)
+      for(let k=0;k<nz;k++)
+        addAtom(i,j,k,matA);
+}
+
+function buildBCC(nx,ny,nz, matA, matB){
+  buildSC(nx,ny,nz, matA);
+  for(let i=0;i<nx;i++)
+    for(let j=0;j<ny;j++)
+      for(let k=0;k<nz;k++)
+        addAtom(i+0.5,j+0.5,k+0.5,matB);
+}
+
+function buildFCC(nx,ny,nz, matA, matB){
+  buildSC(nx,ny,nz, matA);
+  const faces=[[.5,.5,0],[.5,0,.5],[0,.5,.5]];
+  for(let i=0;i<nx;i++)
+    for(let j=0;j<ny;j++)
+      for(let k=0;k<nz;k++)
+        faces.forEach(f=>addAtom(i+f[0],j+f[1],k+f[2],matB));
+}
+
+function buildDiamond(nx,ny,nz, matA, matB){
+  buildFCC(nx,ny,nz, matA, matA);
+  for(let i=0;i<nx;i++)
+    for(let j=0;j<ny;j++)
+      for(let k=0;k<nz;k++)
+        addAtom(i+0.25,j+0.25,k+0.25,matB);
+}
+
+function buildSpinel(nx,ny,nz, matO, matA, matB){
+  buildFCC(nx,ny,nz, matO, matO);
+  const tetra = [
+    [0.125,0.125,0.125],
+    [0.125,0.625,0.625],
+    [0.625,0.125,0.625],
+    [0.625,0.625,0.125],
+  ];
+  for(let i=0;i<nx;i++)
+    for(let j=0;j<ny;j++)
+      for(let k=0;k<nz;k++)
+        tetra.forEach(t=>addAtom(i+t[0], j+t[1], k+t[2], matA));
+
+  for(let i=0;i<nx;i++)
+    for(let j=0;j<ny;j++)
+      for(let k=0;k<nz;k++)
+        addAtom(i+0.5, j+0.5, k+0.5, matB);
+}
+
+function buildHCP(nx,ny,nz, matA){
+  const a = 1.0;
+  const c = a * 1.633; // ideal c/a ratio
+  
+  for(let i=0; i<nx; i++){
+    for(let j=0; j<ny; j++){
+      for(let k=0; k<nz; k++){
+        const x0 = i * a;
+        const y0 = k * c;
+        const z0 = j * a * Math.sqrt(3);
+        
+        addAtom(x0, y0, z0, matA);
+        addAtom(x0 + 0.5*a, y0, z0 + 0.5*a*Math.sqrt(3), matA);
+        addAtom(x0 + 0.5*a, y0 + c/2, z0 + (1/6)*a*Math.sqrt(3), matA);
+      }
+    }
+  }
+}
+
+function buildNaCl(nx,ny,nz, matA, matB){
+  for(let i=0; i<nx; i++){
+    for(let j=0; j<ny; j++){
+      for(let k=0; k<nz; k++){
+        // Na+ (FCC)
+        addAtom(i, j, k, matA);
+        addAtom(i+0.5, j+0.5, k, matA);
+        addAtom(i+0.5, j, k+0.5, matA);
+        addAtom(i, j+0.5, k+0.5, matA);
+        
+        // Cl- (FCC offset)
+        addAtom(i+0.5, j, k, matB);
+        addAtom(i, j+0.5, k, matB);
+        addAtom(i, j, k+0.5, matB);
+        addAtom(i+0.5, j+0.5, k+0.5, matB);
+      }
+    }
+  }
+}
+
+function buildCsCl(nx,ny,nz, matA, matB){
+  for(let i=0; i<nx; i++){
+    for(let j=0; j<ny; j++){
+      for(let k=0; k<nz; k++){
+        addAtom(i, j, k, matA);
+        addAtom(i+0.5, j+0.5, k+0.5, matB);
+      }
+    }
+  }
+}
+
+function buildZnS(nx,ny,nz, matA, matB){
+  for(let i=0; i<nx; i++){
+    for(let j=0; j<ny; j++){
+      for(let k=0; k<nz; k++){
+        // Zn (FCC)
+        addAtom(i, j, k, matA);
+        addAtom(i+0.5, j+0.5, k, matA);
+        addAtom(i+0.5, j, k+0.5, matA);
+        addAtom(i, j+0.5, k+0.5, matA);
+        
+        // S (half tetrahedral)
+        addAtom(i+0.25, j+0.25, k+0.25, matB);
+        addAtom(i+0.75, j+0.75, k+0.25, matB);
+        addAtom(i+0.75, j+0.25, k+0.75, matB);
+        addAtom(i+0.25, j+0.75, k+0.75, matB);
+      }
+    }
+  }
+}
+
+function buildCaF2(nx,ny,nz, matA, matB){
+  for(let i=0; i<nx; i++){
+    for(let j=0; j<ny; j++){
+      for(let k=0; k<nz; k++){
+        // Ca (FCC)
+        addAtom(i, j, k, matA);
+        addAtom(i+0.5, j+0.5, k, matA);
+        addAtom(i+0.5, j, k+0.5, matA);
+        addAtom(i, j+0.5, k+0.5, matA);
+        
+        // F (all tetrahedral)
+        addAtom(i+0.25, j+0.25, k+0.25, matB);
+        addAtom(i+0.75, j+0.75, k+0.25, matB);
+        addAtom(i+0.75, j+0.25, k+0.75, matB);
+        addAtom(i+0.25, j+0.75, k+0.75, matB);
+        addAtom(i+0.75, j+0.75, k+0.75, matB);
+        addAtom(i+0.25, j+0.25, k+0.75, matB);
+        addAtom(i+0.25, j+0.75, k+0.25, matB);
+        addAtom(i+0.75, j+0.25, k+0.25, matB);
+      }
+    }
+  }
+}
+
+/* ---------- snap points ---------- */
+function keyOf(v){
+  return `${v.x.toFixed(3)}|${v.y.toFixed(3)}|${v.z.toFixed(3)}`;
+}
+
+function addSnapPoint(pos, kind, map, holeType){
+  const k = keyOf(pos);
+  if(map.has(k)) return;
+  map.set(k, true);
+  snapPoints.push({ pos, kind, holeType });
+}
+
+function rebuildSnapPoints(){
+  snapPoints.length = 0;
+  const map = new Map();
+
+  atomPositions.forEach(p => addSnapPoint(p.clone(), "atom", map));
+
+  const type = $("structure").value;
+  const nx = clampInt($("nx").value,1,8);
+  const ny = clampInt($("ny").value,1,8);
+  const nz = clampInt($("nz").value,1,8);
+
+  const addHolesAtCell = (i,j,k, arr, holeType)=>{
+    arr.forEach(h=>{
+      addSnapPoint(new THREE.Vector3(i+h[0], j+h[1], k+h[2]), "hole", map, holeType);
+    });
+  };
+
+  if(type==="sc"){
+    for(let i=0;i<nx;i++) for(let j=0;j<ny;j++) for(let k=0;k<nz;k++)
+      addSnapPoint(new THREE.Vector3(i+0.5,j+0.5,k+0.5), "hole", map, "octahedral");
+  }
+
+  if(type==="bcc"){
+    const bccHoles = [
+      [0.5,0.25,0.0],[0.5,0.75,0.0],[0.25,0.5,0.0],[0.75,0.5,0.0],
+      [0.5,0.25,1.0],[0.5,0.75,1.0],[0.25,0.5,1.0],[0.75,0.5,1.0],
+      [0.0,0.5,0.25],[0.0,0.5,0.75],[1.0,0.5,0.25],[1.0,0.5,0.75],
+    ];
+    for(let i=0;i<nx;i++) for(let j=0;j<ny;j++) for(let k=0;k<nz;k++)
+      addHolesAtCell(i,j,k,bccHoles, "tetrahedral");
+  }
+
+  if(type==="fcc" || type==="diamond" || type==="spinel" || type==="nacl" || type==="zns" || type==="caf2"){
+    const octa = [
+      [0.5,0.5,0.5],
+      [0.5,0.0,0.0],[0.5,1.0,0.0],[0.5,0.0,1.0],[0.5,1.0,1.0],
+      [0.0,0.5,0.0],[1.0,0.5,0.0],[0.0,0.5,1.0],[1.0,0.5,1.0],
+      [0.0,0.0,0.5],[1.0,0.0,0.5],[0.0,1.0,0.5],[1.0,1.0,0.5]
+    ];
+    const tetra = [
+      [0.25,0.25,0.25],[0.25,0.25,0.75],[0.25,0.75,0.25],[0.25,0.75,0.75],
+      [0.75,0.25,0.25],[0.75,0.25,0.75],[0.75,0.75,0.25],[0.75,0.75,0.75]
+    ];
+    for(let i=0;i<nx;i++) for(let j=0;j<ny;j++) for(let k=0;k<nz;k++){
+      addHolesAtCell(i,j,k,octa, "octahedral");
+      addHolesAtCell(i,j,k,tetra, "tetrahedral");
+    }
+  }
+}
+
+/* ---------- planes ---------- */
+const planes = [];
+let planeIdCounter = 1;
+
+function planeColorForIndex(i){
+  const p = parseCssColorToThree(cssVar("--primary","#2f6fed"), 0x2f6fed).clone();
+  const t = parseCssColorToThree(cssVar("--text-muted","rgba(17,24,39,.65)"), 0x6b7280).clone();
+  const a = (i % 4) / 3;
+  return p.lerp(t, a).getHex();
+}
+
+function renderPlaneList(){
+  const list = $("planList");
+  list.innerHTML = "";
+
+  if(planes.length === 0){
+    const div = document.createElement("div");
+    div.style.color = cssVar("--text-muted","rgba(17,24,39,.65)");
+    div.style.fontSize = ".9rem";
+    div.textContent = "Ingen plan lagt til ennå.";
+    list.appendChild(div);
+    return;
+  }
+
+  planes.forEach(p=>{
+    const row = document.createElement("div");
+    row.className = "planItem";
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `(${p.h} ${p.k} ${p.l})`;
+    const sm = document.createElement("small");
+    sm.textContent = p.visible ? "synlig" : "skjult";
+    meta.appendChild(sm);
+
+    const tog = document.createElement("button");
+    tog.className = "iconBtn";
+    tog.dataset.on = p.visible ? "1" : "0";
+    tog.textContent = p.visible ? "ON" : "OFF";
+    tog.addEventListener("click", ()=>{
+      p.visible = !p.visible;
+      p.mesh.visible = p.visible;
+      renderPlaneList();
+      rebuildCuts();
+    });
+
+    const del = document.createElement("button");
+    del.className = "iconBtn";
+    del.textContent = "✕";
+    del.addEventListener("click", ()=>{
+      planeGroup.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      const idx = planes.findIndex(x=>x.id===p.id);
+      if(idx>=0) planes.splice(idx,1);
+      renderPlaneList();
+      rebuildCuts();
+    });
+
+    row.appendChild(meta);
+    row.appendChild(tog);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+function addMillerPlane(h,k,l){
+  const eps = 1e-9;
+  const n = new THREE.Vector3(h||0, k||0, l||0);
+  if(n.length() < eps){
+    toast("Ugyldig plan", "h=k=l=0 gir ikke et plan.");
+    return;
+  }
+  n.normalize();
+
+  const x0 = (h===0) ? 0.5 : Math.min(1, Math.max(0, 1/h));
+  const y0 = (k===0) ? 0.5 : Math.min(1, Math.max(0, 1/k));
+  const z0 = (l===0) ? 0.5 : Math.min(1, Math.max(0, 1/l));
+  const p0 = new THREE.Vector3(x0,y0,z0);
+
+  const size = 7;
+  const geom = new THREE.PlaneGeometry(size, size, 1, 1);
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: planeColorForIndex(planes.length),
+    transparent: true,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    roughness: 0.6,
+    metalness: 0.0
+  });
+
+  const mesh = new THREE.Mesh(geom, mat);
+  const zAxis = new THREE.Vector3(0,0,1);
+  mesh.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(zAxis, n));
+  mesh.position.copy(p0);
+
+  planeGroup.add(mesh);
+
+  planes.push({
+    id: planeIdCounter++,
+    h,k,l,
+    mesh,
+    visible: true,
+    normal: n.clone(),
+    point: p0.clone()
+  });
+
+  renderPlaneList();
+  rebuildCuts();
+}
+
+/* ---------- bonds ---------- */
+function rebuildBonds(){
+  clearBonds();
+  if(atomPositions.length === 0) return;
+
+  const thr = parseFloat($("bondDist").value) || 1.15;
+  const thr2 = thr*thr;
+
+  const col = parseCssColorToThree(cssVar("--border-color","rgba(0,0,0,.14)"), 0x999999);
+
+  const positions = [];
+  for(let i=0;i<atomPositions.length;i++){
+    const a = atomPositions[i];
+    for(let j=i+1;j<atomPositions.length;j++){
+      const b = atomPositions[j];
+      const dx=a.x-b.x, dy=a.y-b.y, dz=a.z-b.z;
+      const d2=dx*dx+dy*dy+dz*dz;
+      if(d2 <= thr2){
+        positions.push(a.x,a.y,a.z, b.x,b.y,b.z);
+      }
+    }
+  }
+
+  if(positions.length === 0){
+    toast("Bindinger", "Ingen naboer innen terskel.");
+    return;
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+
+  const mat = new THREE.LineBasicMaterial({ color: col, transparent:true, opacity:0.55 });
+
+  bondLines = new THREE.LineSegments(geom, mat);
+  bondGroup.add(bondLines);
+
+  rebuildCuts();
+}
+
+/* ---------- red cut marks ---------- */
+function segmentPlaneIntersection(a,b, n, p0){
+  const ab = b.clone().sub(a);
+  const denom = n.dot(ab);
+  if(Math.abs(denom) < 1e-9) return null;
+  const t = n.dot(p0.clone().sub(a)) / denom;
+  if(t < 0 || t > 1) return null;
+  return a.clone().add(ab.multiplyScalar(t));
+}
+
+function rebuildCuts(){
+  clearCuts();
+
+  if($("toggleCuts").dataset.on !== "1") return;
+  if(!bondLines) return;
+
+  const activePlanes = planes.filter(p=>p.visible);
+  if(activePlanes.length === 0) return;
+
+  const posAttr = bondLines.geometry.getAttribute("position");
+  const pts = posAttr.array;
+
+  const danger = parseCssColorToThree(cssVar("--danger","#ef4444"), 0xef4444);
+
+  const cutSegs = [];
+  const markLen = 0.10;
+
+  for(let i=0;i<pts.length;i+=6){
+    const a = new THREE.Vector3(pts[i],pts[i+1],pts[i+2]);
+    const b = new THREE.Vector3(pts[i+3],pts[i+4],pts[i+5]);
+
+    for(const pl of activePlanes){
+      const ip = segmentPlaneIntersection(a,b, pl.normal, pl.point);
+      if(!ip) continue;
+
+      const dir = b.clone().sub(a).normalize();
+      const p1 = ip.clone().sub(dir.clone().multiplyScalar(markLen));
+      const p2 = ip.clone().add(dir.clone().multiplyScalar(markLen));
+      cutSegs.push(p1.x,p1.y,p1.z, p2.x,p2.y,p2.z);
+    }
+  }
+
+  if(cutSegs.length === 0) return;
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.Float32BufferAttribute(cutSegs, 3));
+
+  const mat = new THREE.LineBasicMaterial({ color: danger, transparent:true, opacity:0.95 });
+
+  cutLines = new THREE.LineSegments(geom, mat);
+  cutGroup.add(cutLines);
+}
+
+/* ---------- build crystal wrapper ---------- */
+async function buildCrystal(){
+  if(isBuilding) return;
+  isBuilding = true;
+  $("build").disabled = true;
+  setStatus("Bygger...");
+
+  // Delay to let UI update
+  await new Promise(r=>setTimeout(r, 10));
+
+  clearCrystal();
+  clearBonds();
+
+  const nx = clampInt($("nx").value, 1, 8);
+  const ny = clampInt($("ny").value, 1, 8);
+  const nz = clampInt($("nz").value, 1, 8);
+  $("nx").value = nx; $("ny").value = ny; $("nz").value = nz;
+
+  const primary = parseCssColorToThree(cssVar("--primary","#2f6fed"), 0x2f6fed);
+  const muted   = parseCssColorToThree(cssVar("--text-muted","rgba(17,24,39,.65)"), 0x6b7280);
+
+  const matA = makeAtomMaterial(primary.getHex());
+  const matB = makeAtomMaterial(muted.getHex());
+
+  const type = $("structure").value;
+
+  if(type==="sc") buildSC(nx,ny,nz, matA);
+  if(type==="bcc") buildBCC(nx,ny,nz, matA, matB);
+  if(type==="fcc") buildFCC(nx,ny,nz, matA, matB);
+  if(type==="diamond") buildDiamond(nx,ny,nz, matA, matB);
+  if(type==="hcp") buildHCP(nx,ny,nz, matA);
+  if(type==="nacl") buildNaCl(nx,ny,nz, matA, matB);
+  if(type==="cscl") buildCsCl(nx,ny,nz, matA, matB);
+  if(type==="zns") buildZnS(nx,ny,nz, matA, matB);
+  if(type==="caf2") buildCaF2(nx,ny,nz, matA, matB);
+  if(type==="spinel"){
+    const danger = parseCssColorToThree(cssVar("--danger","#ef4444"), 0xef4444);
+    const matO = makeAtomMaterial(muted.getHex());
+    const matAA = makeAtomMaterial(primary.getHex());
+    const matBB = makeAtomMaterial(danger.getHex());
+    buildSpinel(nx,ny,nz, matO, matAA, matBB);
+  }
+
+  rebuildSnapPoints();
+
+  const center = new THREE.Vector3((nx-1)/2, (ny-1)/2, (nz-1)/2);
+  controls.target.copy(center);
+
+  const dist = Math.max(nx,ny,nz) * 2.2;
+  camera.position.set(center.x + dist, center.y + dist*0.9, center.z + dist);
+  camera.lookAt(center);
+
+  setStatus("Bygget");
+  toast("Bygget", `${type.toUpperCase()} • ${nx}×${ny}×${nz}`);
+
+  if($("toggleBonds").dataset.on==="1") rebuildBonds();
+
+  $("build").disabled = false;
+  isBuilding = false;
+}
+
+/* ---------- material guess ---------- */
+function updateGuess(){
+  const manualAtoms = ManualAtomsModule ? ManualAtomsModule.getManualAtoms() : [];
+  const analysis = StructureAnalyzer.analyzeStructure(atomPositions, atomMeshes, manualAtoms, placedGroup.children);
+  
+  const lines = [];
+  lines.push(`<strong>${analysis.type}</strong>`);
+  lines.push(`<small style="color:var(--text-muted);">Sikkerhet: ${analysis.confidence}%</small>`);
+  
+  if(analysis.details.length > 0){
+    lines.push(`<div style="margin-top:6px; font-size:.85rem; line-height:1.4;">`);
+    analysis.details.forEach(d => lines.push(`• ${d}`));
+    lines.push(`</div>`);
+  }
+  
+  if(analysis.warnings.length > 0){
+    lines.push(`<div style="margin-top:6px; color:var(--danger); font-size:.85rem;">`);
+    analysis.warnings.forEach(w => lines.push(`⚠ ${w}`));
+    lines.push(`</div>`);
+  }
+  
+  $("guessBox").innerHTML = lines.join("<br>");
+}
+
+/* ---------- carriers ---------- */
+function setMode(m){
+  mode = m;
+  $("modeIntrinsic").dataset.active = (mode==="intrinsic") ? "1" : "0";
+  $("modeExtrinsic").dataset.active = (mode==="extrinsic") ? "1" : "0";
+  setStatus(mode==="intrinsic" ? "Intrinsisk" : "Ekstrinsisk");
+}
+
+function addMarker(pos, kind, color){
+  const g = new THREE.SphereGeometry(0.10, 16, 16);
+  const m = new THREE.MeshStandardMaterial({
+    color: color.getHex(),
+    roughness: 0.25, metalness: 0.0,
+    emissive: color.clone().multiplyScalar(kind==="electron" ? 0.25 : 0.10),
+    emissiveIntensity: 0.6,
+  });
+  const s = new THREE.Mesh(g,m);
+  s.position.copy(pos);
+  placedGroup.add(s);
+}
+
+function addDopant(pos, color){
+  const g = new THREE.SphereGeometry(0.16, 18, 18);
+  const m = new THREE.MeshStandardMaterial({ color: color.getHex(), roughness:0.30, metalness:0.06 });
+  const s = new THREE.Mesh(g,m);
+  s.position.copy(pos);
+  placedGroup.add(s);
+}
+
+function addInterstitial(pos, color){
+  const g = new THREE.SphereGeometry(0.13, 18, 18);
+  const m = new THREE.MeshStandardMaterial({ color: color.getHex(), roughness:0.30, metalness:0.02 });
+  const s = new THREE.Mesh(g,m);
+  s.position.copy(pos);
+  placedGroup.add(s);
+}
+
+function removeNearestAtom(pos, maxDist=0.20){
+  let bestIdx = -1;
+  let bestD2 = Infinity;
+  const r2 = maxDist*maxDist;
+  for(let i=0;i<atomPositions.length;i++){
+    const d2 = atomPositions[i].distanceToSquared(pos);
+    if(d2 < bestD2){
+      bestD2 = d2;
+      bestIdx = i;
+    }
+  }
+  if(bestIdx>=0 && bestD2 <= r2){
+    const mesh = atomMeshes[bestIdx];
+    crystalGroup.remove(mesh);
+    mesh.visible = false;
+    atomPositions[bestIdx].set(1e9,1e9,1e9);
+    toast("Vacancy", "Atom fjernet.");
+    if($("toggleBonds").dataset.on==="1") rebuildBonds();
+    rebuildSnapPoints();
+    return true;
+  }
+  toast("Vacancy", "Fant ikke atom nær nok.");
+  return false;
+}
+
+/* ---------- snapping ---------- */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+function setPointerFromEvent(ev){
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
+}
+
+function currentSnapFilter(){
+  const v = $("snapTo").value;
+  if(v==="atoms") return (k)=>k==="atom";
+  if(v==="holes") return (k)=>k==="hole";
+  return ()=>true;
+}
+
+function nearestSnapPoint(){
+  const mode = $("placeMode").value;
+  if(mode==="none") return null;
+
+  raycaster.setFromCamera(pointer, camera);
+  const ray = raycaster.ray;
+
+  const snapR = parseFloat($("snapRadius").value) || 0.35;
+  const snapR2 = snapR*snapR;
+
+  const allow = currentSnapFilter();
+
+  let best = null;
+  let bestD2 = Infinity;
+
+  for(const sp of snapPoints){
+    if(!allow(sp.kind)) continue;
+
+    if($("placeMode").value==="vacancy" && sp.kind!=="atom") continue;
+    if($("placeMode").value==="interstitial" && $("snapTo").value==="holes" && sp.kind!=="hole") continue;
+
+    const d2 = ray.distanceSqToPoint(sp.pos);
+    if(d2 < bestD2){
+      bestD2 = d2;
+      best = sp;
+    }
+  }
+
+  if(best && bestD2 <= snapR2) return best;
+  return null;
+}
+
+function updateGhost(){
+  const sp = nearestSnapPoint();
+  if(!sp){
+    ghost.visible = false;
+    return;
+  }
+  ghost.visible = true;
+  ghost.position.copy(sp.pos);
+  const c = (sp.kind==="hole")
+    ? parseCssColorToThree(cssVar("--danger","#ef4444"), 0xef4444)
+    : parseCssColorToThree(cssVar("--primary","#2f6fed"), 0x2f6fed);
+  ghost.material.color.copy(c);
+  ghost.material.opacity = 0.28;
+}
+
+function placeAtSnap(){
+  const sp = nearestSnapPoint();
+  
+  // Handle measurement mode
+  if(measureMode && sp){
+    const result = MeasurementModule.handleClick(sp, scene);
+    if(result){
+      toast("Måling", `Avstand: ${result.distance.toFixed(3)} Å`);
+      updateMeasurementList();
+    }
+    return;
+  }
+  
+  // Handle manual placement mode
+  if(manualPlaceMode && sp){
+    const atomType = $("manualAtomType").value;
+    const radius = parseFloat($("manualRadius").value) || 0.25;
+    const colorInput = $("manualColor").value;
+    const color = parseInt(colorInput.replace('#', '0x'));
+    
+    ManualAtomsModule.addManualAtom(sp.pos, atomType, color, radius, scene);
+    toast("Manuell atom", `${ManualAtomsModule.atomProperties[atomType].name} plassert`);
+    updateGuess(); // Re-analyze structure
+    return;
+  }
+  
+  // Original placement logic
+  const mode = $("placeMode").value;
+  if(mode==="none") return;
+
+  if(!sp){
+    toast("Snap", "Fant ingen snap-punkt.");
+    return;
+  }
+
+  const col = colorByChoice($("placeColor").value);
+
+  if(mode==="electron"){ addMarker(sp.pos, "electron", col); toast("Plassert", "Elektron"); return; }
+  if(mode==="hole"){ addMarker(sp.pos, "hole", col); toast("Plassert", "Hull"); return; }
+
+  if(mode==="dopant"){
+    if(sp.kind!=="atom"){
+      toast("Dopant", "Velg snap=atomer.");
+      return;
+    }
+    addDopant(sp.pos, col);
+    toast("Dopant", "Plassert dopant.");
+    updateGuess(); // Re-analyze structure
+    return;
+  }
+
+  if(mode==="interstitial"){
+    if(sp.kind!=="hole"){
+      toast("Interstitial", "Velg snap=hull.");
+      return;
+    }
+    addInterstitial(sp.pos, col);
+    toast("Interstitial", "Plassert i hullsite.");
+    updateGuess(); // Re-analyze structure
+    return;
+  }
+
+  if(mode==="vacancy"){
+    removeNearestAtom(sp.pos, Math.max(0.12, parseFloat($("snapRadius").value) || 0.35));
+    updateGuess(); // Re-analyze structure
+    return;
+  }
+}
+
+/* pointer events */
+let isPointerDown = false;
+
+renderer.domElement.addEventListener("pointermove", (ev)=>{
+  if(!isPointerDown){
+    setPointerFromEvent(ev);
+    updateGhost();
+  }
+});
+
+renderer.domElement.addEventListener("pointerdown", (ev)=>{
+  isPointerDown = true;
+  if($("placeMode").value !== "none"){
+    setPointerFromEvent(ev);
+    updateGhost();
+    placeAtSnap();
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+});
+
+renderer.domElement.addEventListener("pointerup", ()=>{
+  isPointerDown = false;
+});
+
+/* ---------- UI wiring ---------- */
+$("toggleGrid").addEventListener("click", ()=>{
+  grid.visible = !grid.visible;
+  setBtnOn($("toggleGrid"), grid.visible);
+});
+
+$("toggleAxes").addEventListener("click", ()=>{
+  axes.visible = !axes.visible;
+  setBtnOn($("toggleAxes"), axes.visible);
+});
+
+$("toggleBonds").addEventListener("click", ()=>{
+  const on = $("toggleBonds").dataset.on==="1";
+  const next = !on;
+  setBtnOn($("toggleBonds"), next);
+  if(next){
+    rebuildBonds();
+    toast("Bindinger", "På");
+  }else{
+    clearBonds();
+    toast("Bindinger", "Av");
+  }
+});
+
+$("rebuildBonds").addEventListener("click", ()=>{
+  if($("toggleBonds").dataset.on!=="1"){
+    toast("Bindinger", "Skru på bindinger først.");
+    return;
+  }
+  rebuildBonds();
+  toast("Bindinger", "Oppdatert");
+});
+
+$("toggleCuts").addEventListener("click", ()=>{
+  const on = $("toggleCuts").dataset.on==="1";
+  setBtnOn($("toggleCuts"), !on);
+  rebuildCuts();
+});
+
+$("addPlane").addEventListener("click", ()=>{
+  const h = parseInt($("h").value,10) || 0;
+  const k = parseInt($("k").value,10) || 0;
+  const l = parseInt($("l").value,10) || 0;
+  addMillerPlane(h,k,l);
+  toast("Plan", `La til (${h} ${k} ${l})`);
+});
+
+$("clearPlanes").addEventListener("click", ()=>{
+  while(planes.length){
+    const p = planes.pop();
+    planeGroup.remove(p.mesh);
+    p.mesh.geometry.dispose();
+    p.mesh.material.dispose();
+  }
+  renderPlaneList();
+  rebuildCuts();
+  toast("Plan", "Tømt.");
+});
+
+$("modeIntrinsic").addEventListener("click", ()=>setMode("intrinsic"));
+$("modeExtrinsic").addEventListener("click", ()=>setMode("extrinsic"));
+
+$("clearPlaced").addEventListener("click", ()=>{
+  clearPlaced();
+  toast("Plasserte", "Tømt.");
+});
+
+$("resetView").addEventListener("click", ()=>{
+  controls.reset();
+  toast("Reset", "Kamera resatt.");
+});
+
+/* New feature event listeners */
+
+// Polyhedra visualization
+$("toggleTetrahedral").addEventListener("click", ()=>{
+  const on = $("toggleTetrahedral").dataset.on==="1";
+  setBtnOn($("toggleTetrahedral"), !on);
+  if(!on){
+    PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
+    setBtnOn($("toggleOctahedral"), false);
+    PolyhedraModule.clearPolyhedra();
+    PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
+    toast("Tetraedre", "Vises");
+  }else{
+    PolyhedraModule.clearPolyhedra();
+    toast("Tetraedre", "Skjult");
+  }
+});
+
+$("toggleOctahedral").addEventListener("click", ()=>{
+  const on = $("toggleOctahedral").dataset.on==="1";
+  setBtnOn($("toggleOctahedral"), !on);
+  if(!on){
+    PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
+    setBtnOn($("toggleTetrahedral"), false);
+    PolyhedraModule.clearPolyhedra();
+    PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
+    toast("Oktaedre", "Vises");
+  }else{
+    PolyhedraModule.clearPolyhedra();
+    toast("Oktaedre", "Skjult");
+  }
+});
+
+// Measurement tool
+let measureMode = false;
+$("toggleMeasure").addEventListener("click", ()=>{
+  measureMode = !measureMode;
+  setBtnOn($("toggleMeasure"), measureMode);
+  MeasurementModule.setActive(measureMode);
+  toast("Måleverktøy", measureMode ? "Aktivert - klikk to atomer" : "Deaktivert");
+});
+
+$("clearMeasurements").addEventListener("click", ()=>{
+  MeasurementModule.clearAllMeasurements();
+  updateMeasurementList();
+  toast("Målinger", "Tømt");
+});
+
+function updateMeasurementList(){
+  const list = $("measurementList");
+  const measurements = MeasurementModule.getMeasurements();
+  
+  if(measurements.length === 0){
+    list.innerHTML = "";
+    return;
+  }
+  
+  list.innerHTML = measurements.map(m => 
+    `<div style="padding:6px; background:var(--bg-alt); border-radius:8px; margin-bottom:4px; font-size:.85rem;">
+      <strong>${m.distance} Å</strong><br>
+      <small style="color:var(--text-muted);">${m.start} → ${m.end}</small>
+    </div>`
+  ).join("");
+}
+
+// Manual atom placement
+let manualPlaceMode = false;
+$("toggleManualPlace").addEventListener("click", ()=>{
+  manualPlaceMode = !manualPlaceMode;
+  setBtnOn($("toggleManualPlace"), manualPlaceMode);
+  toast("Manuell plassering", manualPlaceMode ? "Aktivert - klikk i 3D" : "Deaktivert");
+});
+
+$("clearManualAtoms").addEventListener("click", ()=>{
+  ManualAtomsModule.clearManualAtoms();
+  toast("Manuelle atomer", "Tømt");
+  updateGuess(); // Re-analyze structure
+});
+
+
+/* Bond distance slider */
+$("bondDist").addEventListener("input", (e)=>{
+  $("bondDistValue").textContent = e.target.value;
+});
+
+/* Auto rebuild */
+function autoOn(){ return $("autoRebuild").dataset.on==="1"; }
+
+function maybeAutoRebuild(){
+  if(autoOn()) buildCrystal();
+  updateGuess();
+}
+
+$("structure").addEventListener("change", maybeAutoRebuild);
+$("nx").addEventListener("change", maybeAutoRebuild);
+$("ny").addEventListener("change", maybeAutoRebuild);
+$("nz").addEventListener("change", maybeAutoRebuild);
+
+$("elementPreset").addEventListener("change", (e)=>{
+  const v = e.target.value;
+  if(v==="Na"){ $("structure").value="sc"; }
+  if(v==="Fe"){ $("structure").value="bcc"; }
+  if(v==="Cu" || v==="Al" || v==="Ni"){ $("structure").value="fcc"; }
+  if(v==="Si" || v==="C"){ $("structure").value="diamond"; }
+  if(v==="MgAl2O4" || v==="Fe3O4"){ $("structure").value="spinel"; }
+  maybeAutoRebuild();
+});
+
+$("autoRebuild").addEventListener("click", ()=>{
+  const on = $("autoRebuild").dataset.on==="1";
+  setBtnOn($("autoRebuild"), !on);
+  $("autoRebuildBadge").textContent = (!on) ? "ON" : "OFF";
+});
+
+$("build").addEventListener("click", ()=>{
+  buildCrystal();
+  updateGuess();
+});
+
+/* resize */
+let resizeTimeout;
+window.addEventListener("resize", ()=>{
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(()=>{
+    const w = host.clientWidth, h = host.clientHeight;
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+  }, 100);
+});
+
+/* ---------- init ---------- */
+setBtnOn($("toggleGrid"), true);
+setBtnOn($("toggleAxes"), true);
+setBtnOn($("toggleBonds"), false);
+setBtnOn($("toggleCuts"), true);
+setBtnOn($("autoRebuild"), true);
+$("autoRebuildBadge").textContent = "ON";
+
+renderPlaneList();
+setMode("intrinsic");
+buildCrystal();
+updateGuess();
+
+/* ---------- render loop ---------- */
+function tick(){
+  requestAnimationFrame(tick);
+  controls.update();
+  renderer.render(scene, camera);
+}
+tick();
+</script>
+</body>
+</html>

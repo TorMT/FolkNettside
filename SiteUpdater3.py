@@ -42,6 +42,8 @@ ALLOWED_EXT = {
     ".url", ".webloc",
     ".html", ".stl", ".fbm"
 }
+# Standard mapper vi alltid ignorerer (case-insensitiv)
+DEFAULT_BLACKLIST = {"node_modules", ".git", "__pycache__", "venv", ".venv"}
 IMAGE_EXT        = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
 DEFAULT_WELCOME  = "/img/welcome-generic.svg"
 
@@ -174,6 +176,9 @@ def sort_keys(index: Dict[str, object], include_quiz: bool) -> List[str]:
 
     if "welcome" in keys:
         order.append("welcome")
+    # Permanent settings section (blacklist) bør vises tidlig
+    if "blacklist" in keys:
+        order.append("blacklist")
     if include_quiz and "quiz" in keys:
         order.append("quiz")
 
@@ -349,6 +354,7 @@ def update_directory(
     include_quiz: bool = True,
     max_depth: Optional[int] = None,
     current_depth: int = 0,
+    global_blacklist: Optional[Set[str]] = None,
 ) -> Dict[str, object]:
     """
     Oppdater index.json for en mappe.
@@ -359,6 +365,7 @@ def update_directory(
         include_quiz: Inkluder quiz-metadata
         max_depth: Maks rekursjonsdybde (None = ubegrenset)
         current_depth: Nåværende dybde (intern bruk)
+        global_blacklist: Valgfrie globale mapper å blacklist'e (ikke persistert)
     """
     # Symlink loop detection
     try:
@@ -385,6 +392,26 @@ def update_directory(
     except OSError:
         _visited_paths.discard(real_path)
         return {}
+
+    # Les lokalt blacklist fra eksisterende index.json (hvis finnes)
+    idx_file = dir_path / "index.json"
+    local_blacklist: Set[str] = set()
+    try:
+        if idx_file.exists():
+            with open(idx_file, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+            lb = existing.get("blacklist")
+            if isinstance(lb, list):
+                local_blacklist = {str(x).lower() for x in lb if isinstance(x, str)}
+    except Exception:
+        pass
+
+    # Kombiner default, lokal og global blacklist (case-insensitiv)
+    combined_blacklist: Set[str] = {n.lower() for n in DEFAULT_BLACKLIST}
+    if local_blacklist:
+        combined_blacklist |= local_blacklist
+    if global_blacklist:
+        combined_blacklist |= {n.lower() for n in global_blacklist}
 
     # 1) Velkomst
     for name, _is_dir, is_file in entries:
@@ -422,6 +449,10 @@ def update_directory(
         if name.lower() == "index.json":
             continue
         if is_dir and name.lower() == "quiz":
+            continue
+
+        # Permanent blacklist: hopp over mapper som er listet i index.json -> "blacklist"
+        if is_dir and name.lower() in combined_blacklist:
             continue
 
         beskyttet = is_beskyttet(name)
@@ -467,7 +498,7 @@ def update_directory(
         beskyttet = is_beskyttet(name)
 
         if should_recurse:
-            sub_index = update_directory(entry_path, use_progress, include_quiz, max_depth, current_depth + 1)
+            sub_index = update_directory(entry_path, use_progress, include_quiz, max_depth, current_depth + 1, global_blacklist=global_blacklist)
         else:
             sub_index = {}
 
@@ -488,8 +519,11 @@ def update_directory(
                 files_list.sort(key=str.lower)
 
     # 4) Skriv index.json - kun hvis endret
-    idx_file = dir_path / "index.json"
     if index:
+        # Persister lokal blacklist hvis den eksisterer i tidligere index.json
+        if local_blacklist:
+            index["blacklist"] = sorted(local_blacklist)
+
         keys_order = sort_keys(index, include_quiz)
         ordered_index = {k: index[k] for k in keys_order}
 
@@ -528,6 +562,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--no-quiz", action="store_true", help="Ikke registrer quiz i index.json.")
     parser.add_argument("--only", "-o", action="store_true", help="Oppdater KUN denne mappen (ikke undermapper).")
     parser.add_argument("--shallow", "-s", action="store_true", help="Oppdater denne mappen og ett nivå ned.")
+    parser.add_argument("--blacklist", help="Komma-separert liste av mappe-navn å blacklist'e i alle mapper (påvirker ikke vedvarende indeks).", default="")
     args = parser.parse_args(argv)
 
     root = args.root.resolve()
@@ -561,7 +596,10 @@ def main(argv: Optional[List[str]] = None) -> None:
     else:
         print(f"Oppdaterer {format_path(root)} rekursivt (alle undermapper)")
 
-    update_directory(root, use_prog, include_quiz=not args.no_quiz, max_depth=max_depth)
+    # Parse global CLI blacklist (ikke persistert med mindre du legger det i index.json selv)
+    global_blacklist = set(n.strip() for n in args.blacklist.split(",") if n.strip()) if args.blacklist else set()
+
+    update_directory(root, use_prog, include_quiz=not args.no_quiz, max_depth=max_depth, global_blacklist=global_blacklist)
     print("Ferdig oppdatert")
 
 if __name__ == "__main__":

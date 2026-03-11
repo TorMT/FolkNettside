@@ -1,0 +1,1325 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CoolProp</title>
+
+<style>
+/* ---------------- THEME TOKENS (arver hvis parent/global CSS setter dem) ---------------- */
+:root{
+  --bg-main:      var(--bg-main, #ffffff);
+  --bg-card:      var(--bg-card, #f7f8fb);
+  --text-main:    var(--text-main, #111827);
+  --text-muted:   var(--text-muted, rgba(17,24,39,.62));
+  --border:       var(--border-color, rgba(17,24,39,.14));
+  --primary:      var(--primary, var(--theme-accent, #2f6fed));
+  --danger:       #dc2626;
+  --ok:           #047857;
+  --warn:         #b45309;
+
+  /* “mer fargerik” men fortsatt tema-styrt */
+  --tint-1: color-mix(in srgb, var(--primary) 10%, var(--bg-main));
+  --tint-2: color-mix(in srgb, var(--primary) 16%, var(--bg-main));
+  --tint-3: color-mix(in srgb, var(--primary) 22%, var(--bg-main));
+  --ring:   color-mix(in srgb, var(--primary) 22%, transparent);
+
+  --radius: 18px;
+  --shadow: 0 16px 34px -22px rgba(0,0,0,.38);
+  --shadow-soft: 0 10px 22px -20px rgba(0,0,0,.28);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, var(--tint-3), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, var(--tint-2), transparent 55%),
+    var(--bg-main);
+  color:var(--text-main);
+}
+
+.container{ max-width:1240px; margin:0 auto; padding:18px 14px 44px; }
+
+.header{
+  display:flex; align-items:flex-end; justify-content:space-between;
+  gap:14px; flex-wrap:wrap; margin-bottom:14px;
+}
+.header h1{
+  margin:0; font-size:48px; line-height:1.05; letter-spacing:-0.02em;
+  color:color-mix(in srgb, var(--primary) 70%, var(--text-main));
+}
+.header .sub{ margin-top:8px; color:var(--text-muted); font-size:14px; }
+
+.badges{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.badge{
+  display:inline-flex; gap:10px; align-items:center;
+  padding:10px 12px; border-radius:999px;
+  border:1px solid var(--border);
+  background:color-mix(in srgb, var(--bg-card) 72%, var(--bg-main));
+  box-shadow:var(--shadow-soft);
+  color:var(--text-muted);
+  font-size:13px; user-select:none;
+}
+.dot{font-size:14px}
+
+.card{
+  background:color-mix(in srgb, var(--bg-card) 92%, #fff);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:16px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap:12px;
+}
+@media (max-width: 980px){
+  .grid{grid-template-columns: 1fr;}
+}
+
+.field{ display:flex; flex-direction:column; gap:6px; }
+.label{
+  font-weight:800; font-size:13px;
+  color:color-mix(in srgb, var(--text-main) 78%, var(--text-muted));
+}
+.helpText{ font-size:12px; color:var(--text-muted); line-height:1.35; }
+
+input, select, textarea{
+  width:100%;
+  padding:12px 12px;
+  border-radius:14px;
+  border:1.5px solid var(--border);
+  background:color-mix(in srgb, #fff 92%, var(--bg-card));
+  color:var(--text-main);
+  font-size:14px;
+  outline:none;
+}
+textarea{
+  min-height:120px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+  font-size:13px;
+  line-height:1.35;
+  resize:vertical;
+}
+input:focus, select:focus, textarea:focus{
+  border-color:color-mix(in srgb, var(--primary) 55%, var(--border));
+  box-shadow:0 0 0 4px var(--ring);
+}
+
+.invalid{
+  border-color:var(--danger) !important;
+  background:#fef2f2 !important;
+}
+
+.tabs{ display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 14px; }
+.tab{
+  border:1px solid var(--border);
+  background:color-mix(in srgb, var(--bg-card) 70%, var(--bg-main));
+  color:var(--text-main);
+  padding:10px 12px;
+  border-radius:999px;
+  font-weight:900;
+  font-size:13px;
+  cursor:pointer;
+}
+.tab.active{
+  border-color:color-mix(in srgb, var(--primary) 55%, var(--border));
+  box-shadow:0 10px 22px -18px rgba(0,0,0,.35);
+  background:linear-gradient(180deg,
+    color-mix(in srgb, var(--primary) 14%, #fff),
+    color-mix(in srgb, var(--primary) 7%, #fff));
+}
+
+.actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.btn{
+  border:0;
+  border-radius:14px;
+  padding:12px 14px;
+  font-weight:950;
+  cursor:pointer;
+  background:linear-gradient(180deg,
+    color-mix(in srgb, var(--primary) 92%, #fff),
+    color-mix(in srgb, var(--primary) 78%, #000));
+  color:#fff;
+  box-shadow:0 14px 24px -18px rgba(0,0,0,.55);
+}
+.btn.secondary{
+  background:transparent;
+  color:var(--text-main);
+  border:1px solid var(--border);
+  box-shadow:none;
+}
+.btn.ghost{
+  background:color-mix(in srgb, var(--primary) 10%, #fff);
+  color:color-mix(in srgb, var(--primary) 85%, #000);
+  border:1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  box-shadow:none;
+}
+.btn:active{transform:translateY(1px)}
+
+.rightNote{ margin-left:auto; color:var(--text-muted); font-size:12px; }
+hr.sep{ border:0; border-top:1px solid var(--border); margin:14px 0; }
+
+.msg{
+  margin-top:12px;
+  padding:12px;
+  border-radius:14px;
+  border:1px dashed var(--border);
+  background:#fff;
+  white-space:pre-wrap;
+  font-family:ui-monospace,monospace;
+  font-size:13px;
+}
+.msg.error{
+  border-color:color-mix(in srgb, var(--danger) 45%, var(--border));
+  color:var(--danger);
+}
+.msg.ok{
+  border-color:color-mix(in srgb, var(--ok) 35%, var(--border));
+  color:color-mix(in srgb, var(--ok) 80%, #000);
+}
+
+.tableWrap{
+  margin-top:12px;
+  max-height:none;
+  overflow:visible;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:#fff;
+}
+table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  min-width:0;
+}
+th,td{
+  padding:10px 10px;
+  border-bottom:1px solid var(--border);
+  font-size:12.5px;
+  vertical-align:top;
+}
+th{
+  position:sticky;
+  top:0;
+  background:linear-gradient(180deg,#f8fafc,#f1f5f9);
+  color:#374151;
+  z-index:1;
+  text-align:left;
+}
+tr:last-child td{border-bottom:0}
+.bad{color:var(--danger); font-weight:950}
+.good{color:var(--ok); font-weight:950}
+.warn{color:var(--warn); font-weight:950}
+
+.smallmono{ font-family:ui-monospace,monospace; font-size:12px; color:var(--text-muted); }
+
+.pillRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+.pill{
+  font-size:12px;
+  padding:8px 10px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:#fff;
+  color:var(--text-main);
+}
+.pill strong{font-weight:950}
+
+/* ---------------- HELP MODAL ---------------- */
+.modalBackdrop{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.38);
+  backdrop-filter: blur(6px);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  z-index:9999;
+}
+.modal{
+  width:min(980px, 100%);
+  max-height:min(78vh, 720px);
+  background:color-mix(in srgb, var(--bg-card) 92%, #fff);
+  border:1px solid var(--border);
+  border-radius:20px;
+  box-shadow:0 24px 50px -26px rgba(0,0,0,.6);
+  overflow:hidden;
+  display:grid;
+  grid-template-columns: 320px 1fr;
+}
+@media (max-width: 860px){
+  .modal{ grid-template-columns: 1fr; }
+}
+.modalTop{
+  grid-column:1/-1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px 14px;
+  background:linear-gradient(180deg, var(--tint-2), transparent);
+  border-bottom:1px solid var(--border);
+}
+.modalTop .title{
+  font-weight:950;
+  letter-spacing:-0.01em;
+}
+.modalTop .kbd{
+  font-family:ui-monospace,monospace;
+  font-size:12px;
+  color:var(--text-muted);
+  border:1px solid var(--border);
+  background:#fff;
+  padding:6px 8px;
+  border-radius:10px;
+}
+.modalNav{
+  border-right:1px solid var(--border);
+  padding:12px;
+  overflow:auto;
+}
+.modalContent{
+  padding:14px;
+  overflow:auto;
+}
+.navSearch{
+  margin-bottom:10px;
+}
+.navList{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.navItem{
+  padding:10px 10px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:#fff;
+  cursor:pointer;
+}
+.navItem.active{
+  border-color:color-mix(in srgb, var(--primary) 40%, var(--border));
+  background:color-mix(in srgb, var(--primary) 10%, #fff);
+}
+.navItem .t{
+  font-weight:900;
+  margin:0 0 4px;
+}
+.navItem .d{
+  font-size:12px;
+  color:var(--text-muted);
+  margin:0;
+}
+.hTitle{
+  margin:0 0 8px;
+  font-size:20px;
+  letter-spacing:-0.01em;
+}
+.hBody{
+  margin:0;
+  color:var(--text-main);
+  line-height:1.45;
+  font-size:14px;
+}
+.hBody code{
+  font-family:ui-monospace,monospace;
+  font-size:13px;
+  background:#fff;
+  border:1px solid var(--border);
+  padding:2px 6px;
+  border-radius:8px;
+}
+.hBlock{
+  margin-top:12px;
+  padding:12px;
+  border-radius:14px;
+  background:#fff;
+  border:1px solid var(--border);
+}
+</style>
+
+<script>
+window.Module = {
+  locateFile: function (path) {
+    if (path.endsWith(".wasm")) return "https://tormt.folk.ntnu.no/Tools/Coolprop/coolprop.wasm";
+    return path;
+  }
+};
+</script>
+<script src="https://tormt.folk.ntnu.no/Tools/Coolprop/coolprop.js"></script>
+</head>
+
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>CoolProp</h1>
+      <div class="sub">
+        Single • Batch • All data. Enheter konverteres til SI før kall til CoolProp.
+      </div>
+    </div>
+    <div class="badges">
+      <button class="btn ghost" id="helpBtn" type="button">Help</button>
+      <div class="badge"><span>Engine</span><span class="dot" id="engineDot">⏳</span><span id="engineTxt">Laster …</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" data-tab="single">Single</button>
+      <button class="tab" data-tab="batch">Batch</button>
+      <button class="tab" data-tab="explore">All data</button>
+    </div>
+
+    <!-- COMMON SETTINGS -->
+    <div class="grid">
+      <div class="field" style="grid-column: span 4;">
+        <div class="label">Fluid</div>
+        <input id="fluid" list="fluidList" placeholder="Air / Nitrogen / Water / CarbonDioxide / …">
+        <datalist id="fluidList">
+          <option value="Air"></option>
+          <option value="Nitrogen"></option>
+          <option value="Water"></option>
+          <option value="CarbonDioxide"></option>
+          <option value="Oxygen"></option>
+          <option value="Helium"></option>
+          <option value="Methane"></option>
+          <option value="Propane"></option>
+          <option value="Ammonia"></option>
+          <option value="R134a"></option>
+        </datalist>
+        <div class="helpText">“Water vapor” → bruk <b>Water</b> (så lenge tilstanden er i dampområdet).</div>
+      </div>
+
+      <div class="field" style="grid-column: span 2;">
+        <div class="label">Pressure unit</div>
+        <select id="pUnit">
+          <option value="Pa">Pa</option>
+          <option value="kPa">kPa</option>
+          <option value="MPa">MPa</option>
+          <option value="bar" selected>bar</option>
+        </select>
+        <div class="helpText">1 bar = 100000 Pa</div>
+      </div>
+
+      <div class="field" style="grid-column: span 2;">
+        <div class="label">Temperature unit</div>
+        <select id="tUnit">
+          <option value="C" selected>°C</option>
+          <option value="K">K</option>
+        </select>
+        <div class="helpText">T(K)=T(°C)+273.15</div>
+      </div>
+
+      <div class="field" style="grid-column: span 2;">
+        <div class="label">Energy unit</div>
+        <select id="eUnit">
+          <option value="Jkg" selected>J/kg</option>
+          <option value="kJkg">kJ/kg</option>
+        </select>
+        <div class="helpText">Gjelder H og U</div>
+      </div>
+
+      <div class="field" style="grid-column: span 2;">
+        <div class="label">Entropy/Cp unit</div>
+        <select id="sUnit">
+          <option value="JkgK" selected>J/kg/K</option>
+          <option value="kJkgK">kJ/kg/K</option>
+        </select>
+        <div class="helpText">Gjelder S, Cp, Cv</div>
+      </div>
+
+      <div class="field" style="grid-column: span 12;">
+        <div class="actions">
+          <button class="btn secondary" id="exportCSV">Export CSV</button>
+          <button class="btn secondary" id="exportJSON">Export JSON</button>
+          <div class="rightNote" id="exportHint">Eksport gjelder aktiv tab.</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="sep">
+
+    <!-- SINGLE -->
+    <div id="tab_single">
+      <div class="grid">
+        <div class="field" style="grid-column: span 3;">
+          <div class="label">Input #1</div>
+          <select id="s_i1">
+            <option value="P">Pressure (P)</option>
+            <option value="T">Temperature (T)</option>
+            <option value="H">Enthalpy (H)</option>
+            <option value="S">Entropy (S)</option>
+            <option value="D">Density (D)</option>
+            <option value="Q">Quality (Q)</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: span 3;">
+          <div class="label">Value #1</div>
+          <input id="s_v1" type="number" placeholder="f.eks. 1 (bar) eller 101325 (Pa)">
+        </div>
+
+        <div class="field" style="grid-column: span 3;">
+          <div class="label">Input #2</div>
+          <select id="s_i2">
+            <option value="T">Temperature (T)</option>
+            <option value="P">Pressure (P)</option>
+            <option value="H">Enthalpy (H)</option>
+            <option value="S">Entropy (S)</option>
+            <option value="D">Density (D)</option>
+            <option value="Q">Quality (Q)</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: span 3;">
+          <div class="label">Value #2</div>
+          <input id="s_v2" type="number" placeholder="f.eks. 25 (°C) eller 298.15 (K)">
+        </div>
+      </div>
+
+      <div style="margin-top:12px;" class="actions">
+        <button class="btn" id="singleRun">Compute (many properties)</button>
+        <button class="btn ghost" id="singleExample">Example: Air @ 1 bar, 400 K</button>
+        <div class="rightNote smallmono" id="singleNote">Konverterer enheter → kjører CoolProp → konverterer tilbake til valgte enheter.</div>
+      </div>
+
+      <div id="singleMsg" class="msg">Klar.</div>
+
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Key</th>
+              <th>Value</th>
+              <th>Unit</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="singleBody">
+            <tr><td colspan="5" style="color:#6b7280;">Ingen beregning ennå.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- BATCH -->
+    <div id="tab_batch" style="display:none;">
+      <div class="grid">
+        <div class="field" style="grid-column: span 7;">
+          <div class="label">Batch rows</div>
+          <textarea id="b_rows" placeholder="Én rad per linje.
+
+For Table-4 style (T, P):
+25, 1
+790, 1
+30, 12"></textarea>
+          <div class="helpText">Velg format under. Komma/mellomrom funker.</div>
+        </div>
+
+        <div class="field" style="grid-column: span 5;">
+          <div class="label">Row format</div>
+          <select id="b_format">
+            <option value="T,P">T, P</option>
+            <option value="P,T">P, T</option>
+          </select>
+
+          <div class="label" style="margin-top:12px;">Batch mode</div>
+          <select id="b_mode">
+            <option value="table4">Table 4 (v_ideal, v_real, diff %, Z)</option>
+            <option value="multi">Multi-output (choose outputs)</option>
+          </select>
+
+          <div class="label" style="margin-top:12px;">Outputs (for Multi-output)</div>
+          <select id="b_outputs" multiple size="8">
+            <option value="T">T (K)</option>
+            <option value="P">P (Pa)</option>
+            <option value="D">D density (kg/m³)</option>
+            <option value="H">H enthalpy</option>
+            <option value="S">S entropy</option>
+            <option value="U">U internal energy</option>
+            <option value="C">Cp</option>
+            <option value="O">Cv</option>
+            <option value="V">Viscosity</option>
+            <option value="L">Conductivity</option>
+            <option value="A">Speed of sound</option>
+            <option value="Prandtl">Prandtl</option>
+          </select>
+          <div class="helpText">Ctrl/⌘ for å velge flere. Verdier vises i valgte enheter der det gir mening.</div>
+
+          <div class="actions" style="margin-top:12px;">
+            <button class="btn" id="batchRun">Run batch</button>
+            <button class="btn ghost" id="batchPresetAir">Preset (Air – Table 4)</button>
+            <button class="btn ghost" id="batchPresetWater">Preset (Water vapor – Table 4)</button>
+          </div>
+
+          <div id="batchMsg" class="msg">Klar.</div>
+        </div>
+      </div>
+
+      <div class="tableWrap">
+        <table>
+          <thead id="batchHead"></thead>
+          <tbody id="batchBody">
+            <tr><td style="color:#6b7280;">Ingen resultater ennå.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- EXPLORE -->
+    <div id="tab_explore" style="display:none;">
+      <div class="grid">
+        <div class="field" style="grid-column: span 2;">
+          <div class="label">Input #1</div>
+          <select id="e_i1">
+            <option value="T">T</option>
+            <option value="P">P</option>
+            <option value="H">H</option>
+            <option value="S">S</option>
+            <option value="D">D</option>
+            <option value="Q">Q</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: span 4;">
+          <div class="label">Value #1</div>
+          <input id="e_v1" type="number" placeholder="f.eks. 25 (°C) eller 298.15 (K)">
+        </div>
+
+        <div class="field" style="grid-column: span 2;">
+          <div class="label">Input #2</div>
+          <select id="e_i2">
+            <option value="P">P</option>
+            <option value="T">T</option>
+            <option value="H">H</option>
+            <option value="S">S</option>
+            <option value="D">D</option>
+            <option value="Q">Q</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: span 4;">
+          <div class="label">Value #2</div>
+          <input id="e_v2" type="number" placeholder="f.eks. 1 (bar) eller 101325 (Pa)">
+        </div>
+      </div>
+
+      <div class="actions" style="margin-top:12px;">
+        <button class="btn" id="exploreRun">Fetch all data (standard set)</button>
+        <button class="btn ghost" id="exploreExample">Example: Nitrogen @ 1 bar, 25°C</button>
+        <div class="rightNote smallmono">“All data” = definert standardliste (PropsSI har ikke “return everything”).</div>
+      </div>
+
+      <div id="exploreMsg" class="msg">Klar.</div>
+
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Key</th>
+              <th>Value</th>
+              <th>Unit</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="exploreBody">
+            <tr><td colspan="5" style="color:#6b7280;">Ingen data ennå.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="pillRow">
+    <div class="pill"><strong>Tip:</strong> Hvis tabellen bruker bar og °C: sett Pressure unit = <b>bar</b>, Temperature unit = <b>°C</b>.</div>
+    <div class="pill"><strong>Vanlig feil:</strong> “105” som Pa er nesten vakuum. Hvis du mener 1.05 bar → skriv 1.05 (bar) eller 105000 (Pa).</div>
+  </div>
+</div>
+
+<!-- HELP MODAL -->
+<div class="modalBackdrop" id="helpBackdrop" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Help">
+    <div class="modalTop">
+      <div class="title">Help</div>
+      <div class="kbd">ESC</div>
+      <button class="btn secondary" id="helpClose" type="button">Close</button>
+    </div>
+    <div class="modalNav">
+      <div class="navSearch">
+        <input id="helpSearch" type="text" placeholder="Søk… (f.eks. batch, enheter, export, table 4)">
+      </div>
+      <div class="navList" id="helpNav"></div>
+    </div>
+    <div class="modalContent">
+      <h3 class="hTitle" id="helpTitle"></h3>
+      <p class="hBody" id="helpBody"></p>
+      <div class="hBlock" id="helpExtra"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+
+function getPropsSI(){
+  if (window.Module && typeof Module.PropsSI === "function") return Module.PropsSI;
+  if (window.CoolProp && typeof CoolProp.PropsSI === "function") return CoolProp.PropsSI;
+  return null;
+}
+
+function setEngine(ok, msg){
+  $("engineDot").textContent = ok ? "✅" : "⏳";
+  $("engineTxt").textContent = ok ? "Klar" : (msg || "Laster …");
+}
+
+/* ---------------- Unit conversion ----------------
+   CoolProp PropsSI expects SI:
+   - P: Pa
+   - T: K
+   - H,U: J/kg
+   - S,C,Cv: J/kg/K
+*/
+function toPa(p, unit){
+  if (unit==="Pa") return p;
+  if (unit==="kPa") return p*1e3;
+  if (unit==="MPa") return p*1e6;
+  if (unit==="bar") return p*1e5;
+  return p;
+}
+function fromPa(pa, unit){
+  if (unit==="Pa") return pa;
+  if (unit==="kPa") return pa/1e3;
+  if (unit==="MPa") return pa/1e6;
+  if (unit==="bar") return pa/1e5;
+  return pa;
+}
+function toK(t, unit){
+  if (unit==="K") return t;
+  if (unit==="C") return t + 273.15;
+  return t;
+}
+function fromK(k, unit){
+  if (unit==="K") return k;
+  if (unit==="C") return k - 273.15;
+  return k;
+}
+function toJkg(x, eUnit){
+  // H, U
+  if (eUnit==="Jkg") return x;
+  if (eUnit==="kJkg") return x*1000;
+  return x;
+}
+function fromJkg(x, eUnit){
+  if (eUnit==="Jkg") return x;
+  if (eUnit==="kJkg") return x/1000;
+  return x;
+}
+function toJkgK(x, sUnit){
+  // S, Cp, Cv
+  if (sUnit==="JkgK") return x;
+  if (sUnit==="kJkgK") return x*1000;
+  return x;
+}
+function fromJkgK(x, sUnit){
+  if (sUnit==="JkgK") return x;
+  if (sUnit==="kJkgK") return x/1000;
+  return x;
+}
+
+function fmt(x){
+  if (!Number.isFinite(x)) return "";
+  const a = Math.abs(x);
+  if (a!==0 && (a>=1e6 || a<1e-3)) return x.toExponential(6);
+  return x.toFixed(6).replace(/\.?0+$/,"");
+}
+
+function parseRows(text){
+  const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const rows = [];
+  for (const line of lines){
+    const parts = line.split(/[\s,;]+/).filter(Boolean);
+    if (parts.length<2) continue;
+    rows.push({a:Number(parts[0]), b:Number(parts[1]), raw:line});
+  }
+  return rows;
+}
+
+function clearInvalid(...els){ els.forEach(e=>e.classList.remove("invalid")); }
+function msg(elId, text, kind=""){
+  const m = $(elId);
+  m.textContent = text;
+  m.classList.toggle("error", kind==="error");
+  m.classList.toggle("ok", kind==="ok");
+}
+
+/* Standard property list we can reliably ask for */
+const PROP_SET = [
+  {name:"Temperature", key:"T", unitKey:"T"},
+  {name:"Pressure", key:"P", unitKey:"P"},
+  {name:"Density", key:"D", unitKey:"D"},
+  {name:"Enthalpy", key:"H", unitKey:"H"},
+  {name:"Entropy", key:"S", unitKey:"S"},
+  {name:"Internal energy", key:"U", unitKey:"U"},
+  {name:"Cp", key:"C", unitKey:"S"},      // uses J/kg/K units
+  {name:"Cv", key:"O", unitKey:"S"},      // uses J/kg/K units
+  {name:"Viscosity", key:"V", unitKey:"V"},
+  {name:"Conductivity", key:"L", unitKey:"L"},
+  {name:"Speed of sound", key:"A", unitKey:"A"},
+  {name:"Prandtl", key:"Prandtl", unitKey:"Pr"}
+];
+
+function unitLabel(unitKey){
+  const pUnit = $("pUnit").value;
+  const tUnit = $("tUnit").value;
+  const eUnit = $("eUnit").value;
+  const sUnit = $("sUnit").value;
+
+  if (unitKey==="P") return pUnit;
+  if (unitKey==="T") return tUnit;
+  if (unitKey==="H" || unitKey==="U") return eUnit==="kJkg" ? "kJ/kg" : "J/kg";
+  if (unitKey==="S") return sUnit==="kJkgK" ? "kJ/kg/K" : "J/kg/K";
+  if (unitKey==="D") return "kg/m³";
+  if (unitKey==="V") return "Pa·s";
+  if (unitKey==="L") return "W/m/K";
+  if (unitKey==="A") return "m/s";
+  if (unitKey==="Pr") return "-";
+  return "";
+}
+
+function convertInputToSI(key, val){
+  const pUnit = $("pUnit").value;
+  const tUnit = $("tUnit").value;
+  const eUnit = $("eUnit").value;
+  const sUnit = $("sUnit").value;
+
+  if (key==="P") return toPa(val, pUnit);
+  if (key==="T") return toK(val, tUnit);
+  if (key==="H" || key==="U") return toJkg(val, eUnit);
+  if (key==="S" || key==="C" || key==="O") return toJkgK(val, sUnit);
+  return val; // D,Q etc assumed SI or dimensionless
+}
+
+function convertOutputFromSI(key, val){
+  const pUnit = $("pUnit").value;
+  const tUnit = $("tUnit").value;
+  const eUnit = $("eUnit").value;
+  const sUnit = $("sUnit").value;
+
+  if (key==="P") return fromPa(val, pUnit);
+  if (key==="T") return fromK(val, tUnit);
+  if (key==="H" || key==="U") return fromJkg(val, eUnit);
+  if (key==="S" || key==="C" || key==="O") return fromJkgK(val, sUnit);
+  return val;
+}
+
+/* Ideal gas constants for table4 (specific volume) */
+const R_SPEC = {
+  Air: 287.058,
+  Water: 461.526,
+  Nitrogen: 296.803,
+  CarbonDioxide: 188.924
+};
+
+let exportPayload = { tab:"", rows:[] };
+
+function exportAsCSV(filename, rows){
+  if (!rows || !rows.length) return;
+  const header = Object.keys(rows[0]);
+  const lines = [header.join(",")];
+  for (const r of rows){
+    const line = header.map(k=>{
+      const v = r[k];
+      if (v===null || v===undefined) return "";
+      const s = String(v);
+      if (/[,"\n]/.test(s)) return `"${s.replaceAll('"','""')}"`;
+      return s;
+    }).join(",");
+    lines.push(line);
+  }
+  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportAsJSON(filename, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------- Tabs ---------------- */
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    const t = btn.dataset.tab;
+    $("tab_single").style.display = t==="single" ? "" : "none";
+    $("tab_batch").style.display  = t==="batch"  ? "" : "none";
+    $("tab_explore").style.display= t==="explore"? "" : "none";
+    exportPayload = { tab:t, rows:[] };
+    $("exportHint").textContent = `Eksport gjelder: ${t}`;
+  });
+});
+
+/* ---------------- Single ---------------- */
+function readState(prefix){
+  const fluid = $("fluid").value.trim() || "Air";
+  const i1 = $(prefix+"_i1").value;
+  const i2 = $(prefix+"_i2").value;
+  const v1raw = Number($(prefix+"_v1").value);
+  const v2raw = Number($(prefix+"_v2").value);
+
+  clearInvalid($(prefix+"_v1"), $(prefix+"_v2"));
+
+  if (!Number.isFinite(v1raw) || !Number.isFinite(v2raw)){
+    if (!Number.isFinite(v1raw)) $(prefix+"_v1").classList.add("invalid");
+    if (!Number.isFinite(v2raw)) $(prefix+"_v2").classList.add("invalid");
+    return {ok:false, err:"Fyll inn begge verdier som tall.", fluid};
+  }
+
+  const V1 = convertInputToSI(i1, v1raw);
+  const V2 = convertInputToSI(i2, v2raw);
+  return {ok:true, fluid, i1, V1, i2, V2};
+}
+
+function computePropsTable(fluid, i1, v1, i2, v2, bodyId, msgId){
+  const PropsSI = getPropsSI();
+  if (!PropsSI){ msg(msgId,"CoolProp er ikke lastet (PropsSI mangler).","error"); return; }
+
+  const tbody = $(bodyId);
+  tbody.innerHTML = "";
+
+  const rows = [];
+
+  for (const p of PROP_SET){
+    let valSI = null, ok=true, err="";
+    try{
+      valSI = PropsSI(p.key, i1, v1, i2, v2, fluid);
+      if (!Number.isFinite(valSI)) throw new Error("NaN");
+    }catch(e){
+      ok=false; err=(e&&e.message)?e.message:String(e);
+    }
+
+    const valOut = ok ? convertOutputFromSI(p.key, valSI) : null;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td class="smallmono">${p.key}</td>
+      <td>${ok ? fmt(valOut) : ""}</td>
+      <td>${unitLabel(p.unitKey)}</td>
+      <td>${ok ? "<span class='good'>OK</span>" : "<span class='bad'>N/A</span><div class='smallmono'>"+err+"</div>"}</td>
+    `;
+    tbody.appendChild(tr);
+
+    rows.push({
+      property: p.name,
+      key: p.key,
+      value: ok ? valOut : null,
+      unit: unitLabel(p.unitKey),
+      ok,
+      error: ok ? "" : err
+    });
+  }
+
+  exportPayload = { tab: (bodyId==="singleBody" ? "single" : "explore"), rows };
+  msg(msgId, "Ferdig. N/A betyr at property ikke kan evalueres for denne tilstanden.", "ok");
+}
+
+$("singleRun").addEventListener("click", ()=>{
+  const st = readState("s");
+  if (!st.ok){ msg("singleMsg", st.err, "error"); return; }
+  computePropsTable(st.fluid, st.i1, st.V1, st.i2, st.V2, "singleBody", "singleMsg");
+});
+
+$("singleExample").addEventListener("click", ()=>{
+  $("fluid").value="Air";
+  $("pUnit").value="bar";
+  $("tUnit").value="K";
+  $("eUnit").value="Jkg";
+  $("sUnit").value="JkgK";
+  $("s_i1").value="P"; $("s_v1").value="1";
+  $("s_i2").value="T"; $("s_v2").value="400";
+  msg("singleMsg","Example satt. Trykk Compute.","");
+});
+
+/* ---------------- Batch ---------------- */
+function buildBatchTable(headers, rows){
+  $("batchHead").innerHTML = `<tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr>`;
+  const body = $("batchBody");
+  body.innerHTML = "";
+  if (!rows.length){
+    body.innerHTML = `<tr><td style="color:#6b7280;">Ingen resultater.</td></tr>`;
+    return;
+  }
+  for (const r of rows){
+    const tr = document.createElement("tr");
+    tr.innerHTML = headers.map(h=>`<td>${r[h] ?? ""}</td>`).join("");
+    body.appendChild(tr);
+  }
+}
+
+$("batchPresetAir").addEventListener("click", ()=>{
+  $("fluid").value="Air";
+  $("pUnit").value="bar";
+  $("tUnit").value="C";
+  $("b_format").value="T,P";
+  $("b_mode").value="table4";
+  $("b_rows").value = `25, 1
+790, 1
+30, 12
+810, 12
+-120, 40
+390, 40`;
+  msg("batchMsg","Preset lastet (Air – Table 4).","ok");
+});
+
+$("batchPresetWater").addEventListener("click", ()=>{
+  $("fluid").value="Water";
+  $("pUnit").value="bar";
+  $("tUnit").value="C";
+  $("b_format").value="T,P";
+  $("b_mode").value="table4";
+  $("b_rows").value = `90, 0.5
+310, 0.5
+150, 3
+410, 3
+410, 300
+880, 300`;
+  msg("batchMsg","Preset lastet (Water vapor – Table 4).","ok");
+});
+
+$("batchRun").addEventListener("click", ()=>{
+  const PropsSI = getPropsSI();
+  if (!PropsSI){ msg("batchMsg","CoolProp er ikke lastet (PropsSI mangler).","error"); return; }
+
+  const fluid = $("fluid").value.trim() || "Air";
+  const rowsIn = parseRows($("b_rows").value);
+  if (!rowsIn.length){
+    $("b_rows").classList.add("invalid");
+    msg("batchMsg","Legg inn minst én linje med to tall.","error");
+    return;
+  }
+  $("b_rows").classList.remove("invalid");
+
+  const format = $("b_format").value;
+  const mode = $("b_mode").value;
+
+  const outRows = [];
+
+  if (mode==="table4"){
+    const R = R_SPEC[fluid] ?? (fluid==="Water" ? R_SPEC.Water : null);
+    if (!R){
+      msg("batchMsg", `Mangler R_spec for ${fluid}. Legg inn i R_SPEC i koden.`, "error");
+      return;
+    }
+
+    for (const r of rowsIn){
+      let Traw, Praw;
+      if (format==="T,P"){ Traw=r.a; Praw=r.b; } else { Praw=r.a; Traw=r.b; }
+
+      const Tk = toK(Traw, $("tUnit").value);
+      const Pa = toPa(Praw, $("pUnit").value);
+
+      let ok=true, err="";
+      let vIdeal=null, vReal=null, diff=null, Z=null;
+
+      try{
+        if (!Number.isFinite(Tk) || !Number.isFinite(Pa) || Pa<=0) throw new Error("Ugyldig T/P");
+        vIdeal = (R*Tk)/Pa;
+        const rho = PropsSI("D","T",Tk,"P",Pa,fluid);
+        if (!Number.isFinite(rho) || rho<=0) throw new Error("Densitet ugyldig");
+        vReal = 1/rho;
+        diff = Math.abs(vReal - vIdeal)/vIdeal*100;
+        Z = vReal/vIdeal;
+      }catch(e){
+        ok=false; err=(e&&e.message)?e.message:String(e);
+      }
+
+    outRows.push({
+      "#": outRows.length + 1,
+      "Fluid": fluid,
+      "T_in": Traw,
+      "P_in": Praw,
+      [`T(${$("tUnit").value})`]: fmt(Traw),
+      [`P(${$("pUnit").value})`]: fmt(Praw),
+      "v_ideal (m³/kg)": ok ? fmt(vIdeal) : "",
+      "v_real (m³/kg)": ok ? fmt(vReal) : "",
+      "diff %": ok ? fmt(diff) : "",
+      "Z": ok ? fmt(Z) : "",
+      "Status": ok ? "OK" : ("FAIL: " + err)
+    });
+
+    }
+
+    const headers = Object.keys(outRows[0] || {"#":""});
+    buildBatchTable(headers, outRows);
+    exportPayload = { tab:"batch", rows: outRows };
+    msg("batchMsg", `Ferdig. ${outRows.filter(r=>r.Status==="OK").length}/${outRows.length} OK.`, "ok");
+    return;
+  }
+
+  // multi output
+  const selected = Array.from($("b_outputs").selectedOptions).map(o=>o.value);
+  if (!selected.length){
+    msg("batchMsg","Velg minst én output i lista.","error");
+    return;
+  }
+
+  for (const r of rowsIn){
+    let Traw, Praw;
+    if (format==="T,P"){ Traw=r.a; Praw=r.b; } else { Praw=r.a; Traw=r.b; }
+
+    const Tk = toK(Traw, $("tUnit").value);
+    const Pa = toPa(Praw, $("pUnit").value);
+
+    const row = { "#": outRows.length+1, "Fluid": fluid, "T_in": Traw, "P_in": Praw };
+    let ok=true, err="";
+
+    try{
+      for (const k of selected){
+        const valSI = PropsSI(k, "T", Tk, "P", Pa, fluid);
+        if (!Number.isFinite(valSI)) throw new Error(`${k}=NaN`);
+        const valOut = convertOutputFromSI(k, valSI);
+        row[k] = fmt(valOut);
+      }
+    }catch(e){
+      ok=false; err=(e&&e.message)?e.message:String(e);
+    }
+
+    row["Status"] = ok ? "OK" : ("FAIL: "+err);
+    outRows.push(row);
+  }
+
+  const headers = Object.keys(outRows[0] || {"#":""});
+  buildBatchTable(headers, outRows);
+  exportPayload = { tab:"batch", rows: outRows };
+  msg("batchMsg", `Ferdig (multi). ${outRows.filter(r=>r.Status==="OK").length}/${outRows.length} OK.`, "ok");
+});
+
+/* ---------------- Explore ---------------- */
+$("exploreRun").addEventListener("click", ()=>{
+  const fluid = $("fluid").value.trim() || "Air";
+  const i1 = $("e_i1").value;
+  const i2 = $("e_i2").value;
+  const v1raw = Number($("e_v1").value);
+  const v2raw = Number($("e_v2").value);
+
+  clearInvalid($("e_v1"), $("e_v2"));
+
+  if (!Number.isFinite(v1raw) || !Number.isFinite(v2raw)){
+    if (!Number.isFinite(v1raw)) $("e_v1").classList.add("invalid");
+    if (!Number.isFinite(v2raw)) $("e_v2").classList.add("invalid");
+    msg("exploreMsg","Fyll inn begge verdier som tall.","error");
+    return;
+  }
+
+  const V1 = convertInputToSI(i1, v1raw);
+  const V2 = convertInputToSI(i2, v2raw);
+
+  computePropsTable(fluid, i1, V1, i2, V2, "exploreBody", "exploreMsg");
+});
+
+$("exploreExample").addEventListener("click", ()=>{
+  $("fluid").value="Nitrogen";
+  $("pUnit").value="bar";
+  $("tUnit").value="C";
+  $("eUnit").value="kJkg";
+  $("sUnit").value="kJkgK";
+  $("e_i1").value="T"; $("e_v1").value="25";
+  $("e_i2").value="P"; $("e_v2").value="1";
+  msg("exploreMsg","Example satt. Trykk Fetch all data.","");
+});
+
+/* ---------------- Export buttons ---------------- */
+$("exportCSV").addEventListener("click", ()=>{
+  if (!exportPayload.rows || !exportPayload.rows.length){
+    alert("Ingen data å eksportere enda.");
+    return;
+  }
+  exportAsCSV(`coolprop_${exportPayload.tab}.csv`, exportPayload.rows);
+});
+$("exportJSON").addEventListener("click", ()=>{
+  if (!exportPayload.rows || !exportPayload.rows.length){
+    alert("Ingen data å eksportere enda.");
+    return;
+  }
+  exportAsJSON(`coolprop_${exportPayload.tab}.json`, exportPayload);
+});
+
+/* ---------------- Help system ---------------- */
+const HELP = [
+  {
+    id:"overview",
+    title:"Oversikt",
+    desc:"Hva denne siden gjør",
+    body:`Dette er en CoolProp/WASM-kalkulator med tre moduser:
+- Single: én tilstand inn → mange properties ut.
+- Batch: mange rader inn → tabell ut.
+- All data: standard property-liste for en valgt tilstand.
+Alle input blir konvertert til SI før kall til <code>PropsSI</code>.`,
+    extra:`Tips: Hvis en oppgave-tabell bruker bar og °C, sett Pressure unit=bar og Temperature unit=°C.`
+  },
+  {
+    id:"units",
+    title:"Enheter",
+    desc:"Hvordan enheter håndteres",
+    body:`CoolProp sin <code>PropsSI</code> forventer SI:
+- P i Pa
+- T i K
+- H/U i J/kg
+- S/Cp/Cv i J/kg/K
+
+I UI velger du enheter, og siden konverterer:
+- P: Pa/kPa/MPa/bar
+- T: °C/K
+- H,U: J/kg eller kJ/kg
+- S,Cp,Cv: J/kg/K eller kJ/kg/K`,
+    extra:`Hvis du velger kJ/kg i UI, sendes fortsatt J/kg til CoolProp internt.`
+  },
+  {
+    id:"single",
+    title:"Single",
+    desc:"Én tilstand → mange outputs",
+    body:`Velg input-par (f.eks. P og T) og trykk <code>Compute</code>.
+Du får en tabell med standard-properties (T, P, D, H, S, U, Cp, Cv, μ, k, a, Pr).
+Hvis en property ikke kan evalueres for tilstanden får du N/A.`,
+    extra:`Typisk: <code>Air</code> ved 1 bar og 400 K fungerer. <code>Water</code> ved lav T/P kan gi to-fase og N/A.`
+  },
+  {
+    id:"batch",
+    title:"Batch",
+    desc:"Mange rader → tabell",
+    body:`Skriv én rad per linje og velg format:
+- <code>T,P</code> eller <code>P,T</code>
+
+Batch mode:
+- Table 4: regner v_ideal, v_real, diff %, Z.
+- Multi-output: velg flere outputs og få dem som kolonner.`,
+    extra:`Table 4 bruker ideell gass: v_ideal = R*T/P. R_spec finnes for noen fluider (Air, Water, Nitrogen, CO2).`
+  },
+  {
+    id:"export",
+    title:"Eksport",
+    desc:"CSV/JSON",
+    body:`<code>Export CSV</code> eksporterer tabellen fra aktiv tab.
+<code>Export JSON</code> eksporterer samme data med metadata (tab + rows).`,
+    extra:`CSV er enklest å lime rett inn i Excel.`
+  },
+  {
+    id:"errors",
+    title:"Vanlige feil",
+    desc:"Hvorfor du får FAIL/N/A",
+    body:`Typiske årsaker:
+- Du skrev trykk i bar, men hadde valgt Pa (105 Pa er nesten vakuum).
+- Ugyldig tilstand (f.eks. temperatur under trippelpunkt).
+- Output-property støttes ikke i den aktuelle tilstanden.`,
+    extra:`Løsning: sett riktige enheter og bruk realistiske T/P.`
+  }
+];
+
+function renderHelpList(filterText=""){
+  const nav = $("helpNav");
+  nav.innerHTML = "";
+  const q = filterText.trim().toLowerCase();
+
+  const items = HELP.filter(h=>{
+    if (!q) return true;
+    return (h.title+h.desc+h.body+h.extra).toLowerCase().includes(q);
+  });
+
+  for (const h of items){
+    const div = document.createElement("div");
+    div.className = "navItem";
+    div.dataset.id = h.id;
+    div.innerHTML = `<div class="t">${h.title}</div><p class="d">${h.desc}</p>`;
+    div.addEventListener("click", ()=>selectHelp(h.id));
+    nav.appendChild(div);
+  }
+
+  // auto-select first visible
+  if (items.length) selectHelp(items[0].id, true);
+  else {
+    $("helpTitle").textContent = "Ingen treff";
+    $("helpBody").textContent = "Prøv et annet søkeord.";
+    $("helpExtra").textContent = "";
+  }
+}
+
+function selectHelp(id, silent=false){
+  const h = HELP.find(x=>x.id===id);
+  if (!h) return;
+
+  document.querySelectorAll(".navItem").forEach(n=>{
+    n.classList.toggle("active", n.dataset.id===id);
+  });
+
+  $("helpTitle").textContent = h.title;
+  $("helpBody").innerHTML = h.body;
+  $("helpExtra").textContent = h.extra || "";
+
+  if (!silent) $("helpSearch").focus();
+}
+
+function openHelp(){
+  $("helpBackdrop").style.display = "flex";
+  $("helpBackdrop").setAttribute("aria-hidden","false");
+  $("helpSearch").value = "";
+  renderHelpList("");
+  $("helpSearch").focus();
+}
+function closeHelp(){
+  $("helpBackdrop").style.display = "none";
+  $("helpBackdrop").setAttribute("aria-hidden","true");
+}
+
+$("helpBtn").addEventListener("click", openHelp);
+$("helpClose").addEventListener("click", closeHelp);
+$("helpBackdrop").addEventListener("click", (e)=>{
+  if (e.target === $("helpBackdrop")) closeHelp();
+});
+document.addEventListener("keydown", (e)=>{
+  if (e.key === "Escape" && $("helpBackdrop").style.display === "flex") closeHelp();
+});
+$("helpSearch").addEventListener("input", (e)=>renderHelpList(e.target.value));
+
+/* Clear invalid highlight on input */
+["s_v1","s_v2","e_v1","e_v2","b_rows"].forEach(id=>{
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener("input", ()=>el.classList.remove("invalid"));
+});
+
+/* Boot engine status */
+(async function boot(){
+  setEngine(false,"Laster …");
+  const t0 = performance.now();
+  while (performance.now()-t0 < 15000){
+    if (getPropsSI()){ setEngine(true); return; }
+    await new Promise(r=>setTimeout(r, 120));
+  }
+  setEngine(false,"Feil");
+})();
+
+/* Defaults */
+$("fluid").value = "Air";
+</script>
+</body>
+</html>

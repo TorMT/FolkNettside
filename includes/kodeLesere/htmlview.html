@@ -45,6 +45,21 @@
         const val = parentStyle.getPropertyValue(name);
         if (val) childRoot.style.setProperty(name, val.trim());
       }
+
+      // --- Forward theme + vars to nested iframe child (hvis tilstede) ---
+      try {
+        const vars = {};
+        for (let i = 0; i < parentStyle.length; i++) {
+          const name = parentStyle[i];
+          if (!name.startsWith("--")) continue;
+          const val = parentStyle.getPropertyValue(name);
+          if (val) vars[name] = val.trim();
+        }
+        const themeAttr = parentRoot.getAttribute("data-theme") || null;
+        if (frame && frame.contentWindow && frame.contentWindow !== window) {
+          frame.contentWindow.postMessage({ type: 'theme-sync', themeAttr: themeAttr, vars: vars }, '*');
+        }
+      } catch (e) {}
     } catch (e) {
       // typisk bare hvis cross-origin (skal ikke skje hos deg)
     }
@@ -66,6 +81,23 @@
 
     // 2) ekstra robust: re-sync av og til (hvis theme endres via CSS/JS uten attribute mutation)
     setInterval(copyThemeToIframe, 500);
+
+    // 3) Send initial theme + CSS-vars to nested child (for _inview pages that embed inner iframes)
+    try {
+      const parentRoot = window.parent.document.documentElement;
+      const parentStyle = getComputedStyle(parentRoot);
+      const vars = {};
+      for (let i = 0; i < parentStyle.length; i++) {
+        const name = parentStyle[i];
+        if (!name.startsWith("--")) continue;
+        const val = parentStyle.getPropertyValue(name);
+        if (val) vars[name] = val.trim();
+      }
+      const themeAttr = parentRoot.getAttribute("data-theme") || null;
+      if (frame && frame.contentWindow && frame.contentWindow !== window) {
+        frame.contentWindow.postMessage({ type: 'theme-sync', themeAttr: themeAttr, vars: vars }, '*');
+      }
+    } catch (e) {}
   });
 </script>
 </body>
