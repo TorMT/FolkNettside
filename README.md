@@ -203,6 +203,60 @@ Merk: noen miljøer krever ekstra opsjoner (f.eks. `domain=ntnu.no` eller `sec=n
 Når du er koblet opp: kopier publiserbare filer (for eksempel fra `export/` eller `index.html` + `assets/`) inn i `\\webedit.ntnu.no\\brukernavn` og test via folk-ntnu.
 
 ---
+## Oppsett: trinn for trinn
+
+1. Klon repo og gå til roten:
+
+```bash
+git clone https://github.com/DITT_BRUKERNAVN/repo.git
+cd repo
+```
+
+2. Installer Python (3.11+ anbefales). Lag helst venv:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate    # Windows
+source .venv/bin/activate # macOS/Linux
+pip install -U pip
+pip install beautifulsoup4 tqdm
+```
+
+3. Kontroller `index.json`/`index.html` i `semestre/`, og kjør oppdatering:
+
+```bash
+python SiteUpdater3.py .
+python navbarupdater.py update-index .
+```
+
+4. Lokal test:
+
+```bash
+python -m http.server 8000
+# åpne http://localhost:8000
+```
+
+5. Legg til, commit og push:
+
+```bash
+git add -A
+git commit -m "Oppdatering: README og oppsett"
+git push origin main
+```
+
+6. Deploy: push til main trigger GitHub Actions (hvis workflow aktiv).
+
+
+## AI-hjelp (ekstra)
+
+- Denne repoen kan vedlikeholdes med AI-assistert arbeidsflyt. Bruk GitHub Copilot eller ChatGPT for å generere tekst, scripts eller kommandoeksempler.
+- Legg inn en lokal `scripts/ai/` mappe for eksperimenter: `scripts/ai/README.md` og `scripts/ai/quick_start.md`.
+- Gjør alltid manuell kontroll av generert kode før produksjon. AI bidrar med forslag, men du kan oppdage logiske eller sikkerhetsrelaterte feil.
+
+> Tipset: Documenter alltid endringer i `README.md` og `index.json` slik at både styringsteam og automasjoner har samme referanse.
+
+---
+
 Vil du at jeg skal utføre noen av disse oppgavene for deg?
 
 Jeg kan:
