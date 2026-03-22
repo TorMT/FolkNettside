@@ -536,8 +536,8 @@ tr:last-child td{border-bottom:0}
 
 <div class="header">
   <div>
-    <h1>CoolProp</h1>
-    <div class="sub">Termodynamiske egenskaper + Detaljert log P-h Diagram</div>
+    <h1>CoolProp Ultimate</h1>
+    <div class="sub">Termodynamiske egenskaper + Detaljert Diagramer</div>
   </div>
   <div class="badges">
     <div class="badge"><span class="dot">🔵</span> <span id="engineStatus">…</span></div>
@@ -670,6 +670,8 @@ tr:last-child td{border-bottom:0}
       <label><input type="checkbox" id="showIsotherms" checked> Isotermer (T=const)</label>
       <label><input type="checkbox" id="showIsobars" checked> Isobarer (P=const)</label>
       <label><input type="checkbox" id="showQuality" checked> Kvalitet (x=const)</label>
+      <button class="btn ghost" id="singleResetZoom" title="Reset zoom (R)">🔍 Reset</button>
+      <button class="btn ghost" id="singleDownloadPNG" title="Last ned som PNG">📥 PNG</button>
     </div>
     <canvas id="singleDiagramCanvas"></canvas>
   </div>
@@ -741,6 +743,8 @@ tr:last-child td{border-bottom:0}
       <label><input type="checkbox" id="batchShowIsotherms" checked> Isotermer</label>
       <label><input type="checkbox" id="batchShowIsobars" checked> Isobarer</label>
       <label><input type="checkbox" id="batchShowQuality" checked> Kvalitet</label>
+      <button class="btn ghost" id="batchResetZoom" title="Reset zoom (R)">🔍 Reset</button>
+      <button class="btn ghost" id="batchDownloadPNG" title="Last ned som PNG">📥 PNG</button>
     </div>
     <canvas id="batchDiagramCanvas"></canvas>
   </div>
@@ -823,6 +827,8 @@ tr:last-child td{border-bottom:0}
       <label><input type="checkbox" id="processShowIsobars" checked> Isobarer</label>
       <label><input type="checkbox" id="processShowQuality" checked> Kvalitet</label>
       <label><input type="checkbox" id="processShowArrows" checked> Vis piler mellom punkter</label>
+      <button class="btn ghost" id="processResetZoom" title="Reset zoom (R)">🔍 Reset</button>
+      <button class="btn ghost" id="processDownloadPNG" title="Last ned som PNG">📥 PNG</button>
     </div>
     <canvas id="processDiagramCanvas"></canvas>
   </div>
@@ -906,6 +912,7 @@ tr:last-child td{border-bottom:0}
 
 <script src="coolprop.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script>
 "use strict";
@@ -2092,7 +2099,85 @@ function generateQualityLines(fluid, qualities = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 
   }
 }
 
-function showDiagram(canvasId, statePoints, fluid, isProcess = false){
+// Helper function to get diagram title
+function getDiagramTitle(diagramType){
+  switch(diagramType){
+    case 'log-ph': return 'log P-h Diagram';
+    case 'ts': return 'T-s Diagram';
+    case 'ph': return 'P-h Diagram';
+    case 'pv': return 'P-v Diagram';
+    default: return 'log P-h Diagram';
+  }
+}
+
+// Check if inputs are sufficient to determine state in two-phase region
+function isTwoPhaseUnderdetermined(i1, i2){
+  // In two-phase region, need at least one intensive property + quality
+  // Intensive properties: T, P (independent in single-phase, same in two-phase)
+  // Extensive properties: h, s, u, v, d (vary with quality)
+  
+  const intensiveProps = ['T', 'P'];
+  const extensiveProps = ['H', 'S', 'U', 'D'];
+  
+  const bothIntensive = intensiveProps.includes(i1) && intensiveProps.includes(i2);
+  
+  // If both inputs are intensive (T and P), state is underdetermined in two-phase
+  return bothIntensive;
+}
+
+// Check and warn if state might be in two-phase with insufficient info
+function checkTwoPhaseWarning(fluid, i1, V1, i2, V2){
+  console.log(`checkTwoPhaseWarning called: i1=${i1}, i2=${i2}, V1=${V1}, V2=${V2}`);
+  
+  if (!isTwoPhaseUnderdetermined(i1, i2)){
+    console.log("Not underdetermined - OK");
+    return null;
+  }
+  
+  console.log("Underdetermined (P+T) - checking saturation...");
+  
+  // For P and T inputs, check if we're close to saturation
+  try {
+    const PropsSI = getPropsSI();
+    if (!PropsSI) {
+      console.log("PropsSI not ready - skipping check");
+      return null;
+    }
+    
+    // Get saturation temperature at this pressure
+    try {
+      const Tsat = PropsSI("T", "P", V1, "Q", 0, fluid); // Assuming i1=P
+      const T_input = i2 === 'T' ? V2 : V1;
+      
+      const diff = Math.abs(T_input - Tsat);
+      console.log(`Tsat=${(Tsat-273.15).toFixed(2)}°C, T_input=${(T_input-273.15).toFixed(2)}°C, diff=${diff.toFixed(2)}K`);
+      
+      if (diff < 0.5){
+        // CRITICAL: Very close to or IN two-phase region
+        console.log("CRITICAL: In two-phase!");
+        return `🛑 FEIL: Punktet er i to-fase området!\n\nTsat ved P=${(V1/1e5).toFixed(2)} bar: ${(Tsat-273.15).toFixed(2)}°C\nDin T: ${(T_input-273.15).toFixed(2)}°C\nDifferanse: ${diff.toFixed(2)} K\n\n❌ Med kun P og T kan CoolProp IKKE bestemme tilstand i to-fase.\n\nDu må spesifisere en av:\n• Kvalitet Q (0-1) - hvor mye damp?\n• Entalpi H (kJ/kg)\n• Entropi S (kJ/kg/K)\n• Tetthet D (kg/m³)\n\nVil du fortsette likevel? (beregning kan gi feil resultat)`;
+      } else if (diff < 5.0){
+        // WARNING: Near two-phase region
+        console.log("WARNING: Near two-phase");
+        return `⚠️ ADVARSEL: Punktet er nær to-fase området\n\nTsat ved P=${(V1/1e5).toFixed(2)} bar: ${(Tsat-273.15).toFixed(2)}°C\nDin T: ${(T_input-273.15).toFixed(2)}°C\nDifferanse: ${diff.toFixed(2)} K\n\nMed kun P og T kan ikke CoolProp bestemme nøyaktig tilstand hvis temperaturen er ved metning.\n\nFor å være sikker, legg til:\n• Kvalitet Q, Entalpi H, Entropi S, eller Tetthet D\n\nVil du fortsette?`;
+      } else {
+        // OK: Far from saturation, no warning needed
+        console.log("OK: Far from saturation");
+        return null;
+      }
+    } catch (e) {
+      console.log("Could not calculate Tsat:", e);
+      return null;
+    }
+  } catch (e) {
+    console.error("Error in check:", e);
+    return null;
+  }
+}
+
+function showDiagram(canvasId, statePoints, fluid, isProcess = false, diagramType = 'log-ph'){
+  console.log(`showDiagram called: canvas=${canvasId}, fluid=${fluid}, points=${statePoints.length}, type=${diagramType}`);
+  
   const canvas = $(canvasId);
   const container = canvas.parentElement;
   container.style.display = "block";
@@ -2121,11 +2206,123 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false){
     showIsobars = true;
     showQuality = true;
   }
-
-  console.log("Generating diagram for", fluid);
+  
+  // Determine axis configuration based on diagram type
+  let xLabel, yLabel, yScale;
+  
+  if (diagramType === 'log-ph'){
+    xLabel = 'Specific Enthalpy h (kJ/kg)';
+    yLabel = 'Pressure P (bar, log scale)';
+    yScale = 'logarithmic';
+  } else if (diagramType === 'ts'){
+    xLabel = 'Specific Entropy s (kJ/kg/K)';
+    yLabel = 'Temperature T (°C)';
+    yScale = 'linear';
+  } else if (diagramType === 'ph'){
+    xLabel = 'Specific Enthalpy h (kJ/kg)';
+    yLabel = 'Pressure P (bar)';
+    yScale = 'linear';
+  } else if (diagramType === 'pv'){
+    xLabel = 'Specific Volume v (m³/kg)';
+    yLabel = 'Pressure P (bar, log scale)';
+    yScale = 'logarithmic';
+  }
+  
+  // Helper function to transform points based on diagram type
+  const transformPoint = (pt) => {
+    const PropsSI = getPropsSI();
+    if (!PropsSI) return null;
+    
+    try {
+      let x, y;
+      
+      // X-axis
+      if (diagramType === 'log-ph' || diagramType === 'ph'){
+        x = pt.h / 1000; // kJ/kg
+      } else if (diagramType === 'ts'){
+        const s = PropsSI('S', 'P', pt.p, 'H', pt.h, fluid);
+        x = s / 1000; // kJ/kg/K
+      } else if (diagramType === 'pv'){
+        const d = PropsSI('D', 'P', pt.p, 'H', pt.h, fluid);
+        x = 1 / d; // m³/kg
+      }
+      
+      // Y-axis
+      if (diagramType === 'ts'){
+        const t = PropsSI('T', 'P', pt.p, 'H', pt.h, fluid);
+        y = t - 273.15; // °C
+      } else {
+        y = pt.p / 1e5; // bar (for log-ph, ph, pv)
+      }
+      
+      return { x, y, label: pt.label, phase: pt.phase, description: pt.description };
+    } catch (e) {
+      console.warn('Failed to transform point:', e);
+      return null;
+    }
+  };
+  
+  // Transform saturation curve for diagram type
+  const transformSatCurve = (satCurve) => {
+    if (diagramType === 'log-ph' || diagramType === 'ph'){
+      // Already in h coordinates
+      return satCurve;
+    }
+    
+    const PropsSI = getPropsSI();
+    if (!PropsSI) return { liquid: [], vapor: [] };
+    
+    const liquid = [];
+    const vapor = [];
+    
+    for (const pt of satCurve.liquid){
+      try {
+        let x, y;
+        const h = pt.x * 1000; // Convert back to J/kg
+        const p = pt.y * 1e5; // Convert back to Pa
+        
+        if (diagramType === 'ts'){
+          const s = PropsSI('S', 'P', p, 'H', h, fluid);
+          const t = PropsSI('T', 'P', p, 'H', h, fluid);
+          x = s / 1000; // kJ/kg/K
+          y = t - 273.15; // °C
+        } else if (diagramType === 'pv'){
+          const d = PropsSI('D', 'P', p, 'H', h, fluid);
+          x = 1 / d; // m³/kg
+          y = pt.y; // bar (keep pressure)
+        }
+        
+        liquid.push({ x, y });
+      } catch {}
+    }
+    
+    for (const pt of satCurve.vapor){
+      try {
+        let x, y;
+        const h = pt.x * 1000;
+        const p = pt.y * 1e5;
+        
+        if (diagramType === 'ts'){
+          const s = PropsSI('S', 'P', p, 'H', h, fluid);
+          const t = PropsSI('T', 'P', p, 'H', h, fluid);
+          x = s / 1000;
+          y = t - 273.15;
+        } else if (diagramType === 'pv'){
+          const d = PropsSI('D', 'P', p, 'H', h, fluid);
+          x = 1 / d;
+          y = pt.y;
+        }
+        
+        vapor.push({ x, y });
+      } catch {}
+    }
+    
+    return { liquid, vapor };
+  };
   
   // Generate all curves
-  const satCurve = generateSaturationCurve(fluid, 60);
+  const satCurveRaw = generateSaturationCurve(fluid, 60);
+  const satCurve = transformSatCurve(satCurveRaw);
   const datasets = [];
 
   // Add saturation curves (always show these!)
@@ -2157,32 +2354,28 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false){
     });
   }
 
-  // Add quality lines
-  if (showQuality){
+  // Add quality lines (skip for non-ph diagrams for now)
+  if (showQuality && (diagramType === 'log-ph' || diagramType === 'ph')){
     const qualityLines = generateQualityLines(fluid);
     datasets.push(...qualityLines.map(q => ({...q, order: 3})));
   }
 
-  // Add isotherms
-  if (showIsotherms){
+  // Add isotherms (skip for non-ph diagrams for now)
+  if (showIsotherms && (diagramType === 'log-ph' || diagramType === 'ph')){
     const isotherms = generateIsotherms(fluid, 10);
     datasets.push(...isotherms.map(iso => ({...iso, order: 4})));
   }
 
-  // Add isobars
-  if (showIsobars){
+  // Add isobars (skip for non-ph diagrams for now)
+  if (showIsobars && (diagramType === 'log-ph' || diagramType === 'ph')){
     const isobars = generateIsobars(fluid, 10);
     datasets.push(...isobars.map(iso => ({...iso, order: 5})));
   }
 
-  // Add state points (on top)
-  const pointData = statePoints.map(pt => ({
-    x: pt.h / 1000,
-    y: pt.p / 1e5,
-    label: pt.label || '',
-    phase: pt.phase || '',
-    description: pt.description || ''
-  }));
+  // Transform and add state points
+  const pointData = statePoints.map(pt => transformPoint(pt)).filter(pt => pt !== null);
+  
+  console.log(`Transformed ${pointData.length} points for diagram type ${diagramType}`);
 
   if (pointData.length > 0){
     datasets.push({
@@ -2235,13 +2428,31 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false){
     yMax = Math.max(...yValues);
     
     // Add margins
-    const xMargin = (xMax - xMin) * 0.2;
-    const yMargin = (yMax / yMin) * 0.3; // Log scale
+    let xMargin = (xMax - xMin) * 0.2;
+    
+    // For single point, use fixed percentage of value
+    if (pointData.length === 1 || xMargin === 0){
+      xMargin = Math.max(xMin * 0.3, 100); // 30% of value or 100 kJ/kg minimum
+    }
+    
+    if (yScale === 'logarithmic'){
+      let yMargin = (yMax / yMin) * 0.3;
+      if (pointData.length === 1 || yMin === yMax){
+        yMargin = 3; // 3x range for single point
+      }
+      yMin = yMin / yMargin;
+      yMax = yMax * yMargin;
+    } else {
+      let yMargin = (yMax - yMin) * 0.2;
+      if (pointData.length === 1 || yMargin === 0){
+        yMargin = Math.max(Math.abs(yMin) * 0.3, 10); // 30% or 10 units minimum
+      }
+      yMin = yMin - yMargin;
+      yMax = yMax + yMargin;
+    }
     
     xMin = Math.max(0, xMin - xMargin);
     xMax = xMax + xMargin;
-    yMin = yMin / yMargin;
-    yMax = yMax * yMargin;
   }
   
   // Include saturation curve in bounds
@@ -2274,7 +2485,7 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false){
       plugins: {
         title: {
           display: true,
-          text: `log P-h Diagram for ${fluid}${isProcess ? ' (Process)' : ''}`,
+          text: `${getDiagramTitle(diagramType)} for ${fluid}${isProcess ? ' (Process)' : ''}`,
           font: { size: 18, weight: 'bold' }
         },
         legend: {
@@ -2308,14 +2519,46 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false){
             label: function(context) {
               const point = context.raw;
               const lines = [];
-              lines.push(`h = ${point.x.toFixed(2)} kJ/kg`);
-              lines.push(`P = ${point.y.toFixed(3)} bar`);
+              
+              // X-axis label
+              if (diagramType === 'log-ph' || diagramType === 'ph'){
+                lines.push(`h = ${point.x.toFixed(2)} kJ/kg`);
+              } else if (diagramType === 'ts'){
+                lines.push(`s = ${point.x.toFixed(4)} kJ/kg/K`);
+              } else if (diagramType === 'pv'){
+                lines.push(`v = ${point.x.toFixed(6)} m³/kg`);
+              }
+              
+              // Y-axis label
+              if (diagramType === 'ts'){
+                lines.push(`T = ${point.y.toFixed(2)} °C`);
+              } else {
+                lines.push(`P = ${point.y.toFixed(3)} bar`);
+              }
+              
               if (point.phase) {
                 const phaseDesc = stateFromPhase(point.phase);
                 lines.push(`Phase: ${phaseDesc}`);
               }
               return lines;
             }
+          }
+        },
+        zoom: {
+          zoom: {
+            wheel: {
+              enabled: true,
+              speed: 0.1
+            },
+            pinch: {
+              enabled: true
+            },
+            mode: 'xy'
+          },
+          pan: {
+            enabled: true,
+            mode: 'xy',
+            modifierKey: 'ctrl'
           }
         }
       },
@@ -2324,7 +2567,7 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false){
           type: 'linear',
           title: {
             display: true,
-            text: 'Specific Enthalpy h (kJ/kg)',
+            text: xLabel,
             font: { size: 14, weight: 'bold' }
           },
           grid: { 
@@ -2338,10 +2581,10 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false){
           max: xMax
         },
         y: {
-          type: 'logarithmic',
+          type: yScale,
           title: {
             display: true,
-            text: 'Pressure P (bar, log scale)',
+            text: yLabel,
             font: { size: 14, weight: 'bold' }
           },
           grid: { 
@@ -2350,10 +2593,16 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false){
           },
           ticks: {
             callback: function(value) {
-              if (value >= 1) return value.toFixed(0);
-              if (value >= 0.1) return value.toFixed(1);
-              if (value >= 0.01) return value.toFixed(2);
-              return value.toFixed(3);
+              if (diagramType === 'ts'){
+                // Temperature formatting
+                return value.toFixed(0) + '°C';
+              } else {
+                // Pressure formatting
+                if (value >= 1) return value.toFixed(0);
+                if (value >= 0.1) return value.toFixed(1);
+                if (value >= 0.01) return value.toFixed(2);
+                return value.toFixed(3);
+              }
             },
             font: { size: 11 }
           },
@@ -2444,6 +2693,14 @@ $("singleRun").addEventListener("click", ()=>{
   const V1 = convertInputToSI(i1, v1raw);
   const V2 = convertInputToSI(i2, v2raw);
 
+  // Check for two-phase underdetermination
+  const twoPhaseWarning = checkTwoPhaseWarning(fluid, i1, V1, i2, V2);
+  if (twoPhaseWarning){
+    if (!confirm(twoPhaseWarning + "\n\nVil du fortsette likevel?")){
+      return;
+    }
+  }
+
   const row = computeSingleState(fluid, i1, V1, i2, V2);
   if (row.error){
     msg("singleMsg", row.error, "error");
@@ -2508,6 +2765,30 @@ if (singleDiagramTypeEl){
     if (currentStatePoints.length > 0){
       const fluid = $("fluid").value.trim() || "Air";
       showDiagram("singleDiagramCanvas", currentStatePoints, fluid, false, singleDiagramTypeEl.value);
+    }
+  });
+}
+
+// Reset zoom button
+const singleResetZoomEl = $('singleResetZoom');
+if (singleResetZoomEl){
+  singleResetZoomEl.addEventListener('click', () => {
+    if (singleChart){
+      singleChart.resetZoom();
+    }
+  });
+}
+
+// Download PNG button
+const singleDownloadPNGEl = $('singleDownloadPNG');
+if (singleDownloadPNGEl){
+  singleDownloadPNGEl.addEventListener('click', () => {
+    if (singleChart){
+      const url = singleChart.toBase64Image();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `diagram_${new Date().getTime()}.png`;
+      a.click();
     }
   });
 }
@@ -2635,6 +2916,30 @@ if (batchDiagramTypeEl){
   });
 }
 
+// Reset zoom button
+const batchResetZoomEl = $('batchResetZoom');
+if (batchResetZoomEl){
+  batchResetZoomEl.addEventListener('click', () => {
+    if (batchChart){
+      batchChart.resetZoom();
+    }
+  });
+}
+
+// Download PNG button
+const batchDownloadPNGEl = $('batchDownloadPNG');
+if (batchDownloadPNGEl){
+  batchDownloadPNGEl.addEventListener('click', () => {
+    if (batchChart){
+      const url = batchChart.toBase64Image();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `batch_diagram_${new Date().getTime()}.png`;
+      a.click();
+    }
+  });
+}
+
 /* ============================================================
    Event handlers - PROCESS
 ============================================================ */
@@ -2731,6 +3036,30 @@ if (processDiagramTypeEl){
     if (currentStatePoints.length > 0){
       const fluid = $("fluid").value.trim() || "Air";
       showDiagram("processDiagramCanvas", currentStatePoints, fluid, true, processDiagramTypeEl.value);
+    }
+  });
+}
+
+// Reset zoom button
+const processResetZoomEl = $('processResetZoom');
+if (processResetZoomEl){
+  processResetZoomEl.addEventListener('click', () => {
+    if (processChart){
+      processChart.resetZoom();
+    }
+  });
+}
+
+// Download PNG button
+const processDownloadPNGEl = $('processDownloadPNG');
+if (processDownloadPNGEl){
+  processDownloadPNGEl.addEventListener('click', () => {
+    if (processChart){
+      const url = processChart.toBase64Image();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `process_diagram_${new Date().getTime()}.png`;
+      a.click();
     }
   });
 }
@@ -2978,6 +3307,26 @@ syncBookBasisLabel();
 
 /* Initialize process tab */
 renderProcessSteps();
+
+/* Keyboard shortcuts */
+document.addEventListener('keydown', (e) => {
+  // R key - reset zoom on active diagram
+  if (e.key === 'r' || e.key === 'R'){
+    if (!e.ctrlKey && !e.metaKey && !e.altKey){
+      // Check which diagram is visible
+      if ($('singleDiagram').style.display !== 'none' && singleChart){
+        singleChart.resetZoom();
+        e.preventDefault();
+      } else if ($('batchDiagram').style.display !== 'none' && batchChart){
+        batchChart.resetZoom();
+        e.preventDefault();
+      } else if ($('processDiagram').style.display !== 'none' && processChart){
+        processChart.resetZoom();
+        e.preventDefault();
+      }
+    }
+  }
+});
 
 /* Auto-redraw diagram when units or fluid changes */
 function redrawCurrentDiagram(){
