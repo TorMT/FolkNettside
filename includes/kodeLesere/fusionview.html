@@ -28,6 +28,7 @@
     button,a.btn { border:1px solid var(--border); color:var(--text); background:#202734; border-radius:10px; padding:8px 12px; cursor:pointer; text-decoration:none; font-weight:700; }
     button:disabled,a.btn.disabled { opacity:.45; cursor:not-allowed; pointer-events:none; filter:grayscale(0.3); }
     button.primary,a.btn.primary { background:var(--acc); color:#00122a; border-color:#5fafff; }
+    button.tab.active { background:var(--acc); color:#00122a; border-color:#5fafff; }
     .ok { color:var(--ok); }
     .warn { color:var(--warn); }
     ul { margin:8px 0 0 20px; }
@@ -58,6 +59,8 @@
         <button id="btnFusion" class="primary">Åpne i Fusion</button>
         <button id="btnBambu">Åpne i Bambu Studio</button>
         <button id="btnStl">Åpne i STL-viewer</button>
+        <button id="btnTabOverview" class="tab active">Tab: Oversikt</button>
+        <button id="btnTabHydro" class="tab">Tab: Hydrostatikk</button>
         <button id="btnToggleTools">Hide/show tools ☰</button>
         <button id="btnToggleInfo">Hide/show info ℹ️</button>
         <a class="btn" href="/includes/kodeLesere/FUSION_FORMAT_CAPABILITIES.md" target="_blank" rel="noopener">Format-matrise</a>
@@ -99,7 +102,7 @@
       <div id="hydroWarn" class="warn" style="margin-top:8px;"></div>
       <pre id="hydroReport" style="white-space:pre-wrap;background:#12151c;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:10px;">Venter på beregning…</pre>
     </div>
-    <div class="card">
+    <div class="card" id="componentsCard">
       <h2>Komponentliste</h2>
       <div class="muted" id="chosenMuted" style="margin-bottom:8px;">Chosen: – | Muted: –</div>
       <div id="components" class="muted">Ingen komponentdata ennå.</div>
@@ -150,8 +153,12 @@
     const btnStl = document.getElementById("btnStl");
     const btnToggleTools = document.getElementById("btnToggleTools");
     const btnToggleInfo = document.getElementById("btnToggleInfo");
+    const btnTabOverview = document.getElementById("btnTabOverview");
+    const btnTabHydro = document.getElementById("btnTabHydro");
     const infoCard = document.getElementById("infoCard");
     const toolsCard = document.getElementById("toolsCard");
+    const hydroCard = document.getElementById("hydroCard");
+    const componentsCard = document.getElementById("componentsCard");
     const chosenMuted = document.getElementById("chosenMuted");
     const chosenSet = new Set();
     const mutedSet = new Set();
@@ -178,11 +185,16 @@
       throw new Error("Missing ?file=");
     }
 
-    const decodedFile = decodeURIComponent(file);
+    const decodedFile = file;
     const clean = decodedFile.split("?")[0].split("#")[0];
     const ext = (clean.split(".").pop() || "").toLowerCase();
     const fileName = clean.split("/").pop();
-    const stlCandidate = clean.replace(/\.[^.]+$/, ".stl");
+    const stlCandidate = (() => {
+      const m = decodedFile.match(/^([^?#]+)([?#].*)?$/);
+      const base = m?.[1] || decodedFile;
+      const tail = m?.[2] || "";
+      return `${base.replace(/\.[^.\/]+$/i, ".stl")}${tail}`;
+    })();
 
     btnRaw.href = decodedFile;
     headline.textContent = `Fil: ${fileName} (.${ext || "ukjent"})`;
@@ -206,6 +218,19 @@
     btnStl.onclick = () => {
       location.href = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlCandidate)}`;
     };
+
+    function setTab(tabName) {
+      const showOverview = tabName !== "hydro";
+      infoCard.style.display = showOverview ? "" : "none";
+      toolsCard.style.display = showOverview ? "" : "none";
+      componentsCard.style.display = showOverview ? "" : "none";
+      hydroCard.style.display = showOverview ? "none" : "";
+      btnTabOverview.classList.toggle("active", showOverview);
+      btnTabHydro.classList.toggle("active", !showOverview);
+    }
+    btnTabOverview.onclick = () => setTab("overview");
+    btnTabHydro.onclick = () => setTab("hydro");
+    setTab("overview");
 
     btnFusion.onclick = () => {
       // Autodesk har ikke en enkel direkte "open file URL" for lokale kursfiler.
