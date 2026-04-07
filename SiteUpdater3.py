@@ -30,9 +30,9 @@ except ModuleNotFoundError:
     tqdm = None  # type: ignore
 
 # Pre-compiled regex patterns for bedre ytelse
-OVING_RE     = re.compile(r"^(?:Ã¸ving|oving)0*(\d+)$", re.IGNORECASE)
+OVING_RE     = re.compile(r"^(?:?ving|oving)0*(\d+)$", re.IGNORECASE)
 OVING_KEY    = re.compile(r"^oving(\d{2})$", re.IGNORECASE)
-CLEAN_RE     = re.compile(r"^[^0-9A-Za-zÃ†Ã˜Ã…Ã¦Ã¸Ã¥]+")
+CLEAN_RE     = re.compile(r"^[^0-9A-Za-z??????]+")
 BESKYTTET_RE = re.compile(r"beskyttet|hemmelig", re.IGNORECASE)
 
 # âœ… Endring: lagt til ".html"

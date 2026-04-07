@@ -3,7 +3,7 @@
    --------------------------------------------------------------------
    FIKSET: Fil ikoner og CSS/JS-blanding
    
-   â€¢ Riktig rekkefÃ¸lge: Ã˜vingXX â†’ PythonÃ˜vingâ€¦ â†’ andre â†’ beskyttet
+   â€¢ Riktig rekkefÃ¸lge: ØvingXX â†’ PythonØvingâ€¦ â†’ andre â†’ beskyttet
    â€¢ PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
    â€¢ pyview/nbview/codeview bruker ?file= â€¦
    â€¢ Skjuler beskyttet flyout/innhold til passord er godkjent
@@ -861,9 +861,9 @@ async function autoFindQuizRel(courseDir){
 /**************** 3) Navn + sort (UENDRET) *******************************/
 function displayName(key){
   const m = key.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m)  return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  if (m)  return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = key.match(/^oving(\d{1,3})$/i);
-  if (m2) return `Ã˜ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
   return key.replace(/\.[^/.]+$/, "");
 }
 
