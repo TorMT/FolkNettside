@@ -243,12 +243,19 @@
       document.body.innerHTML = '<p>Mangler playlistKey.</p>';
       throw new Error('Missing playlistKey');
     }
-
     let payload = null;
     try{
-      payload = JSON.parse(localStorage.getItem(key) || 'null');
-      localStorage.removeItem(key);
+      if (window.parent && window.parent !== window && window.parent.__videoPlaylistPayloads){
+        payload = window.parent.__videoPlaylistPayloads[key] || null;
+        try { delete window.parent.__videoPlaylistPayloads[key]; } catch (e) {}
+      }
     }catch(e){}
+    if (!payload){
+      try{
+        payload = JSON.parse(localStorage.getItem(key) || 'null');
+        localStorage.removeItem(key);
+      }catch(e){}
+    }
 
     if (!payload || !Array.isArray(payload.items) || !payload.items.length){
       document.body.innerHTML = '<p>Fant ingen videoer i valgt mappe.</p>';

@@ -1,20 +1,20 @@
-/* --------------------------------------------------------------------
-   FolkNettsideFolk – sidebar-loader.js  v11.15.2
+﻿/* --------------------------------------------------------------------
+   FolkNettsideFolk â€“ sidebar-loader.js  v11.15.2
    --------------------------------------------------------------------
    FIKSET: Fil ikoner og CSS/JS-blanding
    
-   • Riktig rekkefølge: ØvingXX → PythonØving… → andre → beskyttet
-   • PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
-   • pyview/nbview/codeview bruker ?file= …
-   • Skjuler beskyttet flyout/innhold til passord er godkjent
-   • Quiz-knapp rendrer i innholdet (auto-finner quiz.json + fikser bildepaths)
-   • Tittel/innhold havner ikke under sidebaren
-   • Robust JSON-innlasting (stripper BOM, viser feilsnutt ved HTML/404, osv.)
-   • Nested flyouts: Filer med "/" i navnet (f.eks. "DelA/fil.pdf") får nested flyout
-   • BUGFIX v11.15.2:
-     – Fikset CSS/JS-blanding som ødela fil-ikoner
-     – Alle ikoner fungerer nå korrekt
-     – Bedre struktur i CSS-injeksjon
+   â€¢ Riktig rekkefÃ¸lge: Ã˜vingXX â†’ PythonÃ˜vingâ€¦ â†’ andre â†’ beskyttet
+   â€¢ PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
+   â€¢ pyview/nbview/codeview bruker ?file= â€¦
+   â€¢ Skjuler beskyttet flyout/innhold til passord er godkjent
+   â€¢ Quiz-knapp rendrer i innholdet (auto-finner quiz.json + fikser bildepaths)
+   â€¢ Tittel/innhold havner ikke under sidebaren
+   â€¢ Robust JSON-innlasting (stripper BOM, viser feilsnutt ved HTML/404, osv.)
+   â€¢ Nested flyouts: Filer med "/" i navnet (f.eks. "DelA/fil.pdf") fÃ¥r nested flyout
+   â€¢ BUGFIX v11.15.2:
+     â€“ Fikset CSS/JS-blanding som Ã¸dela fil-ikoner
+     â€“ Alle ikoner fungerer nÃ¥ korrekt
+     â€“ Bedre struktur i CSS-injeksjon
 -------------------------------------------------------------------- */
 
 /**************** 1) Dynamisk CSS ****************************************/
@@ -168,7 +168,7 @@
       }
       
       .nested-folder-item::after{ 
-        content:'▸';
+        content:'â–¸';
         position:absolute;
         right:8px;
         font-size:1.1em; 
@@ -264,14 +264,14 @@
     }
     
     .file-label.watched::before{
-      content:"✓ ";
+      content:"âœ“ ";
       color:#8BC34A;
       margin-right:6px;
       font-weight:700;
     }
     
     .nested-folder-item.watched>.file-label::after{
-      content:" ✓";
+      content:" âœ“";
       color:#8BC34A;
       margin-left:6px;
     }
@@ -511,15 +511,15 @@ function isEmbeddableVideoUrl(url){
 }
 
 function openVideoPlaylistInViewer(payload){
+  const key = 'video-playlist:' + Date.now() + ':' + Math.random().toString(36).slice(2);
   try{
-    const key = 'video-playlist:' + Date.now() + ':' + Math.random().toString(36).slice(2);
+    window.__videoPlaylistPayloads = window.__videoPlaylistPayloads || {};
+    window.__videoPlaylistPayloads[key] = payload || {};
+  }catch(e){}
+  try{
     localStorage.setItem(key, JSON.stringify(payload || {}));
-    openInViewer(`/includes/kodeLesere/video-embed-list.html?playlistKey=${encodeURIComponent(key)}`, 'html');
-  }catch(e){
-    // fallback: åpne første video dersom localStorage er blokkert
-    const first = payload && Array.isArray(payload.items) ? payload.items[0] : null;
-    if (first && first.url) openFile(first.url);
-  }
+  }catch(e){}
+  openInViewer(`/includes/kodeLesere/video-embed-list.html?playlistKey=${encodeURIComponent(key)}`, 'html');
 }
 
 function parseVideoListText(text){
@@ -698,7 +698,7 @@ function openInViewer(url, kind){
         ctrl.style.right='12px'; 
         ctrl.style.bottom='12px'; 
         ctrl.style.zIndex='9999'; 
-        ctrl.innerHTML = '<button class="mark-watched">Markér som sett</button>'; 
+        ctrl.innerHTML = '<button class="mark-watched">MarkÃ©r som sett</button>'; 
         holder.appendChild(ctrl); 
         ctrl.querySelector('.mark-watched').addEventListener('click', ()=> markVideoWatched(url)); 
       }catch(e){}
@@ -745,8 +745,8 @@ function openInViewer(url, kind){
   }
 
   const {box} = ensureViewer();
-  const useIframeForPdf = kind === 'pdf' && isMobileViewport();
-  const frame = useIframeForPdf
+  const useIframeViewer = (kind === 'pdf' && isMobileViewport()) || kind === 'html';
+  const frame = useIframeViewer
     ? (replaceViewerFrame('iframe') || box.firstElementChild)
     : (replaceViewerFrame('object') || box.firstElementChild);
   let target = url;
@@ -857,10 +857,10 @@ async function autoFindQuizRel(courseDir){
 
 /**************** 3) Navn + sort (UENDRET) *******************************/
 function displayName(key){
-  const m = key.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m)  return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m = key.match(/^\s*[Ã¸o]ving(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m)  return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = key.match(/^oving(\d{1,3})$/i);
-  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  if (m2) return `Ã˜ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
   return key.replace(/\.[^/.]+$/, "");
 }
 
@@ -868,10 +868,10 @@ function sortSidebarKeys(data){
   const keys = Object.keys(data).filter(k => k !== 'welcome' && k !== 'quiz');
   const ovingNum = (k) => {
     if (/^oving\d{2}$/i.test(k)) return parseInt(k.slice(5), 10);
-    const m = k.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
+    const m = k.match(/^\s*[Ã¸o]ving(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy   = k => /^pythonøving/i.test(k);
+  const isPy   = k => /^pythonÃ¸ving/i.test(k);
   const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(k);
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
   const py    = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>a.localeCompare(b,'nb'));
@@ -1013,12 +1013,12 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
         const m = anyVid || s.match(/[?&]v=([^&]+)/i);
         if (m) {
           if (labelPart) return labelPart;
-          return 'YouTube – ' + decodeURIComponent(m[1]);
+          return 'YouTube â€“ ' + decodeURIComponent(m[1]);
         }
         const m2 = s.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
         if (m2) {
           if (labelPart) return labelPart;
-          return 'YouTube – ' + decodeURIComponent(m2[1]);
+          return 'YouTube â€“ ' + decodeURIComponent(m2[1]);
         }
         try{
           const u = new URL(s);
@@ -1040,7 +1040,7 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
   rootItems.forEach(item => {
     const f = item.f;
     const href = makeHrefFunc(f);
-    const label = (isPyGroup ? '🐍 ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'…' : item.label);
+    const label = (isPyGroup ? 'ðŸ ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'â€¦' : item.label);
     const icon = iconForFile(f);
     html += `<a href="${href}" data-file="${f}">${icon}<span class="file-label">${label}</span></a>`;
   });
@@ -1079,7 +1079,7 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
         title: folderName,
         items: playlistItems
       }));
-      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Åpne alle videoer i innebygd modus">`;
+      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Ã…pne alle videoer i innebygd modus">`;
       html += `<span class="file-icon video" style="background:#D32F2F;border-radius:3px" aria-hidden="true">`;
       html += '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">';
       html += '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>';
@@ -1172,11 +1172,11 @@ async function initSidebar(){
     return new URL(encoded, location.origin + courseDir).href;
   }
 
-  let html = '<h3>Øvinger</h3>';
+  let html = '<h3>Ã˜vinger</h3>';
   html += keys.map(key=>{
     const obj = data[key];
     const locked = !!(obj && obj.beskyttet);
-    const lock = locked ? '🔒 ' : '';
+    const lock = locked ? 'ðŸ”’ ' : '';
     let files = [];
     if (Array.isArray(obj)) files = obj;
     else if (obj?.files) files = obj.files;
@@ -1186,7 +1186,7 @@ async function initSidebar(){
     }
 
     if (files && files.length){
-      const isPyGroup = /^pythonøving/i.test(String(key));
+      const isPyGroup = /^pythonÃ¸ving/i.test(String(key));
       const contentHTML = buildNestedFlyoutHTML(files, (f) => makeHref(key, obj, f), isPyGroup);
       
       return `<div class="dropdown-oving">
@@ -1198,7 +1198,7 @@ async function initSidebar(){
   }).join('');
 
   if (data.quiz){ 
-    html += `<div class="dropdown-oving"><div class="dropdown-btn" id="quiz-btn">🧩 Quiz</div></div>`; 
+    html += `<div class="dropdown-oving"><div class="dropdown-btn" id="quiz-btn">ðŸ§© Quiz</div></div>`; 
   }
   sb.innerHTML = html;
   refreshWatchedStatus();
@@ -1465,7 +1465,7 @@ async function initSidebar(){
     });
   });
 
-  /* Klikk-åpne filer */
+  /* Klikk-Ã¥pne filer */
   async function handleFlyoutAnchorClick(e, a){
     e.preventDefault();
     const q = document.getElementById('quiz-container'); 
@@ -1517,7 +1517,7 @@ async function initSidebar(){
     if (a) handleFlyoutAnchorClick(e, a);
   });
 
-  /* Hjem på tittel */
+  /* Hjem pÃ¥ tittel */
   document.querySelector('.content h1')?.addEventListener('click', ()=>{
     location.reload();
   });
@@ -1615,7 +1615,7 @@ async function initSidebar(){
         }
       }
 
-      alert('Quiz-modulen er ikke tilgjengelig.\nForsøkte:\n- ' + tried.join('\n- '));
+      alert('Quiz-modulen er ikke tilgjengelig.\nForsÃ¸kte:\n- ' + tried.join('\n- '));
     });
   }
 
@@ -1623,16 +1623,16 @@ async function initSidebar(){
   if (window.SidebarSearch && typeof window.SidebarSearch.init === 'function') {
     try {
       window.SidebarSearch.init(sb);
-      console.log('✓ Sidebar Search Module initialized');
+      console.log('âœ“ Sidebar Search Module initialized');
     } catch (err) {
-      console.error('[sidebar-loader] Kunne ikke initialisere søkemodul:', err);
+      console.error('[sidebar-loader] Kunne ikke initialisere sÃ¸kemodul:', err);
     }
   }
   
   if (window.SidebarNotifications && typeof window.SidebarNotifications.init === 'function') {
     try {
       window.SidebarNotifications.init(courseDir);
-      console.log('✓ Sidebar Notifications Module initialized');
+      console.log('âœ“ Sidebar Notifications Module initialized');
     } catch (err) {
       console.error('[sidebar-loader] Kunne ikke initialisere notifikasjonsmodul:', err);
     }
@@ -1667,3 +1667,4 @@ document.readyState==='loading'
   b.textContent=txt;
 })();
 /* -------------------------------------------------------------------- */
+
