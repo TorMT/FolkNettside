@@ -42,7 +42,7 @@ export class ModelLoader {
     console.info("[ModelLoader] Bytes mottatt:", buf.byteLength);
 
     // Detect file type from URL extension (ignorer query/hash)
-    const cleanUrl = String(url).split('?')[0].split('#')[0].trim().toLowerCase();
+    const cleanUrl = String(url).split('?')[0].split('#')[0].toLowerCase();
     const is3MF = cleanUrl.endsWith('.3mf') || cleanUrl.endsWith('.3fm') || cleanUrl.endsWith('.fm3');
     const isFusionArchive = cleanUrl.endsWith('.3fz') || cleanUrl.endsWith('.f3d') || cleanUrl.endsWith('.fbm');
     const isZip = buf.byteLength >= 4 && new DataView(buf).getUint32(0, true) === 0x04034b50;
@@ -67,9 +67,6 @@ export class ModelLoader {
     } else {
       // STL loader is synchronous
       geometry = this.stlLoader.parse(buf);
-      if (!geometry || typeof geometry.computeBoundingBox !== "function") {
-        throw new Error("Kunne ikke parse STL-geometri. Filen kan være ugyldig eller feil filtype.");
-      }
     }
 
     let mesh;
@@ -82,12 +79,7 @@ export class ModelLoader {
       const totalCentroid = new THREE.Vector3();
 
       for (const comp of components) {
-        if (
-          !comp ||
-          !comp.geometry ||
-          typeof comp.geometry.computeVertexNormals !== "function" ||
-          typeof comp.geometry.computeBoundingBox !== "function"
-        ) {
+        if (!comp || !comp.geometry) {
           console.warn("[ModelLoader] Hopper over ugyldig komponent:", comp);
           continue;
         }
