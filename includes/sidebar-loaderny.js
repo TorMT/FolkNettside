@@ -764,6 +764,7 @@ function openInViewer(url, kind){
   if (kind === 'pdf' && frame.tagName.toLowerCase() === 'object') frame.type = 'application/pdf';
   else frame.removeAttribute('type');
 
+  console.info('[sidebar-loader] openInViewer', { kind, sourceUrl: url, target });
   if (frame._fallbackTimer) { clearTimeout(frame._fallbackTimer); frame._fallbackTimer = null; }
   if (frame.tagName.toLowerCase() === 'iframe') frame.src = target;
   else frame.data = target;
@@ -811,6 +812,7 @@ function openInViewer(url, kind){
 function openFile(url){
   const lower = String(url || '').toLowerCase();
   const clean = lower.split('?')[0].split('#')[0];
+  console.info('[sidebar-loader] openFile', { url, clean });
   const fusionFlag = new URLSearchParams(window.location.search).get('fusionviewer');
   const fusionViewerEnabled =
     window.ENABLE_FUSION_VIEWER !== false &&

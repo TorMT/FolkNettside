@@ -185,7 +185,7 @@
       throw new Error("Missing ?file=");
     }
 
-    const decodedFile = decodeURIComponent(file);
+    const decodedFile = file;
     const clean = decodedFile.split("?")[0].split("#")[0];
     const ext = (clean.split(".").pop() || "").toLowerCase();
     const fileName = clean.split("/").pop();
