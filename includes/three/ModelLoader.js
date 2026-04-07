@@ -79,6 +79,10 @@ export class ModelLoader {
       const totalCentroid = new THREE.Vector3();
 
       for (const comp of components) {
+        if (!comp || !comp.geometry) {
+          console.warn("[ModelLoader] Hopper over ugyldig komponent:", comp);
+          continue;
+        }
         comp.geometry.computeVertexNormals();
         comp.geometry.computeBoundingBox();
 
@@ -93,6 +97,10 @@ export class ModelLoader {
         totalCentroid.addScaledVector(centroid, volume);
 
         componentNames.push(comp.name);
+      }
+
+      if (!group.children.length) {
+        throw new Error("Fant ingen gyldig geometri i 3MF/Fusion-arkivet.");
       }
 
       // Final centroid

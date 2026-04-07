@@ -32,17 +32,26 @@ class ThreeMFLoader extends Loader {
     loader.setRequestHeader( this.requestHeader );
     loader.setWithCredentials( this.withCredentials );
 
+    // Promise API (when callback is omitted) + backward compatible callback API
+    if ( typeof onLoad !== 'function' ) {
+      return new Promise( ( resolve, reject ) => {
+        loader.load( url, function ( data ) {
+          scope.parse( data ).then( resolve ).catch( reject );
+        }, onProgress, reject );
+      } );
+    }
+
     loader.load( url, function ( data ) {
-      try {
-        onLoad( scope.parse( data ) );
-      } catch ( e ) {
-        if ( onError ) {
-          onError( e );
-        } else {
-          console.error( e );
-        }
-        scope.manager.itemError( url );
-      }
+      scope.parse( data )
+        .then( ( parsed ) => onLoad( parsed ) )
+        .catch( ( e ) => {
+          if ( onError ) {
+            onError( e );
+          } else {
+            console.error( e );
+          }
+          scope.manager.itemError( url );
+        } );
     }, onProgress, onError );
   }
 
