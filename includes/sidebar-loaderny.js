@@ -253,6 +253,12 @@ function openInViewer(url, kind) {
     targetUrl = `/includes/kodeLesere/pyview.html?file=${encodeURIComponent(url)}`;
   } else if (kind === 'ipynb') {
     targetUrl = `/includes/kodeLesere/nbview.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === '3mf') {
+    targetUrl = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === 'f3d') {
+    targetUrl = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === 'hydrostatics') {
+    targetUrl = `/includes/kodeLesere/hydrostaticsview.html?file=${encodeURIComponent(url)}`;
   } else if (kind === 'code') {
     targetUrl = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
   }
@@ -359,6 +365,31 @@ function openFile(url) {
   // Panopto links
   if (/^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(url) || /panopto.*Viewer\.aspx/i.test(url)) {
     return openInViewer(url, 'panopto');
+  }
+  
+  // 3MF model files
+  if (lowerUrl.split('?')[0].split('#')[0].endsWith('.3mf')) {
+    return openInViewer(url, '3mf');
+  }
+  
+  // F3D format files (STEP, IGES, FBX, OBJ, PLY, VTK, GLTF, GLB, ABC, USD, IFC, DRACO, VDB)
+  if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lowerUrl)) {
+    return openInViewer(url, 'f3d');
+  }
+  
+  // 3MF model files
+  if (lowerUrl.split('?')[0].split('#')[0].endsWith('.3mf')) {
+    return openInViewer(url, '3mf');
+  }
+  
+  // F3D format files (STEP, IGES, FBX, OBJ, PLY, VTK, GLTF, GLB, ABC, USD, IFC, DRACO, VDB)
+  if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lowerUrl)) {
+    return openInViewer(url, 'f3d');
+  }
+  
+  // Hydrostatistic reports (JSON/CSV from DELFSHIP, Hydrometer, etc.)
+  if (/\/(hydro|stab|equilibrium|delfship).*\.(json|csv)$/.test(lowerUrl) || /Hydrometer/.test(url) && /\.(json|csv)$/.test(lowerUrl)) {
+    return openInViewer(url, 'hydrostatics');
   }
   
   // Code files (C, C++, C#, Java)

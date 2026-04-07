@@ -616,6 +616,8 @@ function openInViewer(url, kind){
   else if (kind === 'html')  target = `/includes/kodeLesere/htmlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'stl') target = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fbm') target = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === '3mf') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'f3d') target = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
 
   if (kind === 'pdf') frame.type = 'application/pdf';
@@ -671,6 +673,8 @@ function openFile(url){
   if (lower.split('?')[0].split('#')[0].endsWith('.stl')) return openInViewer(url, 'stl');
   if (lower.split('?')[0].split('#')[0].endsWith('.html')) return openInViewer(url, 'html');
   if (lower.split('?')[0].split('#')[0].endsWith('.fbm')) return openInViewer(url, 'fbm');
+  if (lower.split('?')[0].split('#')[0].endsWith('.3mf')) return openInViewer(url, '3mf');
+  if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)) return openInViewer(url, 'f3d');
   if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mov') || lower.endsWith('.m4v')){
     return openInViewer(url, 'video');
   }
@@ -817,7 +821,7 @@ function iconForFile(file){
         + '</span>';
     }
 
-    if (lower.endsWith('.stl') || lower.endsWith('.fbm')){
+    if (lower.endsWith('.stl') || lower.endsWith('.fbm') || lower.endsWith('.3mf') || /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)){
   return '<span class="file-icon model" style="background:#009688;border-radius:3px">'
     + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg">'
     + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
@@ -1297,6 +1301,8 @@ async function initSidebar(){
       lower.endsWith('.pdf') || lower.endsWith('.py') || lower.endsWith('.ipynb') || lower.endsWith('.html') ||
       lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.stl') ||
       lower.endsWith('.mov') || lower.endsWith('.m4v') ||lower.split('?')[0].split('#')[0].endsWith('.fbm') ||
+      lower.split('?')[0].split('#')[0].endsWith('.3mf') ||
+      /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower) ||
       /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(href) ||
       /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(href) ||
       /\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lower)

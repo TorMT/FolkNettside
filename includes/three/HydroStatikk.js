@@ -86,6 +86,10 @@ export class HydroStatikk {
       sak: null        // wetted surface area (units^2) (kun hvis beregnet)
     };
 
+    // Current trim/heel tracking
+    this.trimDeg = 0;
+    this.heelDeg = 0;
+
     // Raycaster (volum + waterplane)
     this.raycaster = new THREE.Raycaster();
     this._rayDir = new THREE.Vector3(1, 0, 0);
@@ -558,6 +562,7 @@ updateWaterlineContour() {
   setTrim(deg) {
     const rad = THREE.MathUtils.degToRad(Number(deg));
     this._setAxisRotation(this.axis.pitchAxis, rad);
+    this.trimDeg = Number(deg);
     this.updateWaterPlane();
     this._invalidateCache();
     this.scheduleRecalc(true);
@@ -566,6 +571,7 @@ updateWaterlineContour() {
   setHeel(deg) {
     const rad = THREE.MathUtils.degToRad(Number(deg));
     this._setAxisRotation(this.axis.rollAxis, rad);
+    this.heelDeg = Number(deg);
     this.updateWaterPlane();
     this._invalidateCache();
     this.scheduleRecalc(true);
@@ -573,6 +579,8 @@ updateWaterlineContour() {
 
   zeroTrimHeel() {
     this.hydroRotGroup.rotation.x = 0;
+    this.trimDeg = 0;
+    this.heelDeg = 0;
     this.hydroRotGroup.rotation.y = 0;
     this.hydroRotGroup.rotation.z = 0;
     this.updateWaterPlane();
@@ -641,6 +649,20 @@ updateWaterlineContour() {
     if (this.lastHydro.cbW) {
       this.cbMarker.position.copy(this.lastHydro.cbW);
     }
+  }
+
+  highlightComponent(compName) {
+    if (!this.mesh) return;
+    this.mesh.traverse((child) => {
+      if (child.name === compName) {
+        child.material.opacity = 1.0;
+        child.material.transparent = false;
+      } else {
+        child.material.opacity = 0.3;
+        child.material.transparent = true;
+      }
+      if (child.material) child.material.needsUpdate = true;
+    });
   }
 
   // ============================================================
@@ -1036,6 +1058,26 @@ updateWaterlineContour() {
     // roll about X => lever arm in Y
     // pitch about Y => lever arm in X (sign chosen to match earlier)
     return mode === "roll" ? dy : -dx;
+  }
+
+  // ============================================================
+  // SIMPLIFIED GM CALCULATIONS
+  // ============================================================
+
+  getSimplifiedGM() {
+    const h = this.lastHydro;
+    if (!h.gm) return { transverse: null, longitudinal: null };
+    return {
+      transverse: h.gm.roll,
+      longitudinal: h.gm.pitch
+    };
+  }
+
+  async getGMForDisplacement(targetTonnes) {
+    const result = await this.findDraftForDisplacement(targetTonnes);
+    if (!result) return null;
+    await this.recompute();
+    return this.getSimplifiedGM();
   }
 
   // ============================================================
@@ -1548,6 +1590,22 @@ updateWaterlineContour() {
 
   isBusy() {
     return this.hydroBusy;
+  }
+
+  // ============================================================
+  // VISIBILITY TOGGLES
+  // ============================================================
+
+  setHydroElementsVisible(options = {}) {
+    const {
+      waterline = this.wlVisible,
+      waterlineContour = this.wlContourVisible,
+      markers = { cg: this.markersVisible.cg, cb: this.markersVisible.cb }
+    } = options;
+
+    this.setWaterlineVisible(waterline);
+    this.setWaterlineContourVisible(waterlineContour);
+    this.setMarkersVisible(markers.cg, markers.cb);
   }
 
   // ============================================================

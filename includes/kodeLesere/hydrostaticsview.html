@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hydrostatisk Viewer – DELFSHIP</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --bg-main: var(--bg, #ffffff);
+      --bg-card: var(--card-bg, #f7f8fb);
+      --text-main: var(--text, #111827);
+      --text-muted: rgba(17,24,39,.60);
+      --border-color: rgba(17,24,39,.14);
+      --primary: var(--theme-accent, var(--accent, #2f6fed));
+      --primary-contrast: #fff;
+      --shadow: 0 12px 26px -14px rgba(0,0,0,.35);
+      --shadow-soft: 0 8px 18px -12px rgba(0,0,0,.25);
+      --radius: 16px;
+      --radius-sm: 12px;
+    }
+
+    html,body{
+      margin:0; padding:0; height:100%;
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: system-ui, Segoe UI, Arial;
+    }
+
+    body{
+      display:flex; flex-direction:column; overflow:hidden;
+    }
+
+    #hud{
+      position:fixed; left:12px; top:12px; z-index:80;
+      background: var(--bg-card);
+      border:1px solid var(--border-color);
+      box-shadow: var(--shadow-soft);
+      padding:10px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      line-height: 1.35;
+      max-width: 350px;
+    }
+    #hud strong{ display:block; margin-bottom:6px; }
+    #hud small{ color: var(--text-muted); display:block; }
+
+    #uiWrap{
+      position:fixed; left:50%; transform:translateX(-50%);
+      top:8px; z-index:85;
+      width: min(1240px, calc(100vw - 24px));
+      pointer-events:none;
+    }
+
+    #toolbar{
+      pointer-events:auto;
+      background: var(--bg-card);
+      border:1px solid var(--border-color);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding:10px 12px;
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:10px;
+    }
+
+    .sep{
+      width:1px; height:30px;
+      background: var(--border-color);
+      margin:0 4px;
+      opacity:.9;
+    }
+
+    .btn{
+      appearance:none;
+      border:1px solid var(--border-color);
+      background: color-mix(in srgb, var(--bg-main) 70%, var(--bg-card) 30%);
+      color: var(--text-main);
+      border-radius: 999px;
+      padding:8px 12px;
+      font-size: 13px;
+      font-weight: 900;
+      cursor:pointer;
+      user-select:none;
+      white-space:nowrap;
+      transition: transform .06s ease, filter .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:hover{ filter: brightness(0.98); border-color: color-mix(in srgb, var(--border-color) 70%, var(--text-main) 30%); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.active{
+      background: var(--primary);
+      color: var(--primary-contrast);
+      border-color: color-mix(in srgb, var(--primary) 72%, #000 28%);
+    }
+
+    #container{
+      flex:1;
+      display:flex;
+      gap:20px;
+      padding:20px;
+      overflow:hidden;
+    }
+
+    #tableSection, #chartSection{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      background: var(--bg-card);
+      border:1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding:12px;
+    }
+
+    #tableSection h3, #chartSection h3{
+      margin:0 0 12px 0;
+      font-size:14px;
+      color: var(--text-main);
+    }
+
+    #dataTable{
+      flex:1;
+      overflow:auto;
+      font-size:12px;
+      border-collapse:collapse;
+    }
+
+    #dataTable th, #dataTable td{
+      padding:8px;
+      text-align:left;
+      border-bottom:1px solid var(--border-color);
+    }
+
+    #dataTable th{
+      background:color-mix(in srgb, var(--bg-main) 70%, var(--bg-card) 30%);
+      font-weight:900;
+      position:sticky;
+      top:0;
+    }
+
+    #dataTable tr:hover{
+      background: color-mix(in srgb, var(--primary) 5%, var(--bg-main) 95%);
+    }
+
+    #chartContainer{
+      flex:1;
+      position:relative;
+    }
+
+    select{
+      appearance:none;
+      border:1px solid var(--border-color);
+      background: var(--bg-main);
+      color: var(--text-main);
+      padding:8px 12px;
+      border-radius: var(--radius-sm);
+      font-size:13px;
+      cursor:pointer;
+    }
+
+    @media (max-width: 1200px){
+      #container{ flex-direction:column; }
+      #tableSection, #chartSection{ flex:0 1 300px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <strong>Hydrostatisk Rapport</strong><br>
+    <small>DELFSHIP komponent-analyse</small><br>
+    <small id="reportName"></small>
+  </div>
+
+  <div id="uiWrap">
+    <div id="toolbar">
+      <select id="metricSelect">
+        <option value="gm">GM (Metacentric Height)</option>
+        <option value="trim">Trim (Longitudinal Stability)</option>
+        <option value="displacement">Displacement vs Draft</option>
+        <option value="heel">Heel Curves (Sak)</option>
+        <option value="lwl">LWL (Length Waterline)</option>
+      </select>
+      <div class="sep"></div>
+      <button class="btn" onclick="loadFile()">Last fil</button>
+      <button class="btn" onclick="toggleView()">Bytt visning</button>
+    </div>
+  </div>
+
+  <div id="container">
+    <div id="tableSection">
+      <h3>Tabell-data</h3>
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Verdi</th>
+            <th>Enhet</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Last en rapport først</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="chartSection">
+      <h3 id="chartTitle">Kurve-plot</h3>
+      <div id="chartContainer">
+        <canvas id="myChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".json,.csv,.txt" style="display:none;" onchange="handleFileSelect(event)">
+
+  <script>
+    let reportData = null;
+    let chart = null;
+
+    function loadFile() {
+      document.getElementById('fileInput').click();
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const content = e.target.result;
+            document.getElementById('reportName').textContent = `📄 ${file.name}`;
+            
+            // Prøv JSON først
+            try {
+              reportData = JSON.parse(content);
+              renderReport();
+            } catch {
+              // Fallback: Parse CSV/TXT
+              reportData = parseCSV(content);
+              renderReport();
+            }
+          } catch (error) {
+            alert('Feil ved lesing av fil: ' + error.message);
+          }
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    function parseCSV(content) {
+      const lines = content.split('\n').filter(l => l.trim());
+      const data = { metrics: [] };
+      
+      for (const line of lines) {
+        const [key, value, unit] = line.split(',').map(s => s.trim());
+        if (key && value) {
+          data.metrics.push({ name: key, value: parseFloat(value) || value, unit: unit || '' });
+        }
+      }
+      return data;
+    }
+
+    function renderReport() {
+      if (!reportData) return;
+      
+      renderTable();
+      renderChart();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      
+      const metrics = reportData.metrics || reportData.data || [];
+      
+      if (Array.isArray(metrics)) {
+        metrics.forEach(m => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${m.name || m.parameter || 'N/A'}</td>
+            <td>${typeof m.value === 'number' ? m.value.toFixed(3) : m.value}</td>
+            <td>${m.unit || m.units || ''}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      } else {
+        // Hvis det er et objekt, konverter til rader
+        Object.entries(metrics).forEach(([key, value]) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${key}</td>
+            <td>${typeof value === 'number' ? value.toFixed(3) : value}</td>
+            <td></td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+    }
+
+    function renderChart() {
+      const metric = document.getElementById('metricSelect').value;
+      const chartTitle = document.getElementById('chartTitle');
+      
+      // Eksempel-kurver basert på metrikkvalg
+      let labels = [];
+      let data = [Math.random() * 10];
+      let title = 'Kurve-plot';
+      
+      switch(metric) {
+        case 'gm':
+          title = 'GM vs Draft';
+          labels = Array.from({length: 20}, (_, i) => (2 + i * 0.5).toFixed(1));
+          data = labels.map((_, i) => 0.5 + Math.random() * 2);
+          break;
+        case 'trim':
+          title = 'Trim (LCG) vs Stability';
+          labels = Array.from({length: 15}, (_, i) => (-7.5 + i * 1).toFixed(1));
+          data = labels.map(() => Math.random() * 3);
+          break;
+        case 'displacement':
+          title = 'Displacement vs Draft';
+          labels = Array.from({length: 18}, (_, i) => (1 + i * 0.3).toFixed(2));
+          data = labels.map((_, i) => 100 + i * 50 + Math.random() * 30);
+          break;
+        case 'heel':
+          title = 'Heel Curves (Stabilitet)';
+          labels = Array.from({length: 25}, (_, i) => (i * 5));
+          data = labels.map((angle, i) => Math.sin((angle * Math.PI) / 180) * (10 - i * 0.1));
+          break;
+        case 'lwl':
+          title = 'LWL (Length Waterline)';
+          labels = Array.from({length: 16}, (_, i) => (1.5 + i * 0.4).toFixed(1));
+          data = labels.map(() => 110 + Math.random() * 5);
+          break;
+      }
+      
+      chartTitle.textContent = title;
+      
+      // Destroy existing chart
+      if (chart) chart.destroy();
+      
+      const ctx = document.getElementById('myChart').getContext('2d');
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: title,
+            data: data,
+            borderColor: 'var(--primary)',
+            backgroundColor: 'rgba(47, 111, 237, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: 'var(--primary)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              labels: { color: 'var(--text-main)', font: { size: 12, weight: 'bold' } }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { color: 'var(--text-muted)' },
+              grid: { color: 'var(--border-color)' }
+            },
+            x: {
+              ticks: { color: 'var(--text-muted)' },
+              grid: { color: 'var(--border-color)' }
+            }
+          }
+        }
+      });
+    }
+
+    function toggleView() {
+      const table = document.getElementById('tableSection');
+      const chart = document.getElementById('chartSection');
+      if (table.style.display === 'none') {
+        table.style.display = 'flex';
+        chart.style.display = 'flex';
+      } else {
+        table.style.display = 'none';
+      }
+    }
+
+    // Event listener for metrikkvalg
+    document.getElementById('metricSelect').addEventListener('change', () => {
+      if (reportData) renderChart();
+    });
+
+    // Håndter URL-parameter for filinnlasting
+    const urlParams = new URLSearchParams(window.location.search);
+    const fileParam = urlParams.get('file');
+    if (fileParam) {
+      fetch(fileParam)
+        .then(r => r.text())
+        .then(content => {
+          try {
+            reportData = JSON.parse(content);
+            document.getElementById('reportName').textContent = `📄 ${fileParam.split('/').pop()}`;
+            renderReport();
+          } catch {
+            reportData = parseCSV(content);
+            renderReport();
+          }
+        })
+        .catch(err => console.error('Feil ved innlasting av fil:', err));
+    }
+  </script>
+</body>
+</html>

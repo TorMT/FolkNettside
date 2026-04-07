@@ -40,7 +40,7 @@ ALLOWED_EXT = {
     ".py", ".pdf", ".ipynb",
     ".mp4", ".webm", ".ogg", ".mov", ".m4v",
     ".url", ".webloc",
-    ".html", ".stl", ".fbm"
+    ".html", ".stl", ".fbm", ".3mf", ".3fz"
 }
 # Standard mapper vi alltid ignorerer (case-insensitiv)
 DEFAULT_BLACKLIST = {"node_modules", ".git", "__pycache__", "venv", ".venv"}
