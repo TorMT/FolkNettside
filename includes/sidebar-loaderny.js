@@ -248,11 +248,19 @@ function openInViewer(url, kind) {
   const { box, frame } = ensureViewer();
   let targetUrl = url;
 
-  // Map code file types til riktige viewers
+  // Map file types til riktige viewers
   if (kind === 'py') {
     targetUrl = `/includes/kodeLesere/pyview.html?file=${encodeURIComponent(url)}`;
   } else if (kind === 'ipynb') {
     targetUrl = `/includes/kodeLesere/nbview.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === 'fusion') {
+    targetUrl = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === 'html') {
+    targetUrl = `/includes/kodeLesere/htmlview.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === 'stl') {
+    targetUrl = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === 'fbm') {
+    targetUrl = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
   } else if (kind === 'code') {
     targetUrl = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
   }
@@ -327,27 +335,52 @@ function openInViewer(url, kind) {
  * @param {string} url - URL til fil
  */
 function openFile(url) {
-  const lowerUrl = url.toLowerCase();
+  const lowerUrl = String(url || '').toLowerCase();
+  const cleanUrl = lowerUrl.split('?')[0].split('#')[0];
+  const fusionFlag = new URLSearchParams(window.location.search).get('fusionviewer');
+  const fusionViewerEnabled =
+    window.ENABLE_FUSION_VIEWER !== false &&
+    fusionFlag !== '0';
   
   // PDF files
-  if (lowerUrl.endsWith('.pdf')) {
+  if (cleanUrl.endsWith('.pdf')) {
     return openInViewer(url, 'pdf');
   }
   
   // Jupyter notebooks
-  if (lowerUrl.endsWith('.ipynb')) {
+  if (cleanUrl.endsWith('.ipynb')) {
     return openInViewer(url, 'ipynb');
   }
   
   // Python files
-  if (lowerUrl.endsWith('.py')) {
+  if (cleanUrl.endsWith('.py')) {
     return openInViewer(url, 'py');
+  }
+
+  // HTML files
+  if (cleanUrl.endsWith('.html')) {
+    return openInViewer(url, 'html');
+  }
+
+  // STL files
+  if (cleanUrl.endsWith('.stl')) {
+    return openInViewer(url, 'stl');
+  }
+
+  // FBM / FM3 files
+  if (cleanUrl.endsWith('.fbm') || cleanUrl.endsWith('.fm3')) {
+    return openInViewer(url, 'fbm');
+  }
+
+  // Fusion/CAD/mesh filer
+  if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|3mf|stl|sat|smt|x_t|x_b|sldprt|sldasm)$/i.test(cleanUrl)) {
+    return openInViewer(url, 'fusion');
   }
   
   // Video files
-  if (lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.webm') || 
-      lowerUrl.endsWith('.ogg') || lowerUrl.endsWith('.mov') || 
-      lowerUrl.endsWith('.m4v')) {
+  if (cleanUrl.endsWith('.mp4') || cleanUrl.endsWith('.webm') ||
+      cleanUrl.endsWith('.ogg') || cleanUrl.endsWith('.mov') ||
+      cleanUrl.endsWith('.m4v')) {
     return openInViewer(url, 'video');
   }
   
@@ -362,7 +395,7 @@ function openFile(url) {
   }
   
   // Code files (C, C++, C#, Java)
-  if (/\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lowerUrl)) {
+  if (/\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(cleanUrl)) {
     return openInViewer(url, 'code');
   }
   

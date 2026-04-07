@@ -13,7 +13,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h2>FBM</h2>
+  <h2>FBM / FM3</h2>
   <div class="box" id="msg">Laster…</div>
 </div>
 
@@ -25,12 +25,21 @@
     msg.textContent = "Mangler ?file=";
   } else {
     msg.innerHTML =
-      "Denne nettsiden kan ikke rendere <b>DelfShip .fbm</b> direkte i nettleseren uten en egen FBM-parser.<br><br>" +
-      "Anbefalt: eksporter modellen fra DelfShip til <b>STL</b> eller <b>GLB</b>, så kan vi vise den interaktivt (roter/zoom/pan).<br><br>" +
-      "<button id='open'>Åpne FBM som fil</button> " +
+      "Denne nettsiden kan ikke rendere <b>DelfShip .fbm/.fm3</b> direkte i nettleseren uten en egen parser.<br><br>" +
+      "Anbefalt: eksporter modellen fra DelfShip til <b>STL</b> (støttet nå) eller <b>GLB</b> (kan legges til).<br><br>" +
+      "<button id='open'>Åpne FBM/FM3 som fil</button> " +
+      "<button id='tryStl' style='margin-left:8px'>Prøv matchende STL</button> " +
+      "<button id='openFusion' style='margin-left:8px'>Fusion analyse</button> " +
       "<span style='margin-left:10px;opacity:.8'>(" + file + ")</span>";
 
     document.getElementById("open").onclick = () => window.open(file, "_blank");
+    document.getElementById("tryStl").onclick = () => {
+      const stlFile = file.replace(/\.(fbm|fm3)$/i, ".stl");
+      window.location.href = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlFile)}`;
+    };
+    document.getElementById("openFusion").onclick = () => {
+      window.location.href = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(file)}`;
+    };
   }
 </script>
 </body>

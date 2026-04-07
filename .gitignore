@@ -11,3 +11,14 @@ index.json
 # Personal or local folders not to push
 kontakt/
 om/
+
+# Secrets / API credentials (must never be committed)
+.env
+.env.*
+!.env*.example
+*.secret
+secrets/
+
+# VS Code local-only secrets/config
+.vscode/settings.json
+.vscode/launch.json
