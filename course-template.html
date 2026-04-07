@@ -112,24 +112,43 @@
   <!-- Hent navbar-markup med feilhåndtering
        + last mobile-enhancer ETTER at navbar er injisert (robust mobil-knapp) -->
   <script>
-    fetch('/includes/navbar.html', { cache: 'no-store' })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.text();
-      })
-      .then(t => {
-        document.getElementById('navbar').innerHTML = t;
+    // Sider/områder som IKKE skal få global navbar/header.
+    // IGNORERER nå hele /diverse/ (inkl. nye genererte sider).
+    const NAVBAR_IGNORE_PATHS = [];
+    const NAVBAR_IGNORE_PREFIXES = ['/diverse/'];
 
-        // Last mobile-enhancer etter at navbar finnes i DOM
-        const s = document.createElement('script');
-        s.src = '/includes/mobile-enhancer.js?v=3';
-        document.body.appendChild(s);
-      })
-      .catch(err => {
-        console.error('[navbar] Kunne ikke laste navbar:', err);
-        document.getElementById('navbar').innerHTML =
-          '<div style="padding:1rem;background:#f8d7da;color:#721c24;">⚠️ Navbar kunne ikke lastes</div>';
-      });
+    const currentPath = (window.location.pathname || '').replace(/\/+$/, '');
+    const pathMatches = NAVBAR_IGNORE_PATHS
+      .map(p => p.replace(/\/+$/, ''))
+      .includes(currentPath);
+    const prefixMatches = NAVBAR_IGNORE_PREFIXES
+      .map(p => p.replace(/\/+$/, '') + '/')
+      .some(prefix => (currentPath + '/').startsWith(prefix));
+    const shouldSkipNavbar = pathMatches || prefixMatches;
+
+    if (shouldSkipNavbar) {
+      document.getElementById('navbar').innerHTML = '';
+      console.info('[navbar] Ignorerer global navbar for side:', currentPath);
+    } else {
+      fetch('/includes/navbar.html', { cache: 'no-store' })
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.text();
+        })
+        .then(t => {
+          document.getElementById('navbar').innerHTML = t;
+
+          // Last mobile-enhancer etter at navbar finnes i DOM
+          const s = document.createElement('script');
+          s.src = '/includes/mobile-enhancer.js?v=3';
+          document.body.appendChild(s);
+        })
+        .catch(err => {
+          console.error('[navbar] Kunne ikke laste navbar:', err);
+          document.getElementById('navbar').innerHTML =
+            '<div style="padding:1rem;background:#f8d7da;color:#721c24;">⚠️ Navbar kunne ikke lastes</div>';
+        });
+    }
   </script>
 
   <!-- =====================================================
