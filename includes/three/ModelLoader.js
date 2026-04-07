@@ -135,6 +135,9 @@ export class ModelLoader {
 
     } else {
       // Single geometry (STL or single-component 3MF)
+      if (!geometry || typeof geometry.computeVertexNormals !== "function" || typeof geometry.computeBoundingBox !== "function") {
+        throw new Error("Kunne ikke hente gyldig geometri fra modellen (mangler computeVertexNormals/computeBoundingBox).");
+      }
       geometry.computeVertexNormals();
       geometry.computeBoundingBox();
 

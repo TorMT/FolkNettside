@@ -159,22 +159,40 @@ class ThreeMFLoader extends Loader {
       if (meshId) meshMap.set(meshId, geometry);
     });
 
+    const objectsById = new Map();
+    objects.forEach((objNode) => {
+      const id = objNode.getAttribute('id');
+      if (id) objectsById.set(id, objNode);
+    });
+
+    const resolveGeometryForObject = (objNode, seen = new Set()) => {
+      if (!objNode) return null;
+      const objectId = objNode.getAttribute('id') || `anon_${Math.random()}`;
+      if (seen.has(objectId)) return null;
+      seen.add(objectId);
+
+      let meshNode = objNode.querySelector('mesh');
+      if (meshNode) return meshMap.get(meshNode) || null;
+
+      const meshRef = objNode.getAttribute('mesh');
+      if (meshRef && meshMap.has(meshRef)) return meshMap.get(meshRef);
+
+      const nestedComponents = Array.from(objNode.querySelectorAll('components component'));
+      for (const compNode of nestedComponents) {
+        const refId = compNode.getAttribute('objectid');
+        if (!refId) continue;
+        const refObj = objectsById.get(refId);
+        const resolved = resolveGeometryForObject(refObj, seen);
+        if (resolved) return resolved;
+      }
+      return null;
+    };
+
     // Build component list
     const components = objects.map(objNode => {
       // Try to get name/id
       const name = objNode.getAttribute('name') || objNode.getAttribute('id') || 'component';
-      // Find mesh child or mesh reference
-      let geometry = null;
-      let meshNode = objNode.querySelector('mesh');
-      if (meshNode) {
-        geometry = meshMap.get(meshNode);
-      } else {
-        // Try mesh reference via mesh attribute
-        const meshRef = objNode.getAttribute('mesh');
-        if (meshRef) {
-          geometry = meshMap.get(meshRef);
-        }
-      }
+      const geometry = resolveGeometryForObject(objNode);
       if (!geometry) return null;
       return { name, geometry };
     }).filter(Boolean);
