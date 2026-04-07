@@ -312,6 +312,7 @@ async function askPass(){
 }
 
 function getCourseDir(){ return location.pathname.replace(/\/index\.html?$/,'/'); }
+function isMobileViewport(){ return window.matchMedia('(max-width: 1024px)').matches; }
 function encodePathSegments(rel){ return rel.split('/').map(s => encodeURIComponent(s)).join('/'); }
 function toAbsUrl(rel, baseDir){
   const s = String(rel||'');
@@ -381,6 +382,33 @@ function ensureViewer(){
   }catch{}
 
   return {box, frame: box.firstElementChild};
+}
+
+function replaceViewerFrame(tag){
+  const box = document.getElementById('pdf-viewer-container');
+  if (!box) return null;
+
+  const current = box.firstElementChild;
+  if (current && current.tagName.toLowerCase() === tag) return current;
+
+  const next = document.createElement(tag);
+  next.id = 'pdf-viewer';
+  next.style.width = '100%';
+  next.style.height = '100%';
+  next.style.border = 'none';
+
+  if (tag === 'iframe'){
+    next.setAttribute('loading', 'lazy');
+    next.setAttribute('allow', 'fullscreen');
+    next.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+  } else {
+    next.type = 'application/pdf';
+  }
+
+  if (current) current.replaceWith(next);
+  else box.appendChild(next);
+
+  return next;
 }
 
 function ensureMediaViewer(){
@@ -608,7 +636,11 @@ function openInViewer(url, kind){
     return;
   }
 
-  const {box, frame} = ensureViewer();
+  const {box} = ensureViewer();
+  const useIframeForPdf = kind === 'pdf' && isMobileViewport();
+  const frame = useIframeForPdf
+    ? (replaceViewerFrame('iframe') || box.firstElementChild)
+    : (replaceViewerFrame('object') || box.firstElementChild);
   let target = url;
 
   if (kind === 'py')         target = `/includes/kodeLesere/pyview.html?file=${encodeURIComponent(url)}`;
@@ -618,16 +650,17 @@ function openInViewer(url, kind){
   else if (kind === 'fbm') target = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
 
-  if (kind === 'pdf') frame.type = 'application/pdf';
+  if (kind === 'pdf' && frame.tagName.toLowerCase() === 'object') frame.type = 'application/pdf';
   else frame.removeAttribute('type');
 
   if (frame._fallbackTimer) { clearTimeout(frame._fallbackTimer); frame._fallbackTimer = null; }
-  frame.data = target; 
+  if (frame.tagName.toLowerCase() === 'iframe') frame.src = target;
+  else frame.data = target;
   box.style.display='block'; 
   toggleWelcome(false);
 
   const bar = document.getElementById('pdf-viewer-resize');
-  if (bar) bar.style.display = 'block';
+  if (bar) bar.style.display = useIframeForPdf ? 'none' : 'block';
 
   const thisLoad = Date.now(); 
   frame._loadStamp = thisLoad;
@@ -640,7 +673,8 @@ function openInViewer(url, kind){
 
   if (kind === 'pdf'){
     frame._fallbackTimer = setTimeout(()=>{
-      if (frame._loadStamp === thisLoad && frame.data === target) window.open(url, '_blank');
+      const loaded = frame.tagName.toLowerCase() === 'iframe' ? frame.src : frame.data;
+      if (frame._loadStamp === thisLoad && loaded === target) window.open(url, '_blank');
     }, 3000);
   }
   
