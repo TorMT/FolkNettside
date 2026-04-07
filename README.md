@@ -120,12 +120,18 @@ python SiteUpdater3.py . --no-progress
 python SiteUpdater3.py . --no-quiz
 python SiteUpdater3.py . --only
 python SiteUpdater3.py . --shallow
+python SiteUpdater3.py . --sync-andrekok
+python SiteUpdater3.py . --sync-andrekok --sync-only
+python SiteUpdater3.py . --sync-andrekok --andrekok-target diverse/AndreKokSider/links.json
 ```
 
 Hva den gjør:
 - Genererer `index.json` per mappe.
 - Velger velkomstbilde automatisk eller bruker `img/welcome-generic.svg`.
 - Normaliserer `quiz/quiz.json` bildestier.
+- Kan synke "AndreKok"-lenker fra ekstern `script.js` og bare legge til nye (fjerner ikke egne ekstra entries).
+- Hentede "AndreKok"-entries får automatisk `studiet: "MTKJ"` (kan overstyres med `--andrekok-studiet`).
+- Med `--sync-only` kan du kjøre bare synk uten vanlig `index.json`-oppdatering.
 
 ---
 Bruk av `navbarupdater.py`
