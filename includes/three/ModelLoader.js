@@ -191,6 +191,7 @@ export class ModelLoader {
   }
 
   // ------------------------------------------------------------
+  _buildMaterialForGeometry(geometry) {
     const hasVertexColors = !!geometry.hasColors || !!geometry.getAttribute?.("color");
     const alpha = Number.isFinite(geometry.alpha) ? geometry.alpha : 1.0;
 
