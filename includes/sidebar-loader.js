@@ -645,6 +645,7 @@ function openInViewer(url, kind){
 
   if (kind === 'py')         target = `/includes/kodeLesere/pyview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'ipynb') target = `/includes/kodeLesere/nbview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'fusion') target = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'html')  target = `/includes/kodeLesere/htmlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'stl') target = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fbm') target = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
@@ -701,11 +702,17 @@ function openInViewer(url, kind){
 
 function openFile(url){
   const lower = url.toLowerCase();
+  const fusionFlag = new URLSearchParams(window.location.search).get('fusionviewer');
+  const fusionViewerEnabled =
+    window.ENABLE_FUSION_VIEWER !== false &&
+    fusionFlag !== '0';
   if (lower.endsWith('.pdf'))   return openInViewer(url, 'pdf');
   if (lower.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
   if (lower.endsWith('.py'))    return openInViewer(url, 'py');
   if (lower.split('?')[0].split('#')[0].endsWith('.stl')) return openInViewer(url, 'stl');
   if (lower.split('?')[0].split('#')[0].endsWith('.html')) return openInViewer(url, 'html');
+  if (/\.(fbm|fm3)$/.test(lower.split('?')[0].split('#')[0])) return openInViewer(url, 'fbm');
+  if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|3mf|sat|smt|x_t|x_b|sldprt|sldasm)$/.test(lower.split('?')[0].split('#')[0])) return openInViewer(url, 'fusion');
   if (lower.split('?')[0].split('#')[0].endsWith('.fbm')) return openInViewer(url, 'fbm');
   if (lower.split('?')[0].split('#')[0].endsWith('.3mf')) return openInViewer(url, '3mf');
   if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)) return openInViewer(url, 'f3d');
