@@ -26,15 +26,26 @@ export class ModelLoader {
   async load(url) {
     if (!url) throw new Error("ModelLoader: url mangler");
 
+    console.info("[ModelLoader] Starter lasting:", url);
     const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ved lasting av ${url}`);
+    console.info("[ModelLoader] HTTP-respons:", {
+      url,
+      status: res.status,
+      ok: res.ok,
+      contentType: res.headers.get("content-type") || "ukjent",
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ved lasting av ${url}`);
+    }
 
     const buf = await res.arrayBuffer();
+    console.info("[ModelLoader] Bytes mottatt:", buf.byteLength);
 
     // Detect file type from URL extension (ignorer query/hash)
     const cleanUrl = String(url).split('?')[0].split('#')[0].toLowerCase();
     const is3MF = cleanUrl.endsWith('.3mf');
     const is3FZ = cleanUrl.endsWith('.3fz');
+    console.info("[ModelLoader] Filtypedeteksjon:", { cleanUrl, is3MF, is3FZ });
     const loader = is3MF ? this.threeMFLoader : (is3FZ ? this.fusionLoader : this.stlLoader);
 
     let geometry;
@@ -180,6 +191,7 @@ export class ModelLoader {
   }
 
   // ------------------------------------------------------------
+  _buildMaterialForGeometry(geometry) {
     const hasVertexColors = !!geometry.hasColors || !!geometry.getAttribute?.("color");
     const alpha = Number.isFinite(geometry.alpha) ? geometry.alpha : 1.0;
 
