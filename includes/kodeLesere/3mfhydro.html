@@ -1192,12 +1192,47 @@
       URL.revokeObjectURL(url);
     }
 
+    const VISIBILITY_STORAGE_KEY = '3mfhydro_visibility';
+
+    const saveVisibilitySettings = () => {
+      try {
+        const payload = {
+          components: document.getElementById('toggleComponents')?.checked !== false,
+          markers: document.getElementById('toggleMarkers')?.checked !== false,
+          waterline: document.getElementById('toggleWaterline')?.checked !== false,
+          waterlineContour: document.getElementById('toggleWaterlineContour')?.checked !== false
+        };
+        localStorage.setItem(VISIBILITY_STORAGE_KEY, JSON.stringify(payload));
+        console.info('[3mfhydro] Visibility lagret:', payload);
+      } catch (err) {
+        console.warn('[3mfhydro] Kunne ikke lagre visibility settings:', err);
+      }
+    };
+
     // Load saved visibility settings
     const loadVisibilitySettings = () => {
-      const settings = localStorage.getItem('3mfhydro_visibility');
-      if (settings) {
-      saveVisibilitySettings();
-    });
+      try {
+        const settings = localStorage.getItem(VISIBILITY_STORAGE_KEY);
+        if (!settings) return;
+        const vis = JSON.parse(settings);
+
+        const toggleComponents = document.getElementById('toggleComponents');
+        const toggleMarkers = document.getElementById('toggleMarkers');
+        const toggleWaterline = document.getElementById('toggleWaterline');
+        const toggleWaterlineContour = document.getElementById('toggleWaterlineContour');
+        const componentList = document.getElementById('componentList');
+
+        if (toggleComponents) toggleComponents.checked = vis.components !== false;
+        if (toggleMarkers) toggleMarkers.checked = vis.markers !== false;
+        if (toggleWaterline) toggleWaterline.checked = vis.waterline !== false;
+        if (toggleWaterlineContour) toggleWaterlineContour.checked = vis.waterlineContour !== false;
+        if (componentList) componentList.style.display = (vis.components === false) ? 'none' : '';
+
+        console.info('[3mfhydro] Visibility lastet:', vis);
+      } catch (err) {
+        console.warn('[3mfhydro] Kunne ikke laste visibility settings:', err);
+      }
+    };
 
     document.getElementById('toggleComponents').addEventListener('change', (e) => {
       const componentList = document.getElementById('componentList');
@@ -1226,6 +1261,8 @@
       }
       saveVisibilitySettings();
     });
+
+    loadVisibilitySettings();
 
     helpOverlay.addEventListener("click", (e) => {
       if(e.target === helpOverlay) {
