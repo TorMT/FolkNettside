@@ -60,11 +60,15 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 
 **Scripts og vedlikehold**
 
-- `scripts/` inneholder verktøy for oppdatering og eksport (`export_repo.py`, `export/`, etc.). Les filene for mer detaljer. Kjør Python-skript med et passende virtuelt miljø.
-- `scripts/video_topic_enricher.py` kan brukes til å gjøre en videoliste om til JSON med `description` og `themes` (gratis/lokalt, via `yt-dlp` undertekster for YouTube/Panopto, med valgfri AI-klassifisering via lokal Ollama og valgfri Whisper-transkribering).
-- `SiteUpdater3.py` støtter nå også `--enrich-video-lists` for å kjøre enrich automatisk etter indeksoppdatering (valgfritt med cookies/ollama/whisper-flagg).
-- Enrich-trinnet hopper nå over filer uten endringer (bruk `--enrich-force` for å tvinge full kjøring).
-- Etter enrich vises en oppsummering med antall kandidater/kjørte/skippede/feilede filer.
+- `scripts/` inneholder verkt?y for oppdatering og eksport (`export_repo.py`, `export/`, etc.). Les filene for mer detaljer. Kj?r Python-skript med et passende virtuelt milj?.
+- `scripts/video_topic_enricher.py` kan brukes til ? gj?re en videoliste om til JSON med `description`, `themes`, `group` og `part`.
+- `SiteUpdater3.py` st?tter n? ogs? `--enrich-video-lists` for ? kj?re enrich automatisk etter indeksoppdatering (valgfritt med cookies/ollama/whisper-flagg).
+- Enrich-trinnet hopper n? over filer uten endringer (bruk `--enrich-force` for ? tvinge full kj?ring).
+- Etter enrich vises en oppsummering med antall kandidater/kj?rte/skippede/feilede filer.
+- Videoviseren foretrekker `Forelesning.json` over `Forelesning.txt` n?r begge finnes, slik at gruppebeskrivelser, temaer og logiske grupper kan vises direkte.
+- S?k i videoviseren matcher p? gruppenavn, videotittel, delnavn, gruppebeskrivelse og temaer.
+- `Marker som sett` finnes b?de per video og per gruppe, og viseren husker ogs? hvor du var i videoen lokalt i nettleseren.
+- Typisk flyt for et kurs er: 1) oppdater `Forelesning.txt`, 2) generer `Forelesning.json`, 3) ?pne `Forelesning.txt` fra sidebaren, 4) bruk s?kefeltet for ? finne gruppe, del eller tema.
 
 **Feilsøking**
 

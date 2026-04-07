@@ -16,7 +16,7 @@ Output:
   JSON-fil med struktur:
   {
     "videos": [
-      {"title": "...", "url": "...", "description": "...", "themes": ["..."]}
+      {"title": "...", "url": "...", "description": "...", "themes": ["..."], "group": "...", "part": "..."}
     ]
   }
 
@@ -50,6 +50,60 @@ STOPWORDS = {
     "the", "and", "for", "with", "that", "this", "from", "are", "was", "were",
     "you", "your", "have", "has", "not", "can", "will", "into", "about", "how",
 }
+
+
+def clean_group_label(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").replace("_", " ").replace("?", " - ").replace("?", " - ")).strip(" -:|\t")
+
+
+def normalize_group_key(text: str) -> str:
+    s = clean_group_label(text).lower()
+    s = re.sub(r"[^a-z0-9???\s-]", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def split_title_parts(title: str) -> tuple[str, str]:
+    raw = clean_group_label(title)
+    patterns = [
+        r"^(.*?)(?:\s+(del|part|episode|ep)\s*([0-9]+[a-z]?))$",
+        r"^(.*?)(?:\s*[-:|]\s*(del|part|episode|ep)\s*([0-9]+[a-z]?))$",
+        r"^(.*?)(?:\s*[-:|]\s*(q[0-9]+[a-z0-9-]*))$",
+        r"^(.*?)(?:\s*[-:|]\s*([A-Z]))$",
+    ]
+    for pattern in patterns:
+        m = re.match(pattern, raw, flags=re.I)
+        if not m:
+            continue
+        if len(m.groups()) >= 3 and m.group(3):
+            return clean_group_label(m.group(1)), clean_group_label(f"{m.group(2)} {m.group(3)}")
+        return clean_group_label(m.group(1)), clean_group_label(m.group(2))
+    return raw, ""
+
+
+def derive_group_and_part(title: str, description: str = "", existing_group: str = "", existing_part: str = "") -> tuple[str, str]:
+    title_clean = clean_group_label(title)
+    desc_clean = clean_group_label(description)
+    group_clean = clean_group_label(existing_group)
+    part_clean = clean_group_label(existing_part)
+
+    if not group_clean:
+        if desc_clean and normalize_group_key(desc_clean) != normalize_group_key(title_clean):
+            group_clean = desc_clean
+        else:
+            group_clean = split_title_parts(title_clean)[0]
+
+    if not part_clean and title_clean:
+        prefix_pattern = r"^" + re.escape(group_clean) + r"(?:\s*[-:|]\s*)?"
+        stripped = re.sub(prefix_pattern, "", title_clean, flags=re.I).strip(" -:|")
+        part_clean = clean_group_label(stripped)
+        if not part_clean:
+            _, guessed_part = split_title_parts(title_clean)
+            part_clean = guessed_part
+
+    if normalize_group_key(group_clean) == normalize_group_key(title_clean):
+        part_clean = ""
+
+    return group_clean or title_clean, part_clean
 
 
 def parse_line(line: str) -> dict | None:
@@ -185,13 +239,15 @@ def make_description(text: str, max_len: int = 180) -> str:
     return (sent[: max_len - 1] + "…") if len(sent) > max_len else sent
 
 
-def ai_classify_with_ollama(text: str, model: str) -> tuple[str, list[str]] | None:
+def ai_classify_with_ollama(text: str, model: str, title: str = "", description: str = "") -> dict | None:
     if not text.strip():
         return None
     prompt = (
-        "Du er en fagassistent. Les transkripsjonen under og svar KUN med gyldig JSON på formatet "
-        '{"description":"kort oppsummering (2-3 setninger)","themes":["tema1","tema2","tema3"]}. '
-        "Maks 6 tema.\n\n"
+        "Du er en fagassistent. Les transkripsjonen under og svar KUN med gyldig JSON pa formatet "
+        '{"description":"kort oppsummering (2-3 setninger)","themes":["tema1","tema2","tema3"],"group_title":"felles forelesningsnavn","part_label":"unik del eller suffix"}. '
+        "Maks 6 tema. Hvis flere videoer har nesten samme navn, for eksempel Del 1 og Del 2, q1ab og q1c, eller A og B, skal group_title beholde fellesnavnet og part_label bare inneholde den unike delen.\n\n"
+        f"Videotittel: {title}\n"
+        f"Eksisterende beskrivelse: {description}\n\n"
         f"Transkripsjon:\n{text[:7000]}"
     )
     payload = json.dumps({
@@ -214,9 +270,11 @@ def ai_classify_with_ollama(text: str, model: str) -> tuple[str, list[str]] | No
         parsed = json.loads(response_text)
         desc = str(parsed.get("description", "")).strip()
         themes = [str(x).strip() for x in parsed.get("themes", []) if str(x).strip()]
-        if not desc and not themes:
+        group_title = str(parsed.get("group_title", "")).strip()
+        part_label = str(parsed.get("part_label", "")).strip()
+        if not desc and not themes and not group_title and not part_label:
             return None
-        return desc, themes[:6]
+        return {"description": desc, "themes": themes[:6], "group_title": group_title, "part_label": part_label}
     except Exception:
         return None
 
@@ -236,35 +294,41 @@ def chunk_text(text: str, chunk_words: int = 900, overlap_words: int = 120, max_
     return chunks
 
 
-def ai_classify_long_text_with_ollama(text: str, model: str) -> tuple[str, list[str]] | None:
+def ai_classify_long_text_with_ollama(text: str, model: str, title: str = "", description: str = "") -> dict | None:
     chunks = chunk_text(text)
     if not chunks:
         return None
 
     all_desc: list[str] = []
     theme_counter: Counter[str] = Counter()
+    group_title = ""
+    part_label = ""
 
     for ch in chunks:
-        out = ai_classify_with_ollama(ch, model)
+        out = ai_classify_with_ollama(ch, model, title=title, description=description)
         if not out:
             continue
-        desc, themes = out
+        desc = out.get("description", "")
+        themes = out.get("themes", [])
         if desc:
             all_desc.append(desc.strip())
+        if not group_title:
+            group_title = str(out.get("group_title", "")).strip()
+        if not part_label:
+            part_label = str(out.get("part_label", "")).strip()
         for t in themes:
             if t:
                 theme_counter[t.strip().lower()] += 1
 
-    if not all_desc and not theme_counter:
+    if not all_desc and not theme_counter and not group_title and not part_label:
         return None
 
-    # Slå sammen et kort sammendrag fra de første chunk-oppsummeringene
     summary = " ".join(all_desc[:3]).strip()
     if len(summary) > 320:
-        summary = summary[:319] + "…"
+        summary = summary[:319] + "?"
 
     themes = [t for t, _ in theme_counter.most_common(6)]
-    return summary, themes
+    return {"description": summary, "themes": themes, "group_title": group_title, "part_label": part_label}
 
 
 def ollama_available() -> bool:
@@ -291,6 +355,8 @@ def enrich(
         url = item.get("url", "")
         description = item.get("description", "")
         themes = item.get("themes", []) or []
+        existing_group = item.get("group", "") or item.get("group_title", "") or ""
+        existing_part = item.get("part", "") or item.get("part_label", "") or ""
 
         if not description or not themes:
             with tempfile.TemporaryDirectory() as tmp:
@@ -313,7 +379,7 @@ def enrich(
             if txt:
                 ai_out = None
                 if ai_provider == "ollama":
-                    ai_out = ai_classify_long_text_with_ollama(txt, ollama_model)
+                    ai_out = ai_classify_long_text_with_ollama(txt, ollama_model, title=title, description=description)
                     if not ai_out:
                         print(
                             f"[WARN] Ollama klassifisering feilet for {url}. Faller tilbake til heuristikk.",
@@ -321,22 +387,41 @@ def enrich(
                         )
 
                 if ai_out:
-                    ai_desc, ai_themes = ai_out
+                    ai_desc = str(ai_out.get("description", "")).strip()
+                    ai_themes = ai_out.get("themes", []) or []
+                    ai_group = str(ai_out.get("group_title", "")).strip()
+                    ai_part = str(ai_out.get("part_label", "")).strip()
                     if not description:
                         description = ai_desc
                     if not themes:
                         themes = ai_themes
+                    if not existing_group:
+                        existing_group = ai_group
+                    if not existing_part:
+                        existing_part = ai_part
                 else:
                     if not description:
                         description = make_description(txt)
                     if not themes:
                         themes = extract_themes(txt)
 
+        if not themes:
+            fallback_text = " ".join(x for x in [title, description, existing_group, existing_part] if x).strip()
+            if fallback_text:
+                themes = extract_themes(fallback_text, k=4)
+        if not description:
+            fallback_text = " ".join(x for x in [title, existing_group, existing_part] if x).strip()
+            if fallback_text:
+                description = make_description(fallback_text)
+
+        group, part = derive_group_and_part(title, description, existing_group, existing_part)
         enriched.append({
             "title": title,
             "url": url,
             "description": description,
             "themes": themes,
+            "group": group,
+            "part": part,
         })
     return enriched
 

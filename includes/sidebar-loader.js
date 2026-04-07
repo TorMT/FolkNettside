@@ -568,12 +568,15 @@ function parseVideoListJson(text){
       const title = String(v.title || url).trim();
       const description = String(v.description || '').trim();
       const themes = Array.isArray(v.themes) ? v.themes.map(x => String(x).trim()).filter(Boolean) : [];
-      return { title, description, themes, url };
+      const group = String(v.group || v.group_title || '').trim();
+      const part = String(v.part || v.part_label || '').trim();
+      return { title, description, themes, group, part, url };
     }).filter(Boolean);
   }catch(e){
     return [];
   }
 }
+
 
 function isPotentialVideoListFile(url){
   const lower = String(url || '').toLowerCase().split('?')[0].split('#')[0];
@@ -590,21 +593,30 @@ function isPotentialVideoListFile(url){
 async function tryOpenVideoListFile(url){
   try{
     if (!isPotentialVideoListFile(url)) return false;
-    const res = await fetch(url, {cache: 'no-store'});
-    if (!res.ok) return false;
-    const text = await res.text();
     const lower = String(url || '').toLowerCase().split('?')[0].split('#')[0];
-    let items = [];
-    if (lower.endsWith('.json')) items = parseVideoListJson(text);
-    if (!items.length) items = parseVideoListText(text);
-    if (items.length < 1) return false;
-    const fileName = decodeURIComponent(String(url).split('/').pop().split('?')[0] || 'Videoer');
-    openVideoPlaylistInViewer({ title: fileName, items });
-    return true;
+    const fetchCandidates = [];
+    if (!lower.endsWith('.json')) fetchCandidates.push(String(url).replace(/\.[^.?#/]+(?=($|[?#]))/, '.json'));
+    fetchCandidates.push(url);
+
+    for (const candidate of Array.from(new Set(fetchCandidates))){
+      const res = await fetch(candidate, {cache: 'no-store'}).catch(() => null);
+      if (!res || !res.ok) continue;
+      const text = await res.text();
+      const candidateLower = String(candidate || '').toLowerCase().split('?')[0].split('#')[0];
+      let items = [];
+      if (candidateLower.endsWith('.json')) items = parseVideoListJson(text);
+      if (!items.length) items = parseVideoListText(text);
+      if (!items.length) continue;
+      const fileName = decodeURIComponent(String(url).split('/').pop().split('?')[0] || 'Videoer');
+      openVideoPlaylistInViewer({ title: fileName, items });
+      return true;
+    }
+    return false;
   }catch(e){
     return false;
   }
 }
+
 
 function openInViewer(url, kind){
   if (kind === 'video' || kind === 'youtube' || kind === 'panopto'){
@@ -824,7 +836,13 @@ function openFile(url){
   if (clean.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
   if (clean.endsWith('.py'))    return openInViewer(url, 'py');
   if (clean.endsWith('.stl')) return openInViewer(url, 'stl');
-  if (clean.endsWith('.html')) return openInViewer(url, 'html');
+  if (clean.endsWith('.html')) {
+    if (!/\/filer\//i.test(clean) || clean.endsWith('/index.html')) {
+      window.location.href = url;
+      return;
+    }
+    return openInViewer(url, 'html');
+  }
   if (clean.endsWith('.fbm')) return openInViewer(url, 'fbm');
   if (/\.(3mf|3fm|fm3)$/.test(clean)) return openInViewer(url, '3mf');
   if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|sat|smt|x_t|x_b|sldprt|sldasm)$/.test(clean)) return openInViewer(url, 'fusion');
@@ -859,29 +877,46 @@ async function autoFindQuizRel(courseDir){
 }
 
 /**************** 3) Navn + sort (UENDRET) *******************************/
+function repairMojibakeLabel(value){
+  return String(value || '')
+    .replace(/Ã˜/g, 'Ø')
+    .replace(/Ã¸/g, 'ø')
+    .replace(/Ã…/g, 'Å')
+    .replace(/Ã¥/g, 'å')
+    .replace(/Ã†/g, 'Æ')
+    .replace(/Ã¦/g, 'æ')
+    .replace(/â€“|â€”/g, ' - ')
+    .replace(/Â/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function displayName(key){
-  const m = key.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
+  const fixed = repairMojibakeLabel(key);
+  const m = fixed.match(/^\s*[Øøo]ving(?:er)?\s*0*(\d{1,3})\b/i);
   if (m)  return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
-  const m2 = key.match(/^oving(\d{1,3})$/i);
+  const m2 = fixed.match(/^oving(\d{1,3})$/i);
   if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
-  return key.replace(/\.[^/.]+$/, "");
+  return fixed.replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '').replace(/\.[^/.]+$/, '');
 }
 
 function sortSidebarKeys(data){
   const keys = Object.keys(data).filter(k => k !== 'welcome' && k !== 'quiz');
   const ovingNum = (k) => {
-    if (/^oving\d{2}$/i.test(k)) return parseInt(k.slice(5), 10);
-    const m = k.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
+    const fixed = repairMojibakeLabel(k);
+    if (/^oving\d{2}$/i.test(fixed)) return parseInt(fixed.slice(5), 10);
+    const m = fixed.match(/^\s*[Øøo]ving(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy   = k => /^pythonøving/i.test(k);
-  const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(k);
+  const isPy   = k => /^pythonøving/i.test(repairMojibakeLabel(k));
+  const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(k));
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
-  const py    = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>a.localeCompare(b,'nb'));
-  const other = keys.filter(k => !oving.includes(k) && !py.includes(k) && !isLock(k)).sort((a,b)=>a.localeCompare(b,'nb'));
-  const lock  = keys.filter(isLock).sort((a,b)=>a.localeCompare(b,'nb'));
+  const py    = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
+  const other = keys.filter(k => !oving.includes(k) && !py.includes(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
+  const lock  = keys.filter(isLock).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
   return [...oving, ...py, ...other, ...lock];
 }
+
+
 
 /**************** 4) NYTT: Nested flyout builder **************************/
 
@@ -1179,7 +1214,7 @@ async function initSidebar(){
   html += keys.map(key=>{
     const obj = data[key];
     const locked = !!(obj && obj.beskyttet);
-    const lock = locked ? '?? ' : '';
+    const lock = locked ? '&#128274; ' : '';
     let files = [];
     if (Array.isArray(obj)) files = obj;
     else if (obj?.files) files = obj.files;

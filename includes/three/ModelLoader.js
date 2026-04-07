@@ -77,30 +77,40 @@ export class ModelLoader {
       const group = new THREE.Group();
       let totalVolume = 0;
       const totalCentroid = new THREE.Vector3();
+      const normalizedComponents = [];
 
       for (const comp of components) {
-        if (!comp || !comp.geometry) {
+        const geometry = this._normalizeComponentGeometry(comp);
+        if (!geometry) {
           console.warn("[ModelLoader] Hopper over ugyldig komponent:", comp);
           continue;
         }
-        comp.geometry.computeVertexNormals();
-        comp.geometry.computeBoundingBox();
+        geometry.computeVertexNormals();
+        geometry.computeBoundingBox();
 
-        const compMesh = new THREE.Mesh(comp.geometry, null); // Material set below
-        compMesh.name = comp.name;
-        compMesh.userData.componentName = comp.name;
+        const compName = comp?.name || comp?.userData?.componentName || 'component';
+        const compMesh = new THREE.Mesh(geometry, null); // Material set below
+        compMesh.name = compName;
+        compMesh.userData.componentName = compName;
         group.add(compMesh);
 
         // Calculate component volume/centroid
-        const { volume, centroid } = this.computeVolumeAndCentroid(comp.geometry);
+        const { volume, centroid } = this.computeVolumeAndCentroid(geometry);
         totalVolume += volume;
         totalCentroid.addScaledVector(centroid, volume);
 
-        componentNames.push(comp.name);
+        componentNames.push(compName);
+        normalizedComponents.push({ ...comp, name: compName, geometry });
       }
 
       if (!group.children.length) {
         throw new Error("Fant ingen gyldig geometri i 3MF/Fusion-arkivet.");
+      }
+
+      const mergedGeometry = this._mergeComponentGeometries(normalizedComponents.map(c => c.geometry));
+      if (mergedGeometry) {
+        group.geometry = mergedGeometry;
+        group.userData.aggregateGeometry = mergedGeometry;
       }
 
       // Final centroid
@@ -114,7 +124,7 @@ export class ModelLoader {
       mesh.userData.componentNames = componentNames;
 
       // Material setup for group
-      const { material, meta } = this._buildMaterialForComponents(components);
+      const { material, meta } = this._buildMaterialForComponents(normalizedComponents);
       for (let i = 0; i < group.children.length; i++) {
         group.children[i].material = Array.isArray(material) ? material[i] : material;
       }
@@ -172,6 +182,45 @@ export class ModelLoader {
       console.warn("[ModelLoader] 3MF-parse feilet, prøver Fusion-arkiv:", err3mf);
       return this.fusionLoader.load(url);
     }
+  }
+
+  _normalizeComponentGeometry(comp) {
+    const candidate = comp?.geometry || comp;
+    if (!candidate) return null;
+    if (candidate.isBufferGeometry) return candidate;
+    if (candidate.geometry?.isBufferGeometry) return candidate.geometry;
+    return null;
+  }
+
+  _mergeComponentGeometries(geometries) {
+    const valid = (geometries || []).filter(g => g && typeof g.getAttribute === "function");
+    if (!valid.length) return null;
+
+    const nonIndexed = valid.map(g => {
+      const clone = g.clone();
+      return clone.index ? clone.toNonIndexed() : clone;
+    });
+
+    const totalFloats = nonIndexed.reduce((sum, g) => {
+      const pos = g.getAttribute('position');
+      return sum + ((pos && pos.array) ? pos.array.length : 0);
+    }, 0);
+    if (!totalFloats) return null;
+
+    const mergedPositions = new Float32Array(totalFloats);
+    let offset = 0;
+    for (const g of nonIndexed) {
+      const pos = g.getAttribute('position');
+      if (!pos || !pos.array) continue;
+      mergedPositions.set(pos.array, offset);
+      offset += pos.array.length;
+    }
+
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.BufferAttribute(mergedPositions, 3));
+    merged.computeVertexNormals();
+    merged.computeBoundingBox();
+    return merged;
   }
 
   // ------------------------------------------------------------

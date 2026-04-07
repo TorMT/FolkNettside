@@ -30,9 +30,9 @@ except ModuleNotFoundError:
     tqdm = None  # type: ignore
 
 # Pre-compiled regex patterns for bedre ytelse
-OVING_RE     = re.compile(r"^(?:?ving|oving)0*(\d+)$", re.IGNORECASE)
+OVING_RE     = re.compile(r"^(?:\u00f8ving|oving|ving)0*(\d+)$", re.IGNORECASE)
 OVING_KEY    = re.compile(r"^oving(\d{2})$", re.IGNORECASE)
-CLEAN_RE     = re.compile(r"^[^0-9A-Za-z??????]+")
+CLEAN_RE     = re.compile(r"^[^0-9A-Za-z\u00c6\u00d8\u00c5\u00e6\u00f8\u00e5]+")
 BESKYTTET_RE = re.compile(r"beskyttet|hemmelig", re.IGNORECASE)
 
 # âœ… Endring: lagt til ".html"
@@ -71,20 +71,56 @@ def format_path(path: Path) -> str:
     return format_path_cached(str(path))
 
 @lru_cache(maxsize=512)
+@lru_cache(maxsize=512)
+def repair_mojibake(text: str) -> str:
+    s = str(text or "")
+    replacements = {
+        "\u00c3\u02dc": "\u00d8",
+        "\u00c3\u00b8": "\u00f8",
+        "\u00c3\u2026": "\u00c5",
+        "\u00c3\u00a5": "\u00e5",
+        "\u00c3\u2020": "\u00c6",
+        "\u00c3\u00a6": "\u00e6",
+        "\u00e2\u20ac\u201c": "-",
+        "\u00e2\u20ac\u201d": "-",
+        "\u00c2": "",
+    }
+    for bad, good in replacements.items():
+        s = s.replace(bad.encode("utf-8").decode("unicode_escape"), good.encode("utf-8").decode("unicode_escape"))
+    return s
+
+@lru_cache(maxsize=512)
 def clean_name(name: str) -> str:
-    return CLEAN_RE.sub("", name)
+    return CLEAN_RE.sub("", repair_mojibake(name)).strip()
 
 @lru_cache(maxsize=512)
 def clean_beskyttet(name: str) -> str:
-    return name.replace("(beskyttet)", "").replace("hemmelig", "").strip()
+    fixed = repair_mojibake(name)
+    return fixed.replace("(beskyttet)", "").replace("(Beskyttet)", "").replace("hemmelig", "").strip()
 
 @lru_cache(maxsize=512)
 def is_beskyttet(key: str) -> bool:
-    return BESKYTTET_RE.search(key) is not None
+    return BESKYTTET_RE.search(repair_mojibake(key)) is not None
 
 @lru_cache(maxsize=256)
 def is_python_oving(key: str) -> bool:
-    return key.lower().startswith("pythonÃ¸ving")
+    return repair_mojibake(key).lower().startswith("python\u00f8ving".encode("utf-8").decode("unicode_escape"))
+
+def make_oving_key(raw: str) -> str:
+    fixed = clean_name(raw)
+    candidates = [fixed]
+    try:
+        stem = Path(fixed).stem
+        if stem not in candidates:
+            candidates.append(stem)
+    except Exception:
+        pass
+    for candidate in candidates:
+        m = OVING_RE.match(candidate)
+        if m:
+            return f"oving{int(m.group(1)):02d}"
+    return fixed
+
 
 def should_use_as_welcome(name: str, is_file: bool) -> bool:
     if not is_file:
@@ -595,8 +631,7 @@ def update_directory(
         raw = clean_name(cleaned)
 
         if is_dir:
-            m = OVING_RE.match(raw)
-            key = f"oving{int(m.group(1)):02d}" if m else raw
+            key = make_oving_key(raw)
             subdirs_to_process.append((name, raw, key))
         elif is_file:
             name_lower = name.lower()
@@ -607,8 +642,7 @@ def update_directory(
                 if name_lower == "index.html":
                     continue
 
-                m = OVING_RE.match(raw)
-                key = f"oving{int(m.group(1)):02d}" if m else raw
+                key = make_oving_key(raw)
                 if key not in index:
                     index[key] = {"beskyttet": beskyttet, "files": []}
 
