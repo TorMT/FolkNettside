@@ -43,7 +43,7 @@ export class ModelLoader {
 
     // Detect file type from URL extension (ignorer query/hash)
     const cleanUrl = String(url).split('?')[0].split('#')[0].toLowerCase();
-    const is3MF = cleanUrl.endsWith('.3mf');
+    const is3MF = cleanUrl.endsWith('.3mf') || cleanUrl.endsWith('.3fm');
     const is3FZ = cleanUrl.endsWith('.3fz');
     console.info("[ModelLoader] Filtypedeteksjon:", { cleanUrl, is3MF, is3FZ });
     const loader = is3MF ? this.threeMFLoader : (is3FZ ? this.fusionLoader : this.stlLoader);
