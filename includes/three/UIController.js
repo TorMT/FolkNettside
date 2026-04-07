@@ -163,6 +163,19 @@ export class UIController {
       chipView: "chipView",
       chipExport: "chipExport",
       chipHydro: "chipHydro",
+
+      // Navier-style additions
+      btnHideShowTools: "btnHideShowTools",
+      btnHideShowInfo: "btnHideShowInfo",
+      btnResetCamera: "btnResetCamera",
+      btnResetColors: "btnResetColors",
+      selComponent: "selComponent",
+      componentSidebar: "componentSidebar",
+      infoPanel: "infoPanel",
+      componentList: "componentList",
+      infoContent: "infoContent",
+      txtGMTransverse: "txtGMTransverse",
+      txtGMLongitudinal: "txtGMLongitudinal",
     };
     Object.entries(IDS).forEach(([k, id]) => (this.el[k] = document.getElementById(id)));
 
@@ -192,6 +205,7 @@ export class UIController {
     this._wireMeasure();
     this._wireUnits();
     this._wireHydro();
+    this._bindNavierUI();
 
     // Align-knapper (krever geometry etter load; selve click-binding her)
     this._wireAlign();
@@ -219,6 +233,7 @@ export class UIController {
     this.hydro.initDraftAtBottom();
     this._updateDraftText(this.hydro.draftZWorld);
     this._updateHydroUI();
+    this._updateGMUI();
 
     // Clipper
     this.clipper.setMesh(mesh);
@@ -570,6 +585,13 @@ export class UIController {
     }
 
     if (this.el.txtHydroStatus) this.el.txtHydroStatus.textContent = this.hydro.isBusy() ? "beregner…" : "ok";
+    this._updateGMUI();
+  }
+
+  _updateGMUI() {
+    const gm = this.hydro?.getSimplifiedGM();
+    if (this.el.txtGMTransverse) this.el.txtGMTransverse.value = gm?.transverse?.toFixed(2) || "";
+    if (this.el.txtGMLongitudinal) this.el.txtGMLongitudinal.value = gm?.longitudinal?.toFixed(2) || "";
   }
 
   // ---------- Align ----------
@@ -631,6 +653,65 @@ export class UIController {
     this.core.baseAlign.getWorldQuaternion(qNow);
     const qApply = qRot.clone().multiply(qNow);
     this._applyAlignQuaternion(qApply);
+  }
+
+  // ---------- Navier UI ---------- 
+
+  _bindNavierUI() {
+    const el = this.el;
+
+    // Hide/Show Tools (toggle sidebar)
+    el.btnHideShowTools?.addEventListener("click", () => {
+      el.componentSidebar?.classList.toggle("hidden");
+    });
+
+    // Hide/Show Info
+    el.btnHideShowInfo?.addEventListener("click", () => {
+      el.infoPanel?.classList.toggle("hidden");
+    });
+
+    // Reset Camera
+    el.btnResetCamera?.addEventListener("click", () => {
+      this.core.controls?.reset();
+      this.core.fitToModel();
+    });
+
+    // Reset Colors
+    el.btnResetColors?.addEventListener("click", () => {
+      if (this.core.mesh) {
+        this.core.mesh.material.color.set(0xffffff);
+        this.core.mesh.material.needsUpdate = true;
+      }
+    });
+
+    // Component Selection
+    el.selComponent?.addEventListener("change", (e) => {
+      const comp = e.target.value;
+      this.hydro?.highlightComponent(comp);
+      this._updateInfoPanel(comp);
+    });
+
+    // Component List Clicks
+    el.componentList?.addEventListener("click", (e) => {
+      if (e.target.tagName === "LI") {
+        const comp = e.target.dataset.comp;
+        this.hydro?.highlightComponent(comp);
+        this._updateInfoPanel(comp);
+      }
+    });
+  }
+
+  _updateInfoPanel(comp) {
+    const content = this.el.infoContent;
+    if (!content) return;
+    const hydro = this.hydro?.lastHydro;
+    const gm = this.hydro?.getSimplifiedGM();
+    content.innerHTML = `
+      <strong>${comp || "General"}</strong><br>
+      SubV: ${hydro?.subV?.toFixed(2) || "N/A"}<br>
+      GM Transverse: ${gm?.transverse?.toFixed(2) || "N/A"}<br>
+      GM Longitudinal: ${gm?.longitudinal?.toFixed(2) || "N/A"}
+    `;
   }
 
   // ---------- Export / Snapshot / Download ----------

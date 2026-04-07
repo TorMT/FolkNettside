@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>F3D Viewer</title>
+
+  <style>
+    :root{
+      --bg-main: var(--bg, #ffffff);
+      --bg-card: var(--card-bg, #f7f8fb);
+      --text-main: var(--text, #111827);
+      --text-muted: rgba(17,24,39,.60);
+      --border-color: rgba(17,24,39,.14);
+      --primary: var(--theme-accent, var(--accent, #2f6fed));
+      --primary-contrast: #fff;
+      --shadow: 0 12px 26px -14px rgba(0,0,0,.35);
+      --shadow-soft: 0 8px 18px -12px rgba(0,0,0,.25);
+      --radius: 16px;
+      --radius-sm: 12px;
+    }
+
+    html,body{
+      margin:0; padding:0; height:100%; overflow:hidden;
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: system-ui, Segoe UI, Arial;
+    }
+
+    iframe{
+      width:100%; height:100%; border:none;
+    }
+
+    #hud{
+      position:fixed; left:12px; top:12px; z-index:80;
+      background: var(--bg-card);
+      border:1px solid var(--border-color);
+      box-shadow: var(--shadow-soft);
+      padding:10px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      line-height: 1.35;
+      max-width: min(980px, 92vw);
+    }
+    #hud small{ color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <strong>F3D Viewer</strong><br>
+    <small>Fast 3D viewer for various formats using F3D Web</small>
+  </div>
+
+  <iframe src="https://f3d.app/viewer/" onload="handleLoad()"></iframe>
+
+  <script>
+    function handleLoad() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const fileParam = urlParams.get('file');
+      if (fileParam) {
+        // Try to load the file in the iframe
+        // Note: This may not work due to CORS, but F3D viewer supports URL loading
+        const iframe = document.querySelector('iframe');
+        // F3D viewer might support ?url= parameter
+        iframe.src = `https://f3d.app/viewer/?url=${encodeURIComponent(fileParam)}`;
+      }
+    }
+  </script>
+</body>
+</html>

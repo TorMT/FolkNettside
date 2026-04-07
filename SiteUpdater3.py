@@ -19,7 +19,7 @@ Tilpasninger:
 """
 
 from __future__ import annotations
-import argparse, json, re, os, hashlib, urllib.request
+import argparse, json, re, os, hashlib, subprocess, sys
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 from functools import lru_cache
@@ -40,7 +40,7 @@ ALLOWED_EXT = {
     ".py", ".pdf", ".ipynb",
     ".mp4", ".webm", ".ogg", ".mov", ".m4v",
     ".url", ".webloc",
-    ".html", ".stl", ".fbm"
+    ".html", ".stl", ".fbm", ".3mf", ".3fz"
 }
 # Standard mapper vi alltid ignorerer (case-insensitiv)
 DEFAULT_BLACKLIST = {"node_modules", ".git", "__pycache__", "venv", ".venv"}
@@ -697,11 +697,12 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--only", "-o", action="store_true", help="Oppdater KUN denne mappen (ikke undermapper).")
     parser.add_argument("--shallow", "-s", action="store_true", help="Oppdater denne mappen og ett nivå ned.")
     parser.add_argument("--blacklist", help="Komma-separert liste av mappe-navn å blacklist'e i alle mapper (påvirker ikke vedvarende indeks).", default="")
-    parser.add_argument("--sync-andrekok", action="store_true", help="Synk AndreKok-liste fra ekstern script.js og legg bare til nye lenker.")
-    parser.add_argument("--sync-only", action="store_true", help="Kjør kun synk-kommandoer (unngå vanlig index-oppdatering).")
-    parser.add_argument("--andrekok-target", type=Path, default=Path("data/andrekok-links.json"), help="JSON-fil for lokal AndreKok-liste (default: data/andrekok-links.json)")
-    parser.add_argument("--andrekok-source", default=DEFAULT_ANDREKOK_SOURCE, help=f"Kilde til script.js (default: {DEFAULT_ANDREKOK_SOURCE})")
-    parser.add_argument("--andrekok-studiet", default=DEFAULT_ANDREKOK_STUDIET, help=f"Studiet som settes på hentede entries (default: {DEFAULT_ANDREKOK_STUDIET})")
+    parser.add_argument("--enrich-video-lists", action="store_true", help="Kjør video_topic_enricher.py på videolistefiler etter index-oppdatering.")
+    parser.add_argument("--enrich-ai-provider", choices=["heuristic", "ollama"], default="heuristic", help="AI-provider for enrich-trinn.")
+    parser.add_argument("--enrich-cookies", default=None, help="Cookies-fil for enrich (Panopto/innlogging).")
+    parser.add_argument("--enrich-cookies-from-browser", default=None, help="Cookies fra nettleser (f.eks. chrome).")
+    parser.add_argument("--enrich-transcribe-with-whisper", action="store_true", help="Bruk whisper-fallback når undertekster mangler.")
+    parser.add_argument("--enrich-force", action="store_true", help="Tving enrich selv om output ser oppdatert ut.")
     args = parser.parse_args(argv)
 
     root = args.root.resolve()
@@ -738,16 +739,64 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Parse global CLI blacklist (ikke persistert med mindre du legger det i index.json selv)
     global_blacklist = set(n.strip() for n in args.blacklist.split(",") if n.strip()) if args.blacklist else set()
 
-    if args.sync_only:
-        print("Hopper over vanlig index-oppdatering (--sync-only).")
-    else:
-        update_directory(root, use_prog, include_quiz=not args.no_quiz, max_depth=max_depth, global_blacklist=global_blacklist)
-    if args.sync_andrekok:
-        target = (root / args.andrekok_target).resolve() if not args.andrekok_target.is_absolute() else args.andrekok_target
-        try:
-            sync_andrekok_links(target_file=target, source_url=args.andrekok_source, studiet_default=args.andrekok_studiet)
-        except Exception as e:
-            print(f"[andrekok] FEIL under synk: {e}")
+    update_directory(root, use_prog, include_quiz=not args.no_quiz, max_depth=max_depth, global_blacklist=global_blacklist)
+
+    if args.enrich_video_lists:
+        base = Path(__file__).resolve().parent
+        enricher = base / "scripts" / "video_topic_enricher.py"
+        if not enricher.exists():
+            print(f"[WARN] Fant ikke enrich-script: {enricher}")
+        else:
+            enrich_total = 0
+            enrich_run = 0
+            enrich_skip = 0
+            enrich_fail = 0
+            candidates: List[Path] = []
+            for ext in ("*.txt", "*.md", "*.list", "*.links", "*.csv"):
+                candidates.extend(root.rglob(ext))
+            for p in sorted(set(candidates)):
+                try:
+                    txt = p.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    continue
+                if not re.search(r"https?://", txt, re.IGNORECASE):
+                    continue
+                enrich_total += 1
+                out_json = p.with_suffix(".json")
+                if not args.enrich_force and out_json.exists():
+                    try:
+                        src_mtime = p.stat().st_mtime
+                        out_mtime = out_json.stat().st_mtime
+                        if out_mtime >= src_mtime:
+                            print(f"[ENRICH][SKIP] {format_path(p)} (ingen nye endringer)")
+                            enrich_skip += 1
+                            continue
+                    except OSError:
+                        pass
+                cmd = [
+                    sys.executable,
+                    str(enricher),
+                    "--input", str(p),
+                    "--output", str(out_json),
+                    "--ai-provider", args.enrich_ai_provider,
+                ]
+                if args.enrich_cookies:
+                    cmd.extend(["--cookies", args.enrich_cookies])
+                if args.enrich_cookies_from_browser:
+                    cmd.extend(["--cookies-from-browser", args.enrich_cookies_from_browser])
+                if args.enrich_transcribe_with_whisper:
+                    cmd.append("--transcribe-with-whisper")
+                print(f"[ENRICH] {format_path(p)} -> {format_path(out_json)}")
+                result = subprocess.run(cmd, check=False)
+                enrich_run += 1
+                if result.returncode != 0:
+                    enrich_fail += 1
+
+            print(
+                f"[ENRICH][SUMMARY] kandidater={enrich_total}, kjørt={enrich_run}, "
+                f"skippet={enrich_skip}, feilet={enrich_fail}"
+            )
+
     print("Ferdig oppdatert")
 
 if __name__ == "__main__":

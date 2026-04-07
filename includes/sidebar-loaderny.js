@@ -1,288 +1,781 @@
-/**
- * Konverterer YouTube URL til embed format
- * @param {string} url - Original YouTube URL
- * @returns {string|null} Embed URL eller null hvis ikke YouTube
- */
-function toYouTubeEmbed(url) {
-  try {
-    const urlString = String(url || '').trim();
+/* --------------------------------------------------------------------
+   FolkNettsideFolk – sidebar-loader.js  v11.15.2
+   --------------------------------------------------------------------
+   FIKSET: Fil ikoner og CSS/JS-blanding
+   
+   • Riktig rekkefølge: ØvingXX → PythonØving… → andre → beskyttet
+   • PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
+   • pyview/nbview/codeview bruker ?file= …
+   • Skjuler beskyttet flyout/innhold til passord er godkjent
+   • Quiz-knapp rendrer i innholdet (auto-finner quiz.json + fikser bildepaths)
+   • Tittel/innhold havner ikke under sidebaren
+   • Robust JSON-innlasting (stripper BOM, viser feilsnutt ved HTML/404, osv.)
+   • Nested flyouts: Filer med "/" i navnet (f.eks. "DelA/fil.pdf") får nested flyout
+   • BUGFIX v11.15.2:
+     – Fikset CSS/JS-blanding som ødela fil-ikoner
+     – Alle ikoner fungerer nå korrekt
+     – Bedre struktur i CSS-injeksjon
+-------------------------------------------------------------------- */
+
+/**************** 1) Dynamisk CSS ****************************************/
+(function () {
+  const id = 'folknettside-css-v11152';
+  if (document.getElementById(id)) return;
+
+  const css = `
+    :root{ 
+      --nav-h:48px; 
+      --side-w:198px; 
+      --gap:28px; 
+      --pad-left:calc(var(--side-w) + var(--gap));
+      --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    }
     
-    // youtu.be/<id>
-    let match = urlString.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
-    if (match) return 'https://www.youtube.com/embed/' + match[1] + '?rel=0';
+    html,body{ margin:0;padding:0;height:100%; font-family:sans-serif;background:#555; overflow-y:scroll;overflow-x:hidden; }
+    body{display:flex;flex-direction:column;min-height:100vh;}
+
+    /* ---------- SIDEBAR ---------- */
+    .sidebar{ 
+      position:fixed;
+      top:var(--nav-h);
+      left:0; 
+      width:var(--side-w);
+      height:calc(100vh - var(--nav-h)); 
+      background:var(--sidebar-bg, #004f9f);
+      color:var(--sidebar-text, #fff);
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+      -ms-overflow-style:-ms-autohiding-scrollbar;
+      overscroll-behavior:auto;
+      z-index:1000;
+      padding-bottom:calc(3.5rem + var(--safe-area-bottom));
+      scroll-padding-bottom:calc(3.5rem + var(--safe-area-bottom));
+    }
     
-    // youtube.com/watch?v=<id>
-    match = urlString.match(/[?&]v=([-_0-9A-Za-z]+)/i);
-    if (match) return 'https://www.youtube.com/embed/' + match[1] + '?rel=0';
+    .sidebar h3{margin:0 0 0.25rem 0.75rem;font-size:1.75rem;}
+    .dropdown-oving{position:relative;width:100%;}
+    .dropdown-btn{ 
+      width:100%;
+      padding:0.6rem 1rem 0.6rem 1.25rem;
+      background:none;
+      border:none;
+      color:var(--sidebar-text, #fff);
+      font-weight:600;
+      text-align:left;
+      cursor:pointer; 
+    }
+    .dropdown-btn:hover{background:var(--sidebar-hover, rgba(255,255,255,0.14));}
+    .dropdown-oving.active>.dropdown-btn{background:var(--sidebar-active, #2e5e96);}
     
-    // youtube.com/embed/<id> (already embedded)
-    match = urlString.match(/youtube\.com\/embed\/([-_0-9A-Za-z]+)/i);
-    if (match) return 'https://www.youtube.com/embed/' + match[1] + '?rel=0';
+    /* DESKTOP FLYOUT STYLING */
+    @media(min-width:769px){
+      .sidebar .dropdown-content{ 
+        position:fixed;
+        left:var(--side-w); 
+        top:calc(var(--nav-h) - 6px);
+        width:260px;
+        display:none;
+        background:var(--sidebar-bg, #004f9f);
+        color:var(--sidebar-text, #fff);
+        box-shadow:0 2px 8px rgba(0,0,0,.15);
+        z-index:1100;
+        opacity:1;
+        transition:opacity 0.1s ease;
+        max-height:calc(100vh - var(--nav-h) - 20px);
+        overflow-y:auto;
+        overflow-x:hidden;
+        -webkit-overflow-scrolling:touch;
+      }
+      
+      .sidebar .dropdown-content::-webkit-scrollbar {
+        width:8px;
+      }
+      
+      .sidebar .dropdown-content::-webkit-scrollbar-track {
+        background:rgba(255, 255, 255, 0.1);
+        border-radius:4px;
+      }
+      
+      .sidebar .dropdown-content::-webkit-scrollbar-thumb {
+        background:rgba(255, 255, 255, 0.3);
+        border-radius:4px;
+      }
+      
+      .sidebar .dropdown-content::-webkit-scrollbar-thumb:hover {
+        background:rgba(255, 255, 255, 0.5); 
+      }
+      
+      .sidebar .dropdown-content a,
+      .nested-flyout a{ 
+        display:flex;
+        align-items:center;
+        padding:0.5rem 1rem;
+        color:var(--sidebar-text, #fff);
+        text-decoration:none;
+        transition:background 0.15s;
+      }
+      
+      .sidebar .dropdown-content a:hover,
+      .nested-flyout a:hover{
+        background:var(--sidebar-hover, rgba(255,255,255,0.12));
+      }
+      
+      .nested-flyout{
+        position:fixed;
+        width:260px;
+        display:none;
+        background:var(--sidebar-bg, #004f9f);
+        color:var(--sidebar-text, #fff);
+        box-shadow:0 2px 8px rgba(0,0,0,.15);
+        z-index:2000;
+        opacity:0;
+        transition:opacity 0.1s ease;
+        max-height:calc(100vh - var(--nav-h) - 20px);
+        overflow-y:auto;
+        overflow-x:hidden;
+        -webkit-overflow-scrolling:touch;
+      }
+      
+      .nested-flyout::-webkit-scrollbar {
+        width:8px;
+      }
+      
+      .nested-flyout::-webkit-scrollbar-track {
+        background:rgba(255, 255, 255, 0.1);
+        border-radius:4px;
+      }
+      
+      .nested-flyout::-webkit-scrollbar-thumb {
+        background:rgba(255, 255, 255, 0.3);
+        border-radius:4px;
+      }
+      
+      .nested-flyout::-webkit-scrollbar-thumb:hover {
+        background:rgba(255, 255, 255, 0.5);
+      }
+      
+      .nested-folder-item{
+        position:relative;
+        display:flex;
+        align-items:center;
+        padding:0.5rem 1rem;
+        cursor:pointer;
+        transition:background 0.15s;
+      }
+      
+      .nested-folder-item:hover{
+        background:var(--sidebar-hover, rgba(255,255,255,0.12));
+      }
+      
+      .nested-folder-item::after{ 
+        content:'▸';
+        position:absolute;
+        right:8px;
+        font-size:1.1em; 
+      }
+    }
+
+    /* ---------- INNHOLD ---------- */
+    .wrapper{ 
+      margin-left:var(--pad-left)!important;
+      width:calc(100% - var(--pad-left))!important;
+      padding-top:calc(var(--nav-h) - 12px);
+      display:flex;
+      flex:1 1 auto;
+      background:#fff;
+      box-sizing:border-box;
+      position:relative;
+      z-index:0; 
+    }
     
+    .content{ 
+      flex:1 1 auto;
+      overflow:visible;
+      padding:0 1rem 0 var(--gap);
+      box-sizing:border-box;
+      position:relative;
+      background:#fff; 
+    }
+    
+    .content h1{margin:1rem 0 0.5rem 0;color:#004f9f;cursor:pointer;}
+    .course-description{margin:0 0 1rem 0;max-width:42rem;line-height:1.5;}
+
+    /* ---------- VIEWER/QUIZ ---------- */
+    #pdf-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);overflow:auto;}
+    #media-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);overflow:auto;}
+    #media-viewer{width:100%;height:100%;border:none;background:#000}
+    
+    .file-icon{
+      display:inline-flex;
+      width:20px;
+      height:14px;
+      margin-right:10px;
+      align-items:center;
+      justify-content:center;
+      vertical-align:middle;
+      flex:0 0 20px;
+      overflow:hidden;
+    }
+    
+    .file-icon svg{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+    
+    .file-label{
+      display:block;
+      flex:1;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    
+    .dropdown-content a .file-icon,
+    .nested-flyout a .file-icon,
+    .nested-folder-item .file-icon{
+      margin-right:10px;
+    }
+    
+    #pdf-viewer{width:100%;height:100%;border:none;}
+    #quiz-container{margin-top:0.75rem;}
+
+    #pdf-viewer-resize{
+      display:none; 
+      height:10px; 
+      cursor:ns-resize;
+      background:repeating-linear-gradient(90deg,#e5e5e5 0 16px,#d4d4d4 16px 32px);
+      border:1px solid #cfcfcf; 
+      border-top:none; 
+      opacity:.8; 
+      user-select:none;
+    }
+
+    .msg{ 
+      background:#fdecec;
+      color:#932323;
+      border:1px solid #f2bbbb;
+      padding:.6rem .8rem;
+      border-radius:6px;
+      max-width:56rem;
+      line-height:1.4;
+      font-size:.95rem;
+      margin:.75rem 0; 
+    }
+    
+    .file-label.watched::before{
+      content:"✓ ";
+      color:#8BC34A;
+      margin-right:6px;
+      font-weight:700;
+    }
+    
+    .nested-folder-item.watched>.file-label::after{
+      content:" ✓";
+      color:#8BC34A;
+      margin-left:6px;
+    }
+  `;
+  
+  const st = document.createElement('style');
+  st.id = id;
+  st.textContent = css;
+  document.head.appendChild(st);
+})();
+
+/**************** 2) Utils (UENDRET fra v11.11.0) ************************/
+const BESKYTTET_HASH = '818728143377c056986a23cbcdb765add0aa174625da9c5afc34b8b9ef712500';
+
+function isOk() { return sessionStorage.getItem('beskyttet_ok') === '1'; }
+
+async function sha256Hex(str){
+  const enc = new TextEncoder();
+  const data = enc.encode(String(str));
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const bytes = Array.from(new Uint8Array(hash));
+  return bytes.map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function askPass(){
+  if (isOk()) return true;
+  const p = prompt('Dette dokumentet er beskyttet. Skriv inn passord:');
+  if (!p) return false;
+  try{
+    const h = await sha256Hex(p);
+    if (h === BESKYTTET_HASH){
+      sessionStorage.setItem('beskyttet_ok','1');
+      return true;
+    }
+  }catch(e){ }
+  alert('Feil passord!');
+  return false;
+}
+
+function getCourseDir(){ return location.pathname.replace(/\/index\.html?$/,'/'); }
+function isMobileViewport(){ return window.matchMedia('(max-width: 1024px)').matches; }
+function encodePathSegments(rel){ return rel.split('/').map(s => encodeURIComponent(s)).join('/'); }
+function toAbsUrl(rel, baseDir){
+  const s = String(rel||'');
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith('/')) return new URL(s, location.origin).href;
+  const encoded = encodePathSegments(s.replace(/\\/g,'/'));
+  return new URL(encoded, location.origin + baseDir).href;
+}
+
+function setupResize(bar, box){
+  let startY=0, startH=0, dragging=false;
+  const key = 'viewerH:'+getCourseDir();
+
+  const onMove = (e)=>{
+    if (!dragging) return;
+    const dy = (e.clientY || e.touches?.[0]?.clientY) - startY;
+    let h = Math.max(280, startH + dy);
+    const maxH = Math.max(window.innerHeight*2, 800);
+    h = Math.min(h, maxH);
+    box.style.height = h+'px';
+  };
+  const onUp = ()=>{
+    if (!dragging) return;
+    dragging=false;
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',onUp);
+    document.removeEventListener('touchmove',onMove);
+    document.removeEventListener('touchend',onUp);
+    try{
+      const h = Math.round(box.getBoundingClientRect().height);
+      localStorage.setItem(key, String(h));
+    }catch{}
+  };
+  const onDown = (e)=>{
+    e.preventDefault();
+    startY = (e.clientY || e.touches?.[0]?.clientY);
+    startH = box.getBoundingClientRect().height;
+    dragging=true;
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
+    document.addEventListener('touchmove',onMove,{passive:false});
+    document.addEventListener('touchend',onUp);
+  };
+  bar.addEventListener('mousedown', onDown);
+  bar.addEventListener('touchstart', onDown, {passive:false});
+}
+
+function ensureViewer(){
+  const c = document.querySelector('.content');
+  let box = document.getElementById('pdf-viewer-container');
+  if(!box){
+    box = document.createElement('div'); box.id='pdf-viewer-container';
+    const f = document.createElement('object'); f.id='pdf-viewer'; f.type='application/pdf';
+    box.appendChild(f); c.appendChild(box);
+  }
+
+  let bar = document.getElementById('pdf-viewer-resize');
+  if(!bar){
+    bar = document.createElement('div'); bar.id='pdf-viewer-resize';
+    c.appendChild(bar);
+    setupResize(bar, box);
+  }
+  try{
+    const key = 'viewerH:'+getCourseDir();
+    const saved = localStorage.getItem(key);
+    if (saved && /^\d+$/.test(saved)) box.style.height = saved+'px';
+  }catch{}
+
+  return {box, frame: box.firstElementChild};
+}
+
+function replaceViewerFrame(tag){
+  const box = document.getElementById('pdf-viewer-container');
+  if (!box) return null;
+
+  const current = box.firstElementChild;
+  if (current && current.tagName.toLowerCase() === tag) return current;
+
+  const next = document.createElement(tag);
+  next.id = 'pdf-viewer';
+  next.style.width = '100%';
+  next.style.height = '100%';
+  next.style.border = 'none';
+
+  if (tag === 'iframe'){
+    next.setAttribute('loading', 'lazy');
+    next.setAttribute('allow', 'fullscreen');
+    next.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+  } else {
+    next.type = 'application/pdf';
+  }
+
+  if (current) current.replaceWith(next);
+  else box.appendChild(next);
+
+  return next;
+}
+
+function ensureMediaViewer(){
+  const c = document.querySelector('.content');
+  let box = document.getElementById('media-viewer-container');
+  if(!box){
+    box = document.createElement('div'); box.id='media-viewer-container';
+    const holder = document.createElement('div'); holder.id='media-viewer'; holder.style.width='100%'; holder.style.height='100%';
+    box.appendChild(holder); c.appendChild(box);
+  }
+  return {box, holder: document.getElementById('media-viewer')};
+}
+
+function _videoKey(url){ try{ return 'videoPos:'+encodeURIComponent(String(url)); }catch(e){ return 'videoPos:'+String(url); } }
+function _watchedKey(url){ try{ return 'videoWatched:'+encodeURIComponent(String(url)); }catch(e){ return 'videoWatched:'+String(url); } }
+function saveVideoPos(url, seconds){ try{ localStorage.setItem(_videoKey(url), String(Math.floor(seconds||0))); }catch{} }
+function loadVideoPos(url){ try{ const v=localStorage.getItem(_videoKey(url)); return v?parseInt(v,10):0; }catch{return 0} }
+function markVideoWatched(url){ try{ localStorage.setItem(_watchedKey(url),'1'); }catch{} refreshWatchedStatus(); }
+function isVideoWatched(url){ try{ return localStorage.getItem(_watchedKey(url))==='1'; }catch{return false} }
+
+function refreshWatchedStatus(){ 
+  try{ 
+    document.querySelectorAll('#sidebar .dropdown-content a, .nested-flyout a').forEach(a=>{ 
+      const href=a.getAttribute('href')||''; 
+      if (!href) return; 
+      try{ 
+        const u=new URL(href, location.origin); 
+        const key = u.href; 
+        if (isVideoWatched(key)) a.querySelector('.file-label')?.classList.add('watched'); 
+        else a.querySelector('.file-label')?.classList.remove('watched'); 
+      }catch(e){ } 
+    });
+    
+    document.querySelectorAll('.nested-folder-item').forEach(folderItem=>{
+      const links = folderItem.querySelectorAll('.nested-flyout a'); 
+      if (!links.length) return; 
+      let all=true; 
+      links.forEach(l=>{ 
+        const href=l.getAttribute('href')||''; 
+        try{ 
+          const u=new URL(href, location.origin); 
+          if (!isVideoWatched(u.href)) all=false; 
+        }catch(e){ all=false; } 
+      }); 
+      if (all) folderItem.classList.add('watched'); 
+      else folderItem.classList.remove('watched');
+    }); 
+  }catch(e){} 
+}
+
+const _ytApiState = {loaded:false,callbacks:[]};
+function ensureYouTubeAPI(cb){ 
+  if (_ytApiState.loaded) return cb && cb(); 
+  if (window.YT && window.YT.Player){ 
+    _ytApiState.loaded=true; 
+    if (cb) cb(); 
+    return; 
+  } 
+  _ytApiState.callbacks.push(cb); 
+  if (document.getElementById('yt-api')) return; 
+  const s=document.createElement('script'); 
+  s.id='yt-api'; 
+  s.src='https://www.youtube.com/iframe_api'; 
+  document.head.appendChild(s); 
+  window.onYouTubeIframeAPIReady = function(){ 
+    _ytApiState.loaded=true; 
+    _ytApiState.callbacks.forEach(f=>f && f()); 
+    _ytApiState.callbacks=[]; 
+  }; 
+}
+
+function toggleWelcome(v){
+  document.querySelector('.course-description')?.style.setProperty('display', v?'block':'none');
+  document.getElementById('welcome-img')?.style.setProperty('display', v?'block':'none');
+}
+
+function toYouTubeEmbed(url){
+  try{
+    const s = String(url||'').trim();
+    let m = s.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
+    if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
+    m = s.match(/[?&]v=([-_0-9A-Za-z]+)/i);
+    if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
+    m = s.match(/youtube\.com\/embed\/([-_0-9A-Za-z]+)/i);
+    if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
     return null;
-  } catch (e) {
-    return null;
+  }catch(e){return null}
+}
+
+function isEmbeddableVideoUrl(url){
+  const s = String(url || '').trim();
+  const lower = s.toLowerCase();
+  return (
+    lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') ||
+    lower.endsWith('.mov') || lower.endsWith('.m4v') ||
+    /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(s) ||
+    /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(s) ||
+    /panopto.*Viewer\.aspx/i.test(s)
+  );
+}
+
+function openVideoPlaylistInViewer(payload){
+  try{
+    const key = 'video-playlist:' + Date.now() + ':' + Math.random().toString(36).slice(2);
+    localStorage.setItem(key, JSON.stringify(payload || {}));
+    openInViewer(`/includes/kodeLesere/video-embed-list.html?playlistKey=${encodeURIComponent(key)}`, 'html');
+  }catch(e){
+    // fallback: åpne første video dersom localStorage er blokkert
+    const first = payload && Array.isArray(payload.items) ? payload.items[0] : null;
+    if (first && first.url) openFile(first.url);
   }
 }
 
-/* ============================================================
-   FILE VIEWER FUNCTIONS
-   Håndterer åpning av forskjellige filtyper
-   ============================================================ */
+function parseVideoListText(text){
+  const items = [];
+  const lines = String(text || '').split(/\r?\n/);
+  for (const rawLine of lines){
+    const line = String(rawLine || '').trim();
+    if (!line || line.startsWith('#')) continue;
 
-/**
- * Åpner en fil i riktig viewer basert på filtype
- * @param {string} url - URL til fil
- * @param {string} kind - Filtype (pdf, py, ipynb, code, video, youtube, panopto)
- */
-function openInViewer(url, kind) {
-  
-  // === VIDEO/YOUTUBE/PANOPTO HANDLING ===
-  if (kind === 'video' || kind === 'youtube' || kind === 'panopto') {
-    const { box, holder } = ensureMediaViewer();
-    
-    // Clear previous content og fallback timer
-    try { 
-      if (holder._fallbackTimer) { 
-        clearTimeout(holder._fallbackTimer); 
-        holder._fallbackTimer = null; 
-      } 
-    } catch (e) {}
+    // [Tittel](https://...)
+    let m = line.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
+    if (m){
+      if (isEmbeddableVideoUrl(m[2])) items.push({title: m[1].trim(), description: m[1].trim(), url: m[2].trim()});
+      continue;
+    }
+
+    // Tittel|https://...|beskrivelse|tema1,tema2
+    const pipePos = line.indexOf('|');
+    if (pipePos > 0){
+      const parts = line.split('|').map(p => p.trim());
+      const title = parts[0] || '';
+      const url = parts[1] || '';
+      const description = parts[2] || '';
+      const themes = (parts[3] || '').split(',').map(t => t.trim()).filter(Boolean);
+      if (isEmbeddableVideoUrl(url)) items.push({title: title || url, description: description || title || '', themes, url});
+      continue;
+    }
+
+    // Ren URL
+    if (isEmbeddableVideoUrl(line)){
+      items.push({title: line, description: '', url: line});
+    }
+  }
+  return items;
+}
+
+function parseVideoListJson(text){
+  try{
+    const data = JSON.parse(String(text || ''));
+    const arr = Array.isArray(data) ? data : (Array.isArray(data?.videos) ? data.videos : null);
+    if (!arr) return [];
+    return arr.map(v => {
+      if (!v || typeof v !== 'object') return null;
+      const url = String(v.url || '').trim();
+      if (!isEmbeddableVideoUrl(url)) return null;
+      const title = String(v.title || url).trim();
+      const description = String(v.description || '').trim();
+      const themes = Array.isArray(v.themes) ? v.themes.map(x => String(x).trim()).filter(Boolean) : [];
+      return { title, description, themes, url };
+    }).filter(Boolean);
+  }catch(e){
+    return [];
+  }
+}
+
+function isPotentialVideoListFile(url){
+  const lower = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+  return (
+    lower.endsWith('.txt') ||
+    lower.endsWith('.md') ||
+    lower.endsWith('.list') ||
+    lower.endsWith('.links') ||
+    lower.endsWith('.csv') ||
+    lower.endsWith('.json')
+  );
+}
+
+async function tryOpenVideoListFile(url){
+  try{
+    if (!isPotentialVideoListFile(url)) return false;
+    const res = await fetch(url, {cache: 'no-store'});
+    if (!res.ok) return false;
+    const text = await res.text();
+    const lower = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+    let items = [];
+    if (lower.endsWith('.json')) items = parseVideoListJson(text);
+    if (!items.length) items = parseVideoListText(text);
+    if (items.length < 1) return false;
+    const fileName = decodeURIComponent(String(url).split('/').pop().split('?')[0] || 'Videoer');
+    openVideoPlaylistInViewer({ title: fileName, items });
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+function openInViewer(url, kind){
+  if (kind === 'video' || kind === 'youtube' || kind === 'panopto'){
+    const {box, holder} = ensureMediaViewer();
+    try{ if (holder._fallbackTimer) { clearTimeout(holder._fallbackTimer); holder._fallbackTimer = null; } }catch{}
     holder.innerHTML = '';
     
-    // === YOUTUBE EMBED ===
-    if (kind === 'youtube') {
-      const embedUrl = toYouTubeEmbed(url);
-      const iframeId = 'yt-' + Date.now(); // Unique ID for YouTube player
+    if (kind === 'youtube'){
+      const embed = toYouTubeEmbed(url);
+      const ifrId = 'yt-' + Date.now();
+      const ifr = document.createElement('iframe');
+      ifr.id = ifrId;
+      ifr.src = embed || url;
+      ifr.width = '100%'; 
+      ifr.height = '100%'; 
+      ifr.setAttribute('frameborder','0');
+      ifr.setAttribute('allow','autoplay; encrypted-media; fullscreen');
+      ifr.allowFullscreen = true;
+      holder.appendChild(ifr);
       
-      const iframe = document.createElement('iframe');
-      iframe.id = iframeId;
-      iframe.src = embedUrl || url;
-      iframe.width = '100%';
-      iframe.height = '100%';
-      iframe.setAttribute('frameborder', '0');
-      iframe.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
-      iframe.allowFullscreen = true;
-      holder.appendChild(iframe);
-      
-      // 5-second fallback: åpne i ny tab hvis iframe ikke laster
-      const loadTimestamp = Date.now();
-      holder._loadStamp = loadTimestamp;
-      
-      iframe.addEventListener('load', () => { 
-        if (holder._fallbackTimer) { 
+      const stamp = Date.now(); 
+      holder._loadStamp = stamp;
+      ifr.addEventListener('load', ()=>{ 
+        if (holder._fallbackTimer){ 
           clearTimeout(holder._fallbackTimer); 
           holder._fallbackTimer = null; 
         } 
       });
-      
-      holder._fallbackTimer = setTimeout(() => { 
-        if (holder._loadStamp === loadTimestamp) {
-          window.open(url, '_blank');
-        }
+      holder._fallbackTimer = setTimeout(()=>{ 
+        if (holder._loadStamp === stamp) window.open(url, '_blank'); 
       }, 5000);
       
-      // === YOUTUBE PLAYER API INTEGRATION ===
-      // Tracker progress og markerer som watched når ferdig
-      try { 
-        holder._ytPlayers = holder._ytPlayers || {};
-        
-        ensureYouTubeAPI(() => {
-          try {
-            const player = new YT.Player(iframeId, {
+      try{ 
+        holder._ytPlayers = holder._ytPlayers || {}; 
+        ensureYouTubeAPI(()=>{
+          try{
+            const player = new YT.Player(ifrId, {
               events: {
-                // Player ready - load saved position
-                onReady: (event) => {
-                  try {
-                    const savedPosition = loadVideoPos(url);
-                    
-                    // Resume fra saved position hvis > 5 sekunder
-                    if (savedPosition && savedPosition > 5) { 
-                      event.target.seekTo(savedPosition, true); 
-                    }
-                    
-                    // Start polling for position updates (hver 2 sekund)
-                    const pollInterval = setInterval(() => { 
-                      try { 
-                        const currentTime = event.target.getCurrentTime();
-                        saveVideoPos(url, currentTime);
-                      } catch (e) {
-                        console.warn('Could not save video position:', e);
-                      }
+                onReady: (ev)=>{
+                  try{
+                    const saved = loadVideoPos(url);
+                    if (saved && saved > 5){ ev.target.seekTo(saved, true); }
+                    const pid = setInterval(()=>{ 
+                      try{ 
+                        const t = ev.target.getCurrentTime(); 
+                        saveVideoPos(url, t); 
+                      }catch{} 
                     }, 2000);
-                    
-                    // Store player reference og poll interval
-                    holder._ytPlayers[iframeId] = {
-                      player: event.target,
-                      poll: pollInterval
-                    };
-                  } catch (e) {
-                    console.error('YouTube player ready error:', e);
-                  }
+                    holder._ytPlayers[ifrId] = {player: ev.target, poll: pid};
+                  }catch(e){}
                 },
-                
-                // State change - sjekk om video er ferdig
-                onStateChange: (event) => {
-                  try { 
-                    if (event.data === YT.PlayerState.ENDED) { 
-                      markVideoWatched(url);
+                onStateChange: (ev)=>{
+                  try{ 
+                    if (ev.data === YT.PlayerState.ENDED) { 
+                      markVideoWatched(url); 
                     } 
-                  } catch (e) {
-                    console.warn('Could not mark video as watched:', e);
-                  }
+                  }catch{}
                 }
               }
             });
-          } catch (e) {
-            console.error('YouTube player initialization error:', e);
-          }
-        });
-      } catch (e) {
-        console.error('YouTube API integration error:', e);
-      }
+          }catch(e){}
+        }); 
+      }catch(e){}
       
-    // === PANOPTO EMBED ===
-    } else if (kind === 'panopto') {
-      // Konverter Viewer.aspx til Embed.aspx
+    } else if (kind === 'panopto'){
       let embedUrl = String(url).replace(/Viewer\.aspx/i, 'Embed.aspx');
+      const ifr2 = document.createElement('iframe');
+      ifr2.src = embedUrl;
+      ifr2.width = '100%'; 
+      ifr2.height = '100%'; 
+      ifr2.setAttribute('frameborder','0');
+      ifr2.setAttribute('allow','autoplay; encrypted-media; fullscreen');
+      ifr2.allowFullscreen = true;
+      holder.appendChild(ifr2);
       
-      const iframe = document.createElement('iframe');
-      iframe.src = embedUrl;
-      iframe.width = '100%';
-      iframe.height = '100%';
-      iframe.setAttribute('frameborder', '0');
-      iframe.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
-      iframe.allowFullscreen = true;
-      holder.appendChild(iframe);
-      
-      // 5-second fallback
-      const loadTimestamp = Date.now();
-      holder._loadStamp = loadTimestamp;
-      
-      iframe.addEventListener('load', () => { 
-        if (holder._fallbackTimer) { 
+      const stamp2 = Date.now(); 
+      holder._loadStamp = stamp2;
+      ifr2.addEventListener('load', ()=>{ 
+        if (holder._fallbackTimer){ 
           clearTimeout(holder._fallbackTimer); 
           holder._fallbackTimer = null; 
         } 
       });
-      
-      holder._fallbackTimer = setTimeout(() => { 
-        if (holder._loadStamp === loadTimestamp) {
-          window.open(url, '_blank');
-        }
+      holder._fallbackTimer = setTimeout(()=>{ 
+        if (holder._loadStamp === stamp2) window.open(url, '_blank'); 
       }, 5000);
       
-      // Manual "Mark as watched" button for Panopto
-      try { 
-        const controlDiv = document.createElement('div');
-        controlDiv.style.position = 'absolute';
-        controlDiv.style.right = '12px';
-        controlDiv.style.bottom = '12px';
-        controlDiv.style.zIndex = '9999';
-        controlDiv.innerHTML = '<button class="mark-watched">Markér som sett</button>';
-        holder.appendChild(controlDiv);
-        
-        controlDiv.querySelector('.mark-watched').addEventListener('click', () => {
-          markVideoWatched(url);
-        });
-      } catch (e) {
-        console.warn('Could not add mark-watched button:', e);
-      }
+      try{ 
+        const ctrl = document.createElement('div'); 
+        ctrl.style.position='absolute'; 
+        ctrl.style.right='12px'; 
+        ctrl.style.bottom='12px'; 
+        ctrl.style.zIndex='9999'; 
+        ctrl.innerHTML = '<button class="mark-watched">Markér som sett</button>'; 
+        holder.appendChild(ctrl); 
+        ctrl.querySelector('.mark-watched').addEventListener('click', ()=> markVideoWatched(url)); 
+      }catch(e){}
       
-    // === LOCAL VIDEO FILES ===
     } else {
-      const videoElement = document.createElement('video');
-      videoElement.controls = true;
-      videoElement.autoplay = true;
-      videoElement.style.width = '100%';
-      videoElement.style.height = '100%';
+      const vid = document.createElement('video');
+      vid.controls = true; 
+      vid.autoplay = true; 
+      vid.style.width = '100%'; 
+      vid.style.height = '100%';
+      const src = document.createElement('source'); 
+      src.src = url; 
+      vid.appendChild(src);
+      holder.appendChild(vid);
       
-      const sourceElement = document.createElement('source');
-      sourceElement.src = url;
-      videoElement.appendChild(sourceElement);
-      holder.appendChild(videoElement);
+      try{ vid.play().catch(()=>{}); }catch{}
       
-      // Prøv å auto-play (kan bli blokkert av browser)
-      try { 
-        videoElement.play().catch(() => {}); 
-      } catch (e) {}
-      
-      // 5-second fallback hvis video ikke laster
-      const loadTimestamp = Date.now();
-      holder._loadStamp = loadTimestamp;
-      
-      const clearVideoFallback = () => { 
-        if (holder._fallbackTimer) { 
+      const stamp3 = Date.now(); 
+      holder._loadStamp = stamp3;
+      const clearVideoFallback = ()=>{ 
+        if (holder._fallbackTimer){ 
           clearTimeout(holder._fallbackTimer); 
           holder._fallbackTimer = null; 
         } 
       };
-      
-      videoElement.addEventListener('loadedmetadata', clearVideoFallback);
-      videoElement.addEventListener('canplay', clearVideoFallback);
-      
-      holder._fallbackTimer = setTimeout(() => { 
-        if (holder._loadStamp === loadTimestamp) {
-          window.open(url, '_blank');
-        }
+      vid.addEventListener('loadedmetadata', clearVideoFallback);
+      vid.addEventListener('canplay', clearVideoFallback);
+      holder._fallbackTimer = setTimeout(()=>{ 
+        if (holder._loadStamp === stamp3) window.open(url, '_blank'); 
       }, 5000);
     }
     
-    // Vis media viewer, skjul andre
-    box.style.display = 'block';
+    box.style.display = 'block'; 
     toggleWelcome(false);
     
     const pdfBox = document.getElementById('pdf-viewer-container');
     if (pdfBox) pdfBox.style.display = 'none';
-    
-    const resizeBar = document.getElementById('pdf-viewer-resize');
-    if (resizeBar) resizeBar.style.display = 'none';
-    
-    const quizContainer = document.getElementById('quiz-container');
-    if (quizContainer) quizContainer.style.display = 'none';
+    const bar = document.getElementById('pdf-viewer-resize');
+    if (bar) bar.style.display = 'none';
+    const q = document.getElementById('quiz-container');
+    if (q) q.style.display = 'none';
     
     return;
   }
 
-  // === PDF/CODE VIEWER HANDLING ===
-  const { box, frame } = ensureViewer();
-  let targetUrl = url;
+  const {box} = ensureViewer();
+  const useIframeForPdf = kind === 'pdf' && isMobileViewport();
+  const frame = useIframeForPdf
+    ? (replaceViewerFrame('iframe') || box.firstElementChild)
+    : (replaceViewerFrame('object') || box.firstElementChild);
+  let target = url;
 
-  // Map code file types til riktige viewers
-  if (kind === 'py') {
-    targetUrl = `/includes/kodeLesere/pyview.html?file=${encodeURIComponent(url)}`;
-  } else if (kind === 'ipynb') {
-    targetUrl = `/includes/kodeLesere/nbview.html?file=${encodeURIComponent(url)}`;
-  } else if (kind === 'code') {
-    targetUrl = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
-  }
+  if (kind === 'py')         target = `/includes/kodeLesere/pyview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'ipynb') target = `/includes/kodeLesere/nbview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'fusion') target = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'html')  target = `/includes/kodeLesere/htmlview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'stl') target = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'fbm') target = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === '3mf') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'f3d') target = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
 
-  // Set content type for PDF
-  if (kind === 'pdf') {
-    frame.type = 'application/pdf';
-  } else {
-    frame.removeAttribute('type');
-  }
+  if (kind === 'pdf' && frame.tagName.toLowerCase() === 'object') frame.type = 'application/pdf';
+  else frame.removeAttribute('type');
 
-  // Clear previous fallback timer
-  if (frame._fallbackTimer) { 
-    clearTimeout(frame._fallbackTimer); 
-    frame._fallbackTimer = null; 
-  }
-  
-  // Load content
-  frame.data = targetUrl;
-  box.style.display = 'block';
+  console.info('[sidebar-loader] openInViewer', { kind, sourceUrl: url, target });
+  if (frame._fallbackTimer) { clearTimeout(frame._fallbackTimer); frame._fallbackTimer = null; }
+  if (frame.tagName.toLowerCase() === 'iframe') frame.src = target;
+  else frame.data = target;
+  box.style.display='block'; 
   toggleWelcome(false);
 
-  // Vis resize bar
-  const resizeBar = document.getElementById('pdf-viewer-resize');
-  if (resizeBar) resizeBar.style.display = 'block';
+  const bar = document.getElementById('pdf-viewer-resize');
+  if (bar) bar.style.display = useIframeForPdf ? 'none' : 'block';
 
-  // 3-second fallback for PDF (åpne i ny tab hvis ikke laster)
-  const loadTimestamp = Date.now();
-  frame._loadStamp = loadTimestamp;
-  
+  const thisLoad = Date.now(); 
+  frame._loadStamp = thisLoad;
   frame.onload = () => { 
     if (frame._fallbackTimer) { 
       clearTimeout(frame._fallbackTimer); 
@@ -290,496 +783,313 @@ function openInViewer(url, kind) {
     } 
   };
 
-  if (kind === 'pdf') {
-    frame._fallbackTimer = setTimeout(() => {
-      if (frame._loadStamp === loadTimestamp && frame.data === targetUrl) {
-        window.open(url, '_blank');
-      }
+  if (kind === 'pdf'){
+    frame._fallbackTimer = setTimeout(()=>{
+      const loaded = frame.tagName.toLowerCase() === 'iframe' ? frame.src : frame.data;
+      if (frame._loadStamp === thisLoad && loaded === target) window.open(url, '_blank');
     }, 3000);
   }
   
-  // Skjul media viewer og quiz
-  const mediaViewer = document.getElementById('media-viewer-container');
-  if (mediaViewer) { 
-    mediaViewer.style.display = 'none';
-    
-    const mediaHolder = document.getElementById('media-viewer');
-    try { 
-      if (mediaHolder && mediaHolder._fallbackTimer) { 
-        clearTimeout(mediaHolder._fallbackTimer); 
-        mediaHolder._fallbackTimer = null; 
+  const mv = document.getElementById('media-viewer-container');
+  if (mv){ 
+    mv.style.display = 'none'; 
+    const h = document.getElementById('media-viewer'); 
+    try{ 
+      if (h && h._fallbackTimer) { 
+        clearTimeout(h._fallbackTimer); 
+        h._fallbackTimer = null; 
       } 
-    } catch (e) {}
-    
-    if (mediaHolder) mediaHolder.innerHTML = '';
+    }catch{}
+    if (h) h.innerHTML = ''; 
   }
   
-  const quizContainer = document.getElementById('quiz-container');
-  if (quizContainer) quizContainer.style.display = 'none';
+  const q = document.getElementById('quiz-container');
+  if (q) q.style.display = 'none';
   
-  // Clear active state fra alle dropdowns
-  document.querySelectorAll('.dropdown-oving').forEach(d => d.classList.remove('active'));
+  document.querySelectorAll('.dropdown-oving').forEach(d=>d.classList.remove('active'));
 }
 
-/**
- * Åpner en fil basert på URL/filtype
- * Auto-detekterer filtype og sender til riktig viewer
- * @param {string} url - URL til fil
- */
-function openFile(url) {
-  const lowerUrl = url.toLowerCase();
-  
-  // PDF files
-  if (lowerUrl.endsWith('.pdf')) {
-    return openInViewer(url, 'pdf');
-  }
-  
-  // Jupyter notebooks
-  if (lowerUrl.endsWith('.ipynb')) {
-    return openInViewer(url, 'ipynb');
-  }
-  
-  // Python files
-  if (lowerUrl.endsWith('.py')) {
-    return openInViewer(url, 'py');
-  }
-  
-  // Video files
-  if (lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.webm') || 
-      lowerUrl.endsWith('.ogg') || lowerUrl.endsWith('.mov') || 
-      lowerUrl.endsWith('.m4v')) {
+function openFile(url){
+  const lower = String(url || '').toLowerCase();
+  const clean = lower.split('?')[0].split('#')[0];
+  console.info('[sidebar-loader] openFile', { url, clean });
+  const fusionFlag = new URLSearchParams(window.location.search).get('fusionviewer');
+  const fusionViewerEnabled =
+    window.ENABLE_FUSION_VIEWER !== false &&
+    fusionFlag !== '0';
+  if (clean.endsWith('.pdf'))   return openInViewer(url, 'pdf');
+  if (clean.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
+  if (clean.endsWith('.py'))    return openInViewer(url, 'py');
+  if (clean.endsWith('.stl')) return openInViewer(url, 'stl');
+  if (clean.endsWith('.html')) return openInViewer(url, 'html');
+  if (/\.(fbm|fm3)$/.test(clean)) return openInViewer(url, 'fbm');
+  if (clean.endsWith('.3mf')) return openInViewer(url, '3mf');
+  if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|sat|smt|x_t|x_b|sldprt|sldasm)$/.test(clean)) return openInViewer(url, 'fusion');
+  if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)) return openInViewer(url, 'f3d');
+  if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mov') || lower.endsWith('.m4v')){
     return openInViewer(url, 'video');
   }
-  
-  // YouTube links
-  if (/^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(url)) {
+  if (/^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(url)){
     return openInViewer(url, 'youtube');
   }
-  
-  // Panopto links
-  if (/^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(url) || /panopto.*Viewer\.aspx/i.test(url)) {
+  if (/^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(url) || /panopto.*Viewer\.aspx/i.test(url)){
     return openInViewer(url, 'panopto');
   }
-  
-  // Code files (C, C++, C#, Java)
-  if (/\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lowerUrl)) {
+  if (/\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lower)) {
     return openInViewer(url, 'code');
   }
-  
-  // Fallback: åpne i ny tab
   window.open(url, '_blank');
 }
 
-// Expose globally så den kan kalles fra HTML onclick attributes
 window.openFile = openFile;
 
-/**
- * Auto-finner quiz.json i standard locations
- * @param {string} courseDir - Base course directory
- * @returns {Promise<string|null>} Relativ path til quiz.json eller null
- */
-async function autoFindQuizRel(courseDir) {
-  const candidates = ['quiz/quiz.json', 'filer/quiz/quiz.json'];
-  
-  for (const relativePath of candidates) {
-    const quizUrl = toAbsUrl(relativePath, courseDir);
-    try {
-      const response = await fetch(quizUrl, { cache: 'no-store', method: 'GET' });
-      if (response.ok) return relativePath;
-    } catch (e) {
-      // Continue til neste kandidat
-    }
+async function autoFindQuizRel(courseDir){
+  const candidates = ['quiz/quiz.json','filer/quiz/quiz.json'];
+  for (const rel of candidates){
+    const url = toAbsUrl(rel, courseDir);
+    try{
+      const r = await fetch(url, {cache:'no-store', method:'GET'});
+      if (r.ok) return rel;
+    }catch{}
   }
-  
   return null;
 }
 
-/************************************************************************
- * 3) DISPLAY NAME & SORTING FUNCTIONS
- * 
- * Håndterer formatering av øvingsnavn og sortering av sidebar keys
- ************************************************************************/
-
-/**
- * Konverterer key til display-vennlig navn
- * @param {string} key - Key fra index.json
- * @returns {string} Formatert display navn
- * 
- * Eksempler:
- *   "oving05" → "Øving 05"
- *   "Øving 12" → "Øving 12"
- *   "PythonØving1" → "PythonØving1"
- */
-function displayName(key) {
-  // Match "øving"/"oving" + number (case insensitive)
-  const match = key.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
-  if (match) {
-    const ovingNum = parseInt(match[1], 10);
-    return `Øving ${String(ovingNum).padStart(2, '0')}`;
-  }
-  
-  // Match "ovingXX" format
-  const match2 = key.match(/^oving(\d{1,3})$/i);
-  if (match2) {
-    const ovingNum = parseInt(match2[1], 10);
-    return `Øving ${String(ovingNum).padStart(2, '0')}`;
-  }
-  
-  // Fallback: fjern file extension og returner som-er
+/**************** 3) Navn + sort (UENDRET) *******************************/
+function displayName(key){
+  const m = key.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m)  return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m2 = key.match(/^oving(\d{1,3})$/i);
+  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
   return key.replace(/\.[^/.]+$/, "");
 }
 
-/**
- * Sorterer sidebar keys i riktig rekkefølge
- * Rekkefølge: Øving01-99 → PythonØvinger → Andre → Beskyttede
- * 
- * @param {Object} indexData - Index.json data object
- * @returns {string[]} Sorterte keys
- */
-function sortSidebarKeys(indexData) {
-  // Filtrer ut special keys (welcome, quiz)
-  const keys = Object.keys(indexData).filter(k => k !== 'welcome' && k !== 'quiz');
-  
-  /**
-   * Ekstraherer øvingsnummer fra key
-   * @param {string} k - Key å sjekke
-   * @returns {number|null} Øvingsnummer eller null
-   */
-  const getOvingNumber = (k) => {
-    // oving01, oving02, etc.
-    if (/^oving\d{2}$/i.test(k)) {
-      return parseInt(k.slice(5), 10);
-    }
-    
-    // "Øving 5", "oving 12", etc.
-    const match = k.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
-    return match ? parseInt(match[1], 10) : null;
+function sortSidebarKeys(data){
+  const keys = Object.keys(data).filter(k => k !== 'welcome' && k !== 'quiz');
+  const ovingNum = (k) => {
+    if (/^oving\d{2}$/i.test(k)) return parseInt(k.slice(5), 10);
+    const m = k.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
+    return m ? parseInt(m[1], 10) : null;
   };
-  
-  /**
-   * Sjekker om key er en PythonØving
-   */
-  const isPythonOving = k => /^pythonøving/i.test(k);
-  
-  /**
-   * Sjekker om key er beskyttet
-   */
-  const isProtected = k => {
-    return !!(indexData[k]?.beskyttet) || /beskyttet|hemmelig/i.test(k);
-  };
-  
-  // Kategoriser keys
-  const ovinger = keys.filter(k => {
-    const num = getOvingNumber(k);
-    return num !== null && !isProtected(k);
-  }).sort((a, b) => getOvingNumber(a) - getOvingNumber(b));
-  
-  const pythonOvinger = keys.filter(k => {
-    return !ovinger.includes(k) && isPythonOving(k) && !isProtected(k);
-  }).sort((a, b) => a.localeCompare(b, 'nb'));
-  
-  const others = keys.filter(k => {
-    return !ovinger.includes(k) && 
-           !pythonOvinger.includes(k) && 
-           !isProtected(k);
-  }).sort((a, b) => a.localeCompare(b, 'nb'));
-  
-  const protected = keys.filter(isProtected).sort((a, b) => a.localeCompare(b, 'nb'));
-  
-  // Kombiner i riktig rekkefølge
-  return [...ovinger, ...pythonOvinger, ...others, ...protected];
+  const isPy   = k => /^pythonøving/i.test(k);
+  const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(k);
+  const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
+  const py    = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>a.localeCompare(b,'nb'));
+  const other = keys.filter(k => !oving.includes(k) && !py.includes(k) && !isLock(k)).sort((a,b)=>a.localeCompare(b,'nb'));
+  const lock  = keys.filter(isLock).sort((a,b)=>a.localeCompare(b,'nb'));
+  return [...oving, ...py, ...other, ...lock];
 }
 
-/************************************************************************
- * 4) NESTED FLYOUT BUILDER
- * 
- * Bygger HTML for nested folder struktur basert på "/" i filnavn
- ************************************************************************/
+/**************** 4) NYTT: Nested flyout builder **************************/
 
-/**
- * Grupperer filer etter mapper (basert på "/" i filnavn)
- * @param {string[]} files - Array av filnavn
- * @returns {Object} { folders: {folderName: [files]}, rootFiles: [files] }
- * 
- * Eksempel:
- *   Input: ["DelA/fil1.pdf", "DelA/fil2.pdf", "fil3.pdf"]
- *   Output: {
- *     folders: { "DelA": ["DelA/fil1.pdf", "DelA/fil2.pdf"] },
- *     rootFiles: ["fil3.pdf"]
- *   }
- */
 function groupFilesByFolders(files) {
-  const folders = {};      // { folderName: [files in folder] }
-  const rootFiles = [];    // Files ikke i folder
+  const folders = {};
+  const rootFiles = [];
   
   files.forEach(file => {
-    const fileString = String(file || '').trim();
-    
-    // Håndter "label|url" format
-    if (fileString.indexOf('|') >= 0) {
-      const pipePos = fileString.indexOf('|');
-      const slashPos = fileString.indexOf('/');
-      const parts = fileString.split('|');
+    const s = String(file||'').trim();
+    if (s.indexOf('|') >= 0){
+      const pipePos = s.indexOf('|');
+      const slashPos = s.indexOf('/');
+      const parts = s.split('|');
       const urlPart = (parts[1] || parts[0] || '').trim();
-      
-      // Hvis "/" er ETTER "|", er dette en URL (ikke folder struktur)
-      if ((slashPos === -1 || slashPos > pipePos) && 
-          (/^https?:\/\//i.test(urlPart) || urlPart.startsWith('//'))) {
-        rootFiles.push(fileString);
+      if ((slashPos === -1 || slashPos > pipePos) && (/^https?:\/\//i.test(urlPart) || urlPart.startsWith('//'))){
+        rootFiles.push(s);
         return;
       }
     }
-    
-    // Absolutte URLs → root files
-    if (/^https?:\/\//i.test(fileString)) {
-      rootFiles.push(fileString);
+    if (/^https?:\/\//i.test(s)) {
+      rootFiles.push(s);
       return;
     }
 
-    // Files med "/" → folder structure
-    if (fileString.includes('/')) {
-      const parts = fileString.split('/');
+    if (s.includes('/')) {
+      const parts = s.split('/');
       const folderName = parts[0];
-      
       if (!folders[folderName]) {
         folders[folderName] = [];
       }
-      folders[folderName].push(fileString);
+      folders[folderName].push(s);
     } else {
-      // Ingen "/" → root file
-      rootFiles.push(fileString);
+      rootFiles.push(s);
     }
   });
   
   return { folders, rootFiles };
 }
 
-/**
- * Genererer riktig ikon HTML for en fil basert på type
- * @param {string} file - Filnavn eller URL
- * @returns {string} HTML string med SVG ikon
- */
-function iconForFile(file) {
-  try {
-    let fileString = String(file || '').trim();
+function iconForFile(file){
+  try{
+    let s = String(file||'').trim();
+    if (s.indexOf('|') >= 0){ const p = s.split('|'); s = (p[1] || p[0] || '').trim(); }
+    const lower = s.toLowerCase();
     
-    // Håndter "label|url" format - bruk URL-delen for detection
-    if (fileString.indexOf('|') >= 0) { 
-      const parts = fileString.split('|'); 
-      fileString = (parts[1] || parts[0] || '').trim(); 
+    if (/^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(s)){
+      return '<span class="file-icon youtube" style="background:#FF0000;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<polygon points="9,4 16,8 9,12" style="fill:#ffffff"/>'
+        + '</svg>'
+        + '</span>';
     }
     
-    const lowerFile = fileString.toLowerCase();
-    
-    // === YOUTUBE IKON ===
-    if (/^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(fileString)) {
-      return '<span class="file-icon youtube" style="background:#FF0000;border-radius:3px">' +
-        '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">' +
-        '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>' +
-        '<polygon points="9,4 16,8 9,12" style="fill:#ffffff"/>' +
-        '</svg>' +
-        '</span>';
+    if (/^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(s) || /panopto/i.test(s)){
+      return '<span class="file-icon panopto" style="background:#6A1B9A;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<polygon points="9,4 16,8 9,12" style="fill:#ffffff"/>'
+        + '</svg>'
+        + '</span>';
     }
     
-    // === PANOPTO IKON ===
-    if (/^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(fileString) || /panopto/i.test(fileString)) {
-      return '<span class="file-icon panopto" style="background:#6A1B9A;border-radius:3px">' +
-        '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">' +
-        '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>' +
-        '<polygon points="9,4 16,8 9,12" style="fill:#ffffff"/>' +
-        '</svg>' +
-        '</span>';
+    if (lower.endsWith('.py') || lower.endsWith('.ipynb')){
+      return '<span class="file-icon python" style="background:#3572A5;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<path d="M7 11c2-1 3-3 4-4 1-1 2-2 2-2" style="stroke:#ffffff; stroke-width:1.6; fill:none; stroke-linecap:round; stroke-linejoin:round"/>'
+        + '</svg>'
+        + '</span>';
     }
     
-    // === PYTHON IKON ===
-    if (lowerFile.endsWith('.py') || lowerFile.endsWith('.ipynb')) {
-      return '<span class="file-icon python" style="background:#3572A5;border-radius:3px">' +
-        '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">' +
-        '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>' +
-        '<path d="M7 11c2-1 3-3 4-4 1-1 2-2 2-2" style="stroke:#ffffff; stroke-width:1.6; fill:none; stroke-linecap:round; stroke-linejoin:round"/>' +
-        '</svg>' +
-        '</span>';
+    if (lower.endsWith('.pdf')){
+      return '<span class="file-icon pdf" style="background:#D32F2F;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<rect x="4" y="3" width="12" height="10" rx="1" style="fill:#ffffff"/>'
+        + '<rect x="6" y="5" width="2" height="6" rx="0.5" style="fill:#D32F2F"/>'
+        + '<rect x="9" y="5" width="2" height="6" rx="0.5" style="fill:#D32F2F"/>'
+        + '</svg>'
+        + '</span>';
     }
     
-    // === PDF IKON ===
-    if (lowerFile.endsWith('.pdf')) {
-      return '<span class="file-icon pdf" style="background:#D32F2F;border-radius:3px">' +
-        '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">' +
-        '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>' +
-        '<rect x="4" y="3" width="12" height="10" rx="1" style="fill:#ffffff"/>' +
-        '<rect x="6" y="5" width="2" height="6" rx="0.5" style="fill:#D32F2F"/>' +
-        '<rect x="9" y="5" width="2" height="6" rx="0.5" style="fill:#D32F2F"/>' +
-        '</svg>' +
-        '</span>';
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.svg')){
+      return '<span class="file-icon image" style="background:#4CAF50;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<circle cx="6" cy="5" r="2" style="fill:#ffffff"/>'
+        + '<path d="M3 12l5-5 6 6 7-6v6z" style="fill:#ffffff"/>'
+        + '</svg>'
+        + '</span>';
     }
+
+    if (lower.endsWith('.stl') || lower.endsWith('.fbm') || lower.endsWith('.3mf') || /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)){
+  return '<span class="file-icon model" style="background:#009688;border-radius:3px">'
+    + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg">'
+    + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+    + '<path d="M4 12l6-8 6 8z" fill="#fff"/>'
+    + '</svg></span>';
+}
     
-    // === IMAGE IKON ===
-    if (lowerFile.endsWith('.png') || lowerFile.endsWith('.jpg') || 
-        lowerFile.endsWith('.jpeg') || lowerFile.endsWith('.gif') || 
-        lowerFile.endsWith('.svg')) {
-      return '<span class="file-icon image" style="background:#4CAF50;border-radius:3px">' +
-        '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">' +
-        '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>' +
-        '<circle cx="6" cy="5" r="2" style="fill:#ffffff"/>' +
-        '<path d="M3 12l5-5 6 6 7-6v6z" style="fill:#ffffff"/>' +
-        '</svg>' +
-        '</span>';
+    if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mov') || lower.endsWith('.m4v')){
+      return '<span class="file-icon video" style="background:#444;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<polygon points="9,4 16,8 9,12" style="fill:#ffffff"/>'
+        + '</svg>'
+        + '</span>';
     }
-    
-    // === VIDEO IKON ===
-    if (lowerFile.endsWith('.mp4') || lowerFile.endsWith('.webm') || 
-        lowerFile.endsWith('.ogg') || lowerFile.endsWith('.mov') || 
-        lowerFile.endsWith('.m4v')) {
-      return '<span class="file-icon video" style="background:#444;border-radius:3px">' +
-        '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">' +
-        '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>' +
-        '<polygon points="9,4 16,8 9,12" style="fill:#ffffff"/>' +
-        '</svg>' +
-        '</span>';
-    }
-    
-    // === SHORTCUT FILES IKON (.url, .webloc) ===
-    if (lowerFile.endsWith('.url') || lowerFile.endsWith('.webloc')) {
-      return '<span class="file-icon link" style="background:#2196F3;border-radius:3px">' +
-        '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">' +
-        '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>' +
-        '<path d="M8 5h8M8 11h8M6 8h12" style="stroke:#ffffff;stroke-width:1.5;fill:none;stroke-linecap:round"/>' +
-        '</svg>' +
-        '</span>';
-    }
-  } catch (e) {
-    console.warn('Error generating icon:', e);
-  }
-  
-  // Ingen ikon
+  }catch(e){}
   return '';
 }
 
-/**
- * Bygger nested flyout HTML rekursivt
- * @param {string[]} files - Array av filnavn
- * @param {Function} makeHrefFunc - Function(filename) => href
- * @param {boolean} isPyGroup - Om dette er en PythonØving gruppe (DEPRECATED, brukes ikke lenger)
- * @returns {string} HTML string for flyout content
- */
 function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
   const { folders, rootFiles } = groupFilesByFolders(files);
   let html = '';
 
-  /**
-   * Genererer display label for en fil
-   * Håndterer URLs, shortcuts, og vanlige filer
-   */
-  function makeLabel(file) {
-    try {
-      let fileString = String(file || '').trim();
+  function makeLabel(f){
+    try{
+      let s = String(f||'').trim();
       let labelPart = null;
       let urlPart = null;
-      
-      // Parse "label|url" format
-      if (fileString.indexOf('|') >= 0) {
-        const parts = fileString.split('|');
+      if (s.indexOf('|') >= 0){
+        const parts = s.split('|');
         labelPart = parts[0] || null;
         urlPart = parts[1] || null;
       }
+      if (urlPart) s = urlPart;
       
-      if (urlPart) fileString = urlPart;
-      
-      // YouTube URLs - extract video ID
-      const youtubeMatch = String(fileString).match(/[?&]v=([^&]+)/i);
-      if (/^https?:\/\//i.test(fileString) || youtubeMatch) {
-        const match = youtubeMatch || fileString.match(/[?&]v=([^&]+)/i);
-        if (match) {
+      const anyVid = String(s).match(/[?&]v=([^&]+)/i);
+      if (/^https?:\/\//i.test(s) || anyVid){
+        const m = anyVid || s.match(/[?&]v=([^&]+)/i);
+        if (m) {
           if (labelPart) return labelPart;
-          return 'YouTube – ' + decodeURIComponent(match[1]);
+          return 'YouTube – ' + decodeURIComponent(m[1]);
         }
-        
-        // youtu.be/<id>
-        const youtubeShortMatch = fileString.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
-        if (youtubeShortMatch) {
+        const m2 = s.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
+        if (m2) {
           if (labelPart) return labelPart;
-          return 'YouTube – ' + decodeURIComponent(youtubeShortMatch[1]);
+          return 'YouTube – ' + decodeURIComponent(m2[1]);
         }
-        
-        // Generic URL - extract last path segment
-        try {
-          const url = new URL(fileString);
-          const pathSegments = url.pathname.split('/').filter(Boolean);
-          if (pathSegments.length) {
-            return decodeURIComponent(pathSegments[pathSegments.length - 1]);
-          }
-        } catch (e) {
-          // Invalid URL
-        }
-        
-        return labelPart || fileString.replace(/^https?:\/\//i, '');
+        try{
+          const u = new URL(s);
+          const segs = u.pathname.split('/').filter(Boolean);
+          if (segs.length) return decodeURIComponent(segs[segs.length-1]);
+        }catch(e){}
+        return labelPart || s.replace(/^https?:\/\//i,'');
       }
 
-      // Local file - remove extension and return basename
-      const baseName = labelPart || String(file).split(/[\\\/]/).pop().replace(/\.[^/.]+$/, '');
-      return baseName;
-    } catch (e) {
-      return String(file);
+      const base = labelPart || String(f).split(/[\\\/]/).pop().replace(/\.[^/.]+$/, '');
+      return base;
+    }catch(e){
+      return String(f);
     }
   }
 
-  // === BUILD ROOT FILES ===
-  const rootItems = rootFiles.map(f => ({ f, label: makeLabel(f) }));
-  
-  // Natural sort (handles numbers correctly: fil1, fil2, fil10)
-  rootItems.sort((a, b) => 
-    a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' })
-  );
-  
+  const rootItems = rootFiles.map(f => ({f, label: makeLabel(f)}));
+  rootItems.sort((a,b)=> a.label.localeCompare(b.label, undefined, {numeric: true, sensitivity: 'base'}));
   rootItems.forEach(item => {
-    const file = item.f;
-    const href = makeHrefFunc(file);
-    const icon = iconForFile(file);
-    
-    // Truncate long labels
-    const displayLabel = item.label.length > 40 
-      ? item.label.slice(0, 38) + '…' 
-      : item.label;
-    
-    html += `<a href="${href}" data-file="${file}">${icon}<span class="file-label">${displayLabel}</span></a>`;
+    const f = item.f;
+    const href = makeHrefFunc(f);
+    const label = (isPyGroup ? '🐍 ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'…' : item.label);
+    const icon = iconForFile(f);
+    html += `<a href="${href}" data-file="${f}">${icon}<span class="file-label">${label}</span></a>`;
   });
   
-  // === BUILD NESTED FOLDERS ===
-  // Sort folder names naturally
-  Object.keys(folders).sort((a, b) => 
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-  ).forEach(folderName => {
+  Object.keys(folders).sort((a,b)=> a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'})).forEach(folderName => {
     let folderFiles = folders[folderName] || [];
-    
-    // Sort files inside folder
-    folderFiles = folderFiles.slice().sort((x, y) => {
-      const labelX = makeLabel(x.substring(folderName.length + 1));
-      const labelY = makeLabel(y.substring(folderName.length + 1));
-      return labelX.localeCompare(labelY, undefined, { numeric: true, sensitivity: 'base' });
+    folderFiles = folderFiles.slice().sort((x,y)=>{
+      const lx = makeLabel(x.substring(folderName.length+1));
+      const ly = makeLabel(y.substring(folderName.length+1));
+      return lx.localeCompare(ly, undefined, {numeric: true, sensitivity: 'base'});
     });
     
-    // Build folder item HTML
     html += `<div class="nested-folder-item" data-folder="${folderName}">`;
-    
-    // Folder icon
     html += `<span class="file-icon folder" style="background:#6B6B6B;border-radius:3px" aria-hidden="true">`;
     html += '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">';
     html += '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>';
     html += '<path d="M3 6h6l2 2h8v6H3z" style="fill:#fff"/>';
     html += '</svg></span>';
-    
     html += `<span class="file-label">${folderName}</span>`;
     html += `<div class="nested-flyout">`;
     
-    // Recursively build nested content (remove folder prefix from filenames)
     const subFiles = folderFiles.map(f => f.substring(folderName.length + 1));
-    
-    // VIKTIG: Send false som isPyGroup for nested flyouts (ikke vis Python emoji på mapper)
-    html += buildNestedFlyoutHTML(
-      subFiles, 
-      (subFile) => makeHrefFunc(`${folderName}/${subFile}`), 
-      false  // Always false for nested content
-    );
+    const playlistItems = subFiles.map(subFile => {
+      const fullFile = `${folderName}/${subFile}`;
+      const href = makeHrefFunc(fullFile);
+      if (!isEmbeddableVideoUrl(href)) return null;
+      return {
+        title: makeLabel(subFile),
+        description: makeLabel(subFile),
+        url: href
+      };
+    }).filter(Boolean);
+
+    if (playlistItems.length){
+      const payload = encodeURIComponent(JSON.stringify({
+        title: folderName,
+        items: playlistItems
+      }));
+      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Åpne alle videoer i innebygd modus">`;
+      html += `<span class="file-icon video" style="background:#D32F2F;border-radius:3px" aria-hidden="true">`;
+      html += '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">';
+      html += '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>';
+      html += '<path d="M8 4l10 4-10 4z" style="fill:#fff"/>';
+      html += '</svg></span>';
+      html += '<span class="file-label">Se alle videoer (embedded)</span>';
+      html += '</a>';
+    }
+
+    html += buildNestedFlyoutHTML(subFiles, (subFile) => makeHrefFunc(`${folderName}/${subFile}`), isPyGroup);
     
     html += `</div></div>`;
   });
@@ -787,209 +1097,116 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
   return html;
 }
 
-/************************************************************************
- * 5) SIDEBAR INITIALIZATION
- * 
- * Main initialization function - loads index.json og bygger sidebar UI
- ************************************************************************/
-async function initSidebar() {
-  // === LOAD INDEX.JSON ===
-  const indexData = await fetch('filer/index.json', { cache: 'no-store' })
-    .then(r => r.json())
-    .catch(() => null);
-  
-  if (!indexData) {
-    console.error('Could not load index.json');
-    return;
-  }
+/**************** 5) Sidebar + velkomst + quiz ***************************/
+async function initSidebar(){
+  const data = await fetch('filer/index.json',{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+  if(!data) return;
 
-  // === SANITIZE INDEX DATA ===
-  // Normalize backslashes to forward slashes, ensure files arrays
-  try {
-    Object.keys(indexData).forEach(key => {
-      const value = indexData[key];
-      
-      if (Array.isArray(value)) {
-        // Legacy format: direct array
-        indexData[key] = value.map(x => String(x).replace(/\\+/g, '/'));
-      } else if (value && typeof value === 'object') {
-        // Object format with .files property
-        if (value.files && Array.isArray(value.files)) {
-          value.files = value.files.map(x => String(x).replace(/\\+/g, '/'));
-        } else if (value.files && !Array.isArray(value.files)) {
-          console.warn(`[sidebar] Non-array files for key "${key}":`, typeof value.files);
-          value.files = [String(value.files)];
+  try{
+    Object.keys(data).forEach(k=>{
+      const v = data[k];
+      if (Array.isArray(v)){
+        data[k] = v.map(x=>String(x).replace(/\\+/g,'/'));
+      } else if (v && typeof v === 'object'){
+        if (v.files && Array.isArray(v.files)){
+          v.files = v.files.map(x=>String(x).replace(/\\+/g,'/'));
+        } else if (v.files && !Array.isArray(v.files)){
+          v.files = [String(v.files)];
         }
       }
     });
-  } catch (e) {
-    console.error('Error sanitizing index data:', e);
-  }
+  }catch(e){}
 
-  const sidebar = document.getElementById('sidebar');
+  const sb = document.getElementById('sidebar');
   const courseDir = getCourseDir();
 
-  // === WELCOME IMAGE ===
-  if (indexData.welcome) {
-    const contentArea = document.querySelector('.content');
-    let welcomeImg = document.getElementById('welcome-img');
-    
-    if (!welcomeImg) {
-      welcomeImg = document.createElement('img');
-      welcomeImg.id = 'welcome-img';
-      welcomeImg.alt = 'Velkomst';
-      Object.assign(welcomeImg.style, {
-        maxWidth: '420px',
-        display: 'block',
-        margin: '2rem auto'
-      });
+  if (data.welcome) {
+    const content = document.querySelector('.content');
+    let img = document.getElementById('welcome-img');
+    if(!img){
+      img=document.createElement('img'); 
+      img.id='welcome-img'; 
+      img.alt='Velkomst';
+      Object.assign(img.style,{maxWidth:'420px',display:'block',margin:'2rem auto'});
     }
-    
-    // Handle relative vs absolute paths
-    const imageSrc = /^(https?:|\.\/|\/)/.test(indexData.welcome) 
-      ? indexData.welcome 
-      : 'filer/' + indexData.welcome;
-    
-    welcomeImg.src = imageSrc || '/img/welcome-generic.svg';
-    
-    const description = document.querySelector('.course-description');
-    if (description) {
-      description.after(welcomeImg);
-    } else {
-      contentArea.append(welcomeImg);
-    }
+    const src = /^(https?:|\.\/|\/)/.test(data.welcome) ? data.welcome : 'filer/'+data.welcome;
+    img.src = src || '/img/welcome-generic.svg';
+    const desc=document.querySelector('.course-description');
+    desc ? desc.after(img) : content.append(img);
   }
 
-  // === AUTO-DETECT QUIZ ===
-  if (!indexData.quiz) {
-    const foundQuiz = await autoFindQuizRel(courseDir);
-    if (foundQuiz) {
-      indexData.quiz = foundQuiz;
-    }
+  if (!data.quiz){
+    const found = await autoFindQuizRel(courseDir);
+    if (found) data.quiz = found;
   }
 
-  const sortedKeys = sortSidebarKeys(indexData);
+  const keys = sortSidebarKeys(data);
 
-  /**
-   * Genererer href for en fil i index
-   * @param {string} key - Index key (e.g., "oving01")
-   * @param {Object} obj - Index object for denne key
-   * @param {string} file - Filnavn
-   * @returns {string} Full href URL
-   */
-  function makeHref(key, obj, file) {
+  function makeHref(key, obj, file){
     const isFileKey = /\.[a-z0-9]{1,8}$/i.test(key);
-    let relativePath = String(file || '');
-    
-    // Parse "label|url" format - use URL part
-    if (relativePath.indexOf('|') >= 0) {
-      const parts = relativePath.split('|');
-      relativePath = parts[1] || parts[0] || '';
+    let rel = String(file || '');
+    if (rel.indexOf('|') >= 0){
+      const parts = rel.split('|');
+      rel = parts[1] || parts[0] || '';
     }
-    
-    relativePath = String(relativePath).trim();
-    
-    // Normalize URLs without protocol
-    if (!/^https?:\/\//i.test(relativePath)) {
-      if (/^(?:www\.|youtube\.com|youtu\.be|panopto\.|watch\?|watch=)/i.test(relativePath) || 
-          /[?&]v=[-_0-9A-Za-z]+/i.test(relativePath)) {
-        relativePath = 'https://' + relativePath.replace(/^\//, '');
+    rel = String(rel).trim();
+    if (!/^https?:\/\//i.test(rel)){
+      if (/^(?:www\.|youtube\.com|youtu\.be|panopto\.|watch\?|watch=)/i.test(rel) || /[?&]v=[-_0-9A-Za-z]+/i.test(rel)){
+        rel = 'https://' + rel.replace(/^\//,'');
       }
-      // Protocol-relative URLs
-      if (relativePath.startsWith('//')) {
-        relativePath = 'https:' + relativePath;
-      }
+      if (rel.startsWith('//')) rel = 'https:' + rel;
     }
+    const httpIdx = String(rel).search(/https?:\/\//i);
+    if (httpIdx >= 0) return rel.substring(httpIdx);
+    if (rel.startsWith('/')) return rel;
+    const dir = (obj && typeof obj==='object' && obj.dir) ? String(obj.dir) : null;
     
-    // Extract absolute URL from path if embedded
-    const httpIndex = String(relativePath).search(/https?:\/\//i);
-    if (httpIndex >= 0) return relativePath.substring(httpIndex);
-    
-    // Absolute path
-    if (relativePath.startsWith('/')) return relativePath;
-    
-    // Check for dir property in object
-    const dir = (obj && typeof obj === 'object' && obj.dir) ? String(obj.dir) : null;
-    
-    // Prepend dir if exists and not already prefixed
     if (!isFileKey && dir) {
-      if (!relativePath.startsWith(dir + '/') && !relativePath.startsWith('filer/')) {
-        relativePath = `${dir}/${relativePath}`;
+      if (!rel.startsWith(dir + '/') && !rel.startsWith('filer/')) {
+        rel = `${dir}/${rel}`;
       }
     }
     
-    // Add filer/ prefix if not present
-    const underFiler = relativePath.startsWith('filer/') 
-      ? relativePath 
-      : `filer/${relativePath}`;
-    
-    // Encode path segments
-    const encoded = encodePathSegments(underFiler.replace(/\\/g, '/'));
+    const underFiler = rel.startsWith('filer/') ? rel : `filer/${rel}`;
+    const encoded = encodePathSegments(underFiler.replace(/\\/g,'/'));
     return new URL(encoded, location.origin + courseDir).href;
   }
 
-  // === BUILD SIDEBAR HTML ===
-  let sidebarHTML = '<h3>Øvinger</h3>';
-  
-  sidebarHTML += sortedKeys.map(key => {
-    const obj = indexData[key];
-    const isLocked = !!(obj && obj.beskyttet);
-    const lockIcon = isLocked ? '🔒 ' : '';
-    
-    // Get files array
+  let html = '<h3>Øvinger</h3>';
+  html += keys.map(key=>{
+    const obj = data[key];
+    const locked = !!(obj && obj.beskyttet);
+    const lock = locked ? '🔒 ' : '';
     let files = [];
-    if (Array.isArray(obj)) {
-      files = obj;
-    } else if (obj?.files) {
-      files = obj.files;
+    if (Array.isArray(obj)) files = obj;
+    else if (obj?.files) files = obj.files;
+
+    if (locked && !isOk()){
+      return `<div class="dropdown-oving"><div class="dropdown-btn beskyttet">${lock}${displayName(key)}</div></div>`;
     }
 
-    // Don't show locked content if not authenticated
-    if (isLocked && !isOk()) {
-      return `<div class="dropdown-oving"><div class="dropdown-btn beskyttet">${lockIcon}${displayName(key)}</div></div>`;
-    }
-
-    // Build dropdown if has files
-    if (files && files.length) {
+    if (files && files.length){
       const isPyGroup = /^pythonøving/i.test(String(key));
-      
-      // Build content HTML with nested flyout support
-      const contentHTML = buildNestedFlyoutHTML(
-        files, 
-        (f) => makeHref(key, obj, f), 
-        isPyGroup
-      );
+      const contentHTML = buildNestedFlyoutHTML(files, (f) => makeHref(key, obj, f), isPyGroup);
       
       return `<div class="dropdown-oving">
-        <div class="dropdown-btn${isLocked ? ' beskyttet' : ''}">${lockIcon}${displayName(key)}</div>
+        <div class="dropdown-btn${locked?' beskyttet':''}">${lock}${displayName(key)}</div>
         <div class="dropdown-content">${contentHTML}</div>
       </div>`;
     }
-    
-    // Empty dropdown
-    return `<div class="dropdown-oving"><div class="dropdown-btn${isLocked ? ' beskyttet' : ''}">${lockIcon}${displayName(key)}</div></div>`;
+    return `<div class="dropdown-oving"><div class="dropdown-btn${locked?' beskyttet':''}">${lock}${displayName(key)}</div></div>`;
   }).join('');
 
-  // Add quiz button if quiz exists
-  if (indexData.quiz) { 
-    sidebarHTML += `<div class="dropdown-oving"><div class="dropdown-btn" id="quiz-btn">🧩 Quiz</div></div>`; 
+  if (data.quiz){ 
+    html += `<div class="dropdown-oving"><div class="dropdown-btn" id="quiz-btn">🧩 Quiz</div></div>`; 
   }
-  
-  sidebar.innerHTML = sidebarHTML;
+  sb.innerHTML = html;
   refreshWatchedStatus();
 
-  /* ================================================================
-     DESKTOP FLYOUT INTERACTION SETUP
-     ================================================================ */
+  /* ========== DESKTOP FLYOUT SETUP ========== */
+  let lockedMenu = null;
+  let _nestedZCounter = 2000;
   
-  let lockedMenu = null;  // Currently locked flyout menu
-  let _nestedZCounter = 2000;  // Z-index counter for nested flyouts
-
-  /**
-   * Sets up interaction handlers for a nested flyout
-   * @param {HTMLElement} folderItem - Folder item element
-   * @param {HTMLElement} parentMenu - Parent flyout menu
-   */
   function setupNestedFlyout(folderItem, parentMenu) {
     const nestedFlyout = folderItem.querySelector('.nested-flyout');
     if (!nestedFlyout) return;
@@ -997,18 +1214,13 @@ async function initSidebar() {
     let nestedHoverTimer = null;
     let nestedLockedFlyout = null;
 
-    // Move nested flyout to document.body for proper fixed positioning
     if (nestedFlyout.parentElement !== document.body) {
       document.body.appendChild(nestedFlyout);
       nestedFlyout.dataset.movedToBody = '1';
       nestedFlyout.style.zIndex = 2000;
     }
 
-    /**
-     * Shows the nested flyout next to the folder item
-     */
     const showNested = () => {
-      // Hide other nested flyouts in same parent
       parentMenu.querySelectorAll('.nested-flyout').forEach(nf => {
         if (nf !== nestedFlyout) nf.style.display = 'none';
       });
@@ -1016,45 +1228,33 @@ async function initSidebar() {
       const parentRect = parentMenu.getBoundingClientRect();
       const itemRect = folderItem.getBoundingClientRect();
       
-      // Show for measuring
       nestedFlyout.style.display = 'block';
       nestedFlyout.style.opacity = '0';
-      void nestedFlyout.offsetHeight;  // Force reflow
+      void nestedFlyout.offsetHeight;
       
       const menuHeight = nestedFlyout.scrollHeight;
       const viewportHeight = window.innerHeight;
       
-      // Position to the right of parent
       let left = parentRect.right;
       let top = itemRect.top;
       
-      // Adjust if would overflow bottom
       if (top + menuHeight > viewportHeight - 10) {
         top = Math.max(10, viewportHeight - menuHeight - 10);
       }
       
-      // Position to left if would overflow right
       const menuWidth = 260;
       if (left + menuWidth > window.innerWidth - 10) {
         left = parentRect.left - menuWidth;
       }
       
-      // Ensure higher z-index than previous flyouts
-      try { 
-        nestedFlyout.style.zIndex = String(++_nestedZCounter); 
-      } catch (e) {}
-      
+      try{ nestedFlyout.style.zIndex = String(++_nestedZCounter); }catch{}
       nestedFlyout.style.left = left + 'px';
       nestedFlyout.style.top = top + 'px';
       nestedFlyout.style.opacity = '1';
     };
 
-    /**
-     * Hides the nested flyout
-     */
     const hideNested = () => {
-      if (nestedLockedFlyout === nestedFlyout) return;  // Don't hide if locked
-      
+      if (nestedLockedFlyout === nestedFlyout) return;
       nestedFlyout.style.opacity = '0';
       setTimeout(() => {
         if (nestedLockedFlyout !== nestedFlyout && nestedFlyout.style.opacity === '0') {
@@ -1063,42 +1263,32 @@ async function initSidebar() {
       }, 100);
     };
 
-    // === EVENT HANDLERS ===
-    
-    // Mouse enter folder item - show after 200ms
     folderItem.addEventListener('mouseenter', () => {
       if (nestedHoverTimer) clearTimeout(nestedHoverTimer);
       nestedHoverTimer = setTimeout(showNested, 200);
     });
 
-    // Mouse leave folder item
     folderItem.addEventListener('mouseleave', (e) => {
       if (nestedHoverTimer) clearTimeout(nestedHoverTimer);
-      
-      const relatedTarget = e.relatedTarget;
-      if (relatedTarget && (nestedFlyout.contains(relatedTarget) || relatedTarget === nestedFlyout)) {
-        return;  // Moving into nested flyout - don't hide
+      const related = e.relatedTarget;
+      if (related && (nestedFlyout.contains(related) || related === nestedFlyout)) {
+        return;
       }
-      
       setTimeout(hideNested, 200);
     });
 
-    // Mouse enter nested flyout - cancel hide timer
     nestedFlyout.addEventListener('mouseenter', () => {
       if (nestedHoverTimer) clearTimeout(nestedHoverTimer);
     });
 
-    // Mouse leave nested flyout
     nestedFlyout.addEventListener('mouseleave', (e) => {
-      const relatedTarget = e.relatedTarget;
-      if (relatedTarget && (folderItem.contains(relatedTarget) || relatedTarget === folderItem)) {
-        return;  // Moving back to folder item - don't hide
+      const related = e.relatedTarget;
+      if (related && (folderItem.contains(related) || related === folderItem)) {
+        return;
       }
-      
       setTimeout(hideNested, 200);
     });
 
-    // Click to lock/unlock nested flyout
     folderItem.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1106,41 +1296,33 @@ async function initSidebar() {
       if (nestedHoverTimer) clearTimeout(nestedHoverTimer);
       
       if (nestedLockedFlyout === nestedFlyout) {
-        // Unlock
         nestedLockedFlyout = null;
         hideNested();
       } else {
-        // Lock
         showNested();
         nestedLockedFlyout = nestedFlyout;
       }
     });
 
-    // Recursively setup nested folders inside this flyout
     nestedFlyout.querySelectorAll('.nested-folder-item').forEach(nfi => {
       setupNestedFlyout(nfi, nestedFlyout);
     });
   }
   
-  // === SETUP MAIN FLYOUT MENUS ===
-  sidebar.querySelectorAll('.dropdown-oving').forEach(dropdownDiv => {
-    const menu = dropdownDiv.querySelector('.dropdown-content');
-    if (!menu) return;
+  sb.querySelectorAll('.dropdown-oving').forEach(div=>{
+    const menu=div.querySelector('.dropdown-content'); 
+    if(!menu) return;
     
     let hoverTimer = null;
     let isCalculating = false;
     
-    /**
-     * Calculates optimal position for flyout menu
-     */
     const calculatePosition = () => {
       if (isCalculating) return;
       isCalculating = true;
       
-      const rect = dropdownDiv.getBoundingClientRect();
+      const r = div.getBoundingClientRect();
       const navHeight = 48;
       
-      // Show invisibly for measuring
       menu.style.visibility = 'hidden';
       menu.style.display = 'block';
       menu.style.opacity = '0';
@@ -1148,8 +1330,8 @@ async function initSidebar() {
       const menuHeight = menu.getBoundingClientRect().height;
       const viewportHeight = window.innerHeight;
       
-      // Position below navbar, adjust if would overflow
-      let top = Math.max(rect.top, navHeight);
+      let top = Math.max(r.top, navHeight);
+      
       if (top + menuHeight > viewportHeight - 10) {
         top = Math.max(navHeight, viewportHeight - menuHeight - 10);
       }
@@ -1161,9 +1343,6 @@ async function initSidebar() {
       return true;
     };
     
-    /**
-     * Shows the flyout menu
-     */
     const show = () => {
       if (lockedMenu && lockedMenu !== menu) return;
       clearTimeout(hoverTimer);
@@ -1178,14 +1357,10 @@ async function initSidebar() {
       }, 150);
     };
     
-    /**
-     * Hides the flyout menu
-     */
     const hide = () => {
       if (lockedMenu === menu) return;
       clearTimeout(hoverTimer);
       
-      // Don't hide if nested flyout is open
       const hasOpenNested = Array.from(menu.querySelectorAll('.nested-flyout')).some(nf => 
         nf.style.display === 'block' && nf.style.opacity === '1'
       );
@@ -1200,22 +1375,19 @@ async function initSidebar() {
       }, 100);
     };
     
-    // === CLICK TO LOCK/UNLOCK ===
-    dropdownDiv.querySelector('.dropdown-btn')?.addEventListener('click', (e) => {
+    div.querySelector('.dropdown-btn')?.addEventListener('click', (e) => {
       if (e.target.classList.contains('beskyttet')) return;
       
       e.stopPropagation();
       clearTimeout(hoverTimer);
       
       if (lockedMenu === menu) {
-        // Unlock
         lockedMenu = null;
         menu.style.opacity = '0';
         setTimeout(() => {
           if (lockedMenu !== menu) menu.style.display = 'none';
         }, 100);
       } else {
-        // Lock
         if (lockedMenu) {
           lockedMenu.style.opacity = '0';
           const prevMenu = lockedMenu;
@@ -1223,7 +1395,6 @@ async function initSidebar() {
             if (lockedMenu !== prevMenu) prevMenu.style.display = 'none';
           }, 100);
         }
-        
         lockedMenu = menu;
         calculatePosition();
         requestAnimationFrame(() => {
@@ -1232,19 +1403,16 @@ async function initSidebar() {
       }
     });
     
-    // Hover handlers
-    dropdownDiv.addEventListener('mouseenter', show);
-    dropdownDiv.addEventListener('mouseleave', hide);
+    div.addEventListener('mouseenter', show);
+    div.addEventListener('mouseleave', hide);
     menu.addEventListener('mouseenter', () => clearTimeout(hoverTimer));
     menu.addEventListener('mouseleave', hide);
     
-    // Setup nested flyouts in this menu
     menu.querySelectorAll('.nested-folder-item').forEach(folderItem => {
       setupNestedFlyout(folderItem, menu);
     });
   });
   
-  // === GLOBAL CLICK HANDLER - Close locked menus ===
   document.addEventListener('click', (e) => {
     if (!lockedMenu) return;
     
@@ -1259,12 +1427,9 @@ async function initSidebar() {
       const menuToHide = lockedMenu;
       lockedMenu = null;
       menuToHide.style.opacity = '0';
-      
       setTimeout(() => {
         if (lockedMenu !== menuToHide) {
           menuToHide.style.display = 'none';
-          
-          // Close all nested flyouts too
           document.querySelectorAll('.nested-flyout').forEach(nf => {
             nf.style.display = 'none';
           });
@@ -1273,236 +1438,180 @@ async function initSidebar() {
     }
   });
 
-  /* ================================================================
-     MOBILE DROPDOWN TOGGLE
-     ================================================================ */
-  if (window.matchMedia('(max-width: 768px)').matches) {
-    sidebar.querySelectorAll('.dropdown-oving').forEach(dropdownDiv => {
-      const btn = dropdownDiv.querySelector('.dropdown-btn');
-      const menu = dropdownDiv.querySelector('.dropdown-content');
-      if (!btn || !menu) return;
-      
-      btn.addEventListener('click', e => {
+  /* Mobil-toggle */
+  if (window.matchMedia('(max-width: 768px)').matches){
+    sb.querySelectorAll('.dropdown-oving').forEach(div=>{
+      const btn=div.querySelector('.dropdown-btn'); 
+      const menu=div.querySelector('.dropdown-content');
+      if(!btn||!menu) return;
+      btn.addEventListener('click',e=>{
         e.preventDefault();
-        
-        // Close all other menus
-        sidebar.querySelectorAll('.dropdown-content').forEach(m => m.style.display = 'none');
-        
-        // Toggle this menu
-        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        sb.querySelectorAll('.dropdown-content').forEach(m=>m.style.display='none');
+        menu.style.display = menu.style.display==='block' ? 'none' : 'block';
       });
-      
-      // Close when clicking outside
-      document.addEventListener('click', e => { 
-        if (!dropdownDiv.contains(e.target)) {
-          menu.style.display = 'none';
-        }
+      document.addEventListener('click',e=>{ 
+        if(!div.contains(e.target)) menu.style.display='none'; 
       });
     });
   }
 
-  /* ================================================================
-     PASSWORD-PROTECTED SECTIONS
-     ================================================================ */
-  sidebar.querySelectorAll('.dropdown-btn.beskyttet').forEach(btn => {
-    btn.addEventListener('click', e => {
-      if (!isOk()) {
+  /* Passord-beskyttede seksjoner */
+  sb.querySelectorAll('.dropdown-btn.beskyttet').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      if (!isOk()){
         e.preventDefault();
-        askPass().then(success => {
-          if (success) location.reload();
-        });
+        if (askPass()) location.reload();
       }
     });
   });
 
-  /* ================================================================
-     FILE CLICK HANDLERS
-     ================================================================ */
-  
-  /**
-   * Handles clicking on a file link in flyout
-   * @param {Event} e - Click event
-   * @param {HTMLElement} anchor - Anchor element clicked
-   */
-  function handleFlyoutAnchorClick(e, anchor) {
+  /* Klikk-åpne filer */
+  async function handleFlyoutAnchorClick(e, a){
     e.preventDefault();
+    const q = document.getElementById('quiz-container'); 
+    if (q) q.style.display = 'none';
+    if (a.classList.contains('video-collection-link')){
+      try{
+        const raw = a.getAttribute('data-playlist') || '';
+        const payload = JSON.parse(decodeURIComponent(raw));
+        if (payload && Array.isArray(payload.items) && payload.items.length){
+          openVideoPlaylistInViewer(payload);
+        }
+      }catch(e){}
+      return;
+    }
+    const href = a.getAttribute('href'); 
+    if(!href) return;
+    if (await tryOpenVideoListFile(href)){
+      sb.querySelectorAll('.dropdown-oving').forEach(d=>d.classList.remove('active'));
+      a.closest('.dropdown-oving')?.classList.add('active');
+      return;
+    }
+    const lower = href.toLowerCase();
     
-    // Hide quiz if open
-    const quizContainer = document.getElementById('quiz-container');
-    if (quizContainer) quizContainer.style.display = 'none';
-    
-    const href = anchor.getAttribute('href');
-    if (!href) return;
-    
-    const lowerHref = href.toLowerCase();
-    
-    // Check if this is a viewable file type
     if (
-      lowerHref.endsWith('.pdf') || lowerHref.endsWith('.py') || lowerHref.endsWith('.ipynb') ||
-      lowerHref.endsWith('.mp4') || lowerHref.endsWith('.webm') || lowerHref.endsWith('.ogg') || 
-      lowerHref.endsWith('.mov') || lowerHref.endsWith('.m4v') ||
+      lower.endsWith('.pdf') || lower.endsWith('.py') || lower.endsWith('.ipynb') || lower.endsWith('.html') ||
+      lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.stl') ||
+      lower.endsWith('.mov') || lower.endsWith('.m4v') ||lower.split('?')[0].split('#')[0].endsWith('.fbm') ||
+      lower.split('?')[0].split('#')[0].endsWith('.3mf') ||
+      /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower) ||
       /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(href) ||
       /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(href) ||
-      /\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lowerHref)
-    ) {
+      /\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lower)
+    ){
       openFile(href);
     } else {
-      // Not viewable - open in new tab
       window.open(href, '_blank');
     }
 
-    // Mark dropdown as active
-    sidebar.querySelectorAll('.dropdown-oving').forEach(d => d.classList.remove('active'));
-    anchor.closest('.dropdown-oving')?.classList.add('active');
+    sb.querySelectorAll('.dropdown-oving').forEach(d=>d.classList.remove('active'));
+    a.closest('.dropdown-oving')?.classList.add('active');
   }
 
-  // Attach handlers to sidebar links
-  sidebar.querySelectorAll('.dropdown-content a').forEach(anchor => {
-    anchor.addEventListener('click', e => handleFlyoutAnchorClick(e, anchor));
+  sb.querySelectorAll('.dropdown-content a').forEach(a=>{
+    a.addEventListener('click', e=> handleFlyoutAnchorClick(e, a));
   });
 
-  // Delegate handler for nested flyout links (moved to body)
   document.addEventListener('click', (e) => {
-    const anchor = e.target.closest('.nested-flyout a');
-    if (anchor) handleFlyoutAnchorClick(e, anchor);
+    const a = e.target.closest('.nested-flyout a');
+    if (a) handleFlyoutAnchorClick(e, a);
   });
 
-  /* ================================================================
-     CLICK TITLE TO RELOAD
-     ================================================================ */
-  document.querySelector('.content h1')?.addEventListener('click', () => {
+  /* Hjem på tittel */
+  document.querySelector('.content h1')?.addEventListener('click', ()=>{
     location.reload();
   });
 
-  /* ================================================================
-     QUIZ FUNCTIONALITY
-     ================================================================ */
-  
-  /**
-   * Fixes relative image paths in quiz data
-   * @param {Object} quizData - Quiz JSON data
-   * @param {string} quizUrl - Full URL to quiz.json
-   * @returns {Object} Modified quiz data
-   */
-  function fixRelativeImages(quizData, quizUrl) {
-    try {
-      const baseUrl = quizUrl.slice(0, quizUrl.lastIndexOf('/') + 1);
-      
-      (quizData?.questions || []).forEach(question => {
-        if (!question || !question.image) return;
+  /* -------------------------------- Quiz ------------------------------ */
 
-        const rawPath = String(question.image).trim();
+  function fixRelativeImages(qdata, quizUrl){
+    try{
+      const base = quizUrl.slice(0, quizUrl.lastIndexOf('/')+1);
+      (qdata?.questions||[]).forEach(q=>{
+        if (!q || !q.image) return;
 
-        // Already absolute
-        if (/^https?:\/\//i.test(rawPath) || rawPath.startsWith('/')) {
-          question.image = rawPath;
-          question._imgTry = [rawPath];
-          return;
+        const raw = String(q.image).trim();
+
+        if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) { 
+          q.image = raw; 
+          q._imgTry = [raw]; 
+          return; 
         }
 
-        // Clean path
-        let cleanPath = rawPath.replace(/^\.\/+/, '');
-        cleanPath = cleanPath.replace(/^quiz\//i, '');
+        let p = raw.replace(/^\.\/+/,'');
+        p = p.replace(/^quiz\//i,'');
 
-        // Try multiple possible paths
-        const primary = new URL(cleanPath.includes('/') ? cleanPath : `bilder/${cleanPath}`, baseUrl).href;
-        const alt1 = new URL(`quiz/${cleanPath.replace(/^quiz\//i, '')}`, baseUrl).href;
-        const alt2 = new URL(cleanPath.replace(/^bilder\//i, ''), baseUrl).href;
-        const alt3 = new URL(cleanPath, baseUrl).href;
+        const primary = new URL(p.includes('/') ? p : `bilder/${p}`, base).href;
+        const alt1 = new URL(`quiz/${p.replace(/^quiz\//i,'')}`, base).href;
+        const alt2 = new URL(p.replace(/^bilder\//i,''), base).href;
+        const alt3 = new URL((p.includes('/') ? p : p), base).href;
 
-        const uniquePaths = Array.from(new Set([primary, alt1, alt2, alt3]));
-        question.image = uniquePaths[0];
-        question._imgTry = uniquePaths;
+        const uniq = Array.from(new Set([primary, alt1, alt2, alt3]));
+        q.image  = uniq[0];
+        q._imgTry = uniq;
       });
-    } catch (e) {
-      console.error('Error fixing quiz images:', e);
-    }
-    
-    return quizData;
+    }catch{}
+    return qdata;
   }
 
-  /**
-   * Robust JSON loader with BOM stripping and error messages
-   * @param {string} url - URL to JSON file
-   * @returns {Promise<Object>} Parsed JSON data
-   */
-  async function loadJsonRobust(url) {
-    const response = await fetch(url, { cache: 'no-store' });
-    const text = await response.text();
-    
-    if (!response.ok) {
-      const snippet = text.slice(0, 200).replace(/\s+/g, ' ');
-      throw new Error(`[${response.status} ${response.statusText}] ${snippet}`);
+  async function loadJsonRobust(url){
+    const r = await fetch(url,{cache:'no-store'});
+    const text = await r.text();
+    if(!r.ok){
+      const snip = text.slice(0,200).replace(/\s+/g,' ');
+      throw new Error(`[${r.status} ${r.statusText}] ${snip}`);
     }
-    
-    // Strip BOM if present
-    const cleanText = text.replace(/^\uFEFF/, '');
-    
-    try {
-      return JSON.parse(cleanText);
-    } catch (e) {
-      const snippet = cleanText.slice(0, 200).replace(/\s+/g, ' ');
-      throw new Error(`JSON parse error: ${e.message}. Excerpt: ${snippet}`);
+    const clean = text.replace(/^\uFEFF/,'');
+    try{
+      return JSON.parse(clean);
+    }catch(e){
+      const snip = clean.slice(0,200).replace(/\s+/g,' ');
+      throw new Error(`JSON parse error: ${e.message}. Utdrag: ${snip}`);
     }
   }
 
-  // Quiz button handler
   const quizBtn = document.getElementById('quiz-btn');
-  if (quizBtn) {
-    quizBtn.addEventListener('click', async () => {
-      // Hide PDF viewer
-      try { 
-        document.getElementById('pdf-viewer-container')?.style.setProperty('display', 'none'); 
-      } catch (e) {}
-      
-      const contentArea = document.querySelector('.content');
-      let quizBox = document.getElementById('quiz-container');
-      
-      if (!quizBox) {
-        quizBox = document.createElement('div');
-        quizBox.id = 'quiz-container';
-        contentArea.prepend(quizBox);
+  if (quizBtn){
+    quizBtn.addEventListener('click', async ()=>{
+      try{ 
+        document.getElementById('pdf-viewer-container')?.style.setProperty('display','none'); 
+      }catch{}
+      const content = document.querySelector('.content');
+      let box = document.getElementById('quiz-container');
+      if(!box){ 
+        box=document.createElement('div'); 
+        box.id='quiz-container'; 
+        content.prepend(box); 
       }
-      
-      quizBox.style.display = 'block';
+      box.style.display = 'block';
 
-      // Load quiz-lite.js if not already loaded
-      await new Promise(resolve => {
-        if (window.FolkQuiz) return resolve();
-        
-        const script = document.createElement('script');
-        script.src = '/includes/quiz-lite.js?v=7';
-        script.onload = resolve;
-        document.head.appendChild(script);
+      await new Promise(res=>{
+        if(window.FolkQuiz) return res();
+        const s=document.createElement('script');
+        s.src='/includes/quiz-lite.js?v=7';
+        s.onload=res;
+        document.head.appendChild(s);
       });
 
-      const persistKey = 'folkQuiz:' + getCourseDir();
+      const persistKey='folkQuiz:'+getCourseDir();
 
-      // Try multiple possible quiz locations
       const tried = [];
-      const candidates = Array.from(new Set([
-        indexData.quiz, 
-        'quiz/quiz.json', 
-        'filer/quiz/quiz.json'
-      ].filter(Boolean)));
-      
-      for (const relativePath of candidates) {
-        const quizUrl = toAbsUrl(relativePath, courseDir);
-        tried.push(quizUrl);
-        
-        try {
-          const quizData = fixRelativeImages(await loadJsonRobust(quizUrl), quizUrl);
-          
-          if (!window.FolkQuiz || typeof window.FolkQuiz.render !== 'function') {
+      const rels = Array.from(new Set([data.quiz, 'quiz/quiz.json','filer/quiz/quiz.json'].filter(Boolean)));
+      for (const rel of rels){
+        const url = toAbsUrl(rel, courseDir);
+        tried.push(url);
+        try{
+          const qdata = fixRelativeImages(await loadJsonRobust(url), url);
+          if(!window.FolkQuiz || typeof window.FolkQuiz.render!=='function'){
             alert('Kunne ikke laste quizen: quiz-lite.js lastet, men window.FolkQuiz mangler.');
             return;
           }
 
-          window.FolkQuiz.render(quizBox, quizData, persistKey);
+          window.FolkQuiz.render(box, qdata, persistKey);
           toggleWelcome(false);
           return;
-        } catch (err) {
-          tried[tried.length - 1] += `  [${err.message}]`;
+        }catch(err){
+          tried[tried.length-1] += `  [${err.message}]`;
         }
       }
 
@@ -1510,939 +1619,51 @@ async function initSidebar() {
     });
   }
 
-  /* ================================================================
-     MODULE INITIALIZATION
-     Optional modules that can be loaded separately
-     ================================================================ */
-  
-  // Sidebar Search Module
+  /* Modul-initialisering */
   if (window.SidebarSearch && typeof window.SidebarSearch.init === 'function') {
     try {
-      window.SidebarSearch.init(sidebar);
+      window.SidebarSearch.init(sb);
       console.log('✓ Sidebar Search Module initialized');
     } catch (err) {
-      console.error('[sidebar-loader] Could not initialize search module:', err);
+      console.error('[sidebar-loader] Kunne ikke initialisere søkemodul:', err);
     }
   }
   
-  // Sidebar Notifications Module
   if (window.SidebarNotifications && typeof window.SidebarNotifications.init === 'function') {
     try {
       window.SidebarNotifications.init(courseDir);
       console.log('✓ Sidebar Notifications Module initialized');
     } catch (err) {
-      console.error('[sidebar-loader] Could not initialize notification module:', err);
+      console.error('[sidebar-loader] Kunne ikke initialisere notifikasjonsmodul:', err);
     }
   }
 }
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initSidebar);
-} else {
-  initSidebar();
-}
+document.readyState==='loading'
+  ? document.addEventListener('DOMContentLoaded', initSidebar)
+  : initSidebar();
 
-/************************************************************************
- * 6) VERSION BADGE
- * 
- * Displays version number in bottom-right corner
- ************************************************************************/
-(function displayVersionBadge() {
-  const badgeId = 'version-badge';
-  const versionText = 'v11.15.3';
-  
-  let badge = document.getElementById(badgeId);
-  
-  if (!badge) {
-    badge = document.createElement('div');
-    badge.id = badgeId;
-    
-    // Style the badge
-    Object.assign(badge.style, {
-      position: 'fixed',
-      right: '8px',
-      bottom: '8px',
-      background: '#444',
-      color: '#fff',
-      padding: '3px 6px',
-      fontSize: '12px',
-      borderRadius: '4px',
-      opacity: '0.6',
-      zIndex: '1000',
-      fontFamily: 'monospace'
+/**************** 6) Versjons-badge **************************************/
+(function(){
+  const id='version-badge',txt='v11.15.2';
+  let b=document.getElementById(id);
+  if(!b){
+    b=document.createElement('div');
+    b.id=id;
+    Object.assign(b.style,{
+      position:'fixed',
+      right:'8px',
+      bottom:'8px',
+      background:'#444',
+      color:'#fff',
+      padding:'3px 6px',
+      fontSize:'12px',
+      borderRadius:'4px',
+      opacity:'0.6',
+      zIndex:'1000'
     });
-    
-    document.body.appendChild(badge);
-  }
-  
-  badge.textContent = versionText;
-})();
-
-/* ====================================================================
-   END OF sidebar-loader.js v11.15.3
-   ==================================================================== *//* ====================================================================
-   FolkNettsideFolk – sidebar-loader.js  v11.15.3
-   ====================================================================
-   
-   HOVEDFUNKSJONER:
-   • Dynamisk sidebar med hierarkisk dropdown-meny
-   • Automatisk sortering: Øving01-99 → PythonØvinger → Andre → Beskyttet
-   • Nested flyouts for undermapper (filer med "/" i navnet)
-   • Multi-format fil-viewer (PDF, Python, Jupyter, Video, YouTube, Panopto)
-   • Interaktiv quiz med bildeoptimalisering
-   • Video progress tracking og "watched" status
-   • Password-beskyttede seksjoner (SHA-256 hashing)
-   • Responsive design (desktop hover, mobile click)
-   
-   VERSJONHISTORIKK:
-   v11.15.3 - Fikset Python-emoji på mapper, lagt til .url/.webloc ikoner
-   v11.15.2 - Fikset CSS/JS-blanding som ødela fil-ikoner
-   v11.15.1 - Fikset URL-bygging for nested filer
-   v11.15.0 - Nested flyouts support
-   v11.11.0 - Stable base version
-   
-==================================================================== */
-
-/************************************************************************
- * 1) DYNAMISK CSS INJEKSJON
- * 
- * Injiserer all nødvendig styling for sidebar, flyouts, viewers og ikoner.
- * Bruker CSS custom properties (variables) for enkel theming.
- ************************************************************************/
-(function injectCSS() {
-  const styleId = 'folknettside-css-v11153';
-  
-  // Unngå duplikat injeksjon
-  if (document.getElementById(styleId)) return;
-
-  const cssContent = `
-    /* ============================================================
-       ROOT VARIABLES - Endre disse for å tilpasse layout
-       ============================================================ */
-    :root{ 
-      --nav-h: 48px;                    /* Navbar høyde */
-      --side-w: 198px;                  /* Sidebar bredde */
-      --gap: 28px;                      /* Gap mellom sidebar og innhold */
-      --pad-left: calc(var(--side-w) + var(--gap)); /* Total venstre padding */
-      --safe-area-bottom: env(safe-area-inset-bottom, 0px); /* iOS notch support */
-    }
-    
-    /* ============================================================
-       GLOBAL RESET & BODY LAYOUT
-       ============================================================ */
-    html, body { 
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: sans-serif;
-      background: #555;
-      overflow-y: scroll;      /* Alltid vis scrollbar for å unngå layout shift */
-      overflow-x: hidden;
-    }
-    
-    body {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-
-    /* ============================================================
-       SIDEBAR - Fixed venstre navigasjon
-       ============================================================ */
-    .sidebar { 
-      position: fixed;
-      top: var(--nav-h);
-      left: 0;
-      width: var(--side-w);
-      height: calc(100vh - var(--nav-h));
-      background: var(--sidebar-bg, #004f9f);
-      color: var(--sidebar-text, #fff);
-      overflow-y: auto;                   /* Scrollbar når innhold overflyter */
-      -webkit-overflow-scrolling: touch;  /* Smooth momentum scroll på iOS */
-      -ms-overflow-style: -ms-autohiding-scrollbar;
-      overscroll-behavior: auto;
-      z-index: 1000;
-      
-      /* Ekstra bottom padding så siste elementer ikke skjules av footers/badges */
-      padding-bottom: calc(3.5rem + var(--safe-area-bottom));
-      scroll-padding-bottom: calc(3.5rem + var(--safe-area-bottom));
-    }
-    
-    /* Sidebar heading */
-    .sidebar h3 {
-      margin: 0 0 0.25rem 0.75rem;
-      font-size: 1.75rem;
-    }
-    
-    /* ============================================================
-       DROPDOWN ØVING BUTTONS
-       ============================================================ */
-    .dropdown-oving {
-      position: relative;
-      width: 100%;
-    }
-    
-    .dropdown-btn { 
-      width: 100%;
-      padding: 0.6rem 1rem 0.6rem 1.25rem;
-      background: none;
-      border: none;
-      color: var(--sidebar-text, #fff);
-      font-weight: 600;
-      text-align: left;
-      cursor: pointer;
-      transition: background 0.15s ease;
-    }
-    
-    .dropdown-btn:hover {
-      background: var(--sidebar-hover, rgba(255,255,255,0.14));
-    }
-    
-    /* Active state når en fil er åpen */
-    .dropdown-oving.active > .dropdown-btn {
-      background: var(--sidebar-active, #2e5e96);
-    }
-    
-    /* ============================================================
-       DESKTOP FLYOUT MENUS (min-width: 769px)
-       Flyouts vises til høyre for sidebar ved hover/click
-       ============================================================ */
-    @media(min-width: 769px) {
-      /* Main dropdown flyout */
-      .sidebar .dropdown-content { 
-        position: fixed;
-        left: var(--side-w);
-        top: calc(var(--nav-h) - 6px);
-        width: 260px;
-        display: none;                    /* Skjult by default */
-        background: var(--sidebar-bg, #004f9f);
-        color: var(--sidebar-text, #fff);
-        box-shadow: 0 2px 8px rgba(0,0,0,.15);
-        z-index: 1100;
-        opacity: 1;
-        transition: opacity 0.1s ease;
-        max-height: calc(100vh - var(--nav-h) - 20px);
-        overflow-y: auto;
-        overflow-x: hidden;
-        -webkit-overflow-scrolling: touch;
-      }
-      
-      /* Custom scrollbar styling for flyouts */
-      .sidebar .dropdown-content::-webkit-scrollbar {
-        width: 8px;
-      }
-      
-      .sidebar .dropdown-content::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 4px;
-      }
-      
-      .sidebar .dropdown-content::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 4px;
-      }
-      
-      .sidebar .dropdown-content::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.5);
-      }
-      
-      /* File links inside flyouts - flexbox layout for icon + text */
-      .sidebar .dropdown-content a,
-      .nested-flyout a { 
-        display: flex;
-        align-items: center;
-        padding: 0.5rem 1rem;
-        color: var(--sidebar-text, #fff);
-        text-decoration: none;
-        transition: background 0.15s ease;
-      }
-      
-      .sidebar .dropdown-content a:hover,
-      .nested-flyout a:hover {
-        background: var(--sidebar-hover, rgba(255,255,255,0.12));
-      }
-      
-      /* ============================================================
-         NESTED FLYOUTS - For undermapper
-         Vises til høyre av parent flyout
-         ============================================================ */
-      .nested-flyout {
-        position: fixed;                  /* Fixed positioning i forhold til viewport */
-        width: 260px;
-        display: none;
-        background: var(--sidebar-bg, #004f9f);
-        color: var(--sidebar-text, #fff);
-        box-shadow: 0 2px 8px rgba(0,0,0,.15);
-        z-index: 2000;                    /* Høyere enn main flyout */
-        opacity: 0;                       /* Fade-in animation */
-        transition: opacity 0.1s ease;
-        max-height: calc(100vh - var(--nav-h) - 20px);
-        overflow-y: auto;
-        overflow-x: hidden;
-        -webkit-overflow-scrolling: touch;
-      }
-      
-      /* Nested flyout scrollbar styling */
-      .nested-flyout::-webkit-scrollbar {
-        width: 8px;
-      }
-      
-      .nested-flyout::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 4px;
-      }
-      
-      .nested-flyout::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 4px;
-      }
-      
-      .nested-flyout::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.5);
-      }
-      
-      /* Folder items som trigger nested flyouts */
-      .nested-folder-item {
-        position: relative;
-        display: flex;
-        align-items: center;
-        padding: 0.5rem 1rem;
-        cursor: pointer;
-        transition: background 0.15s ease;
-      }
-      
-      .nested-folder-item:hover {
-        background: var(--sidebar-hover, rgba(255,255,255,0.12));
-      }
-      
-      /* Right arrow indicator for nested folders */
-      .nested-folder-item::after { 
-        content: '▸';
-        position: absolute;
-        right: 8px;
-        font-size: 1.1em;
-      }
-    }
-
-    /* ============================================================
-       CONTENT WRAPPER - Main innholdsområde
-       ============================================================ */
-    .wrapper { 
-      margin-left: var(--pad-left) !important;
-      width: calc(100% - var(--pad-left)) !important;
-      padding-top: calc(var(--nav-h) - 12px);
-      display: flex;
-      flex: 1 1 auto;
-      background: #fff;
-      box-sizing: border-box;
-      position: relative;
-      z-index: 0;
-    }
-    
-    .content { 
-      flex: 1 1 auto;
-      overflow: visible;
-      padding: 0 1rem 0 var(--gap);
-      box-sizing: border-box;
-      position: relative;
-      background: #fff;
-    }
-    
-    /* Course title - clickable for reload */
-    .content h1 {
-      margin: 1rem 0 0.5rem 0;
-      color: #004f9f;
-      cursor: pointer;
-    }
-    
-    .course-description {
-      margin: 0 0 1rem 0;
-      max-width: 42rem;
-      line-height: 1.5;
-    }
-
-    /* ============================================================
-       FILE VIEWERS - PDF, Code, Media containers
-       ============================================================ */
-    
-    /* PDF/Code viewer container */
-    #pdf-viewer-container {
-      display: none;
-      height: calc(100vh - var(--nav-h) - 3rem);
-      overflow: auto;
-    }
-    
-    /* Media viewer (video/youtube/panopto) container */
-    #media-viewer-container {
-      display: none;
-      height: calc(100vh - var(--nav-h) - 3rem);
-      overflow: auto;
-    }
-    
-    #media-viewer {
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: #000;
-    }
-    
-    #pdf-viewer {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-    
-    /* Resize handle for PDF viewer */
-    #pdf-viewer-resize {
-      display: none;
-      height: 10px;
-      cursor: ns-resize;
-      background: repeating-linear-gradient(90deg, #e5e5e5 0 16px, #d4d4d4 16px 32px);
-      border: 1px solid #cfcfcf;
-      border-top: none;
-      opacity: .8;
-      user-select: none;
-    }
-    
-    /* Quiz container */
-    #quiz-container {
-      margin-top: 0.75rem;
-    }
-    
-    /* ============================================================
-       FILE ICONS - SVG ikoner for forskjellige filtyper
-       ============================================================ */
-    .file-icon {
-      display: inline-flex;
-      width: 20px;
-      height: 14px;
-      margin-right: 10px;
-      align-items: center;
-      justify-content: center;
-      vertical-align: middle;
-      flex: 0 0 20px;                    /* Fixed size, ingen flex grow */
-      overflow: hidden;
-    }
-    
-    .file-icon svg {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    
-    /* File label med text truncation */
-    .file-label {
-      display: block;
-      flex: 1;                           /* Tar opp resterende plass */
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    
-    /* Ensure icons have proper spacing in all contexts */
-    .dropdown-content a .file-icon,
-    .nested-flyout a .file-icon,
-    .nested-folder-item .file-icon {
-      margin-right: 10px;
-    }
-    
-    /* ============================================================
-       WATCHED STATUS - Grønn checkmark for sette videoer
-       ============================================================ */
-    .file-label.watched::before {
-      content: "✓ ";
-      color: #8BC34A;                    /* Material Design Green */
-      margin-right: 6px;
-      font-weight: 700;
-    }
-    
-    /* Watched indicator for folders (all files watched) */
-    .nested-folder-item.watched > .file-label::after {
-      content: " ✓";
-      color: #8BC34A;
-      margin-left: 6px;
-    }
-    
-    /* ============================================================
-       ERROR/WARNING MESSAGES
-       ============================================================ */
-    .msg { 
-      background: #fdecec;
-      color: #932323;
-      border: 1px solid #f2bbbb;
-      padding: .6rem .8rem;
-      border-radius: 6px;
-      max-width: 56rem;
-      line-height: 1.4;
-      font-size: .95rem;
-      margin: .75rem 0;
-    }
-  `;
-  
-  const styleElement = document.createElement('style');
-  styleElement.id = styleId;
-  styleElement.textContent = cssContent;
-  document.head.appendChild(styleElement);
-})();
-
-/************************************************************************
- * 2) UTILITY FUNCTIONS
- * 
- * Hjelpefunksjoner for passord-beskyttelse, URL-håndtering,
- * viewer setup, og video progress tracking.
- ************************************************************************/
-
-/* ============================================================
-   PASSWORD PROTECTION
-   Bruker SHA-256 hash for client-side password verification.
-   MERK: Dette er ikke sikker kryptering, kun obfuscation.
-   ============================================================ */
-
-// SHA-256 hash av passordet (generer med: python -c "import hashlib; print(hashlib.sha256(b'YourPassword').hexdigest())")
-const BESKYTTET_HASH = '818728143377c056986a23cbcdb765add0aa174625da9c5afc34b8b9ef712500';
-
-/**
- * Sjekker om bruker har godkjent passord denne sesjonen
- * @returns {boolean} True hvis passord er godkjent
- */
-function isOk() { 
-  return sessionStorage.getItem('beskyttet_ok') === '1'; 
-}
-
-/**
- * Beregner SHA-256 hash av en string
- * @param {string} str - String å hashe
- * @returns {Promise<string>} Hex-representasjon av hash
- */
-async function sha256Hex(str) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(String(str));
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * Spør bruker om passord og verifiserer det
- * @returns {Promise<boolean>} True hvis riktig passord
- */
-async function askPass() {
-  if (isOk()) return true;
-  
-  const userPassword = prompt('Dette dokumentet er beskyttet. Skriv inn passord:');
-  if (!userPassword) return false;
-  
-  try {
-    const hash = await sha256Hex(userPassword);
-    if (hash === BESKYTTET_HASH) {
-      sessionStorage.setItem('beskyttet_ok', '1');
-      return true;
-    }
-  } catch (e) {
-    console.error('Password hashing failed:', e);
-  }
-  
-  alert('Feil passord!');
-  return false;
-}
-
-/* ============================================================
-   URL & PATH UTILITIES
-   ============================================================ */
-
-/**
- * Henter kursets base directory (uten index.html)
- * @returns {string} Base path for kurset
- */
-function getCourseDir() { 
-  return location.pathname.replace(/\/index\.html?$/, '/'); 
-}
-
-/**
- * Encoder hvert segment av en path individuelt (for å håndtere special chars)
- * @param {string} relativePath - Relativ path å encode
- * @returns {string} Encoded path
- */
-function encodePathSegments(relativePath) { 
-  return relativePath.split('/').map(s => encodeURIComponent(s)).join('/'); 
-}
-
-/**
- * Konverterer relativ path til absolutt URL
- * @param {string} relativePath - Relativ path eller URL
- * @param {string} baseDir - Base directory
- * @returns {string} Absolutt URL
- */
-function toAbsUrl(relativePath, baseDir) {
-  const pathString = String(relativePath || '');
-  
-  // Allerede absolutt URL
-  if (/^https?:\/\//i.test(pathString)) return pathString;
-  
-  // Absolutt path fra root
-  if (pathString.startsWith('/')) {
-    return new URL(pathString, location.origin).href;
-  }
-  
-  // Relativ path - encode og kombiner med baseDir
-  const encoded = encodePathSegments(pathString.replace(/\\/g, '/'));
-  return new URL(encoded, location.origin + baseDir).href;
-}
-
-/* ============================================================
-   VIEWER SETUP & RESIZE FUNCTIONALITY
-   ============================================================ */
-
-/**
- * Setter opp resize functionality for en viewer
- * @param {HTMLElement} resizeBar - Resize handle element
- * @param {HTMLElement} viewerBox - Viewer container å resize
- */
-function setupResize(resizeBar, viewerBox) {
-  let startY = 0;
-  let startHeight = 0;
-  let isDragging = false;
-  
-  // LocalStorage key for persistent height
-  const storageKey = 'viewerH:' + getCourseDir();
-
-  // Mouse/touch move handler
-  const onMove = (e) => {
-    if (!isDragging) return;
-    
-    const currentY = e.clientY || e.touches?.[0]?.clientY;
-    const deltaY = currentY - startY;
-    
-    // Beregn ny høyde med min/max constraints
-    let newHeight = Math.max(280, startHeight + deltaY);
-    const maxHeight = Math.max(window.innerHeight * 2, 800);
-    newHeight = Math.min(newHeight, maxHeight);
-    
-    viewerBox.style.height = newHeight + 'px';
-  };
-  
-  // Mouse/touch up handler - lagre height til localStorage
-  const onUp = () => {
-    if (!isDragging) return;
-    isDragging = false;
-    
-    // Cleanup event listeners
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-    document.removeEventListener('touchmove', onMove);
-    document.removeEventListener('touchend', onUp);
-    
-    // Lagre height til localStorage
-    try {
-      const finalHeight = Math.round(viewerBox.getBoundingClientRect().height);
-      localStorage.setItem(storageKey, String(finalHeight));
-    } catch (e) {
-      console.warn('Could not save viewer height:', e);
-    }
-  };
-  
-  // Mouse/touch down handler - start dragging
-  const onDown = (e) => {
-    e.preventDefault();
-    startY = e.clientY || e.touches?.[0]?.clientY;
-    startHeight = viewerBox.getBoundingClientRect().height;
-    isDragging = true;
-    
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onUp);
-  };
-  
-  resizeBar.addEventListener('mousedown', onDown);
-  resizeBar.addEventListener('touchstart', onDown, { passive: false });
-}
-
-/**
- * Sikrer at PDF/code viewer og resize bar eksisterer
- * Gjenbruker eksisterende elements hvis de finnes
- * @returns {Object} { box: container element, frame: viewer element }
- */
-function ensureViewer() {
-  const contentArea = document.querySelector('.content');
-  
-  // Finn eller opprett viewer container
-  let viewerBox = document.getElementById('pdf-viewer-container');
-  if (!viewerBox) {
-    viewerBox = document.createElement('div');
-    viewerBox.id = 'pdf-viewer-container';
-    
-    // Opprett <object> element for PDF/code viewing
-    const viewerFrame = document.createElement('object');
-    viewerFrame.id = 'pdf-viewer';
-    viewerFrame.type = 'application/pdf';
-    
-    viewerBox.appendChild(viewerFrame);
-    contentArea.appendChild(viewerBox);
-  }
-
-  // Finn eller opprett resize bar
-  let resizeBar = document.getElementById('pdf-viewer-resize');
-  if (!resizeBar) {
-    resizeBar = document.createElement('div');
-    resizeBar.id = 'pdf-viewer-resize';
-    contentArea.appendChild(resizeBar);
-    setupResize(resizeBar, viewerBox);
-  }
-  
-  // Last inn saved height fra localStorage
-  try {
-    const storageKey = 'viewerH:' + getCourseDir();
-    const savedHeight = localStorage.getItem(storageKey);
-    if (savedHeight && /^\d+$/.test(savedHeight)) {
-      viewerBox.style.height = savedHeight + 'px';
-    }
-  } catch (e) {
-    console.warn('Could not load saved viewer height:', e);
-  }
-
-  return { 
-    box: viewerBox, 
-    frame: viewerBox.firstElementChild 
-  };
-}
-
-/**
- * Sikrer at media viewer (video/youtube/panopto) eksisterer
- * @returns {Object} { box: container element, holder: media holder div }
- */
-function ensureMediaViewer() {
-  const contentArea = document.querySelector('.content');
-  
-  let viewerBox = document.getElementById('media-viewer-container');
-  if (!viewerBox) {
-    viewerBox = document.createElement('div');
-    viewerBox.id = 'media-viewer-container';
-    
-    const mediaHolder = document.createElement('div');
-    mediaHolder.id = 'media-viewer';
-    mediaHolder.style.width = '100%';
-    mediaHolder.style.height = '100%';
-    
-    viewerBox.appendChild(mediaHolder);
-    contentArea.appendChild(viewerBox);
-  }
-  
-  return { 
-    box: viewerBox, 
-    holder: document.getElementById('media-viewer') 
-  };
-}
-
-/* ============================================================
-   VIDEO PROGRESS & WATCHED STATUS TRACKING
-   Bruker localStorage for persistent tracking
-   ============================================================ */
-
-/**
- * Genererer localStorage key for video position
- * @param {string} videoUrl - URL til video
- * @returns {string} Storage key
- */
-function _videoKey(videoUrl) { 
-  try { 
-    return 'videoPos:' + encodeURIComponent(String(videoUrl)); 
-  } catch (e) { 
-    return 'videoPos:' + String(videoUrl); 
+    document.body.appendChild(b);
   } 
-}
-
-/**
- * Genererer localStorage key for watched status
- * @param {string} videoUrl - URL til video
- * @returns {string} Storage key
- */
-function _watchedKey(videoUrl) { 
-  try { 
-    return 'videoWatched:' + encodeURIComponent(String(videoUrl)); 
-  } catch (e) { 
-    return 'videoWatched:' + String(videoUrl); 
-  } 
-}
-
-/**
- * Lagrer video position til localStorage
- * @param {string} videoUrl - URL til video
- * @param {number} seconds - Posisjon i sekunder
- */
-function saveVideoPos(videoUrl, seconds) { 
-  try { 
-    localStorage.setItem(_videoKey(videoUrl), String(Math.floor(seconds || 0))); 
-  } catch (e) {
-    console.warn('Could not save video position:', e);
-  }
-}
-
-/**
- * Laster video position fra localStorage
- * @param {string} videoUrl - URL til video
- * @returns {number} Posisjon i sekunder (0 hvis ikke funnet)
- */
-function loadVideoPos(videoUrl) { 
-  try { 
-    const saved = localStorage.getItem(_videoKey(videoUrl)); 
-    return saved ? parseInt(saved, 10) : 0; 
-  } catch (e) { 
-    return 0; 
-  }
-}
-
-/**
- * Markerer en video som sett
- * @param {string} videoUrl - URL til video
- */
-function markVideoWatched(videoUrl) { 
-  try { 
-    localStorage.setItem(_watchedKey(videoUrl), '1'); 
-  } catch (e) {
-    console.warn('Could not mark video as watched:', e);
-  }
-  refreshWatchedStatus(); 
-}
-
-/**
- * Sjekker om en video er markert som sett
- * @param {string} videoUrl - URL til video
- * @returns {boolean} True hvis sett
- */
-function isVideoWatched(videoUrl) { 
-  try { 
-    return localStorage.getItem(_watchedKey(videoUrl)) === '1'; 
-  } catch (e) { 
-    return false; 
-  }
-}
-
-/**
- * Oppdaterer alle watched indicators i UI
- * Legger til .watched class på sette videoer og mapper
- */
-function refreshWatchedStatus() { 
-  try { 
-    // Oppdater alle video links
-    document.querySelectorAll('#sidebar .dropdown-content a, .nested-flyout a').forEach(anchor => { 
-      const href = anchor.getAttribute('href') || ''; 
-      if (!href) return;
-      
-      try { 
-        const url = new URL(href, location.origin); 
-        const fullUrl = url.href;
-        
-        const label = anchor.querySelector('.file-label');
-        if (!label) return;
-        
-        if (isVideoWatched(fullUrl)) {
-          label.classList.add('watched');
-        } else {
-          label.classList.remove('watched');
-        }
-      } catch (e) { 
-        // Ignorer invalid URLs
-      }
-    });
-    
-    // Oppdater folder status (alle filer i folder sett = folder sett)
-    document.querySelectorAll('.nested-folder-item').forEach(folderItem => {
-      const links = folderItem.querySelectorAll('.nested-flyout a');
-      if (!links.length) return;
-      
-      let allWatched = true;
-      links.forEach(link => { 
-        const href = link.getAttribute('href') || '';
-        try { 
-          const url = new URL(href, location.origin);
-          if (!isVideoWatched(url.href)) {
-            allWatched = false;
-          }
-        } catch (e) { 
-          allWatched = false;
-        }
-      });
-      
-      if (allWatched) {
-        folderItem.classList.add('watched');
-      } else {
-        folderItem.classList.remove('watched');
-      }
-    });
-  } catch (e) {
-    console.error('Error refreshing watched status:', e);
-  }
-}
-
-/* ============================================================
-   YOUTUBE API LOADER
-   Lazy-loader for YouTube IFrame API
-   ============================================================ */
-
-// Global state for YouTube API loading
-const _ytApiState = { loaded: false, callbacks: [] };
-
-/**
- * Sikrer at YouTube IFrame API er lastet
- * @param {Function} callback - Callback å kjøre når API er klar
- */
-function ensureYouTubeAPI(callback) { 
-  // Allerede lastet
-  if (_ytApiState.loaded) {
-    if (callback) callback();
-    return;
-  }
-  
-  // API allerede tilgjengelig
-  if (window.YT && window.YT.Player) { 
-    _ytApiState.loaded = true;
-    if (callback) callback();
-    return;
-  }
-  
-  // Legg til callback i kø
-  _ytApiState.callbacks.push(callback);
-  
-  // Last inn API script hvis ikke allerede lastet
-  if (document.getElementById('yt-api')) return;
-  
-  const script = document.createElement('script');
-  script.id = 'yt-api';
-  script.src = 'https://www.youtube.com/iframe_api';
-  document.head.appendChild(script);
-  
-  // Global callback som YouTube API kaller
-  window.onYouTubeIframeAPIReady = function() { 
-    _ytApiState.loaded = true;
-    _ytApiState.callbacks.forEach(fn => fn && fn());
-    _ytApiState.callbacks = [];
-  };
-}
-
-/* ============================================================
-   UI HELPERS
-   ============================================================ */
-
-/**
- * Toggle visibility av welcome image og description
- * @param {boolean} visible - True for å vise, false for å skjule
- */
-function toggleWelcome(visible) {
-  const display = visible ? 'block' : 'none';
-  document.querySelector('.course-description')?.style.setProperty('display', display);
-  document.getElementById('welcome-img')?.style.setProperty('display', display);
-}
-
-/**
- * Konverterer YouTube URL til embed format
- * @param {string} url - Original YouTube URL
- * @returns {string|null} Embed URL eller null hvis ikke YouTube
- */
-function toYouTubeEmbed(url) {
-  try {
-    const urlString = String(url || '').trim();
-    
-    // youtu.be/<id>
-    let match = urlString.match(/youtu\.be\/([-_
+  b.textContent=txt;
+})();
+/* -------------------------------------------------------------------- */

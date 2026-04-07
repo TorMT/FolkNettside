@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Videooversikt</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --surface:#f8fafc;
+      --card:#ffffff;
+      --text:#1e293b;
+      --muted:#54657a;
+      --accent:#0f4c81;
+      --border:#dbe3ec;
+      --tag-bg:#dde9f6;
+      --tag-text:#1b4a7a;
+      color-scheme: light;
+    }
+    :root[data-theme="dark"]{
+      --bg:#0f1115;
+      --surface:#181c22;
+      --card:#1e232b;
+      --text:#e6edf3;
+      --muted:#a6b2bf;
+      --accent:#7ab4ff;
+      --border:#2c3440;
+      --tag-bg:#243448;
+      --tag-text:#b9d8ff;
+      color-scheme: dark;
+    }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      padding:1rem;
+    }
+    h1{ margin:0 0 1rem; font-size:1.35rem; color:var(--accent); }
+    .hint{ margin:0 0 1rem; color:var(--muted); }
+    .videos{ display:grid; gap:1rem; }
+    .toolbar{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:.6rem;
+      margin:0 0 1rem;
+    }
+    .toolbar input, .toolbar select{
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:.55rem .7rem;
+      font-size:.95rem;
+      background:var(--surface);
+      color:var(--text);
+    }
+    .video-card{
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:.8rem;
+      background:var(--card);
+    }
+    .video-card h2{
+      margin:0 0 .45rem;
+      font-size:1rem;
+      color:var(--accent);
+    }
+    .video-card p{
+      margin:0 0 .6rem;
+      font-size:.95rem;
+      line-height:1.4;
+    }
+    .themes{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.4rem;
+      margin:0 0 .7rem;
+    }
+    .theme-tag{
+      font-size:.78rem;
+      padding:.18rem .5rem;
+      border-radius:999px;
+      background:var(--tag-bg);
+      color:var(--tag-text);
+      border:1px solid var(--border);
+    }
+    iframe, video{
+      width:100%;
+      min-height:340px;
+      border:none;
+      border-radius:8px;
+      background:#000;
+    }
+    .video-frame{
+      aspect-ratio:16/9;
+      min-height:260px;
+    }
+    .watch-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:.8rem;
+      margin:0 0 .6rem;
+      font-size:.9rem;
+      color:var(--muted);
+    }
+    .watch-row input{ transform:scale(1.1); }
+    .action-row{
+      display:flex;
+      gap:.5rem;
+      margin:0 0 .6rem;
+      flex-wrap:wrap;
+    }
+    .action-row button, .action-row a{
+      border:1px solid var(--border);
+      background:var(--surface);
+      color:var(--text);
+      border-radius:8px;
+      padding:.32rem .6rem;
+      font-size:.82rem;
+      text-decoration:none;
+      cursor:pointer;
+    }
+    .auth-hint{
+      margin:0 0 .5rem;
+      font-size:.82rem;
+      border:1px dashed var(--border);
+      padding:.42rem .55rem;
+      border-radius:8px;
+      color:var(--muted);
+      background:var(--surface);
+    }
+  </style>
+</head>
+<body>
+  <h1 id="title">Videooversikt</h1>
+  <p class="hint">Alle videoer i valgt mappe vises under i rekkefølge.</p>
+  <div class="toolbar">
+    <input id="searchInput" type="search" placeholder="Søk i tittel, beskrivelse eller tema …">
+    <select id="sortSelect">
+      <option value="original">Sorter: original rekkefølge</option>
+      <option value="title">Sorter: tittel (A–Å)</option>
+      <option value="theme">Sorter: tema (A–Å)</option>
+    </select>
+  </div>
+  <div id="videos" class="videos"></div>
+
+  <script>
+    function applyTheme(themeAttr, vars){
+      try{
+        const root = document.documentElement;
+        if (themeAttr) root.setAttribute('data-theme', themeAttr);
+        if (vars && typeof vars === 'object'){
+          Object.entries(vars).forEach(([k,v]) => {
+            if (String(k).startsWith('--')) root.style.setProperty(k, String(v));
+          });
+        }
+      }catch(e){}
+    }
+
+    window.addEventListener('message', (ev) => {
+      const data = ev && ev.data;
+      if (!data || data.type !== 'theme-sync') return;
+      applyTheme(data.themeAttr || null, data.vars || null);
+    });
+
+    // Best effort initial sync når vi er same-origin
+    try{
+      const pRoot = window.parent && window.parent.document ? window.parent.document.documentElement : null;
+      if (pRoot){
+        applyTheme(pRoot.getAttribute('data-theme'), null);
+      }
+    }catch(e){}
+
+    function toYouTubeEmbed(url){
+      const s = String(url || '').trim();
+      let m = s.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
+      if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
+      m = s.match(/[?&]v=([-_0-9A-Za-z]+)/i);
+      if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
+      m = s.match(/youtube\.com\/embed\/([-_0-9A-Za-z]+)/i);
+      if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
+      return null;
+    }
+
+    function toPanoptoEmbed(url){
+      return String(url || '').replace(/Viewer\.aspx/i, 'Embed.aspx');
+    }
+    function watchedKey(url){
+      return 'videoWatched:' + encodeURIComponent(String(url || ''));
+    }
+    function getCookie(name){
+      const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.$?*|{}()\\[\\]\\\\/+^]/g, '\\$&') + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function setCookie(name, value, days){
+      const maxAge = Math.max(1, days || 365) * 24 * 60 * 60;
+      document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    }
+    function isWatched(url){
+      const key = watchedKey(url);
+      try{
+        if (localStorage.getItem(key) === '1') return true;
+      }catch(e){}
+      return getCookie(key) === '1';
+    }
+    function setWatched(url, value){
+      const key = watchedKey(url);
+      const v = value ? '1' : '0';
+      try{ localStorage.setItem(key, v); }catch(e){}
+      setCookie(key, v, 365);
+    }
+
+    function isYouTube(url){
+      return /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(String(url || ''));
+    }
+
+    function isPanopto(url){
+      const s = String(url || '');
+      return /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(s) || /panopto.*Viewer\.aspx/i.test(s);
+    }
+
+    function isVideoFile(url){
+      const lower = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+      return /\.(mp4|webm|ogg|mov|m4v)$/.test(lower);
+    }
+    function isGoogleDrive(url){
+      return /^https?:\/\/(?:drive|docs)\.google\.com\//i.test(String(url || ''));
+    }
+    function toGoogleDriveEmbed(url){
+      const s = String(url || '');
+      const m1 = s.match(/\/file\/d\/([^/]+)/i);
+      if (m1) return `https://drive.google.com/file/d/${m1[1]}/preview`;
+      const m2 = s.match(/[?&]id=([^&]+)/i);
+      if (m2) return `https://drive.google.com/file/d/${m2[1]}/preview`;
+      return s;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const key = params.get('playlistKey');
+    const wrap = document.getElementById('videos');
+
+    if (!key){
+      document.body.innerHTML = '<p>Mangler playlistKey.</p>';
+      throw new Error('Missing playlistKey');
+    }
+
+    let payload = null;
+    try{
+      payload = JSON.parse(localStorage.getItem(key) || 'null');
+      localStorage.removeItem(key);
+    }catch(e){}
+
+    if (!payload || !Array.isArray(payload.items) || !payload.items.length){
+      document.body.innerHTML = '<p>Fant ingen videoer i valgt mappe.</p>';
+      throw new Error('Empty playlist payload');
+    }
+
+    if (payload.title) document.getElementById('title').textContent = payload.title;
+
+    const normalized = payload.items.map((item, index) => {
+      const themes = Array.isArray(item.themes) ? item.themes.map(t => String(t || '').trim()).filter(Boolean) : [];
+      return {
+        index,
+        title: item.title || 'Video',
+        description: item.description || '',
+        themes,
+        url: item.url || ''
+      };
+    });
+
+    function render(list){
+      wrap.innerHTML = '';
+      list.forEach((item, index) => {
+      const card = document.createElement('section');
+      card.className = 'video-card';
+
+      const h = document.createElement('h2');
+      h.textContent = `${index + 1}. ${item.title || 'Video'}`;
+      card.appendChild(h);
+
+      if (item.description){
+        const p = document.createElement('p');
+        p.textContent = item.description;
+        card.appendChild(p);
+      }
+
+      const watchRow = document.createElement('div');
+      watchRow.className = 'watch-row';
+      const watchLabel = document.createElement('label');
+      const watchCheckbox = document.createElement('input');
+      watchCheckbox.type = 'checkbox';
+      watchCheckbox.checked = isWatched(item.url);
+      watchLabel.appendChild(watchCheckbox);
+      watchLabel.appendChild(document.createTextNode(' Markér som sett'));
+      const watchState = document.createElement('span');
+      watchState.textContent = watchCheckbox.checked ? 'Sett' : 'Ikke sett';
+      watchCheckbox.addEventListener('change', () => {
+        setWatched(item.url, watchCheckbox.checked);
+        watchState.textContent = watchCheckbox.checked ? 'Sett' : 'Ikke sett';
+      });
+      watchRow.appendChild(watchLabel);
+      watchRow.appendChild(watchState);
+      card.appendChild(watchRow);
+
+      if (item.themes && item.themes.length){
+        const themesEl = document.createElement('div');
+        themesEl.className = 'themes';
+        item.themes.forEach(theme => {
+          const tag = document.createElement('span');
+          tag.className = 'theme-tag';
+          tag.textContent = theme;
+          themesEl.appendChild(tag);
+        });
+        card.appendChild(themesEl);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'action-row';
+      const openBtn = document.createElement('a');
+      openBtn.href = item.url || '#';
+      openBtn.target = '_blank';
+      openBtn.rel = 'noopener';
+      openBtn.textContent = 'Åpne original';
+      actions.appendChild(openBtn);
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.textContent = 'Kopier lenke';
+      copyBtn.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(item.url || ''); copyBtn.textContent = 'Kopiert!'; }
+        catch (e) { copyBtn.textContent = 'Kunne ikke kopiere'; }
+        setTimeout(() => { copyBtn.textContent = 'Kopier lenke'; }, 1200);
+      });
+      actions.appendChild(copyBtn);
+      card.appendChild(actions);
+
+      const url = item.url || '';
+      if (isYouTube(url)){
+        const ifr = document.createElement('iframe');
+        ifr.src = toYouTubeEmbed(url) || url;
+        ifr.className = 'video-frame';
+        ifr.allowFullscreen = true;
+        ifr.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
+        card.appendChild(ifr);
+      } else if (isPanopto(url)){
+        const hint = document.createElement('div');
+        hint.className = 'auth-hint';
+        hint.textContent = 'Hvis Panopto ikke vises: klikk "Åpne original" og logg inn.';
+        card.appendChild(hint);
+        const ifr = document.createElement('iframe');
+        ifr.src = toPanoptoEmbed(url);
+        ifr.className = 'video-frame';
+        ifr.allowFullscreen = true;
+        ifr.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
+        card.appendChild(ifr);
+      } else if (isGoogleDrive(url)){
+        const hint = document.createElement('div');
+        hint.className = 'auth-hint';
+        hint.textContent = 'Hvis Google Drive-video ikke vises: klikk "Åpne original" og logg inn.';
+        card.appendChild(hint);
+        const ifr = document.createElement('iframe');
+        ifr.src = toGoogleDriveEmbed(url);
+        ifr.className = 'video-frame';
+        ifr.allowFullscreen = true;
+        ifr.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
+        card.appendChild(ifr);
+      } else if (isVideoFile(url)){
+        const v = document.createElement('video');
+        v.controls = true;
+        v.preload = 'metadata';
+        v.src = url;
+        card.appendChild(v);
+      } else {
+        const p = document.createElement('p');
+        p.textContent = 'Ukjent videoformat: ' + url;
+        card.appendChild(p);
+      }
+
+      wrap.appendChild(card);
+      });
+    }
+
+    function applyFilterAndSort(){
+      const query = String(document.getElementById('searchInput').value || '').toLowerCase().trim();
+      const sortMode = document.getElementById('sortSelect').value;
+      let filtered = normalized.filter(item => {
+        if (!query) return true;
+        const hay = [
+          item.title,
+          item.description,
+          (item.themes || []).join(' ')
+        ].join(' ').toLowerCase();
+        return hay.includes(query);
+      });
+
+      if (sortMode === 'title'){
+        filtered = filtered.slice().sort((a, b) => a.title.localeCompare(b.title, 'no', {sensitivity:'base'}));
+      } else if (sortMode === 'theme'){
+        filtered = filtered.slice().sort((a, b) => {
+          const at = (a.themes[0] || '').toLowerCase();
+          const bt = (b.themes[0] || '').toLowerCase();
+          return at.localeCompare(bt, 'no', {sensitivity:'base'});
+        });
+      } else {
+        filtered = filtered.slice().sort((a, b) => a.index - b.index);
+      }
+      render(filtered);
+    }
+
+    document.getElementById('searchInput').addEventListener('input', applyFilterAndSort);
+    document.getElementById('sortSelect').addEventListener('change', applyFilterAndSort);
+    applyFilterAndSort();
+  </script>
+</body>
+</html>

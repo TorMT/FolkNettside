@@ -1,60 +1,196 @@
 // /includes/three/ModelLoader.js
-// Laster STL-filer og lager riktig materiale-oppsett:
+// Laster STL og 3MF-filer og lager riktig materiale-oppsett:
 // ✅ Vertex colors (binary STL "Magics" / COLOR=...)
 // ✅ Multi-solid (ASCII STL med flere "solid" => geometry.groups)
 // ✅ Fallback per-solid farger hvis multi-solid uten vertex colors
 // ✅ Beholder volum + centroid (samme metode som før)
 //
-// Krever: STLLoader.js, three.module.js
+// Krever: STLLoader.js, ThreeMFLoader.js, three.module.js
 
 import * as THREE from "./three.module.js";
 import { STLLoader } from "./STLLoader.js";
+import { ThreeMFLoader } from "./ThreeMFLoader.js";
+import { FusionArchiveLoader } from "./FusionArchiveLoader.js";
 
 export class ModelLoader {
   constructor() {
-    this.loader = new STLLoader();
+    this.stlLoader = new STLLoader();
+    this.threeMFLoader = new ThreeMFLoader();
+    this.fusionLoader = new FusionArchiveLoader();
   }
 
   /**
-   * Last STL via fetch() og returner:
+   * Last STL eller 3MF via fetch() og returner:
    * { mesh, geometry, volume, centroidLocal }
    */
   async load(url) {
     if (!url) throw new Error("ModelLoader: url mangler");
 
+    console.info("[ModelLoader] Starter lasting:", url);
     const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ved lasting av ${url}`);
+    console.info("[ModelLoader] HTTP-respons:", {
+      url,
+      status: res.status,
+      ok: res.ok,
+      contentType: res.headers.get("content-type") || "ukjent",
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ved lasting av ${url}`);
+    }
 
     const buf = await res.arrayBuffer();
-    const geometry = this.loader.parse(buf);
+    console.info("[ModelLoader] Bytes mottatt:", buf.byteLength);
 
-    // STLLoader gir normalt non-indexed geom, men vi støtter begge
-    geometry.computeVertexNormals();
-    geometry.computeBoundingBox();
+    // Detect file type from URL extension (ignorer query/hash)
+    const cleanUrl = String(url).split('?')[0].split('#')[0].toLowerCase();
+    const is3MF = cleanUrl.endsWith('.3mf');
+    const is3FZ = cleanUrl.endsWith('.3fz');
+    console.info("[ModelLoader] Filtypedeteksjon:", { cleanUrl, is3MF, is3FZ });
+    const loader = is3MF ? this.threeMFLoader : (is3FZ ? this.fusionLoader : this.stlLoader);
 
-    // Beregn totalvolum + centroid i LOCAL space (bruker pos/index hvis finnes)
-    const { volume, centroid } = this.computeVolumeAndCentroid(geometry);
+    let geometry;
+    let components = null;
+    if (is3MF || is3FZ) {
+      // 3MF/Fusion loaders return arrays of components
+      components = await loader.load(url);
+      if (!Array.isArray(components)) {
+        // Single component - wrap in array
+        components = [{ name: 'model', geometry: components }];
+      }
+      geometry = null; // Will be handled below
+    } else {
+      // STL loader is synchronous
+      geometry = loader.parse(buf);
+    }
 
-    // --- Materialeoppsett ---
-    const { material, meta } = this._buildMaterialForGeometry(geometry);
+    let mesh;
+    let componentNames = [];
 
-    const mesh = new THREE.Mesh(geometry, material);
+    if (components) {
+      // Build a group with multiple meshes
+      const group = new THREE.Group();
+      let totalVolume = 0;
+      const totalCentroid = new THREE.Vector3();
 
-    // Litt metadata kan være nyttig for debugging/GUI senere
-    mesh.userData.stlMeta = meta;
+      for (const comp of components) {
+        comp.geometry.computeVertexNormals();
+        comp.geometry.computeBoundingBox();
 
-    return {
-      mesh,
-      geometry,
-      volume,
-      centroidLocal: centroid,
-    };
+        const compMesh = new THREE.Mesh(comp.geometry, null); // Material set below
+        compMesh.name = comp.name;
+        compMesh.userData.componentName = comp.name;
+        group.add(compMesh);
+
+        // Calculate component volume/centroid
+        const { volume, centroid } = this.computeVolumeAndCentroid(comp.geometry);
+        totalVolume += volume;
+        totalCentroid.addScaledVector(centroid, volume);
+
+        componentNames.push(comp.name);
+      }
+
+      // Final centroid
+      if (totalVolume > 0) {
+        totalCentroid.divideScalar(totalVolume);
+      }
+
+      mesh = group;
+      mesh.userData.volume = totalVolume;
+      mesh.userData.centroidLocal = totalCentroid;
+      mesh.userData.componentNames = componentNames;
+
+      // Material setup for group
+      const { material, meta } = this._buildMaterialForComponents(components);
+      for (let i = 0; i < group.children.length; i++) {
+        group.children[i].material = Array.isArray(material) ? material[i] : material;
+      }
+
+      mesh.userData.modelMeta = {
+        ...meta,
+        fileType: is3FZ ? '3fz' : '3mf',
+        url: url,
+        components: componentNames.length
+      };
+
+      return {
+        mesh,
+        geometry: null, // Group doesn't have single geometry
+        volume: totalVolume,
+        centroidLocal: totalCentroid,
+      };
+
+    } else {
+      // Single geometry (STL or single-component 3MF)
+      geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+
+      // Beregn totalvolum + centroid i LOCAL space
+      const { volume, centroid } = this.computeVolumeAndCentroid(geometry);
+
+      // --- Materialeoppsett ---
+      const { material, meta } = this._buildMaterialForGeometry(geometry);
+
+      mesh = new THREE.Mesh(geometry, material);
+
+      // Litt metadata kan være nyttig for debugging/GUI senere
+      mesh.userData.modelMeta = {
+        ...meta,
+        fileType: is3MF ? '3mf' : (is3FZ ? '3fz' : 'stl'),
+        url: url
+      };
+
+      return {
+        mesh,
+        geometry,
+        volume,
+        centroidLocal: centroid,
+      };
+    }
   }
 
   // ------------------------------------------------------------
   // Material-bygging: vertex colors + groups
   // ------------------------------------------------------------
 
+  _buildMaterialForComponents(components) {
+    const baseParams = {
+      metalness: 0.05,
+      roughness: 0.55,
+      flatShading: false,
+      side: THREE.DoubleSide,
+    };
+
+    // Build materials for each component
+    const materials = [];
+    const names = components.map(c => c.name);
+
+    for (let i = 0; i < components.length; i++) {
+      const name = names[i] || `component_${i + 1}`;
+      const col = this._colorFromString(name);
+
+      materials.push(
+        new THREE.MeshStandardMaterial({
+          ...baseParams,
+          color: col,
+          transparent: false,
+          opacity: 1.0,
+        })
+      );
+    }
+
+    return {
+      material: materials,
+      meta: {
+        hasVertexColors: false,
+        alpha: 1.0,
+        groups: components.length,
+        groupNames: names,
+        components: components.length,
+      },
+    };
+  }
+
+  // ------------------------------------------------------------
   _buildMaterialForGeometry(geometry) {
     const hasVertexColors = !!geometry.hasColors || !!geometry.getAttribute?.("color");
     const alpha = Number.isFinite(geometry.alpha) ? geometry.alpha : 1.0;

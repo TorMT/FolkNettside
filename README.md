@@ -61,6 +61,10 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 **Scripts og vedlikehold**
 
 - `scripts/` inneholder verktøy for oppdatering og eksport (`export_repo.py`, `export/`, etc.). Les filene for mer detaljer. Kjør Python-skript med et passende virtuelt miljø.
+- `scripts/video_topic_enricher.py` kan brukes til å gjøre en videoliste om til JSON med `description` og `themes` (gratis/lokalt, via `yt-dlp` undertekster for YouTube/Panopto, med valgfri AI-klassifisering via lokal Ollama og valgfri Whisper-transkribering).
+- `SiteUpdater3.py` støtter nå også `--enrich-video-lists` for å kjøre enrich automatisk etter indeksoppdatering (valgfritt med cookies/ollama/whisper-flagg).
+- Enrich-trinnet hopper nå over filer uten endringer (bruk `--enrich-force` for å tvinge full kjøring).
+- Etter enrich vises en oppsummering med antall kandidater/kjørte/skippede/feilede filer.
 
 **Feilsøking**
 
@@ -85,6 +89,9 @@ git push origin main
 git config core.editor "code --wait"
 
 # Serve lokalt
+python -m http.server 8000
+```
+
 Dette dokumentet forklarer hvordan du bruker `SiteUpdater3.py` og `navbarupdater.py`, hvilke mapper som betyr hva, og hvor du personaliserer siden.
 
 ### Viktige mapper

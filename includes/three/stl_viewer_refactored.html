@@ -225,7 +225,64 @@
   .helpMain h3{ margin:0 0 8px 0; font-size: 14px; font-weight: 950; }
   .helpMain p{ margin:8px 0; line-height:1.45; }
 
+  /* Navier-style elements */
+  .navier-sidebar {
+    position: absolute;
+    left: 10px;
+    top: 50px;
+    width: 200px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    z-index: 100;
+  }
+
+  .navier-info-panel {
+    position: absolute;
+    right: 10px;
+    top: 50px;
+    width: 250px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    z-index: 100;
+  }
+
+  .navier-sidebar ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .navier-sidebar li {
+    cursor: pointer;
+    padding: 5px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .navier-sidebar li:hover {
+    background: var(--bg-main);
+  }
+
+  .hidden { display: none; }
+
   #btnMobileMenu{ display:none; }
+  @media (max-width: 780px){
+    #btnMobileMenu{ display:inline-flex; }
+    .hideOnMobile{ display:none; }
+    #uiWrap{ width: calc(100vw - 16px); }
+    .menu{
+      left:0; right:0;
+      width: calc(100vw - 24px);
+      min-width: unset;
+      max-height: min(70vh, 620px);
+      overflow:auto;
+    }
+    input[type="range"]{ width: 160px; }
+    .helpWrap{ grid-template-columns: 1fr; }
+    .helpSide{ display:flex; gap:8px; overflow:auto; }
+    .helpSide button{ white-space:nowrap; width:auto; }
+    .navier-sidebar, .navier-info-panel { width: 150px; font-size: 14px; }
+  }
   @media (max-width: 780px){
     #btnMobileMenu{ display:inline-flex; }
     .hideOnMobile{ display:none; }
@@ -258,6 +315,16 @@
         <button id="btnZoomIn" class="btn primary" title="Zoom inn">Zoom+</button>
         <button id="btnZoomOut" class="btn primary" title="Zoom ut">Zoom-</button>
         <button id="btnDownload" class="btn primary">Last ned</button>
+        <button id="btnHideShowTools" class="btn" title="Hide/Show Tools">☰</button>
+        <button id="btnHideShowInfo" class="btn" title="Hide/Show Info">ℹ️</button>
+        <button id="btnResetCamera" class="btn" title="Reset Camera">Reset Cam</button>
+        <button id="btnResetColors" class="btn" title="Reset Colors">Reset Col</button>
+        <select id="selComponent" class="btn" style="border-radius:12px; padding:8px;">
+          <option value="">Select Component</option>
+          <option value="hull">Hull</option>
+          <option value="thrusters">Thrusters</option>
+          <option value="batteries">Batteries</option>
+        </select>
       </div>
 
       <div class="sep hideOnMobile"></div>
@@ -449,6 +516,14 @@
             <div class="val" id="txtCB">—</div>
           </div>
           <div class="row">
+            <div><div class="val">GM Transverse</div></div>
+            <input type="text" id="txtGMTransverse" readonly style="width:80px;">
+          </div>
+          <div class="row">
+            <div><div class="val">GM Longitudinal</div></div>
+            <input type="text" id="txtGMLongitudinal" readonly style="width:80px;">
+          </div>
+          <div class="row">
             <div><div class="val">Kvalitet</div></div>
             <select id="selHydroQ">
               <option value="low">Low</option>
@@ -541,6 +616,21 @@
       </div>
 
     </div>
+  </div>
+
+  <!-- Navier-style sidebar and info panel -->
+  <div id="componentSidebar" class="navier-sidebar">
+    <h3>Components</h3>
+    <ul id="componentList">
+      <li data-comp="hull">Hull</li>
+      <li data-comp="thrusters">Thrusters</li>
+      <li data-comp="batteries">Batteries</li>
+    </ul>
+  </div>
+
+  <div id="infoPanel" class="navier-info-panel hidden">
+    <h3>Ship Info</h3>
+    <p id="infoContent">Select a component or view hydro data.</p>
   </div>
 
   <script type="module">

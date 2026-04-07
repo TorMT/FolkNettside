@@ -61,21 +61,98 @@
         Diverse
       </button>
 <div class="dropdown-content" role="menu">
-<a href="https://keggerapp.azurewebsites.net/keg-hydrometer" rel="noopener noreferrer" role="menuitem" target="_blank">
-          Hydrometer
-        </a>
-<a href="https://sandalengard.no/" rel="noopener noreferrer" role="menuitem" target="_blank">
-          Sandalen Gård
-        </a>
-<a href="https://keggerapp.azurewebsites.net/tabs" rel="noopener noreferrer" role="menuitem" target="_blank">
-          Sandalen Tools
-        </a>
-<a href="/diverse/LAOS/index.html" role="menuitem">Laos</a>
-<a href="/diverse/Njord/index.html" role="menuitem">Njord</a>
-<a href="/diverse/AndreKokSider/andre-koksider.html" role="menuitem">Andre Kok Sider</a>
+<a href="/diverse/AndreKokSider/" role="menuitem">AndreKokSider</a>
+<a href="/diverse/Hydrometer/" role="menuitem">Hydrometer</a>
+<a href="/diverse/LAOS/" role="menuitem">LAOS</a>
+<a href="/diverse/Njord/" role="menuitem">Njord</a>
+<a href="/diverse/Sandalen%20G%C3%A5rd/" role="menuitem">Sandalen Gård</a>
+<a href="/diverse/Sandalen%20Tools/" role="menuitem">Sandalen Tools</a>
 </div>
 </div>
 <a href="/om/index.html">Om</a>
 <a href="/kontakt/index.html">Kontakt</a>
 </div>
 </nav>
+<script>
+  (async function hydrateDiverseMenu() {
+    const menu = document.getElementById("diverse-menu");
+    if (!menu) return;
+
+    const normalizeHref = (href) => {
+      const h = String(href || "").trim();
+      if (!h) return "";
+      if (/^https?:\/\//i.test(h) || h.startsWith("/")) return h;
+      return `/diverse/${h.replace(/^\.?\//, "")}`;
+    };
+
+    const basename = (href) => {
+      const clean = String(href || "").split("?")[0].split("#")[0];
+      const last = clean.split("/").pop() || clean;
+      return last.replace(/\.[^/.]+$/, "") || "Lenke";
+    };
+
+    const parseStringEntry = (entry) => {
+      const raw = String(entry || "").trim();
+      if (!raw) return null;
+      if (!raw.includes("|")) {
+        const href = normalizeHref(raw);
+        return href ? { label: basename(href), href } : null;
+      }
+      const [labelRaw, hrefRaw] = raw.split("|").map(s => s.trim());
+      const href = normalizeHref(hrefRaw || labelRaw);
+      if (!href) return null;
+      return { label: labelRaw || basename(href), href };
+    };
+
+    const out = [];
+    const seen = new Set();
+    const pushLink = (label, href) => {
+      const key = `${label}::${href}`;
+      if (!href || seen.has(key)) return;
+      seen.add(key);
+      out.push({ label, href });
+    };
+
+    const walk = (node) => {
+      if (!node) return;
+      if (typeof node === "string") {
+        const parsed = parseStringEntry(node);
+        if (parsed) pushLink(parsed.label, parsed.href);
+        return;
+      }
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (typeof node === "object") {
+        if (typeof node.url === "string") {
+          const href = normalizeHref(node.url);
+          const label = String(node.title || node.name || basename(href));
+          pushLink(label, href);
+        }
+        Object.entries(node).forEach(([k, v]) => {
+          if (k === "welcome" || k === "quiz" || k === "url") return;
+          walk(v);
+        });
+      }
+    };
+
+    try {
+      const res = await fetch("/diverse/index.json", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = await res.json();
+      walk(json);
+      if (!out.length) return;
+      menu.innerHTML = "";
+      out.forEach(({ label, href }) => {
+        const a = document.createElement("a");
+        a.href = href;
+        a.setAttribute("role", "menuitem");
+        a.textContent = label;
+        menu.appendChild(a);
+      });
+    } catch {
+      // Fallback: behold statiske Tools-lenker
+    }
+  })();
+</script>
