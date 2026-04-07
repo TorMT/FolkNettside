@@ -1179,7 +1179,7 @@ async function initSidebar(){
   html += keys.map(key=>{
     const obj = data[key];
     const locked = !!(obj && obj.beskyttet);
-    const lock = locked ? 'ðŸ”’ ' : '';
+    const lock = locked ? '?? ' : '';
     let files = [];
     if (Array.isArray(obj)) files = obj;
     else if (obj?.files) files = obj.files;
