@@ -77,14 +77,18 @@
   
   const DEFAULT_THEME = 'default';
   const STORAGE_KEY = 'folk-theme';
+  const MOBILE_BREAKPOINT = 1024;
   
   // ============ THEME MANAGER ============
   
   class ThemeManager {
     constructor() {
+      this.prefersDarkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+      this.mobileMedia = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
       this.currentTheme = this.loadTheme();
       this.init();
       this.setupCrossTabSync();
+      this.setupSystemThemeSync();
     }
     
     init() {
@@ -122,6 +126,10 @@
     }
     
     loadTheme() {
+      if (this.isMobileMode()) {
+        return this.getSystemTheme();
+      }
+
       try {
         // Sjekk localStorage
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -143,6 +151,8 @@
     }
     
     saveTheme(theme) {
+      if (this.isMobileMode()) return;
+
       try {
         localStorage.setItem(STORAGE_KEY, theme);
         console.log(`💾 Theme saved: ${theme}`);
@@ -249,6 +259,12 @@
     }
     
     createUI() {
+      if (this.isMobileMode()) {
+        // På mobil følger vi systemtema og skjuler manuell theme-picker
+        this.removeThemeUI();
+        return;
+      }
+
       // VIKTIG: Sjekk om UI allerede eksisterer
       const existing = document.querySelectorAll('.theme-switcher');
       if (existing.length > 0) {
@@ -348,6 +364,36 @@
           this.closeMenu();
         }
       });
+    }
+
+    isMobileMode() {
+      return this.mobileMedia.matches;
+    }
+
+    getSystemTheme() {
+      return this.prefersDarkMedia.matches ? 'dark' : DEFAULT_THEME;
+    }
+
+    removeThemeUI() {
+      document.querySelectorAll('.theme-switcher').forEach(el => el.remove());
+    }
+
+    setupSystemThemeSync() {
+      const syncFromSystem = () => {
+        if (!this.isMobileMode()) {
+          this.createUI();
+          return;
+        }
+        this.removeThemeUI();
+        const systemTheme = this.getSystemTheme();
+        if (systemTheme !== this.currentTheme) {
+          this.applyTheme(systemTheme, false);
+        }
+      };
+
+      this.prefersDarkMedia.addEventListener('change', syncFromSystem);
+      this.mobileMedia.addEventListener('change', syncFromSystem);
+      syncFromSystem();
     }
     
     injectStyles() {
