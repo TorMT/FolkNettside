@@ -43,16 +43,22 @@ export class ModelLoader {
 
     // Detect file type from URL extension (ignorer query/hash)
     const cleanUrl = String(url).split('?')[0].split('#')[0].toLowerCase();
-    const is3MF = cleanUrl.endsWith('.3mf') || cleanUrl.endsWith('.3fm');
-    const is3FZ = cleanUrl.endsWith('.3fz');
-    console.info("[ModelLoader] Filtypedeteksjon:", { cleanUrl, is3MF, is3FZ });
-    const loader = is3MF ? this.threeMFLoader : (is3FZ ? this.fusionLoader : this.stlLoader);
+    const is3MF = cleanUrl.endsWith('.3mf') || cleanUrl.endsWith('.3fm') || cleanUrl.endsWith('.fm3');
+    const isFusionArchive = cleanUrl.endsWith('.3fz') || cleanUrl.endsWith('.f3d') || cleanUrl.endsWith('.fbm');
+    const isZip = buf.byteLength >= 4 && new DataView(buf).getUint32(0, true) === 0x04034b50;
+    console.info("[ModelLoader] Filtypedeteksjon:", { cleanUrl, is3MF, isFusionArchive, isZip });
 
     let geometry;
     let components = null;
-    if (is3MF || is3FZ) {
+    if (is3MF || isFusionArchive || isZip) {
       // 3MF/Fusion loaders return arrays of components
-      components = await loader.load(url);
+      if (is3MF) {
+        components = await this.threeMFLoader.load(url);
+      } else if (isFusionArchive) {
+        components = await this.fusionLoader.load(url);
+      } else {
+        components = await this._loadZipByBestEffort(url);
+      }
       if (!Array.isArray(components)) {
         // Single component - wrap in array
         components = [{ name: 'model', geometry: components }];
@@ -60,7 +66,7 @@ export class ModelLoader {
       geometry = null; // Will be handled below
     } else {
       // STL loader is synchronous
-      geometry = loader.parse(buf);
+      geometry = this.stlLoader.parse(buf);
     }
 
     let mesh;
@@ -107,7 +113,7 @@ export class ModelLoader {
 
       mesh.userData.modelMeta = {
         ...meta,
-        fileType: is3FZ ? '3fz' : '3mf',
+        fileType: isFusionArchive ? 'fusion-archive' : (is3MF ? '3mf' : 'zip-auto'),
         url: url,
         components: componentNames.length
       };
@@ -135,7 +141,7 @@ export class ModelLoader {
       // Litt metadata kan være nyttig for debugging/GUI senere
       mesh.userData.modelMeta = {
         ...meta,
-        fileType: is3MF ? '3mf' : (is3FZ ? '3fz' : 'stl'),
+        fileType: is3MF ? '3mf' : (isFusionArchive ? 'fusion-archive' : 'stl'),
         url: url
       };
 
@@ -145,6 +151,15 @@ export class ModelLoader {
         volume,
         centroidLocal: centroid,
       };
+    }
+  }
+
+  async _loadZipByBestEffort(url) {
+    try {
+      return await this.threeMFLoader.load(url);
+    } catch (err3mf) {
+      console.warn("[ModelLoader] 3MF-parse feilet, prøver Fusion-arkiv:", err3mf);
+      return this.fusionLoader.load(url);
     }
   }
 

@@ -105,7 +105,7 @@
   setDisabled(btnStl, !CAD_EXT.has(ext), "3D-viewer er kun relevant for CAD-relaterte filer.");
 
   btnStl.onclick = () => {
-    const viewerTarget = ["stl", "3mf", "3fm", "f3z"].includes(ext) ? decodedFile : stlCandidate;
+    const viewerTarget = ["stl", "3mf", "3fm", "fm3", "f3z", "f3d", "fbm"].includes(ext) ? decodedFile : stlCandidate;
     location.href = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(viewerTarget)}`;
   };
 
