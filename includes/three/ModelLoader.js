@@ -95,8 +95,8 @@ export class ModelLoader {
 
       mesh.userData.modelMeta = {
         ...meta,
-        fileType: '3mf',
-        url: url,is3FZ ? '3fz' : 
+        fileType: is3FZ ? '3fz' : '3mf',
+        url: url,
         components: componentNames.length
       };
 
