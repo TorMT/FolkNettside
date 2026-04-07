@@ -31,9 +31,10 @@ export class ModelLoader {
 
     const buf = await res.arrayBuffer();
 
-    // Detect file type from URL extension
-    const is3MF = url.toLowerCase().endsWith('.3mf');
-    const is3FZ = url.toLowerCase().endsWith('.3fz');
+    // Detect file type from URL extension (ignorer query/hash)
+    const cleanUrl = String(url).split('?')[0].split('#')[0].toLowerCase();
+    const is3MF = cleanUrl.endsWith('.3mf');
+    const is3FZ = cleanUrl.endsWith('.3fz');
     const loader = is3MF ? this.threeMFLoader : (is3FZ ? this.fusionLoader : this.stlLoader);
 
     let geometry;
@@ -95,8 +96,8 @@ export class ModelLoader {
 
       mesh.userData.modelMeta = {
         ...meta,
-        fileType: '3mf',
-        url: url,is3FZ ? '3fz' : 
+        fileType: is3FZ ? '3fz' : '3mf',
+        url: url,
         components: componentNames.length
       };
 

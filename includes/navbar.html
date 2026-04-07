@@ -60,11 +60,98 @@
 <button aria-expanded="false" aria-haspopup="true" class="dropbtn">
         Diverse
       </button>
-<div class="dropdown-content" role="menu">
-<!-- Diverse-lenker er bevisst skjult fra global navbar -->
+<div class="dropdown-content" id="diverse-menu" role="menu">
+<a href="/Tools/stlview1.html" role="menuitem">STL viewer (legacy)</a>
+<a href="/Tools/FluidKalkulator.html" role="menuitem">Fluid-kalkulator</a>
+<a href="/Tools/PeriodicTable/periodic-table.html" role="menuitem">Periodiske system</a>
+<a href="/Tools/ChemDraw.html" role="menuitem">ChemDraw</a>
+<a href="/Tools/theme-creator.html" role="menuitem">Theme creator</a>
 </div>
 </div>
 <a href="/om/index.html">Om</a>
 <a href="/kontakt/index.html">Kontakt</a>
 </div>
 </nav>
+<script>
+  (async function hydrateDiverseMenu() {
+    const menu = document.getElementById("diverse-menu");
+    if (!menu) return;
+
+    const normalizeHref = (href) => {
+      const h = String(href || "").trim();
+      if (!h) return "";
+      if (/^https?:\/\//i.test(h) || h.startsWith("/")) return h;
+      return `/diverse/${h.replace(/^\.?\//, "")}`;
+    };
+
+    const basename = (href) => {
+      const clean = String(href || "").split("?")[0].split("#")[0];
+      const last = clean.split("/").pop() || clean;
+      return last.replace(/\.[^/.]+$/, "") || "Lenke";
+    };
+
+    const parseStringEntry = (entry) => {
+      const raw = String(entry || "").trim();
+      if (!raw) return null;
+      if (!raw.includes("|")) {
+        const href = normalizeHref(raw);
+        return href ? { label: basename(href), href } : null;
+      }
+      const [labelRaw, hrefRaw] = raw.split("|").map(s => s.trim());
+      const href = normalizeHref(hrefRaw || labelRaw);
+      if (!href) return null;
+      return { label: labelRaw || basename(href), href };
+    };
+
+    const out = [];
+    const seen = new Set();
+    const pushLink = (label, href) => {
+      const key = `${label}::${href}`;
+      if (!href || seen.has(key)) return;
+      seen.add(key);
+      out.push({ label, href });
+    };
+
+    const walk = (node) => {
+      if (!node) return;
+      if (typeof node === "string") {
+        const parsed = parseStringEntry(node);
+        if (parsed) pushLink(parsed.label, parsed.href);
+        return;
+      }
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (typeof node === "object") {
+        if (typeof node.url === "string") {
+          const href = normalizeHref(node.url);
+          const label = String(node.title || node.name || basename(href));
+          pushLink(label, href);
+        }
+        Object.entries(node).forEach(([k, v]) => {
+          if (k === "welcome" || k === "quiz" || k === "url") return;
+          walk(v);
+        });
+      }
+    };
+
+    try {
+      const res = await fetch("/diverse/index.json", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = await res.json();
+      walk(json);
+      if (!out.length) return;
+      menu.innerHTML = "";
+      out.forEach(({ label, href }) => {
+        const a = document.createElement("a");
+        a.href = href;
+        a.setAttribute("role", "menuitem");
+        a.textContent = label;
+        menu.appendChild(a);
+      });
+    } catch {
+      // Fallback: behold statiske Tools-lenker
+    }
+  })();
+</script>
