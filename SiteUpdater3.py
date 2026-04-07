@@ -46,6 +46,8 @@ ALLOWED_EXT = {
 DEFAULT_BLACKLIST = {"node_modules", ".git", "__pycache__", "venv", ".venv"}
 IMAGE_EXT        = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
 DEFAULT_WELCOME  = "/img/welcome-generic.svg"
+DEFAULT_ANDREKOK_SOURCE = "https://perrur.folk.ntnu.no/script.js"
+DEFAULT_ANDREKOK_STUDIET = "MTKJ"
 
 # Global cache
 _quiz_normalized: Set[Path] = set()
@@ -168,6 +170,138 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
     out.sort(key=str.lower)
     _file_cache[dir_root] = out
     return out
+
+
+def _normalize_url(url: str) -> str:
+    """Normaliser URL slik at duplikater oppdages bedre."""
+    return url.strip().rstrip("/").lower()
+
+
+def _parse_existing_link_item(item: object) -> Optional[Dict[str, str]]:
+    """Støtter både streng-liste og object-liste i målfilen."""
+    if isinstance(item, str):
+        url = item.strip()
+        if not url:
+            return None
+        return {"title": url, "url": url}
+    if isinstance(item, dict):
+        url = str(item.get("url", "")).strip()
+        if not url:
+            return None
+        title = str(item.get("title", "")).strip() or url
+        parsed: Dict[str, str] = {"title": title, "url": url}
+        studiet = str(item.get("studiet", "")).strip()
+        if studiet:
+            parsed["studiet"] = studiet
+        return parsed
+    return None
+
+
+def extract_links_from_remote_script(
+    script_text: str,
+    studiet_default: str = DEFAULT_ANDREKOK_STUDIET,
+) -> List[Dict[str, str]]:
+    """
+    Trekk ut URL-er fra eksternt script.js.
+    Heuristikk:
+    - Foretrekker object-lignende matcher med title/name + url/link
+    - Faller tilbake til alle unike http(s)-lenker
+    """
+    out: List[Dict[str, str]] = []
+    seen: Set[str] = set()
+
+    obj_pat = re.compile(
+        r"""
+        (?:
+            (?:title|name)\s*:\s*["'](?P<title1>[^"']+)["'].*?(?:url|link)\s*:\s*["'](?P<url1>https?://[^"']+)["']
+        )
+        |
+        (?:
+            (?:url|link)\s*:\s*["'](?P<url2>https?://[^"']+)["'].*?(?:title|name)\s*:\s*["'](?P<title2>[^"']+)["']
+        )
+        """,
+        re.IGNORECASE | re.DOTALL | re.VERBOSE,
+    )
+
+    for m in obj_pat.finditer(script_text):
+        title = (m.group("title1") or m.group("title2") or "").strip()
+        url = (m.group("url1") or m.group("url2") or "").strip()
+        if not url:
+            continue
+        key = _normalize_url(url)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"title": title or url, "url": url, "studiet": studiet_default})
+
+    if out:
+        return out
+
+    # Fallback: finn alle URL-er
+    for url in re.findall(r'https?://[^\s"\'`<>]+', script_text, flags=re.IGNORECASE):
+        key = _normalize_url(url)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"title": url, "url": url, "studiet": studiet_default})
+    return out
+
+
+def sync_andrekok_links(
+    target_file: Path,
+    source_url: str = DEFAULT_ANDREKOK_SOURCE,
+    studiet_default: str = DEFAULT_ANDREKOK_STUDIET,
+    timeout_sec: int = 25,
+) -> int:
+    """
+    Synk "AndreKok"-lenker fra ekstern script.js inn i lokal JSON-liste.
+    Legger KUN til nye URL-er (fjerner aldri lokale entries).
+    Returnerer antall nye entries.
+    """
+    with urllib.request.urlopen(source_url, timeout=timeout_sec) as resp:  # nosec B310
+        script_text = resp.read().decode("utf-8", errors="replace")
+
+    remote_items = extract_links_from_remote_script(script_text, studiet_default=studiet_default)
+    if not remote_items:
+        print(f"[andrekok] Fant ingen lenker i kilde: {source_url}")
+        return 0
+
+    existing_items: List[Dict[str, str]] = []
+    if target_file.exists():
+        with open(target_file, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, list):
+            for item in loaded:
+                parsed = _parse_existing_link_item(item)
+                if parsed:
+                    existing_items.append(parsed)
+        else:
+            raise ValueError(f"Målfil må være en JSON-liste: {target_file}")
+
+    existing_by_url = {_normalize_url(it["url"]): it for it in existing_items}
+    added = 0
+    for item in remote_items:
+        key = _normalize_url(item["url"])
+        if key in existing_by_url:
+            # Eksisterende lokal entry beholdes, men remote-kilder kan fylle inn manglende studiet
+            existing = existing_by_url[key]
+            if studiet_default and not str(existing.get("studiet", "")).strip():
+                existing["studiet"] = studiet_default
+            continue
+        existing_items.append(item)
+        existing_by_url[key] = item
+        added += 1
+
+    if added > 0 or not target_file.exists():
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_file, "w", encoding="utf-8") as f:
+            json.dump(existing_items, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        print(f"[andrekok] Synk fullført: +{added} nye lenker i {format_path(target_file)}")
+    else:
+        print(f"[andrekok] Ingen nye lenker å legge til i {format_path(target_file)}")
+
+    return added
 
 def sort_keys(index: Dict[str, object], include_quiz: bool) -> List[str]:
     """Optimalisert key sorting"""
