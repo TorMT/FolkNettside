@@ -158,13 +158,38 @@
 </main>
 
 <script>
-  fetch('/includes/navbar.html', { cache: 'no-store' })
-    .then(r => r.text())
-    .then(html => { document.getElementById('navbar').innerHTML = html; });
+  // Sider/områder som IKKE skal få global navbar/header.
+  // IGNORERER nå hele /diverse/ (inkl. nye genererte sider).
+  const NAVBAR_IGNORE_PATHS = [];
+  const NAVBAR_IGNORE_PREFIXES = ['/diverse/'];
+
+  const currentPath = (window.location.pathname || '').replace(/\/+$/, '');
+  const pathMatches = NAVBAR_IGNORE_PATHS
+    .map(p => p.replace(/\/+$/, ''))
+    .includes(currentPath);
+  const prefixMatches = NAVBAR_IGNORE_PREFIXES
+    .map(p => p.replace(/\/+$/, '') + '/')
+    .some(prefix => (currentPath + '/').startsWith(prefix));
+  const shouldSkipNavbar = pathMatches || prefixMatches;
+
+  if (shouldSkipNavbar) {
+    document.getElementById('navbar').innerHTML = '';
+    console.info('[navbar] Ignorerer global navbar for side:', currentPath);
+  } else {
+    fetch('/includes/navbar.html', { cache: 'no-store' })
+      .then(r => r.text())
+      .then(html => {
+        document.getElementById('navbar').innerHTML = html;
+
+        // Last mobile-enhancer etter at navbar finnes i DOM
+        const s = document.createElement('script');
+        s.src = '/includes/mobile-enhancer.js';
+        document.body.appendChild(s);
+      });
+  }
 </script>
 
 <script src="/assets/js/theme-switcher.js"></script>
 <script src="/assets/js/flyout-theme-updater.js"></script>
-<script src="/includes/mobile-enhancer.js"></script>
 </body>
 </html>
