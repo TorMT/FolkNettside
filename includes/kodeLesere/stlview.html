@@ -704,12 +704,13 @@
 
     // --- Load model from ?file= ---
     const params = new URLSearchParams(location.search);
-    let modelUrl = decodeURIComponent(params.get("file") || "");
+    let modelUrl = params.get("file") || "";
     if(!modelUrl){
       setHud("Feil: mangler ?file=sti", true);
       throw new Error("Mangler ?file=");
     }
     if(!modelUrl.startsWith("http") && !modelUrl.startsWith("/")) modelUrl = "/" + modelUrl;
+    console.info("[stlview] modelUrl:", modelUrl);
 
     // Loader timeout (stopper uendelig "Laster...")
     const TIMEOUT_MS = 12000;
@@ -746,7 +747,7 @@
       setHud("Klar ✅");
     }catch(err){
       clearTimeout(to);
-      console.error(err);
+      console.error("[stlview] Init-feil for URL:", modelUrl, err);
       setHud("Feil under init. Se console.", true);
     }
   </script>

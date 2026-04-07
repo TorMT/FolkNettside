@@ -764,6 +764,7 @@ function openInViewer(url, kind){
   if (kind === 'pdf' && frame.tagName.toLowerCase() === 'object') frame.type = 'application/pdf';
   else frame.removeAttribute('type');
 
+  console.info('[sidebar-loader] openInViewer', { kind, sourceUrl: url, target });
   if (frame._fallbackTimer) { clearTimeout(frame._fallbackTimer); frame._fallbackTimer = null; }
   if (frame.tagName.toLowerCase() === 'iframe') frame.src = target;
   else frame.data = target;
@@ -809,20 +810,21 @@ function openInViewer(url, kind){
 }
 
 function openFile(url){
-  const lower = url.toLowerCase();
+  const lower = String(url || '').toLowerCase();
+  const clean = lower.split('?')[0].split('#')[0];
+  console.info('[sidebar-loader] openFile', { url, clean });
   const fusionFlag = new URLSearchParams(window.location.search).get('fusionviewer');
   const fusionViewerEnabled =
     window.ENABLE_FUSION_VIEWER !== false &&
     fusionFlag !== '0';
-  if (lower.endsWith('.pdf'))   return openInViewer(url, 'pdf');
-  if (lower.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
-  if (lower.endsWith('.py'))    return openInViewer(url, 'py');
-  if (lower.split('?')[0].split('#')[0].endsWith('.stl')) return openInViewer(url, 'stl');
-  if (lower.split('?')[0].split('#')[0].endsWith('.html')) return openInViewer(url, 'html');
-  if (/\.(fbm|fm3)$/.test(lower.split('?')[0].split('#')[0])) return openInViewer(url, 'fbm');
-  if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|3mf|sat|smt|x_t|x_b|sldprt|sldasm)$/.test(lower.split('?')[0].split('#')[0])) return openInViewer(url, 'fusion');
-  if (lower.split('?')[0].split('#')[0].endsWith('.fbm')) return openInViewer(url, 'fbm');
-  if (lower.split('?')[0].split('#')[0].endsWith('.3mf')) return openInViewer(url, '3mf');
+  if (clean.endsWith('.pdf'))   return openInViewer(url, 'pdf');
+  if (clean.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
+  if (clean.endsWith('.py'))    return openInViewer(url, 'py');
+  if (clean.endsWith('.stl')) return openInViewer(url, 'stl');
+  if (clean.endsWith('.html')) return openInViewer(url, 'html');
+  if (/\.(fbm|fm3)$/.test(clean)) return openInViewer(url, 'fbm');
+  if (clean.endsWith('.3mf')) return openInViewer(url, '3mf');
+  if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|sat|smt|x_t|x_b|sldprt|sldasm)$/.test(clean)) return openInViewer(url, 'fusion');
   if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)) return openInViewer(url, 'f3d');
   if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mov') || lower.endsWith('.m4v')){
     return openInViewer(url, 'video');
