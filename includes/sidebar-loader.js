@@ -470,6 +470,114 @@ function toYouTubeEmbed(url){
   }catch(e){return null}
 }
 
+function isEmbeddableVideoUrl(url){
+  const s = String(url || '').trim();
+  const lower = s.toLowerCase();
+  return (
+    lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') ||
+    lower.endsWith('.mov') || lower.endsWith('.m4v') ||
+    /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(s) ||
+    /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(s) ||
+    /panopto.*Viewer\.aspx/i.test(s)
+  );
+}
+
+function openVideoPlaylistInViewer(payload){
+  try{
+    const key = 'video-playlist:' + Date.now() + ':' + Math.random().toString(36).slice(2);
+    localStorage.setItem(key, JSON.stringify(payload || {}));
+    openInViewer(`/includes/kodeLesere/video-embed-list.html?playlistKey=${encodeURIComponent(key)}`, 'html');
+  }catch(e){
+    // fallback: åpne første video dersom localStorage er blokkert
+    const first = payload && Array.isArray(payload.items) ? payload.items[0] : null;
+    if (first && first.url) openFile(first.url);
+  }
+}
+
+function parseVideoListText(text){
+  const items = [];
+  const lines = String(text || '').split(/\r?\n/);
+  for (const rawLine of lines){
+    const line = String(rawLine || '').trim();
+    if (!line || line.startsWith('#')) continue;
+
+    // [Tittel](https://...)
+    let m = line.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
+    if (m){
+      if (isEmbeddableVideoUrl(m[2])) items.push({title: m[1].trim(), description: m[1].trim(), url: m[2].trim()});
+      continue;
+    }
+
+    // Tittel|https://...|beskrivelse|tema1,tema2
+    const pipePos = line.indexOf('|');
+    if (pipePos > 0){
+      const parts = line.split('|').map(p => p.trim());
+      const title = parts[0] || '';
+      const url = parts[1] || '';
+      const description = parts[2] || '';
+      const themes = (parts[3] || '').split(',').map(t => t.trim()).filter(Boolean);
+      if (isEmbeddableVideoUrl(url)) items.push({title: title || url, description: description || title || '', themes, url});
+      continue;
+    }
+
+    // Ren URL
+    if (isEmbeddableVideoUrl(line)){
+      items.push({title: line, description: '', url: line});
+    }
+  }
+  return items;
+}
+
+function parseVideoListJson(text){
+  try{
+    const data = JSON.parse(String(text || ''));
+    const arr = Array.isArray(data) ? data : (Array.isArray(data?.videos) ? data.videos : null);
+    if (!arr) return [];
+    return arr.map(v => {
+      if (!v || typeof v !== 'object') return null;
+      const url = String(v.url || '').trim();
+      if (!isEmbeddableVideoUrl(url)) return null;
+      const title = String(v.title || url).trim();
+      const description = String(v.description || '').trim();
+      const themes = Array.isArray(v.themes) ? v.themes.map(x => String(x).trim()).filter(Boolean) : [];
+      return { title, description, themes, url };
+    }).filter(Boolean);
+  }catch(e){
+    return [];
+  }
+}
+
+function isPotentialVideoListFile(url){
+  const lower = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+  return (
+    lower.endsWith('.txt') ||
+    lower.endsWith('.md') ||
+    lower.endsWith('.list') ||
+    lower.endsWith('.links') ||
+    lower.endsWith('.csv') ||
+    lower.endsWith('.json')
+  );
+}
+
+async function tryOpenVideoListFile(url){
+  try{
+    if (!isPotentialVideoListFile(url)) return false;
+    const res = await fetch(url, {cache: 'no-store'});
+    if (!res.ok) return false;
+    const text = await res.text();
+    const lower = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+    let items = [];
+    if (lower.endsWith('.json')) items = parseVideoListJson(text);
+    if (!items.length) items = parseVideoListText(text);
+    if (items.length < 1) return false;
+    const fileName = decodeURIComponent(String(url).split('/').pop().split('?')[0] || 'Videoer');
+    openVideoPlaylistInViewer({ title: fileName, items });
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
 function openInViewer(url, kind){
   if (kind === 'video' || kind === 'youtube' || kind === 'panopto'){
     const {box, holder} = ensureMediaViewer();
@@ -908,6 +1016,32 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
     html += `<div class="nested-flyout">`;
     
     const subFiles = folderFiles.map(f => f.substring(folderName.length + 1));
+    const playlistItems = subFiles.map(subFile => {
+      const fullFile = `${folderName}/${subFile}`;
+      const href = makeHrefFunc(fullFile);
+      if (!isEmbeddableVideoUrl(href)) return null;
+      return {
+        title: makeLabel(subFile),
+        description: makeLabel(subFile),
+        url: href
+      };
+    }).filter(Boolean);
+
+    if (playlistItems.length){
+      const payload = encodeURIComponent(JSON.stringify({
+        title: folderName,
+        items: playlistItems
+      }));
+      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Åpne alle videoer i innebygd modus">`;
+      html += `<span class="file-icon video" style="background:#D32F2F;border-radius:3px" aria-hidden="true">`;
+      html += '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">';
+      html += '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>';
+      html += '<path d="M8 4l10 4-10 4z" style="fill:#fff"/>';
+      html += '</svg></span>';
+      html += '<span class="file-label">Se alle videoer (embedded)</span>';
+      html += '</a>';
+    }
+
     html += buildNestedFlyoutHTML(subFiles, (subFile) => makeHrefFunc(`${folderName}/${subFile}`), isPyGroup);
     
     html += `</div></div>`;
@@ -1285,12 +1419,27 @@ async function initSidebar(){
   });
 
   /* Klikk-åpne filer */
-  function handleFlyoutAnchorClick(e, a){
+  async function handleFlyoutAnchorClick(e, a){
     e.preventDefault();
     const q = document.getElementById('quiz-container'); 
     if (q) q.style.display = 'none';
+    if (a.classList.contains('video-collection-link')){
+      try{
+        const raw = a.getAttribute('data-playlist') || '';
+        const payload = JSON.parse(decodeURIComponent(raw));
+        if (payload && Array.isArray(payload.items) && payload.items.length){
+          openVideoPlaylistInViewer(payload);
+        }
+      }catch(e){}
+      return;
+    }
     const href = a.getAttribute('href'); 
     if(!href) return;
+    if (await tryOpenVideoListFile(href)){
+      sb.querySelectorAll('.dropdown-oving').forEach(d=>d.classList.remove('active'));
+      a.closest('.dropdown-oving')?.classList.add('active');
+      return;
+    }
     const lower = href.toLowerCase();
     
     if (
