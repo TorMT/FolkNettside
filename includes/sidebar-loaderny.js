@@ -245,7 +245,11 @@ function openInViewer(url, kind) {
   }
 
   // === PDF/CODE VIEWER HANDLING ===
-  const { box, frame } = ensureViewer();
+  const { box } = ensureViewer();
+  const useIframeForPdf = kind === 'pdf' && isMobileViewport();
+  const frame = useIframeForPdf
+    ? (replaceViewerFrame('iframe') || box.firstElementChild)
+    : (replaceViewerFrame('object') || box.firstElementChild);
   let targetUrl = url;
 
   // Map file types til riktige viewers
@@ -261,12 +265,18 @@ function openInViewer(url, kind) {
     targetUrl = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
   } else if (kind === 'fbm') {
     targetUrl = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === '3mf') {
+    targetUrl = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === 'f3d') {
+    targetUrl = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
+  } else if (kind === 'hydrostatics') {
+    targetUrl = `/includes/kodeLesere/hydrostaticsview.html?file=${encodeURIComponent(url)}`;
   } else if (kind === 'code') {
     targetUrl = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
   }
 
   // Set content type for PDF
-  if (kind === 'pdf') {
+  if (kind === 'pdf' && frame.tagName.toLowerCase() === 'object') {
     frame.type = 'application/pdf';
   } else {
     frame.removeAttribute('type');
@@ -279,13 +289,17 @@ function openInViewer(url, kind) {
   }
   
   // Load content
-  frame.data = targetUrl;
+  if (frame.tagName.toLowerCase() === 'iframe') {
+    frame.src = targetUrl;
+  } else {
+    frame.data = targetUrl;
+  }
   box.style.display = 'block';
   toggleWelcome(false);
 
   // Vis resize bar
   const resizeBar = document.getElementById('pdf-viewer-resize');
-  if (resizeBar) resizeBar.style.display = 'block';
+  if (resizeBar) resizeBar.style.display = useIframeForPdf ? 'none' : 'block';
 
   // 3-second fallback for PDF (åpne i ny tab hvis ikke laster)
   const loadTimestamp = Date.now();
@@ -300,7 +314,8 @@ function openInViewer(url, kind) {
 
   if (kind === 'pdf') {
     frame._fallbackTimer = setTimeout(() => {
-      if (frame._loadStamp === loadTimestamp && frame.data === targetUrl) {
+      const loadedUrl = frame.tagName.toLowerCase() === 'iframe' ? frame.src : frame.data;
+      if (frame._loadStamp === loadTimestamp && loadedUrl === targetUrl) {
         window.open(url, '_blank');
       }
     }, 3000);
@@ -392,6 +407,31 @@ function openFile(url) {
   // Panopto links
   if (/^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(url) || /panopto.*Viewer\.aspx/i.test(url)) {
     return openInViewer(url, 'panopto');
+  }
+  
+  // 3MF model files
+  if (lowerUrl.split('?')[0].split('#')[0].endsWith('.3mf')) {
+    return openInViewer(url, '3mf');
+  }
+  
+  // F3D format files (STEP, IGES, FBX, OBJ, PLY, VTK, GLTF, GLB, ABC, USD, IFC, DRACO, VDB)
+  if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lowerUrl)) {
+    return openInViewer(url, 'f3d');
+  }
+  
+  // 3MF model files
+  if (lowerUrl.split('?')[0].split('#')[0].endsWith('.3mf')) {
+    return openInViewer(url, '3mf');
+  }
+  
+  // F3D format files (STEP, IGES, FBX, OBJ, PLY, VTK, GLTF, GLB, ABC, USD, IFC, DRACO, VDB)
+  if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lowerUrl)) {
+    return openInViewer(url, 'f3d');
+  }
+  
+  // Hydrostatistic reports (JSON/CSV from DELFSHIP, Hydrometer, etc.)
+  if (/\/(hydro|stab|equilibrium|delfship).*\.(json|csv)$/.test(lowerUrl) || /Hydrometer/.test(url) && /\.(json|csv)$/.test(lowerUrl)) {
+    return openInViewer(url, 'hydrostatics');
   }
   
   // Code files (C, C++, C#, Java)
@@ -2092,6 +2132,10 @@ function getCourseDir() {
   return location.pathname.replace(/\/index\.html?$/, '/'); 
 }
 
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 1024px)').matches;
+}
+
 /**
  * Encoder hvert segment av en path individuelt (for å håndtere special chars)
  * @param {string} relativePath - Relativ path å encode
@@ -2239,6 +2283,38 @@ function ensureViewer() {
     box: viewerBox, 
     frame: viewerBox.firstElementChild 
   };
+}
+
+function replaceViewerFrame(tagName) {
+  const viewerBox = document.getElementById('pdf-viewer-container');
+  if (!viewerBox) return null;
+
+  const currentFrame = viewerBox.firstElementChild;
+  if (currentFrame && currentFrame.tagName.toLowerCase() === tagName) {
+    return currentFrame;
+  }
+
+  const newFrame = document.createElement(tagName);
+  newFrame.id = 'pdf-viewer';
+  newFrame.style.width = '100%';
+  newFrame.style.height = '100%';
+  newFrame.style.border = 'none';
+
+  if (tagName === 'iframe') {
+    newFrame.setAttribute('loading', 'lazy');
+    newFrame.setAttribute('allow', 'fullscreen');
+    newFrame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+  } else {
+    newFrame.type = 'application/pdf';
+  }
+
+  if (currentFrame) {
+    currentFrame.replaceWith(newFrame);
+  } else {
+    viewerBox.appendChild(newFrame);
+  }
+
+  return newFrame;
 }
 
 /**

@@ -31,6 +31,8 @@
     font-size: 15px;
     padding: 0;
     margin: 0;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   
   main, .main-content {
@@ -50,6 +52,8 @@
     top: 0 !important;
     z-index: 1000 !important;
     background: var(--navbar-bg, linear-gradient(135deg, #004f9f 0%, #003d7a 100%)) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
   
   nav a, .navbar a, header a {
@@ -95,6 +99,12 @@
   
   .sidebar a:hover, aside a:hover {
     background: var(--sidebar-hover, rgba(255, 255, 255, 0.1)) !important;
+  }
+
+  .content,
+  main,
+  .main-content {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important;
   }
   
   /* ========================================
@@ -258,28 +268,27 @@
   ======================================== */
   
   .theme-switcher {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 9997;
+    display: none !important;
   }
   
   .theme-switcher-button {
-    width: 50px !important;
-    height: 50px !important;
-    font-size: 1.5rem !important;
+    display: none !important;
   }
   
   .theme-picker {
-    bottom: 70px !important;
-    right: 20px !important;
-    max-height: 60vh !important;
-    overflow-y: auto !important;
+    display: none !important;
   }
   
   .theme-option {
-    padding: 1rem !important;
-    font-size: 1rem !important;
+    display: none !important;
+  }
+
+  #pdf-viewer-container,
+  #media-viewer-container {
+    height: min(72vh, 820px) !important;
+    border-radius: 14px;
+    overflow: hidden !important;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
   }
   
   /* ========================================
