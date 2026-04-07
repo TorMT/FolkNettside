@@ -263,13 +263,3 @@ git push origin main
 > Tipset: Documenter alltid endringer i `README.md` og `index.json` slik at både styringsteam og automasjoner har samme referanse.
 
 ---
-
-Vil du at jeg skal utføre noen av disse oppgavene for deg?
-
-Jeg kan:
-
-- Erstatte eller redigere `img/welcome-generic.svg` for å fjerne teksten.
-- Kjøre `SiteUpdater3.py` eller `navbarupdater.py` med ønskede parametre.
-- Lage en deploy-guide for en valgt hosting-plattform.
-
-Si hva du vil at jeg skal gjøre, så utfører jeg det i repoet.
