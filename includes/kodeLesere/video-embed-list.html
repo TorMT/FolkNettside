@@ -189,8 +189,11 @@
       return 'videoWatched:' + encodeURIComponent(String(url || ''));
     }
     function getCookie(name){
-      const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.$?*|{}()\\[\\]\\\\/+^]/g, '\\$&') + '=([^;]*)'));
-      return m ? decodeURIComponent(m[1]) : null;
+      const prefix = `${String(name || '')}=`;
+      const hit = String(document.cookie || '')
+        .split('; ')
+        .find(part => part.startsWith(prefix));
+      return hit ? decodeURIComponent(hit.slice(prefix.length)) : null;
     }
     function setCookie(name, value, days){
       const maxAge = Math.max(1, days || 365) * 24 * 60 * 60;
