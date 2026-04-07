@@ -698,7 +698,7 @@ function openInViewer(url, kind){
         ctrl.style.right='12px'; 
         ctrl.style.bottom='12px'; 
         ctrl.style.zIndex='9999'; 
-        ctrl.innerHTML = '<button class="mark-watched">MarkÃ©r som sett</button>'; 
+        ctrl.innerHTML = '<button class="mark-watched">Markér som sett</button>'; 
         holder.appendChild(ctrl); 
         ctrl.querySelector('.mark-watched').addEventListener('click', ()=> markVideoWatched(url)); 
       }catch(e){}
@@ -745,8 +745,11 @@ function openInViewer(url, kind){
   }
 
   const {box} = ensureViewer();
-  const useIframeViewer = (kind === 'pdf' && isMobileViewport()) || kind === 'html';
-  const frame = useIframeViewer
+  const useIframeForPdf = kind === 'pdf' && isMobileViewport();
+  // Backward-compat alias (older codepaths/patches may reference this name)
+  const userframeForPdf = useIframeForPdf;
+  globalThis.userframeForPdf = userframeForPdf;
+  const frame = useIframeForPdf
     ? (replaceViewerFrame('iframe') || box.firstElementChild)
     : (replaceViewerFrame('object') || box.firstElementChild);
   let target = url;
@@ -772,7 +775,7 @@ function openInViewer(url, kind){
   toggleWelcome(false);
 
   const bar = document.getElementById('pdf-viewer-resize');
-  if (bar) bar.style.display = useIframeForPdf ? 'none' : 'block';
+  if (bar) bar.style.display = userframeForPdf ? 'none' : 'block';
 
   const thisLoad = Date.now(); 
   frame._loadStamp = thisLoad;
@@ -822,8 +825,8 @@ function openFile(url){
   if (clean.endsWith('.py'))    return openInViewer(url, 'py');
   if (clean.endsWith('.stl')) return openInViewer(url, 'stl');
   if (clean.endsWith('.html')) return openInViewer(url, 'html');
-  if (/\.(fbm|fm3)$/.test(clean)) return openInViewer(url, 'fbm');
-  if (clean.endsWith('.3mf')) return openInViewer(url, '3mf');
+  if (clean.endsWith('.fbm')) return openInViewer(url, 'fbm');
+  if (/\.(3mf|3fm|fm3)$/.test(clean)) return openInViewer(url, '3mf');
   if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|sat|smt|x_t|x_b|sldprt|sldasm)$/.test(clean)) return openInViewer(url, 'fusion');
   if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)) return openInViewer(url, 'f3d');
   if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mov') || lower.endsWith('.m4v')){
@@ -857,7 +860,7 @@ async function autoFindQuizRel(courseDir){
 
 /**************** 3) Navn + sort (UENDRET) *******************************/
 function displayName(key){
-  const m = key.match(/^\s*[Ã¸o]ving(?:er)?\s*0*(\d{1,3})\b/i);
+  const m = key.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
   if (m)  return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = key.match(/^oving(\d{1,3})$/i);
   if (m2) return `Ã˜ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
@@ -868,10 +871,10 @@ function sortSidebarKeys(data){
   const keys = Object.keys(data).filter(k => k !== 'welcome' && k !== 'quiz');
   const ovingNum = (k) => {
     if (/^oving\d{2}$/i.test(k)) return parseInt(k.slice(5), 10);
-    const m = k.match(/^\s*[Ã¸o]ving(?:er)?\s*0*(\d{1,3})\b/i);
+    const m = k.match(/^\s*[øo]ving(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy   = k => /^pythonÃ¸ving/i.test(k);
+  const isPy   = k => /^pythonøving/i.test(k);
   const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(k);
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
   const py    = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>a.localeCompare(b,'nb'));
@@ -972,7 +975,7 @@ function iconForFile(file){
         + '</span>';
     }
 
-    if (lower.endsWith('.stl') || lower.endsWith('.fbm') || lower.endsWith('.3mf') || /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)){
+    if (lower.endsWith('.stl') || lower.endsWith('.fbm') || (/\.(3mf|3fm|fm3)$/.test(lower)) || /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)){
   return '<span class="file-icon model" style="background:#009688;border-radius:3px">'
     + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg">'
     + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
@@ -1172,7 +1175,7 @@ async function initSidebar(){
     return new URL(encoded, location.origin + courseDir).href;
   }
 
-  let html = '<h3>Ã˜vinger</h3>';
+  let html = '<h3>Øvinger</h3>';
   html += keys.map(key=>{
     const obj = data[key];
     const locked = !!(obj && obj.beskyttet);
@@ -1186,7 +1189,7 @@ async function initSidebar(){
     }
 
     if (files && files.length){
-      const isPyGroup = /^pythonÃ¸ving/i.test(String(key));
+      const isPyGroup = /^pythonøving/i.test(String(key));
       const contentHTML = buildNestedFlyoutHTML(files, (f) => makeHref(key, obj, f), isPyGroup);
       
       return `<div class="dropdown-oving">
@@ -1493,7 +1496,7 @@ async function initSidebar(){
       lower.endsWith('.pdf') || lower.endsWith('.py') || lower.endsWith('.ipynb') || lower.endsWith('.html') ||
       lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.stl') ||
       lower.endsWith('.mov') || lower.endsWith('.m4v') ||lower.split('?')[0].split('#')[0].endsWith('.fbm') ||
-      lower.split('?')[0].split('#')[0].endsWith('.3mf') ||
+      /\.(3mf|3fm|fm3)$/.test(lower.split('?')[0].split('#')[0]) ||
       /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower) ||
       /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(href) ||
       /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(href) ||
