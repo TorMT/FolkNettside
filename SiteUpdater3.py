@@ -1,21 +1,21 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-site_updater.py – Oppdaterer, genererer eller fjerner index.json rekursivt.
+site_updater.py â€“ Oppdaterer, genererer eller fjerner index.json rekursivt.
 
 v15.2 - ULTRA-OPTIMALISERT (FIKSET)
-• LRU cache på hjelpefunksjoner
-• Batch string operations
-• Symlink loop protection
-• SHA256-basert change detection (stabil mellom kjøringer)
-• Optimalisert dict/list operations
-• Effektiv memory usage
+â€¢ LRU cache pÃ¥ hjelpefunksjoner
+â€¢ Batch string operations
+â€¢ Symlink loop protection
+â€¢ SHA256-basert change detection (stabil mellom kjÃ¸ringer)
+â€¢ Optimalisert dict/list operations
+â€¢ Effektiv memory usage
 
 Tilpasninger:
-• .html er nå lovlig filtype (for f.eks. egne visningsfiler)
-• index.html blir aldri tatt med i "files"-lister / index.json (så du ikke får den i sidebaren)
-• .url/.webloc blir forsøkt tolket til URL og lagres som "filnavn|url"
+â€¢ .html er nÃ¥ lovlig filtype (for f.eks. egne visningsfiler)
+â€¢ index.html blir aldri tatt med i "files"-lister / index.json (sÃ¥ du ikke fÃ¥r den i sidebaren)
+â€¢ .url/.webloc blir forsÃ¸kt tolket til URL og lagres som "filnavn|url"
 """
 
 from __future__ import annotations
@@ -30,22 +30,25 @@ except ModuleNotFoundError:
     tqdm = None  # type: ignore
 
 # Pre-compiled regex patterns for bedre ytelse
-OVING_RE     = re.compile(r"^(?:øving|oving)0*(\d+)$", re.IGNORECASE)
+OVING_RE     = re.compile(r"^(?:Ã¸ving|oving)0*(\d+)$", re.IGNORECASE)
 OVING_KEY    = re.compile(r"^oving(\d{2})$", re.IGNORECASE)
-CLEAN_RE     = re.compile(r"^[^0-9A-Za-zÆØÅæøå]+")
+CLEAN_RE     = re.compile(r"^[^0-9A-Za-zÃ†Ã˜Ã…Ã¦Ã¸Ã¥]+")
 BESKYTTET_RE = re.compile(r"beskyttet|hemmelig", re.IGNORECASE)
 
-# ✅ Endring: lagt til ".html"
+# âœ… Endring: lagt til ".html"
 ALLOWED_EXT = {
     ".py", ".pdf", ".ipynb",
     ".mp4", ".webm", ".ogg", ".mov", ".m4v",
     ".url", ".webloc",
-    ".html", ".stl", ".fbm", ".3mf", ".3fz"
+    ".html", ".txt", ".md", ".list", ".links", ".csv", ".json",
+    ".stl", ".fbm", ".3mf", ".3fz"
 }
 # Standard mapper vi alltid ignorerer (case-insensitiv)
 DEFAULT_BLACKLIST = {"node_modules", ".git", "__pycache__", "venv", ".venv"}
 IMAGE_EXT        = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
 DEFAULT_WELCOME  = "/img/welcome-generic.svg"
+DEFAULT_ANDREKOK_SOURCE = "https://perrur.folk.ntnu.no/script.js"
+DEFAULT_ANDREKOK_STUDIET = "MTKJ"
 
 # Global cache
 _quiz_normalized: Set[Path] = set()
@@ -81,7 +84,7 @@ def is_beskyttet(key: str) -> bool:
 
 @lru_cache(maxsize=256)
 def is_python_oving(key: str) -> bool:
-    return key.lower().startswith("pythonøving")
+    return key.lower().startswith("pythonÃ¸ving")
 
 def should_use_as_welcome(name: str, is_file: bool) -> bool:
     if not is_file:
@@ -91,7 +94,7 @@ def should_use_as_welcome(name: str, is_file: bool) -> bool:
     return ext in IMAGE_EXT and ("meme" in n or "velkomst" in n)
 
 def parse_shortcut_file(path: Path) -> Optional[str]:
-    """Prøv å lese en .url/.webloc-fil og returner URL hvis mulig."""
+    """PrÃ¸v Ã¥ lese en .url/.webloc-fil og returner URL hvis mulig."""
     try:
         text = path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
@@ -140,11 +143,11 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
                         if entry.is_file(follow_symlinks=True):
                             suf = os.path.splitext(entry.name)[1].lower() if entry.name else ""
                             if suf in ALLOWED_EXT:
-                                # ✅ Endring: aldri ta med index.html i fil-lister
+                                # âœ… Endring: aldri ta med index.html i fil-lister
                                 if entry.name.lower() == "index.html":
                                     continue
 
-                                # Hvis shortcut-fil, prøv å hente mål-URL – behold original filnavn som label
+                                # Hvis shortcut-fil, prÃ¸v Ã¥ hente mÃ¥l-URL â€“ behold original filnavn som label
                                 if suf in (".url", ".webloc"):
                                     try:
                                         url = parse_shortcut_file(Path(entry.path))
@@ -169,6 +172,138 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
     _file_cache[dir_root] = out
     return out
 
+
+def _normalize_url(url: str) -> str:
+    """Normaliser URL slik at duplikater oppdages bedre."""
+    return url.strip().rstrip("/").lower()
+
+
+def _parse_existing_link_item(item: object) -> Optional[Dict[str, str]]:
+    """StÃ¸tter bÃ¥de streng-liste og object-liste i mÃ¥lfilen."""
+    if isinstance(item, str):
+        url = item.strip()
+        if not url:
+            return None
+        return {"title": url, "url": url}
+    if isinstance(item, dict):
+        url = str(item.get("url", "")).strip()
+        if not url:
+            return None
+        title = str(item.get("title", "")).strip() or url
+        parsed: Dict[str, str] = {"title": title, "url": url}
+        studiet = str(item.get("studiet", "")).strip()
+        if studiet:
+            parsed["studiet"] = studiet
+        return parsed
+    return None
+
+
+def extract_links_from_remote_script(
+    script_text: str,
+    studiet_default: str = DEFAULT_ANDREKOK_STUDIET,
+) -> List[Dict[str, str]]:
+    """
+    Trekk ut URL-er fra eksternt script.js.
+    Heuristikk:
+    - Foretrekker object-lignende matcher med title/name + url/link
+    - Faller tilbake til alle unike http(s)-lenker
+    """
+    out: List[Dict[str, str]] = []
+    seen: Set[str] = set()
+
+    obj_pat = re.compile(
+        r"""
+        (?:
+            (?:title|name)\s*:\s*["'](?P<title1>[^"']+)["'].*?(?:url|link)\s*:\s*["'](?P<url1>https?://[^"']+)["']
+        )
+        |
+        (?:
+            (?:url|link)\s*:\s*["'](?P<url2>https?://[^"']+)["'].*?(?:title|name)\s*:\s*["'](?P<title2>[^"']+)["']
+        )
+        """,
+        re.IGNORECASE | re.DOTALL | re.VERBOSE,
+    )
+
+    for m in obj_pat.finditer(script_text):
+        title = (m.group("title1") or m.group("title2") or "").strip()
+        url = (m.group("url1") or m.group("url2") or "").strip()
+        if not url:
+            continue
+        key = _normalize_url(url)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"title": title or url, "url": url, "studiet": studiet_default})
+
+    if out:
+        return out
+
+    # Fallback: finn alle URL-er
+    for url in re.findall(r'https?://[^\s"\'`<>]+', script_text, flags=re.IGNORECASE):
+        key = _normalize_url(url)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"title": url, "url": url, "studiet": studiet_default})
+    return out
+
+
+def sync_andrekok_links(
+    target_file: Path,
+    source_url: str = DEFAULT_ANDREKOK_SOURCE,
+    studiet_default: str = DEFAULT_ANDREKOK_STUDIET,
+    timeout_sec: int = 25,
+) -> int:
+    """
+    Synk "AndreKok"-lenker fra ekstern script.js inn i lokal JSON-liste.
+    Legger KUN til nye URL-er (fjerner aldri lokale entries).
+    Returnerer antall nye entries.
+    """
+    with urllib.request.urlopen(source_url, timeout=timeout_sec) as resp:  # nosec B310
+        script_text = resp.read().decode("utf-8", errors="replace")
+
+    remote_items = extract_links_from_remote_script(script_text, studiet_default=studiet_default)
+    if not remote_items:
+        print(f"[andrekok] Fant ingen lenker i kilde: {source_url}")
+        return 0
+
+    existing_items: List[Dict[str, str]] = []
+    if target_file.exists():
+        with open(target_file, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, list):
+            for item in loaded:
+                parsed = _parse_existing_link_item(item)
+                if parsed:
+                    existing_items.append(parsed)
+        else:
+            raise ValueError(f"MÃ¥lfil mÃ¥ vÃ¦re en JSON-liste: {target_file}")
+
+    existing_by_url = {_normalize_url(it["url"]): it for it in existing_items}
+    added = 0
+    for item in remote_items:
+        key = _normalize_url(item["url"])
+        if key in existing_by_url:
+            # Eksisterende lokal entry beholdes, men remote-kilder kan fylle inn manglende studiet
+            existing = existing_by_url[key]
+            if studiet_default and not str(existing.get("studiet", "")).strip():
+                existing["studiet"] = studiet_default
+            continue
+        existing_items.append(item)
+        existing_by_url[key] = item
+        added += 1
+
+    if added > 0 or not target_file.exists():
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_file, "w", encoding="utf-8") as f:
+            json.dump(existing_items, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        print(f"[andrekok] Synk fullfÃ¸rt: +{added} nye lenker i {format_path(target_file)}")
+    else:
+        print(f"[andrekok] Ingen nye lenker Ã¥ legge til i {format_path(target_file)}")
+
+    return added
+
 def sort_keys(index: Dict[str, object], include_quiz: bool) -> List[str]:
     """Optimalisert key sorting"""
     order: List[str] = []
@@ -176,7 +311,7 @@ def sort_keys(index: Dict[str, object], include_quiz: bool) -> List[str]:
 
     if "welcome" in keys:
         order.append("welcome")
-    # Permanent settings section (blacklist) bør vises tidlig
+    # Permanent settings section (blacklist) bÃ¸r vises tidlig
     if "blacklist" in keys:
         order.append("blacklist")
     if include_quiz and "quiz" in keys:
@@ -215,7 +350,7 @@ def sort_keys(index: Dict[str, object], include_quiz: bool) -> List[str]:
 # -------------------- OPTIMALISERT: normaliser quiz-bildestier --------------------
 
 def _try_png_jpg(p: Path) -> Optional[Path]:
-    """Returner en eksisterende fil ved å prøve .png/.jpg/.jpeg-varianter."""
+    """Returner en eksisterende fil ved Ã¥ prÃ¸ve .png/.jpg/.jpeg-varianter."""
     stem_str = str(p.parent / p.stem)
     for suff in (".png", ".jpg", ".jpeg"):
         path_str = stem_str + suff
@@ -277,7 +412,7 @@ def normalize_quiz_images(course_dir: Path, dry_run: bool = False, verbose: bool
         if not raw or raw.startswith(("http://", "https://", "/")):
             continue
 
-        # Hvis det allerede er en mappe i stien (f.eks. "bilder/x.png"), behold det men fikse ext om nødvendig
+        # Hvis det allerede er en mappe i stien (f.eks. "bilder/x.png"), behold det men fikse ext om nÃ¸dvendig
         if "/" in raw:
             disk_path = base_quiz / raw
             if not disk_path.exists():
@@ -364,8 +499,8 @@ def update_directory(
         use_progress: Vis fremdriftslinje
         include_quiz: Inkluder quiz-metadata
         max_depth: Maks rekursjonsdybde (None = ubegrenset)
-        current_depth: Nåværende dybde (intern bruk)
-        global_blacklist: Valgfrie globale mapper å blacklist'e (ikke persistert)
+        current_depth: NÃ¥vÃ¦rende dybde (intern bruk)
+        global_blacklist: Valgfrie globale mapper Ã¥ blacklist'e (ikke persistert)
     """
     # Symlink loop detection
     try:
@@ -468,7 +603,7 @@ def update_directory(
             suf = os.path.splitext(name)[1].lower() if name else ""
 
             if suf in ALLOWED_EXT:
-                # ✅ Endring: aldri legg index.html inn i index.json (sidebar)
+                # âœ… Endring: aldri legg index.html inn i index.json (sidebar)
                 if name_lower == "index.html":
                     continue
 
@@ -477,7 +612,7 @@ def update_directory(
                 if key not in index:
                     index[key] = {"beskyttet": beskyttet, "files": []}
 
-                # Hvis shortcut-fil, prøv å ekstrahere URL og lagre URL i stedet for filnavn
+                # Hvis shortcut-fil, prÃ¸v Ã¥ ekstrahere URL og lagre URL i stedet for filnavn
                 if suf in (".url", ".webloc"):
                     try:
                         url = parse_shortcut_file(dir_path / name)
@@ -557,27 +692,27 @@ def update_directory(
 
 def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Oppdater index.json-filer rekursivt.")
-    parser.add_argument("root", nargs="?", default=".", type=Path, help="Rotmappe å starte fra")
+    parser.add_argument("root", nargs="?", default=".", type=Path, help="Rotmappe Ã¥ starte fra")
     parser.add_argument("--no-progress", action="store_true", help="Skru av fremdriftsindikator (tqdm).")
     parser.add_argument("--no-quiz", action="store_true", help="Ikke registrer quiz i index.json.")
     parser.add_argument("--only", "-o", action="store_true", help="Oppdater KUN denne mappen (ikke undermapper).")
-    parser.add_argument("--shallow", "-s", action="store_true", help="Oppdater denne mappen og ett nivå ned.")
-    parser.add_argument("--blacklist", help="Komma-separert liste av mappe-navn å blacklist'e i alle mapper (påvirker ikke vedvarende indeks).", default="")
-    parser.add_argument("--enrich-video-lists", action="store_true", help="Kjør video_topic_enricher.py på videolistefiler etter index-oppdatering.")
+    parser.add_argument("--shallow", "-s", action="store_true", help="Oppdater denne mappen og ett nivÃ¥ ned.")
+    parser.add_argument("--blacklist", help="Komma-separert liste av mappe-navn Ã¥ blacklist'e i alle mapper (pÃ¥virker ikke vedvarende indeks).", default="")
+    parser.add_argument("--enrich-video-lists", action="store_true", help="KjÃ¸r video_topic_enricher.py pÃ¥ videolistefiler etter index-oppdatering.")
     parser.add_argument("--enrich-ai-provider", choices=["heuristic", "ollama"], default="heuristic", help="AI-provider for enrich-trinn.")
     parser.add_argument("--enrich-cookies", default=None, help="Cookies-fil for enrich (Panopto/innlogging).")
     parser.add_argument("--enrich-cookies-from-browser", default=None, help="Cookies fra nettleser (f.eks. chrome).")
-    parser.add_argument("--enrich-transcribe-with-whisper", action="store_true", help="Bruk whisper-fallback når undertekster mangler.")
+    parser.add_argument("--enrich-transcribe-with-whisper", action="store_true", help="Bruk whisper-fallback nÃ¥r undertekster mangler.")
     parser.add_argument("--enrich-force", action="store_true", help="Tving enrich selv om output ser oppdatert ut.")
     args = parser.parse_args(argv)
 
     root = args.root.resolve()
     if not root.is_dir():
-        parser.error(f"Sti må være en eksisterende mappe, fikk: {root}")
+        parser.error(f"Sti mÃ¥ vÃ¦re en eksisterende mappe, fikk: {root}")
 
     use_prog = not args.no_progress and tqdm is not None
     if not use_prog and tqdm is None and not args.no_progress:
-        print("tqdm ikke installert – kjører uten fremdriftslinjer. Installer: pip install tqdm")
+        print("tqdm ikke installert â€“ kjÃ¸rer uten fremdriftslinjer. Installer: pip install tqdm")
 
     # Clear caches on new run
     _quiz_normalized.clear()
@@ -659,7 +794,7 @@ def main(argv: Optional[List[str]] = None) -> None:
                     enrich_fail += 1
 
             print(
-                f"[ENRICH][SUMMARY] kandidater={enrich_total}, kjørt={enrich_run}, "
+                f"[ENRICH][SUMMARY] kandidater={enrich_total}, kjÃ¸rt={enrich_run}, "
                 f"skippet={enrich_skip}, feilet={enrich_fail}"
             )
 
@@ -667,3 +802,5 @@ def main(argv: Optional[List[str]] = None) -> None:
 
 if __name__ == "__main__":
     main()
+
+
