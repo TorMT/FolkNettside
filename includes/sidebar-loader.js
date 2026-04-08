@@ -171,7 +171,7 @@
       }
       
       .nested-folder-item::after{ 
-        content:'â–¸';
+        content:'▸';
         position:absolute;
         right:8px;
         font-size:1.1em; 
@@ -210,20 +210,27 @@
     
     .file-icon{
       display:inline-flex;
-      width:20px;
-      height:14px;
+      min-width:30px;
+      height:18px;
+      padding:0 6px;
       margin-right:10px;
       align-items:center;
       justify-content:center;
       vertical-align:middle;
-      flex:0 0 20px;
+      flex:0 0 auto;
       overflow:hidden;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      color:#fff;
+      background:#607D8B;
+      box-sizing:border-box;
     }
     
     .file-icon svg{
-      width:100%;
-      height:100%;
-      display:block;
+      display:none !important;
     }
     
     .file-label{
@@ -267,14 +274,14 @@
     }
     
     .file-label.watched::before{
-      content:"âœ“ ";
+      content:"✓ ";
       color:#8BC34A;
       margin-right:6px;
       font-weight:700;
     }
     
     .nested-folder-item.watched>.file-label::after{
-      content:" âœ“";
+      content:" ✓";
       color:#8BC34A;
       margin-left:6px;
     }
@@ -797,9 +804,11 @@ function openInViewer(url, kind){
   else if (kind === 'html')  target = `/includes/kodeLesere/htmlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'stl') target = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fbm') target = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
-  else if (kind === '3mf') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
+  else if (kind === '3mf') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}&v=20260408m`;
+  else if (kind === 'fusion3d') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}&fallback=1&v=20260408m`;
   else if (kind === 'f3d') target = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'csv')   target = `/includes/kodeLesere/csvview.html?file=${encodeURIComponent(url)}`;
 
   if (kind === 'pdf' && frame.tagName.toLowerCase() === 'object') frame.type = 'application/pdf';
   else frame.removeAttribute('type');
@@ -857,9 +866,11 @@ function openFile(url){
   const fusionViewerEnabled =
     window.ENABLE_FUSION_VIEWER !== false &&
     fusionFlag !== '0';
-  const isFusionCad =
+  const isFusionArchive =
     clean.endsWith('.f3d') || clean.endsWith('.f3z') ||
-    clean.endsWith('.fbm') || clean.endsWith('.3fz') ||
+    clean.endsWith('.fbm') || clean.endsWith('.3fz');
+  const isFusionCad =
+    isFusionArchive ||
     clean.endsWith('.3fm') || clean.endsWith('.fm3') ||
     clean.endsWith('.step') || clean.endsWith('.stp') ||
     clean.endsWith('.iges') || clean.endsWith('.igs') ||
@@ -879,6 +890,7 @@ function openFile(url){
     clean.endsWith('.x_t') || clean.endsWith('.x_b') ||
     clean.endsWith('.sldprt') || clean.endsWith('.sldasm') || clean.endsWith('.slddrw');
   if (clean.endsWith('.pdf'))   return openInViewer(url, 'pdf');
+  if (clean.endsWith('.csv') || clean.endsWith('.tsv')) return openInViewer(url, 'csv');
   if (clean.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
   if (clean.endsWith('.py'))    return openInViewer(url, 'py');
   if (clean.endsWith('.stl')) return openInViewer(url, 'stl');
@@ -889,6 +901,7 @@ function openFile(url){
     }
     return openInViewer(url, 'html');
   }
+  if (isFusionArchive) return openInViewer(url, 'fusion3d');
   if (clean.endsWith('.fbm') && fusionViewerEnabled) return openInViewer(url, 'fusion');
   if (clean.endsWith('.fbm')) return openInViewer(url, 'fbm');
   if (clean.endsWith('.3mf') || clean.endsWith('.3fm') || clean.endsWith('.fm3')) return openInViewer(url, '3mf');
@@ -962,6 +975,90 @@ function sortSidebarKeys(data){
   const lock  = keys.filter(isLock).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
   return [...oving, ...py, ...other, ...lock];
 }
+
+repairMojibakeLabel = function(value){
+  return String(value || '')
+    .replace(/ÃƒËœ|Ã˜/g, 'Ø')
+    .replace(/ÃƒÂ¸|Ã¸/g, 'ø')
+    .replace(/Ãƒâ€¦|Ã…/g, 'Å')
+    .replace(/ÃƒÂ¥|Ã¥/g, 'å')
+    .replace(/Ãƒâ€ |Ã†/g, 'Æ')
+    .replace(/ÃƒÂ¦|Ã¦/g, 'æ')
+    .replace(/Ã¢â‚¬â€œ|Ã¢â‚¬â€|–|—/g, ' - ')
+    .replace(/Ã‚/g, '')
+    .replace(/ðŸ[^ ]*/g, '')
+    .replace(/[■□]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+displayName = function(key){
+  const fixed = repairMojibakeLabel(key);
+  const cleaned = fixed
+    .replace(/^[■□▪▫◆◇◼◻⬛⬜]+\s*/g, '')
+    .replace(/ðŸ[^ ]*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const m = cleaned.match(/^\s*(?:øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m2 = cleaned.match(/^oving(\d{1,3})$/i);
+  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  const py = cleaned.match(/^python(?:ø|o)ving\s*0*(\d{1,3})$/i);
+  if (py) return `PythonØving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
+  return cleaned
+    .replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '')
+    .replace(/\.[^/.]+$/, '');
+};
+
+repairMojibakeLabel = function(value){
+  return String(value || '')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ|Ã˜/g, 'Ø')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸|Ã¸/g, 'ø')
+    .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦|Ã…/g, 'Å')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥|Ã¥/g, 'å')
+    .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ |Ã†/g, 'Æ')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦|Ã¦/g, 'æ')
+    .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€|â€“|â€”/g, ' - ')
+    .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|Ã¢â‚¬Â¦/g, '...')
+    .replace(/Ãƒâ€š/g, '')
+    .replace(/ðŸ[^A-Za-zÆØÅæøå0-9]*/g, '')
+    .replace(/[■□▪▫◆◇◼◻⬛⬜�]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+displayName = function(key){
+  const cleaned = repairMojibakeLabel(key)
+    .replace(/^[■□▪▫◆◇◼◻⬛⬜]+\s*/g, '')
+    .replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '')
+    .replace(/\.[^/.]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  let m = cleaned.match(/^\s*(?:Øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  m = cleaned.match(/^oving(\d{1,3})$/i);
+  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const py = cleaned.match(/^python(?:ø|o)ving\s*0*(\d{1,3})$/i);
+  if (py) return `PythonØving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
+  return cleaned;
+};
+
+sortSidebarKeys = function(data){
+  const keys = Object.keys(data).filter(k => k !== 'welcome' && k !== 'quiz');
+  const ovingNum = (k) => {
+    const fixed = repairMojibakeLabel(k);
+    if (/^oving\d{2,3}$/i.test(fixed)) return parseInt(fixed.slice(5), 10);
+    const m = fixed.match(/^\s*(?:øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+    return m ? parseInt(m[1], 10) : null;
+  };
+  const isPy = k => /^python(?:ø|o)ving/i.test(repairMojibakeLabel(k));
+  const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(k));
+  const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
+  const py = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
+  const other = keys.filter(k => !oving.includes(k) && !py.includes(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
+  const lock = keys.filter(isLock).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
+  return [...oving, ...py, ...other, ...lock];
+};
 
 
 
@@ -1115,6 +1212,32 @@ function iconForFile(file){
     + '</span>';
 }
 
+iconForFile = function(file){
+  try{
+    let s = String(file || '').trim();
+    if (s.includes('|')) {
+      const p = s.split('|');
+      s = (p[1] || p[0] || '').trim();
+    }
+    const lower = s.toLowerCase();
+    const badge = (text, bg) => `<span class="file-icon" style="background:${bg}">${text}</span>`;
+    if (/^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(s)) return badge('YT', '#FF0000');
+    if (/^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(s) || /panopto/i.test(s)) return badge('PN', '#6A1B9A');
+    if (/\.(py|ipynb)$/i.test(lower)) return badge('PY', '#3572A5');
+    if (/\.pdf$/i.test(lower)) return badge('PDF', '#D32F2F');
+    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(lower)) return badge('IMG', '#4CAF50');
+    if (/\.(f3d|f3z|3fz|fbm)$/i.test(lower)) return badge('F3D', '#F57C00');
+    if (/\.(3mf|3fm|fm3)$/i.test(lower)) return badge('3MF', '#00897B');
+    if (/\.(step|stp|iges|igs|sat|smt|x_t|x_b|ifc)$/i.test(lower)) return badge('CAD', '#1976D2');
+    if (/\.(sldprt|sldasm|slddrw)$/i.test(lower)) return badge('SW', '#C62828');
+    if (/\.(stl|obj|ply|vtk|fbx|abc|usd|usda|usdc|usdz|draco|vdb|gltf|glb)$/i.test(lower)) return badge('3D', '#00897B');
+    if (/\.(mp4|webm|ogg|mov|m4v)$/i.test(lower)) return badge('VID', '#444444');
+    if (/\.html?$/i.test(lower)) return badge('HTM', '#5C6BC0');
+    if (/\.txt$/i.test(lower)) return badge('TXT', '#546E7A');
+  }catch{}
+  return '<span class="file-icon" style="background:#607D8B">FIL</span>';
+};
+
 function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
   const { folders, rootFiles } = groupFilesByFolders(files);
   let html = '';
@@ -1202,7 +1325,7 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
         title: folderName,
         items: playlistItems
       }));
-      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Ã…pne alle videoer i innebygd modus">`;
+      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="\u00C5pne alle videoer i innebygd modus">`;
       html += `<span class="file-icon video" style="background:#D32F2F;border-radius:3px" aria-hidden="true">`;
       html += '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">';
       html += '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>';
@@ -1219,6 +1342,81 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
   
   return html;
 }
+
+buildNestedFlyoutHTML = function(files, makeHrefFunc, isPyGroup) {
+  const { folders, rootFiles } = groupFilesByFolders(files);
+  let html = '';
+
+  function makeLabel(f){
+    try{
+      let s = String(f || '').trim();
+      let labelPart = null;
+      let urlPart = null;
+      if (s.includes('|')) {
+        const parts = s.split('|');
+        labelPart = parts[0] || null;
+        urlPart = parts[1] || null;
+      }
+      if (urlPart) s = urlPart;
+      const anyVid = String(s).match(/[?&]v=([^&]+)/i);
+      if (/^https?:\/\//i.test(s) || anyVid) {
+        const m = anyVid || s.match(/[?&]v=([^&]+)/i);
+        if (m) return displayName(repairMojibakeLabel(labelPart || `YouTube - ${decodeURIComponent(m[1])}`));
+        const m2 = s.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
+        if (m2) return displayName(repairMojibakeLabel(labelPart || `YouTube - ${decodeURIComponent(m2[1])}`));
+        try{
+          const u = new URL(s);
+          const segs = u.pathname.split('/').filter(Boolean);
+          if (segs.length) return displayName(repairMojibakeLabel(labelPart || decodeURIComponent(segs[segs.length-1])));
+        }catch{}
+        return displayName(repairMojibakeLabel(labelPart || s.replace(/^https?:\/\//i,'')));
+      }
+      return displayName(repairMojibakeLabel(labelPart || String(f).split(/[\\\/]/).pop().replace(/\.[^/.]+$/, '')));
+    }catch{
+      return displayName(repairMojibakeLabel(String(f || '')));
+    }
+  }
+
+  function shortLabel(text){
+    const cleaned = displayName(repairMojibakeLabel(text || ''));
+    return cleaned.length > 40 ? `${cleaned.slice(0, 38)}...` : cleaned;
+  }
+
+  const rootItems = rootFiles.map(f => ({ f, label: makeLabel(f) }));
+  rootItems.sort((a,b)=> a.label.localeCompare(b.label, undefined, {numeric:true, sensitivity:'base'}));
+  rootItems.forEach((item) => {
+    const href = makeHrefFunc(item.f);
+    const label = shortLabel(item.label);
+    html += `<a href="${href}" data-file="${item.f}">${iconForFile(item.f)}<span class="file-label">${label}</span></a>`;
+  });
+
+  Object.keys(folders).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'})).forEach((folderName) => {
+    let folderFiles = (folders[folderName] || []).slice();
+    folderFiles.sort((x,y) => makeLabel(x.substring(folderName.length + 1)).localeCompare(makeLabel(y.substring(folderName.length + 1)), undefined, {numeric:true, sensitivity:'base'}));
+    html += `<div class="nested-folder-item" data-folder="${folderName}">`;
+    html += `<span class="file-icon" style="background:#6B6B6B">DIR</span>`;
+    html += `<span class="file-label">${shortLabel(folderName)}</span>`;
+    html += `<div class="nested-flyout">`;
+    const subFiles = folderFiles.map(f => f.substring(folderName.length + 1));
+    const playlistItems = subFiles.map((subFile) => {
+      const fullFile = `${folderName}/${subFile}`;
+      const href = makeHrefFunc(fullFile);
+      if (!isEmbeddableVideoUrl(href)) return null;
+      return { title: makeLabel(subFile), description: makeLabel(subFile), url: href };
+    }).filter(Boolean);
+    if (playlistItems.length) {
+      const payload = encodeURIComponent(JSON.stringify({ title: repairMojibakeLabel(folderName), items: playlistItems }));
+      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Åpne alle videoer i innebygd modus">`;
+      html += `<span class="file-icon" style="background:#D32F2F">ALL</span>`;
+      html += `<span class="file-label">Se alle videoer (embedded)</span>`;
+      html += `</a>`;
+    }
+    html += buildNestedFlyoutHTML(subFiles, (subFile) => makeHrefFunc(`${folderName}/${subFile}`), isPyGroup);
+    html += `</div></div>`;
+  });
+
+  return html;
+};
 
 /**************** 5) Sidebar + velkomst + quiz ***************************/
 async function initSidebar(){
@@ -1678,7 +1876,8 @@ async function initSidebar(){
       lower.endsWith('.sldprt') || lower.endsWith('.sldasm') || lower.endsWith('.slddrw') ||
       /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(href) ||
       /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(href) ||
-      /\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lower)
+      /\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lower) ||
+      lower.endsWith('.csv') || lower.endsWith('.tsv')
     ){
       openFile(href);
     } else {
@@ -1858,9 +2057,141 @@ document.readyState==='loading'
   ? document.addEventListener('DOMContentLoaded', initSidebar)
   : initSidebar();
 
+(function(){
+  const styleId = 'sidebar-dom-fixes-v20260408k';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      #sidebar .nested-folder-item::after{ content:"\\25B8" !important; }
+      #sidebar .file-label.watched::before{ content:"\\2713 " !important; }
+      #sidebar .nested-folder-item.watched > .file-label::after{ content:" \\2713" !important; }
+      #sidebar .file-icon{
+        min-width:30px !important;
+        height:18px !important;
+        padding:0 6px !important;
+        border-radius:999px !important;
+        font-size:11px !important;
+        font-weight:800 !important;
+        letter-spacing:.04em !important;
+        text-transform:uppercase !important;
+        color:#fff !important;
+        display:inline-flex !important;
+        align-items:center !important;
+        justify-content:center !important;
+        box-sizing:border-box !important;
+      }
+      #sidebar .file-icon svg{ display:none !important; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function cleanSidebarText(value){
+    return String(value || '')
+      .replace(/ÃƒÆ’Ã‹Å“|ÃƒËœ|Ã˜/g, '\u00D8')
+      .replace(/ÃƒÆ’Ã‚Â¸|ÃƒÂ¸|Ã¸/g, '\u00F8')
+      .replace(/ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦|Ã…/g, '\u00C5')
+      .replace(/ÃƒÆ’Ã‚Â¥|ÃƒÂ¥|Ã¥/g, '\u00E5')
+      .replace(/ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ |Ã†/g, '\u00C6')
+      .replace(/ÃƒÆ’Ã‚Â¦|ÃƒÂ¦|Ã¦/g, '\u00E6')
+      .replace(/Ã¢â‚¬â€œ|Ã¢â‚¬â€|â€“|â€”/g, ' - ')
+      .replace(/Ã¢â‚¬Â¦|â€¦/g, '...')
+      .replace(/Ã‚/g, '')
+      .replace(/ðŸ[^ ]*/g, '')
+      .replace(/[■□]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function prettySidebarLabel(value){
+    const fixed = cleanSidebarText(value).replace(/\.[^/.]+$/, '');
+    let m = fixed.match(/^(?:\u00D8ving|oving)\s*0*(\d{1,3})$/i);
+    if (m) return `\u00D8ving ${String(parseInt(m[1], 10)).padStart(2, '0')}`;
+    m = fixed.match(/^(?:\u00D8ving|oving)(\d{1,3})$/i);
+    if (m) return `\u00D8ving ${String(parseInt(m[1], 10)).padStart(2, '0')}`;
+    m = fixed.match(/^python(?:\u00D8|o)ving\s*0*(\d{1,3})$/i);
+    if (m) return `Python\u00D8ving ${String(parseInt(m[1], 10)).padStart(2, '0')}`;
+    return fixed.replace(/^ðŸ\S*\s*/g, '').replace(/[■□�]/g, '').trim();
+  }
+
+  function badgeForSidebarFile(name, isFolder){
+    if (isFolder) return { text: 'DIR', bg: '#6B6B6B' };
+    const lower = String(name || '').toLowerCase();
+    if (/^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(String(name || ''))) return { text: 'YT', bg: '#FF0000' };
+    if (/panopto/i.test(String(name || ''))) return { text: 'PN', bg: '#6A1B9A' };
+    if (/\.(f3d|f3z|3fz|fbm)$/i.test(lower)) return { text: 'F3D', bg: '#F57C00' };
+    if (/\.(3mf|3fm|fm3)$/i.test(lower)) return { text: '3MF', bg: '#00897B' };
+    if (/\.(step|stp|iges|igs|sat|smt|x_t|x_b|ifc)$/i.test(lower)) return { text: 'CAD', bg: '#1976D2' };
+    if (/\.(sldprt|sldasm|slddrw)$/i.test(lower)) return { text: 'SW', bg: '#C62828' };
+    if (/\.(stl|obj|ply|vtk|fbx|abc|usd|usda|usdc|usdz|draco|vdb|gltf|glb)$/i.test(lower)) return { text: '3D', bg: '#00897B' };
+    if (/\.(py|ipynb)$/i.test(lower)) return { text: 'PY', bg: '#3572A5' };
+    if (/\.pdf$/i.test(lower)) return { text: 'PDF', bg: '#D32F2F' };
+    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(lower)) return { text: 'IMG', bg: '#4CAF50' };
+    if (/\.(mp4|webm|ogg|mov|m4v)$/i.test(lower)) return { text: 'VID', bg: '#444444' };
+    if (/\.html?$/i.test(lower)) return { text: 'HTM', bg: '#5C6BC0' };
+    if (/\.txt$/i.test(lower)) return { text: 'TXT', bg: '#546E7A' };
+    return { text: 'FIL', bg: '#607D8B' };
+  }
+
+  let queued = false;
+  function normalizeSidebarDom(){
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    const heading = sidebar.querySelector('h3');
+    if (heading) heading.textContent = '\u00D8vinger';
+
+    sidebar.querySelectorAll('.file-label').forEach((label) => {
+      const cleaned = prettySidebarLabel(label.textContent);
+      if (cleaned) label.textContent = cleaned;
+    });
+
+    sidebar.querySelectorAll('.nested-folder-item').forEach((item) => {
+      const label = item.querySelector('.file-label');
+      if (label) label.textContent = prettySidebarLabel(label.textContent);
+      const icon = item.querySelector('.file-icon');
+      if (icon) {
+        const badge = badgeForSidebarFile(label?.textContent || '', true);
+        icon.textContent = badge.text;
+        icon.style.background = badge.bg;
+      }
+    });
+
+    sidebar.querySelectorAll('a[data-file], .nested-flyout a, .dropdown-content a').forEach((link) => {
+      const label = link.querySelector('.file-label');
+      if (label) label.textContent = prettySidebarLabel(label.textContent);
+      const icon = link.querySelector('.file-icon');
+      if (icon) {
+        const badge = badgeForSidebarFile(link.getAttribute('data-file') || link.getAttribute('href') || label?.textContent || '', false);
+        icon.textContent = badge.text;
+        icon.style.background = badge.bg;
+      }
+    });
+  }
+
+  function scheduleNormalize(){
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      normalizeSidebarDom();
+    });
+  }
+
+  document.readyState === 'loading'
+    ? document.addEventListener('DOMContentLoaded', scheduleNormalize, { once: true })
+    : scheduleNormalize();
+
+  const observer = new MutationObserver(() => scheduleNormalize());
+  document.addEventListener('DOMContentLoaded', () => {
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    if (sidebar) observer.observe(sidebar, { childList: true, subtree: true });
+  }, { once: true });
+})();
+
 /**************** 6) Versjons-badge **************************************/
 (function(){
-  const id='version-badge',txt='v11.15.2';
+  const id='version-badge',txt='v11.15.5';
   let b=document.getElementById(id);
   if(!b){
     b=document.createElement('div');

@@ -19,14 +19,14 @@
       --radius-sm: 12px;
     }
 
-    html,body{
+    html, body{
       margin:0;
       padding:0;
       height:100%;
       overflow:hidden;
-      background: var(--bg-main);
-      color: var(--text-main);
-      font-family: system-ui, Segoe UI, Arial, sans-serif;
+      background:var(--bg-main);
+      color:var(--text-main);
+      font-family:system-ui, "Segoe UI", Arial, sans-serif;
     }
 
     #hud{
@@ -34,11 +34,11 @@
       left:12px;
       top:12px;
       z-index:50;
-      background: var(--bg-card);
+      background:var(--bg-card);
       border:1px solid var(--border-color);
-      box-shadow: var(--shadow-soft);
+      box-shadow:var(--shadow-soft);
       padding:10px 12px;
-      border-radius: var(--radius-sm);
+      border-radius:var(--radius-sm);
       font-size:13px;
       line-height:1.35;
       max-width:min(760px, 92vw);
@@ -61,10 +61,11 @@
       height:100%;
       border:none;
       background:transparent;
+      display:block;
     }
 
     .card{
-      width:min(1100px, calc(100vw - 32px));
+      width:min(1120px, calc(100vw - 32px));
       max-height:calc(100vh - 32px);
       overflow:auto;
       background:var(--bg-card);
@@ -115,20 +116,16 @@
 
     .preview-shell{
       width:100%;
-      min-height:340px;
+      min-height:360px;
       border-radius:12px;
       border:1px solid var(--border-color);
       overflow:hidden;
       background:color-mix(in srgb, var(--bg-card) 80%, #000 20%);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.02);
     }
 
     .preview-shell iframe{
-      width:100%;
-      height:clamp(340px, 52vh, 640px);
-      display:block;
-      border:none;
-      background:transparent;
+      height:clamp(360px, 56vh, 700px);
     }
 
     .buttons{
@@ -186,7 +183,7 @@
       display:block;
       margin:0;
       padding:10px 12px;
-      background: color-mix(in srgb, var(--bg-card) 85%, #000 15%);
+      background:color-mix(in srgb, var(--bg-card) 85%, #000 15%);
       border-radius:10px;
       overflow:auto;
       font-size:12px;
@@ -237,9 +234,10 @@
     } catch {}
 
     const params = new URLSearchParams(window.location.search);
-    const previewFile = params.get("file");
-    const sourceFile = params.get("sourceFile") || previewFile;
-    const stlCandidate = params.get("stlCandidate");
+    const fileParam = params.get("file");
+    const previewFile = params.get("previewFile") || "";
+    const sourceFile = params.get("sourceFile") || fileParam || "";
+    const stlCandidate = params.get("stlCandidate") || "";
     const sourceExt = (params.get("sourceExt") || "").toLowerCase();
     const embedded = params.get("embedded") === "1";
     const stage = document.getElementById("stage");
@@ -286,19 +284,97 @@
     }
 
     async function readPreviewFromF3d(zip) {
-      const entries = zip.file(/(^|\/)Previews\/small\.png$/i);
-      const entry = entries && entries[0];
+      const entry = (zip.file(/(^|\/)Previews\/small\.png$/i) || [])[0];
       if (!entry) return null;
       const blob = await entry.async("blob");
       return URL.createObjectURL(blob);
     }
 
+    function candidateScore(url, sourceStem = "") {
+      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
+      const lower = cleanUrl.toLowerCase();
+      const stem = cleanUrl.split("/").pop().replace(/\.[^/.]+$/, "").toLowerCase();
+      let score = 0;
+      if (/\.(3mf|3fm|fm3)$/i.test(lower)) score += 400;
+      else if (/\.stl$/i.test(lower)) score += 300;
+      else if (/\.(obj|glb|gltf|fbx|ply)$/i.test(lower)) score += 200;
+      if (sourceStem && stem === sourceStem) score += 120;
+      else if (sourceStem && (stem.includes(sourceStem) || sourceStem.includes(stem))) score += 60;
+      return score;
+    }
+
+    function sameStemCandidates(url) {
+      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
+      const match = cleanUrl.match(/^(.*?)(\.[^./?#]+)$/);
+      if (!match) return [];
+      const stem = match[1];
+      const suffix = String(url || "").slice(cleanUrl.length);
+      return [
+        `${stem}.3mf${suffix}`,
+        `${stem}.3fm${suffix}`,
+        `${stem}.fm3${suffix}`,
+        `${stem}.stl${suffix}`
+      ];
+    }
+
+    async function resolveSameStemPreview(url) {
+      const candidates = sameStemCandidates(url);
+      for (const candidate of candidates) {
+        if (await exists(candidate)) return candidate;
+      }
+      return "";
+    }
+
+    async function resolveSiblingPreviewCandidateFromIndex(url) {
+      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
+      const slash = cleanUrl.lastIndexOf("/");
+      if (slash < 0) return "";
+      const baseDir = cleanUrl.slice(0, slash + 1);
+      const sourceStem = cleanUrl.split("/").pop().replace(/\.[^/.]+$/, "").toLowerCase();
+      try {
+        const res = await fetch(`${baseDir}index.json?cb=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) return "";
+        const data = await res.json();
+        const candidates = [];
+        Object.entries(data || {}).forEach(([key, value]) => {
+          if (key === "welcome") return;
+          if (value && typeof value === "object" && value.dir) return;
+          const files = Array.isArray(value?.files) ? value.files : [];
+          files.forEach((file) => {
+            const entry = String(file || "").trim();
+            if (!entry) return;
+            const fullUrl = /^https?:\/\//i.test(entry) ? entry : `${baseDir}${entry}`;
+            const score = candidateScore(fullUrl, sourceStem);
+            if (score > 0) candidates.push({ url: fullUrl, score });
+          });
+        });
+        candidates.sort((a, b) => b.score - a.score || a.url.localeCompare(b.url, "nb"));
+        return candidates[0]?.url || "";
+      } catch {
+        return "";
+      }
+    }
+
+    function previewViewerUrl(url) {
+      const cleanUrl = String(url || "").split("?")[0].split("#")[0].toLowerCase();
+      const viewerPath = /\.(3mf|3fm|fm3)$/i.test(cleanUrl)
+        ? "/includes/kodeLesere/3mfhydro.html"
+        : "/includes/kodeLesere/stlview.html";
+      const fallbackFlag = ["f3z", "3fz", "f3d"].includes(sourceExt) && /\.(3mf|3fm|fm3)$/i.test(cleanUrl)
+        ? "&fallback=1"
+        : "";
+      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260408j${fallbackFlag}`;
+    }
+
     function renderPreviewViewer(url) {
-      hudText.textContent = `Viser lokal 3D-forhåndsvisning for .${sourceExt || "cad"}`;
+      hudText.textContent = `Viser 3D-forhåndsvisning for .${sourceExt || "cad"}`;
+      const shell = document.createElement("div");
+      shell.className = "preview-shell";
       const iframe = document.createElement("iframe");
       iframe.title = "CAD preview";
-      iframe.src = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
-      stage.replaceChildren(iframe);
+      iframe.src = previewViewerUrl(url);
+      shell.appendChild(iframe);
+      stage.replaceChildren(shell);
     }
 
     function renderFallback(reason) {
@@ -307,10 +383,10 @@
         <div class="card">
           <h2>Ingen direkte CAD-preview</h2>
           <p>${escapeHtml(reason)}</p>
-          <p>Vi viser ikke tredjeparts toppmeny her. Hvis det finnes en matchende STL-eksport, vil den brukes automatisk.</p>
+          <p>Vi fant ingen lokal 3D-placeholder i samme mappe. Du kan fortsatt åpne originalfila eller prøve manuell fallback.</p>
           <div class="buttons">
             <a class="btn primary" href="${sourceFile}" target="_blank" rel="noopener">Åpne originalfil</a>
-            ${stlCandidate ? `<a class="btn" href="/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlCandidate)}" target="_blank" rel="noopener">Prøv STL-visning</a>` : ""}
+            ${stlCandidate ? `<a class="btn" href="/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlCandidate)}" target="_blank" rel="noopener">Prøv STL-fallback</a>` : ""}
           </div>
           <code>${escapeHtml(sourceFile || "Ingen fil mottatt")}</code>
         </div>
@@ -331,7 +407,6 @@
       const rootObject = designObjects.find((obj) => obj.relativePath === rootFile) || designObjects[0] || null;
 
       let previewUrl = null;
-      const hasStlPreview = stlCandidate && await exists(stlCandidate);
       if (rootFile) {
         const rootEntry = outer.file(rootFile);
         if (rootEntry) {
@@ -354,7 +429,7 @@
       stage.innerHTML = `
         <div class="card">
           <h2>${escapeHtml(rootObject?.displayName || fileName || "Fusion-fil")}</h2>
-          <p>Lokal åpner for .${escapeHtml(sourceExt || "f3z")} med assembly-data hentet direkte fra selve filcontaineren. STL brukes bare som valgfri fallback, ikke som primærvisning.</p>
+          <p>Lokal åpner for .${escapeHtml(sourceExt || "f3z")} med assembly-data hentet direkte fra filcontaineren. Dette er bare reservevisning hvis vi ikke fant renderbar 3D-placeholder.</p>
           <div class="buttons">
             <a class="btn primary" href="${sourceFile}" target="_blank" rel="noopener">Åpne originalfil</a>
             ${stlCandidate ? `<a class="btn" href="/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlCandidate)}" target="_blank" rel="noopener">Åpne STL-fallback</a>` : ""}
@@ -364,12 +439,11 @@
               <h3>Preview fra filen</h3>
               ${previewUrl
                 ? `<img class="thumb" src="${previewUrl}" alt="Preview av modellen">`
-                : `<div class="muted">Ingen intern preview funnet i filcontaineren. Du kan fortsatt bruke STL-fallbacken hvis du vil se en mesh-visning.</div>`}
+                : `<div class="muted">Ingen intern preview funnet i filcontaineren.</div>`}
               <ul class="meta-list" style="margin-top:12px;">
                 <li><strong>Rotfil</strong><br><span class="muted">${escapeHtml(rootFile || "ukjent")}</span></li>
                 <li><strong>Komponenter</strong><br><span class="muted">${components.length}</span></li>
                 <li><strong>Container entries</strong><br><span class="muted">${entries.length}</span></li>
-                <li><strong>STL-fallback</strong><br><span class="muted">${escapeHtml((stlCandidate || "").split("/").pop() || "ingen")}${hasStlPreview ? " · tilgjengelig" : ""}</span></li>
               </ul>
             </div>
             <div style="display:grid; gap:16px;">
@@ -394,33 +468,41 @@
       `;
     }
 
+    async function choosePreviewForFusion() {
+      const exact = sourceFile ? await resolveSameStemPreview(sourceFile) : "";
+      if (exact) return exact;
+      if (previewFile && await exists(previewFile)) return previewFile;
+      const sibling = sourceFile ? await resolveSiblingPreviewCandidateFromIndex(sourceFile) : "";
+      if (sibling) return sibling;
+      if (stlCandidate && await exists(stlCandidate)) return stlCandidate;
+      return "";
+    }
+
     async function init() {
       hudText.textContent = "Sjekker lokal forhåndsvisning...";
-      const checkedStl = stlCandidate && await exists(stlCandidate) ? stlCandidate : "";
-      const preferredPreview = checkedStl || previewFile;
-      const isRenderableMesh = preferredPreview && /\.stl(?:$|[?#])/i.test(preferredPreview);
 
       if (["f3z", "3fz", "f3d"].includes(sourceExt)) {
-        if (isRenderableMesh) {
+        const preferredPreview = await choosePreviewForFusion();
+        if (preferredPreview && /\.(stl|3mf|3fm|fm3)(?:$|[?#])/i.test(preferredPreview)) {
           hudText.textContent = "Viser 3D-forhåndsvisning for Fusion-filen";
-          renderMeshPreview(preferredPreview);
+          renderPreviewViewer(preferredPreview);
           return;
         }
         if (embedded) {
-          if (stlCandidate) {
-            hudText.textContent = "Bruker STL-fallback for 3D-visning";
-            renderMeshPreview(stlCandidate);
-            return;
-          }
-          renderFallback(`Fant ingen lokal 3D-forhåndsvisning for .${sourceExt || "ukjent"}. Bruk råfil eller STL-fallback fra sidepanelet.`);
+          renderFallback(`Fant ingen lokal 3D-forhåndsvisning for .${sourceExt || "ukjent"}.`);
           return;
         }
         await renderFusionOpener();
         return;
       }
 
-      if (isRenderableMesh) {
-        renderMeshPreview(preferredPreview);
+      const preferredPreview =
+        (previewFile && await exists(previewFile) ? previewFile : "") ||
+        (fileParam && /\.(stl|3mf|3fm|fm3)(?:$|[?#])/i.test(fileParam) ? fileParam : "") ||
+        "";
+
+      if (preferredPreview) {
+        renderPreviewViewer(preferredPreview);
         return;
       }
 

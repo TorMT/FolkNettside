@@ -49,6 +49,7 @@ ALLOWED_EXT = {
 # Standard mapper vi alltid ignorerer (case-insensitiv)
 DEFAULT_BLACKLIST = {
     "node_modules", ".git", "__pycache__", "venv", ".venv", ".siteupdater-backups",
+    ".siteupdater-backups-global", "manual-backups",
     ".vscode", ".github", "docs", "includes", "scripts", "temp", "temp_subs", "tools"
 }
 IMAGE_EXT        = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
@@ -56,6 +57,8 @@ DEFAULT_WELCOME  = "/img/welcome-generic.svg"
 DEFAULT_ANDREKOK_SOURCE = "https://perrur.folk.ntnu.no/script.js"
 DEFAULT_ANDREKOK_STUDIET = "MTKJ"
 DEFAULT_BACKUP_DIRNAME = ".siteupdater-backups"
+PREFERRED_SIDECAR_EXT = ".json"
+SKIP_IF_JSON_EXISTS_EXT = {".txt", ".md", ".list", ".links"}
 
 # Global cache
 _quiz_normalized: Set[Path] = set()
@@ -107,6 +110,14 @@ def should_skip_index_file(name: str) -> bool:
     if name_lower in {"todo list.txt", "ntnu_webedit.md", "fusion_format_capabilities.md", "import-blocklist.txt"}:
         return True
     return False
+
+def should_skip_sidecar_variant(name: str, sibling_names: Set[str]) -> bool:
+    path = Path(name)
+    suffix = path.suffix.lower()
+    if suffix not in SKIP_IF_JSON_EXISTS_EXT:
+        return False
+    preferred = f"{path.stem}{PREFERRED_SIDECAR_EXT}".lower()
+    return preferred in sibling_names
 
 def describe_index_diff(old: Dict[str, object], new: Dict[str, object]) -> str:
     old_keys = set(old.keys())
@@ -221,22 +232,21 @@ def rollback_backup(root: Path, backup_root: Path, backup_id: str) -> int:
     return restored
 
 @lru_cache(maxsize=512)
-@lru_cache(maxsize=512)
 def repair_mojibake(text: str) -> str:
     s = str(text or "")
     replacements = {
-        "\u00c3\u02dc": "\u00d8",
-        "\u00c3\u00b8": "\u00f8",
-        "\u00c3\u2026": "\u00c5",
-        "\u00c3\u00a5": "\u00e5",
-        "\u00c3\u2020": "\u00c6",
-        "\u00c3\u00a6": "\u00e6",
-        "\u00e2\u20ac\u201c": "-",
-        "\u00e2\u20ac\u201d": "-",
-        "\u00c2": "",
+        "Ã˜": "Ø",
+        "Ã¸": "ø",
+        "Ã…": "Å",
+        "Ã¥": "å",
+        "Ã†": "Æ",
+        "Ã¦": "æ",
+        "â€“": "-",
+        "â€”": "-",
+        "Â": "",
     }
     for bad, good in replacements.items():
-        s = s.replace(bad.encode("utf-8").decode("unicode_escape"), good.encode("utf-8").decode("unicode_escape"))
+        s = s.replace(bad, good)
     return s
 
 @lru_cache(maxsize=512)
@@ -324,13 +334,17 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
 
         try:
             with os.scandir(d) as it:
-                for entry in it:
+                entries_in_dir = list(it)
+                sibling_names = {entry.name.lower() for entry in entries_in_dir}
+                for entry in entries_in_dir:
                     try:
                         if entry.is_file(follow_symlinks=True):
                             suf = os.path.splitext(entry.name)[1].lower() if entry.name else ""
                             if suf in ALLOWED_EXT:
                                 # âœ… Endring: aldri ta med index.html i fil-lister
                                 if should_skip_index_file(entry.name):
+                                    continue
+                                if should_skip_sidecar_variant(entry.name, sibling_names):
                                     continue
 
                                 # Hvis shortcut-fil, prÃ¸v Ã¥ hente mÃ¥l-URL â€“ behold original filnavn som label
@@ -347,6 +361,8 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
                                     out.append(prefix + entry.name)
 
                         elif entry.is_dir(follow_symlinks=True):
+                            if entry.name.lower() in DEFAULT_BLACKLIST:
+                                continue
                             scan_dir(entry.path, prefix + entry.name + "/")
                     except (PermissionError, OSError):
                         pass
@@ -765,6 +781,7 @@ def update_directory(
 
     # 2) Sorter entries
     entries.sort(key=lambda x: natural_sort_key(x[0]))
+    entry_names = {name.lower() for name, _is_dir, _is_file in entries}
 
     if use_progress and tqdm is not None:
         entries = tqdm(entries, desc=format_path(dir_path), unit="item", leave=False)  # type: ignore[assignment]
@@ -796,6 +813,8 @@ def update_directory(
             if suf in ALLOWED_EXT:
                 # âœ… Endring: aldri legg index.html inn i index.json (sidebar)
                 if should_skip_index_file(name):
+                    continue
+                if should_skip_sidecar_variant(name, entry_names):
                     continue
 
                 key = make_oving_key(raw)

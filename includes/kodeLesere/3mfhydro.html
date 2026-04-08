@@ -397,7 +397,7 @@
       <span class="component-chip" data-comp="batteries" data-static="true">Batteries</span>
       <span class="component-chip" data-comp="sensors" data-static="true">Sensorer</span>
 
-      <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+      <div id="visibilityControls" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
         <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-muted); font-weight: 600;">VIS/SKJUL</div>
         <label style="display: block; margin: 4px 0; font-size: 13px;">
           <input type="checkbox" id="toggleHydroData" checked> Hydro-data
@@ -581,7 +581,7 @@
       document.head.appendChild(style);
 
       setText("hud", "Laster 3MF...");
-      if (loadingText) loadingText.textContent = "3MF og hydrodata klargj\u00F8res...";
+      if (loadingText) loadingText.textContent = fallbackMode ? "3MF og komponentdata klargj\u00F8res..." : "3MF og hydrodata klargj\u00F8res...";
       const mobileMenuBtn = document.getElementById("btnMobileMenu");
       if (mobileMenuBtn) mobileMenuBtn.textContent = "\u2630";
       const materialModeBtn = document.getElementById("materialModeBtn");
@@ -590,6 +590,57 @@
 
     applyRuntimeTextFixes();
 
+    const viewParams = new URLSearchParams(location.search);
+    const fallbackMode = /^(1|true)$/i.test(viewParams.get("fallback") || "");
+    const altFile = viewParams.get("altFile") || "";
+    let usedAltFile = false;
+
+    function scoreFallbackCandidate(name, sourceStem) {
+      const stem = String(name || '').replace(/\.[^.]+$/i, '').toLowerCase();
+      const tokens = [...new Set(String(sourceStem || '').split(/[_\-\s]+/).filter(Boolean))];
+      return (
+        (stem === sourceStem ? 100 : 0) +
+        ((stem.includes(sourceStem) || sourceStem.includes(stem)) ? 80 : 0) +
+        tokens.filter((token) => stem.includes(token)).length
+      );
+    }
+
+    async function resolveAutoFallbackCandidate(url) {
+      try {
+        const cleanUrl = String(url || '').split('?')[0].split('#')[0];
+        const sourceStem = cleanUrl.split('/').pop().replace(/\.[^.]+$/i, '').toLowerCase();
+        const basePath = cleanUrl.replace(/[^\/]+$/, '');
+        if (!basePath) return '';
+        const res = await fetch(`${basePath}index.json`, { cache: 'no-store' });
+        if (!res.ok) return '';
+        const data = await res.json();
+        const candidates = [];
+        Object.values(data || {}).forEach((value) => {
+          if (!value || !Array.isArray(value.files)) return;
+          value.files.forEach((file) => {
+            if (typeof file !== 'string') return;
+            if (/\.(3mf|3fm|fm3|stl)(?:$|[?#])/i.test(file)) candidates.push(file);
+          });
+        });
+        const unique = [...new Set(candidates)];
+        if (!unique.length) return '';
+        const ranked = unique.map((name) => {
+          const lower = String(name).toLowerCase();
+          const extWeight =
+            /\.3mf(?:$|[?#])/.test(lower) ? 400 :
+            /\.3fm(?:$|[?#])/.test(lower) ? 390 :
+            /\.fm3(?:$|[?#])/.test(lower) ? 380 :
+            /\.stl(?:$|[?#])/.test(lower) ? 300 : 0;
+          return { name, score: extWeight + scoreFallbackCandidate(name, sourceStem) };
+        }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'nb'));
+        const chosen = ranked[0];
+        if (!chosen || chosen.score <= 0) return '';
+        return `${basePath}${chosen.name}`;
+      } catch {
+        return '';
+      }
+    }
+
     function injectToolbarPanelButton() {
       const toolbar = document.getElementById("toolbar");
       const helpBtn = document.getElementById("btnHelp");
@@ -597,7 +648,7 @@
       const btn = document.createElement("button");
       btn.id = "btnBodiesPanel";
       btn.className = "btn";
-      btn.textContent = "Kropper";
+      btn.textContent = fallbackMode ? "Komponenter" : "Kropper";
       btn.addEventListener("click", () => {
         if (!hydroDataWrap) return;
         const hidden = hydroDataWrap.style.display === "none";
@@ -648,6 +699,49 @@
     const lang = detectLang();
     const helpData = getHelpData(lang);
     ui.init(core, hydro, clipper, measure, { helpData, lang });
+
+    function postViewerComponents(items, mode = "mesh") {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: "viewer-components",
+            mode,
+            items: Array.isArray(items) ? items : []
+          }, "*");
+        }
+      } catch {}
+    }
+
+    function hideById(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const host = el.closest('.dd') || el.closest('.row') || el.parentElement || el;
+      host.style.display = 'none';
+    }
+
+    function configureFallbackMode() {
+      if (!fallbackMode) return;
+      const toolbar = document.getElementById("toolbar");
+      const materialModeBtn = document.getElementById("materialModeBtn");
+      const bodiesBtn = document.getElementById("btnBodiesPanel");
+      if (bodiesBtn) bodiesBtn.textContent = "Komponenter";
+      const hydroData = document.getElementById("hydroData");
+      const visibilityControls = document.getElementById("visibilityControls");
+      if (toolbar) toolbar.style.display = "none";
+      if (materialModeBtn) materialModeBtn.style.display = "none";
+      if (hydroData) hydroData.style.display = "none";
+      if (visibilityControls) visibilityControls.style.display = "none";
+      document.querySelectorAll('.component-chip[data-static="true"]').forEach((el) => {
+        el.style.display = 'none';
+      });
+      ['btnReport','btnHydroReport','btnReportRefresh','chkHydro','btnHydroZero','btnDraftApply','btnTrimApply','btnHeelApply','numDraft','numTrim','numHeel'].forEach(hideById);
+      if (hydroDataWrap) {
+        hydroDataWrap.style.display = "none";
+        hydroDataWrap.style.visibility = "hidden";
+      }
+    }
+
+    configureFallbackMode();
 
     // --- Hydrostatikk-data UI ---
     function updateHydroDataUI(hydroData) {
@@ -721,7 +815,7 @@
 
     function buildComponentList(mesh) {
       const componentList = document.getElementById('componentList');
-      if (!componentList || !mesh) return;
+      if (!componentList || !mesh) return [];
 
       const existingChips = componentList.querySelectorAll('.component-chip:not([data-static])');
       existingChips.forEach(chip => chip.remove());
@@ -739,12 +833,16 @@
         else compType = lowerName.replace(/[^a-z0-9]/g, '') || 'component';
         dynamicComponents.push({ comp: compType, name: exactName });
       });
-      if (!dynamicComponents.length) return;
+      if (!dynamicComponents.length) {
+        postViewerComponents([], "mesh");
+        return [];
+      }
 
       const standardComps = new Set(['hull', 'wl', 'cb', 'cg', 'wp']);
       const insertAfter = componentList.querySelector('.component-chip[data-comp="wp"]');
       let insertAnchor = insertAfter;
       const displayCounts = new Map();
+      const postedNames = [];
 
       dynamicComponents.forEach(comp => {
         if (!comp?.comp || !comp.name || standardComps.has(comp.comp)) return;
@@ -755,6 +853,7 @@
         chip.setAttribute('data-comp', comp.comp);
         chip.setAttribute('data-target', `name:${comp.name}`);
         chip.textContent = count > 1 ? `${comp.name} (${count})` : comp.name;
+        postedNames.push(chip.textContent);
         if (insertAnchor?.parentNode) {
           insertAnchor.parentNode.insertBefore(chip, insertAnchor.nextSibling);
           insertAnchor = chip;
@@ -785,6 +884,9 @@
           }
         };
       });
+
+      postViewerComponents(postedNames, "mesh");
+      return postedNames;
     }
 
     function highlightComponent(compName, highlight, focus = false) {
@@ -898,7 +1000,7 @@
     };
 
     // --- Load model from ?file= or file input ---
-    const params = new URLSearchParams(location.search);
+    const params = viewParams;
     let modelUrl = params.get("file") || "";
 
     async function loadModel(url) {
@@ -919,7 +1021,7 @@
       }, TIMEOUT_MS);
 
       try{
-        setLoadingState(true, "Laster 3MF og hydrodata...");
+        setLoadingState(true, fallbackMode ? "Laster 3MF og komponentdata..." : "Laster 3MF og hydrodata...");
         setHud("Laster 3MF...");        // Først: test om filen finnes og er tilgjengelig
         let headOk = true;
         let headStatus = 0;
@@ -955,16 +1057,18 @@
         buildComponentList(mesh);
 
         applyVisibilitySettings(); // Apply saved visibility settings to 3D elements
-        if (typeof hydro.initDraftAtOriginalPlane === "function") hydro.initDraftAtOriginalPlane();
-        else hydro.initDraftAtBottom();
         let hydroErr = null;
-        setLoadingState(true, "Beregner hydrostatikk...");
-        try {
-          await hydro.recompute();
-          await updateHydroAfterLoad();
-        } catch (errHydro) {
-          hydroErr = errHydro;
-          console.error("[3mfhydro] Hydro-beregning feilet:", errHydro);
+        if (!fallbackMode) {
+          if (typeof hydro.initDraftAtOriginalPlane === "function") hydro.initDraftAtOriginalPlane();
+          else hydro.initDraftAtBottom();
+          setLoadingState(true, "Beregner hydrostatikk...");
+          try {
+            await hydro.recompute();
+            await updateHydroAfterLoad();
+          } catch (errHydro) {
+            hydroErr = errHydro;
+            console.error("[3mfhydro] Hydro-beregning feilet:", errHydro);
+          }
         }
 
         ui.afterModelLoaded({ mesh, geometry, volume, centroidLocal, modelUrl: url });
@@ -978,14 +1082,26 @@
         });
 
         core.start();
-        syncHydroVisibility();
+        if (!fallbackMode) syncHydroVisibility();
         setLoadingState(false);
-        if (hydroErr) {
+        if (fallbackMode) {
+          setHud("Klar - 3MF lastet med komponenter");
+        } else if (hydroErr) {
           setHud(`3MF lastet, men hydrostatikk feilet: ${hydroErr.message || hydroErr}`, true);
         } else {
           setHud("Klar - 3MF lastet med hydrostatikk");
         }
       }catch(err){
+        const fallbackTarget = (!usedAltFile && altFile && url !== altFile)
+          ? altFile
+          : (!usedAltFile && fallbackMode ? await resolveAutoFallbackCandidate(url) : "");
+        if (!usedAltFile && fallbackTarget && url !== fallbackTarget) {
+          usedAltFile = true;
+          console.warn("[3mfhydro] Direkte lasting feilet, prøver fallback-preview:", { url, fallbackTarget, err });
+          setHud("Direkte lasting feilet - prøver 3D-fallback...", true);
+          setLoadingState(true, "Bytter til tilgjengelig 3D-fallback...");
+          return loadModel(fallbackTarget);
+        }
         clearTimeout(to);
         let msg = "Feil under lasting av 3MF. ";
         if (err && err.message) {

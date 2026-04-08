@@ -201,29 +201,25 @@
     const lowerExt = String(ext || "").toLowerCase();
     let targetUrl = decodedFile;
     let viewerPath = "/includes/kodeLesere/stlview.html";
-    const cacheBust = "20260408e";
-    const hasConfirmedStlPreview = analysisState.source === "STL-kandidat (binary mesh)";
+    const cacheBust = "20260408k";
     const previewCandidate = getActivePreviewCandidate();
+    const isFusionArchiveExt = ["f3d", "f3z", "3fz", "fbm"].includes(lowerExt);
     if (["3mf", "3fm", "fm3"].includes(lowerExt)) viewerPath = "/includes/kodeLesere/3mfhydro.html";
-    else if (["fbm"].includes(lowerExt)) viewerPath = "/includes/kodeLesere/fbmview.html";
-    else if (["f3d", "f3z", "3fz"].includes(lowerExt)) {
-      if (/\.(3mf|3fm|fm3)(?:$|[?#])/i.test(previewCandidate)) {
-        viewerPath = "/includes/kodeLesere/3mfhydro.html";
-        targetUrl = previewCandidate;
-      } else if (/\.(stl)(?:$|[?#])/i.test(previewCandidate) || hasConfirmedStlPreview) {
-        viewerPath = "/includes/kodeLesere/stlview.html";
-        targetUrl = /\.(stl)(?:$|[?#])/i.test(previewCandidate) ? previewCandidate : getActiveStlCandidate();
-      } else {
-        viewerPath = "/includes/kodeLesere/f3dview.html";
-      }
-    }
+    else if (isFusionArchiveExt) viewerPath = "/includes/kodeLesere/3mfhydro.html";
     else if (["step", "stp", "iges", "igs", "obj", "ply", "fbx", "gltf", "glb", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm", "slddrw"].includes(lowerExt)) viewerPath = "/includes/kodeLesere/f3dview.html";
     else if (!["stl"].includes(lowerExt)) targetUrl = getActiveStlCandidate();
     const extras = [];
     extras.push(`v=${cacheBust}`);
+    if (viewerPath.endsWith("/3mfhydro.html") && isFusionArchiveExt) {
+      extras.push("fallback=1");
+      if (previewCandidate && previewCandidate !== decodedFile) {
+        extras.push(`altFile=${encodeURIComponent(previewCandidate)}`);
+      }
+    }
     if (viewerPath.endsWith("/f3dview.html")) {
       extras.push(`sourceFile=${encodeURIComponent(decodedFile)}`);
       extras.push(`stlCandidate=${encodeURIComponent(getActiveStlCandidate())}`);
+      extras.push(`previewFile=${encodeURIComponent(previewCandidate)}`);
       extras.push(`sourceExt=${encodeURIComponent(lowerExt)}`);
     }
     return `${viewerPath}?file=${encodeURIComponent(targetUrl)}&embedded=1${extras.length ? `&${extras.join("&")}` : ""}`;
@@ -738,6 +734,13 @@ GML=${fmt(GML,3)} m`;
 
   componentFilter?.addEventListener("input", renderFilteredComponents);
   btnHydroCalc.onclick = () => buildHydroReport();
+  window.addEventListener("message", (ev) => {
+    const data = ev?.data;
+    if (!data || data.type !== "viewer-components") return;
+    const items = Array.isArray(data.items) ? data.items.filter(Boolean) : [];
+    if (!items.length) return;
+    renderComponentList(items, data.mode || "mesh");
+  });
   try {
     if (window.parent && window.parent !== window) {
       const pr = window.parent.document.documentElement;
@@ -749,6 +752,12 @@ GML=${fmt(GML,3)} m`;
     syncFromParentTheme();
     postThemeToViewer();
   }, 1000);
+  setDrawerOpen = function(open) {
+    if (!drawer || !btnToggleDrawer) return;
+    drawer.classList.toggle("is-open", !!open);
+    if (drawerBackdrop) drawerBackdrop.hidden = !(!!open && isCompactViewport());
+    btnToggleDrawer.textContent = open ? "Skjul filbehandler \u2630" : "Vis filbehandler \u2630";
+  };
   setDrawerOpen(!isCompactViewport());
   run().finally(() => loadIntegratedViewer());
 })();
