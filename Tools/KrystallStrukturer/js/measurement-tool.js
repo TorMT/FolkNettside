@@ -81,8 +81,10 @@
   
   function addMeasurement(start, end, scene) {
     if (!measurementGroup) initMeasurementGroup(scene);
+    if (!start || !end) return null;
     
     const distance = start.distanceTo(end);
+    if (distance < 1e-6) return null;
     const measurement = createMeasurementLine(start, end, distance);
     
     measurementGroup.add(measurement.line);
@@ -101,6 +103,7 @@
   
   function handleClick(snapPoint, scene) {
     if (!isActive) return null;
+    if (!snapPoint || !snapPoint.pos) return null;
     
     measurementPoints.push(snapPoint.pos.clone());
     
@@ -131,6 +134,25 @@
     
     measurements = [];
     measurementPoints = [];
+    measurementGroup.clear();
+  }
+  
+  function removeLastMeasurement() {
+    if (!measurementGroup || measurements.length === 0) return null;
+    
+    const last = measurements.pop();
+    measurementGroup.remove(last.line);
+    measurementGroup.remove(last.startMarker);
+    measurementGroup.remove(last.endMarker);
+    
+    if (last.line.geometry) last.line.geometry.dispose();
+    if (last.line.material) last.line.material.dispose();
+    if (last.startMarker.geometry) last.startMarker.geometry.dispose();
+    if (last.startMarker.material) last.startMarker.material.dispose();
+    if (last.endMarker.geometry) last.endMarker.geometry.dispose();
+    if (last.endMarker.material) last.endMarker.material.dispose();
+    
+    return last.distance;
   }
   
   function getMeasurements() {
@@ -147,6 +169,7 @@
     setActive,
     handleClick,
     clearAllMeasurements,
+    removeLastMeasurement,
     getMeasurements,
     initMeasurementGroup
   };

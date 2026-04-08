@@ -29,6 +29,7 @@
   
   function addManualAtom(position, atomType, customColor, customRadius, scene) {
     if (!manualAtomsGroup) initManualAtomsGroup(scene);
+    if (!position) return null;
     
     const props = atomProperties[atomType] || atomProperties.custom;
     const color = customColor !== undefined ? customColor : props.color;
@@ -68,6 +69,17 @@
     return mesh;
   }
   
+  function removeLastManualAtom() {
+    if (!manualAtomsGroup || manualAtoms.length === 0) return null;
+    
+    const atom = manualAtoms.pop();
+    manualAtomsGroup.remove(atom.mesh);
+    if (atom.mesh.geometry) atom.mesh.geometry.dispose();
+    if (atom.mesh.material) atom.mesh.material.dispose();
+    
+    return atom.atomType;
+  }
+  
   function clearManualAtoms() {
     if (!manualAtomsGroup) return;
     
@@ -102,6 +114,7 @@
   window.ManualAtomsModule = {
     addManualAtom,
     clearManualAtoms,
+    removeLastManualAtom,
     getManualAtoms,
     getAtomTypeCounts,
     atomProperties,
