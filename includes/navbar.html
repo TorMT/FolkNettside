@@ -1,4 +1,5 @@
 <!-- Google tag (gtag.js) -->
+<!-- LOCAL-ONLY-START: ANALYTICS -->
 <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -7,9 +8,11 @@
 
   gtag('config', 'G-BJ41MZJP0L');
 </script>
+<!-- LOCAL-ONLY-END: ANALYTICS -->
 <nav aria-label="Hovednavigasjon" class="navbar" role="navigation">
 <div class="navbar-left">
 <a aria-label="Gå til forsiden" href="/index.html">Hjem</a>
+<!-- LOCAL-ONLY-START: NAVBAR_LEFT_SEMESTERS -->
 <div class="dropdown">
 <button aria-expanded="false" aria-haspopup="true" class="dropbtn">
         1. Semester
@@ -54,13 +57,16 @@
 <a href="/semestre/4/FysikalskKjemi/index.html" role="menuitem">Fysikalsk Kjemi</a>
 <a href="/semestre/4/TermoDynamikk/index.html" role="menuitem">Termo Dynamikk</a>
         <a href="/semestre/4/Strømming/index.html" role="menuitem">Strømming</a></div>
-</div></div>
+</div>
+<!-- LOCAL-ONLY-END: NAVBAR_LEFT_SEMESTERS -->
+</div>
+<!-- LOCAL-ONLY-START: NAVBAR_RIGHT -->
 <div class="navbar-right">
 <div class="dropdown">
 <button aria-expanded="false" aria-haspopup="true" class="dropbtn">
         Diverse
       </button>
-<div class="dropdown-content" role="menu">
+<div class="dropdown-content" id="diverse-menu" role="menu">
 <a href="/diverse/AndreKokSider/" role="menuitem">AndreKokSider</a>
 <a href="/diverse/Hydrometer/" role="menuitem">Hydrometer</a>
 <a href="/diverse/LAOS/" role="menuitem">LAOS</a>
@@ -72,6 +78,7 @@
 <a href="/om/index.html">Om</a>
 <a href="/kontakt/index.html">Kontakt</a>
 </div>
+<!-- LOCAL-ONLY-END: NAVBAR_RIGHT -->
 </nav>
 <script>
   (async function hydrateDiverseMenu() {

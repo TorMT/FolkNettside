@@ -84,6 +84,26 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 - Legg til nytt innhold i rotmapper som `diverse/`, `docs/`, `semestre/` — hvert område har en `index.json` og `index.html`.
 - Quiz-funksjoner finnes i `Quiz/` og `assets/js/course-leaderboard.js`.
 
+### Karakterweb-funksjon (i sidebar)
+
+- Siden støtter egen **Karakterweb-knapp** i sidebaren når kurskode finnes.
+- Kurskode leses primært fra `<meta name="course-code" ...>` i kurssiden.
+- URL-mønster kan overstyres med `<meta name="karakterweb-url-template" ...>` (standard er `https://www.karakterweb.no/ntnu/{course_code}`).
+- Implementasjonen ligger i `includes/sidebar-loader.js` og åpner Karakterweb i viewer når brukeren klikker knappen.
+- For at dette skal virke godt i egne kurssider, sett `{{COURSE_CODE}}` i `course-template.html`/genererte sider.
+
+### Ekstra tools og verktøy (ikke nødvendig for grunnoppsett)
+
+Disse er valgfrie tillegg. Du trenger dem ikke for å kjøre en enkel kursside med navbar + sidebar:
+
+- `Tools/theme-creator.html` og `Tools/image-to-theme.html` — lag/juster temaer visuelt.
+- `Tools/PeriodicTable/` og `Tools/KrystallStrukturer/` — interaktive læringsverktøy.
+- `Tools/Coolprop/` — termo/fysikk-verktøy.
+- `includes/kodeLesere/` + `includes/three/` — visere for kode/3D/formater (STL/3MF/Fusion m.m.).
+- `assets/js/fusion-file-analyzer.js` + `assets/css/fusion-file-analyzer.css` — analysevisning for Fusion-relaterte filer.
+- `scripts/video_topic_enricher.py` + `SiteUpdater3.py --enrich-video-lists` — valgfri AI-beriking av videolister.
+- `scripts/export_repo.py` / `export/` — valgfri eksportflyt for publisering.
+
 **Vedlegg / nyttige kommandoer**
 
 ```bash
@@ -172,6 +192,26 @@ Hva den gjør:
 - `update-index`: genererer `index.json` (lik SiteUpdater).
 - `add-semester`: legger til semester-dropdown i `includes/navbar.html` og oppretter `semestre/<nummer>`.
 - `add-course`: lager `index.html` i `semestre/<sem>/<slug>/`, oppretter `filer/index.json` med placeholder og oppdaterer navbar.
+
+### Oppsett for andre som vil bruke repoet som base
+
+Ja, andre kan bruke repoet ditt som "full rollout"-base, lage egne semestersider og samtidig pull'e nye funksjoner/tools senere.
+
+Anbefalt flyt:
+
+1. Klon repoet.
+2. Lag egne semestersider med:
+   - `python navbarupdater.py add-semester <nr>`
+   - `python navbarupdater.py add-course <semester> <slug> "<Tittel>" "<Beskrivelse>"`
+3. Legg inn egne øvinger/filer i de opprettede mappene under `semestre/<nr>/<kurs>/filer/`.
+4. Kjør:
+   - `python SiteUpdater3.py .`
+   for å regenerere `index.json` i mappene.
+5. Når nye funksjoner kommer i upstream, kan de pulles inn uten at lokale navbar-områder merket `LOCAL-ONLY` blir overskrevet.
+
+Merk:
+- `Hjem` er felles/generell.
+- semesterlenker er lokale per side (`NAVBAR_LEFT_SEMESTERS`), men `add-semester`/`add-course` er satt opp til å kunne oppdatere denne blokken lokalt.
 
 ---
 Praktiske tips

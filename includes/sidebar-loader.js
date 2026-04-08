@@ -40,7 +40,8 @@
       top:var(--nav-h);
       left:0; 
       width:var(--side-w);
-      height:calc(100vh - var(--nav-h)); 
+      height:calc(100vh - var(--nav-h));
+      height:calc(100dvh - var(--nav-h)); 
       background:var(--sidebar-bg, #004f9f);
       color:var(--sidebar-text, #fff);
       overflow-y:auto;
@@ -82,6 +83,7 @@
         opacity:1;
         transition:opacity 0.1s ease;
         max-height:calc(100vh - var(--nav-h) - 20px);
+        max-height:calc(100dvh - var(--nav-h) - 20px);
         overflow-y:auto;
         overflow-x:hidden;
         -webkit-overflow-scrolling:touch;
@@ -131,6 +133,7 @@
         opacity:0;
         transition:opacity 0.1s ease;
         max-height:calc(100vh - var(--nav-h) - 20px);
+        max-height:calc(100dvh - var(--nav-h) - 20px);
         overflow-y:auto;
         overflow-x:hidden;
         -webkit-overflow-scrolling:touch;
@@ -201,8 +204,8 @@
     .course-description{margin:0 0 1rem 0;max-width:42rem;line-height:1.5;}
 
     /* ---------- VIEWER/QUIZ ---------- */
-    #pdf-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);overflow:auto;}
-    #media-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);overflow:auto;}
+    #pdf-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);height:calc(100dvh - var(--nav-h) - 3rem);overflow:auto;}
+    #media-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);height:calc(100dvh - var(--nav-h) - 3rem);overflow:auto;}
     #media-viewer{width:100%;height:100%;border:none;background:#000}
     
     .file-icon{
@@ -314,6 +317,28 @@ async function askPass(){
 function getCourseDir(){ return location.pathname.replace(/\/index\.html?$/,'/'); }
 function isMobileViewport(){ return window.matchMedia('(max-width: 1024px)').matches; }
 function encodePathSegments(rel){ return rel.split('/').map(s => encodeURIComponent(s)).join('/'); }
+function getCourseCode(){
+  const candidates = [
+    document.querySelector('meta[name="course-code"]')?.getAttribute('content'),
+    document.querySelector('meta[name="fagkode"]')?.getAttribute('content'),
+    document.body?.dataset?.courseCode,
+    document.querySelector('[data-course-code]')?.getAttribute('data-course-code')
+  ];
+  const found = candidates.find(v => String(v || '').trim());
+  return String(found || '').trim().toUpperCase();
+}
+function getKarakterwebUrl(courseCode){
+  const code = String(courseCode || '').trim().toUpperCase();
+  if (!code) return null;
+  const codeLower = code.toLowerCase();
+  const tplMeta = document.querySelector('meta[name="karakterweb-url-template"]')?.getAttribute('content');
+  if (tplMeta){
+    return String(tplMeta)
+      .replaceAll('{COURSE_CODE}', encodeURIComponent(code))
+      .replaceAll('{course_code}', encodeURIComponent(codeLower));
+  }
+  return `https://www.karakterweb.no/ntnu/${encodeURIComponent(codeLower)}`;
+}
 function toAbsUrl(rel, baseDir){
   const s = String(rel||'');
   if (/^https?:\/\//i.test(s)) return s;
@@ -1270,8 +1295,23 @@ async function initSidebar(){
     return new URL(encoded, location.origin + courseDir).href;
   }
 
+  const hasCourseCode = !!getCourseCode();
+  const isLockedSection = (key, obj) => {
+    return !!(obj?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(key));
+  };
+  const karakterwebBtnHtml = `
+    <div class="dropdown-oving">
+      <div class="dropdown-btn" id="karakterweb-btn">
+        <img src="https://www.karakterweb.no/favicon.ico" alt="" aria-hidden="true"
+             style="width:16px;height:16px;vertical-align:-3px;margin-right:8px;border-radius:3px;">
+        Karakterweb
+      </div>
+    </div>
+  `;
+
   let html = '<h3>Øvinger</h3>';
-  html += keys.map(key=>{
+  let karakterwebInserted = false;
+  for (const key of keys){
     const obj = data[key];
     const locked = !!(obj && obj.beskyttet);
     const lock = locked ? '&#128274; ' : '';
@@ -1279,21 +1319,32 @@ async function initSidebar(){
     if (Array.isArray(obj)) files = obj;
     else if (obj?.files) files = obj.files;
 
+    if (hasCourseCode && !karakterwebInserted && isLockedSection(key, obj)){
+      html += karakterwebBtnHtml;
+      karakterwebInserted = true;
+    }
+
     if (locked && !isOk()){
-      return `<div class="dropdown-oving"><div class="dropdown-btn beskyttet">${lock}${displayName(key)}</div></div>`;
+      html += `<div class="dropdown-oving"><div class="dropdown-btn beskyttet">${lock}${displayName(key)}</div></div>`;
+      continue;
     }
 
     if (files && files.length){
       const isPyGroup = /^pythonøving/i.test(String(key));
       const contentHTML = buildNestedFlyoutHTML(files, (f) => makeHref(key, obj, f), isPyGroup);
       
-      return `<div class="dropdown-oving">
+      html += `<div class="dropdown-oving">
         <div class="dropdown-btn${locked?' beskyttet':''}">${lock}${displayName(key)}</div>
         <div class="dropdown-content">${contentHTML}</div>
       </div>`;
+      continue;
     }
-    return `<div class="dropdown-oving"><div class="dropdown-btn${locked?' beskyttet':''}">${lock}${displayName(key)}</div></div>`;
-  }).join('');
+    html += `<div class="dropdown-oving"><div class="dropdown-btn${locked?' beskyttet':''}">${lock}${displayName(key)}</div></div>`;
+  }
+
+  if (hasCourseCode && !karakterwebInserted){
+    html += karakterwebBtnHtml;
+  }
 
   if (data.quiz){ 
     html += `<div class="dropdown-oving"><div class="dropdown-btn" id="quiz-btn">ðŸ§© Quiz</div></div>`; 
@@ -1413,13 +1464,24 @@ async function initSidebar(){
     
     let hoverTimer = null;
     let isCalculating = false;
+
+    const getNavHeightPx = () => {
+      const navbar = document.querySelector('.navbar');
+      if (navbar) {
+        const h = Math.round(navbar.getBoundingClientRect().height);
+        if (Number.isFinite(h) && h > 0) return h;
+      }
+      const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--nav-h').trim();
+      const parsed = Number.parseFloat(cssVar);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 48;
+    };
     
     const calculatePosition = () => {
       if (isCalculating) return;
       isCalculating = true;
       
       const r = div.getBoundingClientRect();
-      const navHeight = 48;
+      const navHeight = getNavHeightPx();
       
       menu.style.visibility = 'hidden';
       menu.style.display = 'block';
@@ -1459,7 +1521,7 @@ async function initSidebar(){
       if (lockedMenu === menu) return;
       clearTimeout(hoverTimer);
       
-      const hasOpenNested = Array.from(menu.querySelectorAll('.nested-flyout')).some(nf => 
+      const hasOpenNested = Array.from(document.querySelectorAll('.nested-flyout')).some(nf => 
         nf.style.display === 'block' && nf.style.opacity === '1'
       );
       
@@ -1501,10 +1563,20 @@ async function initSidebar(){
       }
     });
     
+    const shouldKeepOpenForNested = (target) => {
+      return !!(target && target.closest && target.closest('.nested-flyout'));
+    };
+
     div.addEventListener('mouseenter', show);
-    div.addEventListener('mouseleave', hide);
+    div.addEventListener('mouseleave', (e) => {
+      if (shouldKeepOpenForNested(e.relatedTarget)) return;
+      hide();
+    });
     menu.addEventListener('mouseenter', () => clearTimeout(hoverTimer));
-    menu.addEventListener('mouseleave', hide);
+    menu.addEventListener('mouseleave', (e) => {
+      if (shouldKeepOpenForNested(e.relatedTarget)) return;
+      hide();
+    });
     
     menu.querySelectorAll('.nested-folder-item').forEach(folderItem => {
       setupNestedFlyout(folderItem, menu);
@@ -1728,6 +1800,40 @@ async function initSidebar(){
     });
   }
 
+  let pendingKarakterwebUrl = null;
+  const karakterwebBtn = document.getElementById('karakterweb-btn');
+  if (karakterwebBtn){
+    karakterwebBtn.addEventListener('click', ()=>{
+      const courseCode = getCourseCode();
+      if (!courseCode){
+        alert('Mangler fagkode. Legg til f.eks. <meta name="course-code" content="TMA4100"> i siden.');
+        return;
+      }
+      const karakterwebUrl = getKarakterwebUrl(courseCode);
+      if (!karakterwebUrl){
+        alert('Kunne ikke bygge Karakterweb-lenke for faget.');
+        return;
+      }
+      pendingKarakterwebUrl = karakterwebUrl;
+      openInViewer(karakterwebUrl, 'html');
+      sb.querySelectorAll('.dropdown-oving').forEach(d=>d.classList.remove('active'));
+      karakterwebBtn.closest('.dropdown-oving')?.classList.add('active');
+    });
+  }
+
+  window.addEventListener('message', (ev) => {
+    const data = ev?.data;
+    if (!data || data.type !== 'htmlview-status') return;
+    if (!pendingKarakterwebUrl) return;
+    if (data.file !== pendingKarakterwebUrl) return;
+    if (data.status === 'blocked' || data.status === 'timeout'){
+      window.open(pendingKarakterwebUrl, '_blank', 'noopener');
+      pendingKarakterwebUrl = null;
+    } else if (data.status === 'loaded'){
+      pendingKarakterwebUrl = null;
+    }
+  });
+
   /* Modul-initialisering */
   if (window.SidebarSearch && typeof window.SidebarSearch.init === 'function') {
     try {
@@ -1776,4 +1882,3 @@ document.readyState==='loading'
   b.textContent=txt;
 })();
 /* -------------------------------------------------------------------- */
-

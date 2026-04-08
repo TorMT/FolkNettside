@@ -40,7 +40,8 @@
       top:var(--nav-h);
       left:0; 
       width:var(--side-w);
-      height:calc(100vh - var(--nav-h)); 
+      height:calc(100vh - var(--nav-h));
+      height:calc(100dvh - var(--nav-h)); 
       background:var(--sidebar-bg, #004f9f);
       color:var(--sidebar-text, #fff);
       overflow-y:auto;
@@ -82,6 +83,7 @@
         opacity:1;
         transition:opacity 0.1s ease;
         max-height:calc(100vh - var(--nav-h) - 20px);
+        max-height:calc(100dvh - var(--nav-h) - 20px);
         overflow-y:auto;
         overflow-x:hidden;
         -webkit-overflow-scrolling:touch;
@@ -131,6 +133,7 @@
         opacity:0;
         transition:opacity 0.1s ease;
         max-height:calc(100vh - var(--nav-h) - 20px);
+        max-height:calc(100dvh - var(--nav-h) - 20px);
         overflow-y:auto;
         overflow-x:hidden;
         -webkit-overflow-scrolling:touch;
@@ -201,8 +204,8 @@
     .course-description{margin:0 0 1rem 0;max-width:42rem;line-height:1.5;}
 
     /* ---------- VIEWER/QUIZ ---------- */
-    #pdf-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);overflow:auto;}
-    #media-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);overflow:auto;}
+    #pdf-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);height:calc(100dvh - var(--nav-h) - 3rem);overflow:auto;}
+    #media-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);height:calc(100dvh - var(--nav-h) - 3rem);overflow:auto;}
     #media-viewer{width:100%;height:100%;border:none;background:#000}
     
     .file-icon{
@@ -1413,13 +1416,24 @@ async function initSidebar(){
     
     let hoverTimer = null;
     let isCalculating = false;
+
+    const getNavHeightPx = () => {
+      const navbar = document.querySelector('.navbar');
+      if (navbar) {
+        const h = Math.round(navbar.getBoundingClientRect().height);
+        if (Number.isFinite(h) && h > 0) return h;
+      }
+      const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--nav-h').trim();
+      const parsed = Number.parseFloat(cssVar);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 48;
+    };
     
     const calculatePosition = () => {
       if (isCalculating) return;
       isCalculating = true;
       
       const r = div.getBoundingClientRect();
-      const navHeight = 48;
+      const navHeight = getNavHeightPx();
       
       menu.style.visibility = 'hidden';
       menu.style.display = 'block';
@@ -1459,7 +1473,7 @@ async function initSidebar(){
       if (lockedMenu === menu) return;
       clearTimeout(hoverTimer);
       
-      const hasOpenNested = Array.from(menu.querySelectorAll('.nested-flyout')).some(nf => 
+      const hasOpenNested = Array.from(document.querySelectorAll('.nested-flyout')).some(nf => 
         nf.style.display === 'block' && nf.style.opacity === '1'
       );
       
@@ -1501,10 +1515,20 @@ async function initSidebar(){
       }
     });
     
+    const shouldKeepOpenForNested = (target) => {
+      return !!(target && target.closest && target.closest('.nested-flyout'));
+    };
+
     div.addEventListener('mouseenter', show);
-    div.addEventListener('mouseleave', hide);
+    div.addEventListener('mouseleave', (e) => {
+      if (shouldKeepOpenForNested(e.relatedTarget)) return;
+      hide();
+    });
     menu.addEventListener('mouseenter', () => clearTimeout(hoverTimer));
-    menu.addEventListener('mouseleave', hide);
+    menu.addEventListener('mouseleave', (e) => {
+      if (shouldKeepOpenForNested(e.relatedTarget)) return;
+      hide();
+    });
     
     menu.querySelectorAll('.nested-folder-item').forEach(folderItem => {
       setupNestedFlyout(folderItem, menu);

@@ -685,6 +685,7 @@
         <div class="sectionBody">
           <div class="btnRow">
             <button id="toggleMeasure" class="btnToggle" data-on="0">Aktiver måleverktøy</button>
+            <button id="undoMeasurement" class="btnToggle" data-on="0">Angre siste</button>
             <button id="clearMeasurements" class="btnToggle" data-on="0">Tøm målinger</button>
           </div>
           <div id="measurementInfo" style="color:var(--text-muted); font-size:.88rem; line-height:1.35; margin-top:8px;">
@@ -731,6 +732,7 @@
 
           <div class="btnRow">
             <button id="toggleManualPlace" class="btnToggle" data-on="0">Plasser fritt</button>
+            <button id="undoManualAtom" class="btnToggle" data-on="0">Angre siste</button>
             <button id="clearManualAtoms" class="btnToggle" data-on="0">Tøm manuelle</button>
           </div>
 
@@ -982,9 +984,31 @@ scene.add(ghost);
 
 /* state */
 let mode = "intrinsic";
+let measureMode = false;
+let manualPlaceMode = false;
 let bondLines = null;
 let cutLines = null;
 let isBuilding = false;
+const actionHistory = [];
+const MAX_HISTORY = 200;
+
+function pushAction(action){
+  actionHistory.push(action);
+  if(actionHistory.length > MAX_HISTORY) actionHistory.shift();
+}
+function resetActionHistory(){
+  actionHistory.length = 0;
+}
+
+function refreshDerivedVisuals(){
+  if($("toggleBonds").dataset.on==="1") rebuildBonds();
+  rebuildSnapPoints();
+  if($("toggleTetrahedral").dataset.on==="1"){
+    PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
+  }else if($("toggleOctahedral").dataset.on==="1"){
+    PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
+  }
+}
 
 /* atoms & snap points */
 const atomPositions = [];
@@ -1031,11 +1055,13 @@ function clearCrystal(){
   clearGroup(crystalGroup);
   atomPositions.length = 0;
   atomMeshes.length = 0;
+  resetActionHistory();
   rebuildSnapPoints();
 }
 
 function clearPlaced(){
   clearGroup(placedGroup);
+  resetActionHistory();
 }
 
 function clearBonds(){
@@ -1234,7 +1260,10 @@ function rebuildSnapPoints(){
   snapPoints.length = 0;
   const map = new Map();
 
-  atomPositions.forEach(p => addSnapPoint(p.clone(), "atom", map));
+  atomPositions.forEach(p => {
+    if(p.x > 1e8) return; // skip removed atoms (vacancies)
+    addSnapPoint(p.clone(), "atom", map);
+  });
 
   const type = $("structure").value;
   const nx = clampInt($("nx").value,1,8);
@@ -1540,6 +1569,13 @@ async function buildCrystal(){
   toast("Bygget", `${type.toUpperCase()} • ${nx}×${ny}×${nz}`);
 
   if($("toggleBonds").dataset.on==="1") rebuildBonds();
+  if($("toggleTetrahedral").dataset.on==="1"){
+    PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
+  }else if($("toggleOctahedral").dataset.on==="1"){
+    PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
+  }else{
+    PolyhedraModule.clearPolyhedra();
+  }
 
   $("build").disabled = false;
   isBuilding = false;
@@ -1548,7 +1584,13 @@ async function buildCrystal(){
 /* ---------- material guess ---------- */
 function updateGuess(){
   const manualAtoms = ManualAtomsModule ? ManualAtomsModule.getManualAtoms() : [];
-  const analysis = StructureAnalyzer.analyzeStructure(atomPositions, atomMeshes, manualAtoms, placedGroup.children);
+  const analysis = StructureAnalyzer.analyzeStructure(
+    atomPositions,
+    atomMeshes,
+    manualAtoms,
+    placedGroup.children,
+    $("structure").value
+  );
   
   const lines = [];
   lines.push(`<strong>${analysis.type}</strong>`);
@@ -1588,6 +1630,7 @@ function addMarker(pos, kind, color){
   const s = new THREE.Mesh(g,m);
   s.position.copy(pos);
   placedGroup.add(s);
+  pushAction({ type: "placedMesh", mesh: s });
 }
 
 function addDopant(pos, color){
@@ -1596,6 +1639,7 @@ function addDopant(pos, color){
   const s = new THREE.Mesh(g,m);
   s.position.copy(pos);
   placedGroup.add(s);
+  pushAction({ type: "placedMesh", mesh: s });
 }
 
 function addInterstitial(pos, color){
@@ -1604,6 +1648,7 @@ function addInterstitial(pos, color){
   const s = new THREE.Mesh(g,m);
   s.position.copy(pos);
   placedGroup.add(s);
+  pushAction({ type: "placedMesh", mesh: s });
 }
 
 function removeNearestAtom(pos, maxDist=0.20){
@@ -1619,16 +1664,16 @@ function removeNearestAtom(pos, maxDist=0.20){
   }
   if(bestIdx>=0 && bestD2 <= r2){
     const mesh = atomMeshes[bestIdx];
+    const prevPos = atomPositions[bestIdx].clone();
     crystalGroup.remove(mesh);
     mesh.visible = false;
     atomPositions[bestIdx].set(1e9,1e9,1e9);
     toast("Vacancy", "Atom fjernet.");
-    if($("toggleBonds").dataset.on==="1") rebuildBonds();
-    rebuildSnapPoints();
-    return true;
+    refreshDerivedVisuals();
+    return { index: bestIdx, mesh, prevPos };
   }
   toast("Vacancy", "Fant ikke atom nær nok.");
-  return false;
+  return null;
 }
 
 /* ---------- snapping ---------- */
@@ -1648,9 +1693,9 @@ function currentSnapFilter(){
   return ()=>true;
 }
 
-function nearestSnapPoint(){
+function nearestSnapPoint(forceActive = false){
   const mode = $("placeMode").value;
-  if(mode==="none") return null;
+  if(mode==="none" && !forceActive) return null;
 
   raycaster.setFromCamera(pointer, camera);
   const ray = raycaster.ray;
@@ -1681,7 +1726,7 @@ function nearestSnapPoint(){
 }
 
 function updateGhost(){
-  const sp = nearestSnapPoint();
+  const sp = nearestSnapPoint(measureMode || manualPlaceMode || $("placeMode").value !== "none");
   if(!sp){
     ghost.visible = false;
     return;
@@ -1696,12 +1741,13 @@ function updateGhost(){
 }
 
 function placeAtSnap(){
-  const sp = nearestSnapPoint();
+  const sp = nearestSnapPoint(measureMode || manualPlaceMode || $("placeMode").value !== "none");
   
   // Handle measurement mode
   if(measureMode && sp){
     const result = MeasurementModule.handleClick(sp, scene);
     if(result){
+      pushAction({ type: "measurement" });
       toast("Måling", `Avstand: ${result.distance.toFixed(3)} Å`);
       updateMeasurementList();
     }
@@ -1715,7 +1761,8 @@ function placeAtSnap(){
     const colorInput = $("manualColor").value;
     const color = parseInt(colorInput.replace('#', '0x'));
     
-    ManualAtomsModule.addManualAtom(sp.pos, atomType, color, radius, scene);
+    const added = ManualAtomsModule.addManualAtom(sp.pos, atomType, color, radius, scene);
+    if(added) pushAction({ type: "manualAtom" });
     toast("Manuell atom", `${ManualAtomsModule.atomProperties[atomType].name} plassert`);
     updateGuess(); // Re-analyze structure
     return;
@@ -1758,10 +1805,69 @@ function placeAtSnap(){
   }
 
   if(mode==="vacancy"){
-    removeNearestAtom(sp.pos, Math.max(0.12, parseFloat($("snapRadius").value) || 0.35));
-    updateGuess(); // Re-analyze structure
+    const removed = removeNearestAtom(sp.pos, Math.max(0.12, parseFloat($("snapRadius").value) || 0.35));
+    if(removed){
+      pushAction({ type: "vacancy", ...removed });
+      updateGuess(); // Re-analyze structure
+    }
     return;
   }
+}
+
+function undoLastAction(showToast = true){
+  const last = actionHistory.pop();
+  if(!last){
+    if(showToast) toast("Angre", "Ingen handling å angre.");
+    return false;
+  }
+  
+  if(last.type === "measurement"){
+    const removed = MeasurementModule.removeLastMeasurement();
+    updateMeasurementList();
+    if(showToast){
+      if(removed === null) toast("Angre", "Ingen måling å angre.");
+      else toast("Angre", `Måling fjernet (${removed.toFixed(3)} Å)`);
+    }
+    return true;
+  }
+  
+  if(last.type === "manualAtom"){
+    const removedType = ManualAtomsModule.removeLastManualAtom();
+    updateGuess();
+    if(showToast){
+      if(!removedType) toast("Angre", "Ingen manuelt atom å angre.");
+      else toast("Angre", `Manuelt atom fjernet (${removedType.toUpperCase()})`);
+    }
+    return true;
+  }
+  
+  if(last.type === "placedMesh"){
+    if(last.mesh){
+      placedGroup.remove(last.mesh);
+      if(last.mesh.geometry) last.mesh.geometry.dispose();
+      if(last.mesh.material) last.mesh.material.dispose();
+    }
+    updateGuess();
+    if(showToast) toast("Angre", "Siste plassering fjernet.");
+    return true;
+  }
+  
+  if(last.type === "vacancy"){
+    if(last.mesh){
+      if(!last.mesh.parent) crystalGroup.add(last.mesh);
+      last.mesh.visible = true;
+    }
+    if(last.index !== undefined && atomPositions[last.index] && last.prevPos){
+      atomPositions[last.index].copy(last.prevPos);
+    }
+    refreshDerivedVisuals();
+    updateGuess();
+    if(showToast) toast("Angre", "Vacancy angret.");
+    return true;
+  }
+  
+  if(showToast) toast("Angre", "Ukjent handling.");
+  return false;
 }
 
 /* pointer events */
@@ -1776,7 +1882,7 @@ renderer.domElement.addEventListener("pointermove", (ev)=>{
 
 renderer.domElement.addEventListener("pointerdown", (ev)=>{
   isPointerDown = true;
-  if($("placeMode").value !== "none"){
+  if($("placeMode").value !== "none" || measureMode || manualPlaceMode){
     setPointerFromEvent(ev);
     updateGhost();
     placeAtSnap();
@@ -1861,6 +1967,13 @@ $("resetView").addEventListener("click", ()=>{
   toast("Reset", "Kamera resatt.");
 });
 
+window.addEventListener("keydown", (ev)=>{
+  const isUndo = (ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z";
+  if(!isUndo) return;
+  ev.preventDefault();
+  undoLastAction(true);
+});
+
 /* New feature event listeners */
 
 // Polyhedra visualization
@@ -1868,11 +1981,10 @@ $("toggleTetrahedral").addEventListener("click", ()=>{
   const on = $("toggleTetrahedral").dataset.on==="1";
   setBtnOn($("toggleTetrahedral"), !on);
   if(!on){
-    PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
     setBtnOn($("toggleOctahedral"), false);
     PolyhedraModule.clearPolyhedra();
-    PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
-    toast("Tetraedre", "Vises");
+    const count = PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
+    toast("Tetraedre", `Vises (${count} hull)`);
   }else{
     PolyhedraModule.clearPolyhedra();
     toast("Tetraedre", "Skjult");
@@ -1883,11 +1995,10 @@ $("toggleOctahedral").addEventListener("click", ()=>{
   const on = $("toggleOctahedral").dataset.on==="1";
   setBtnOn($("toggleOctahedral"), !on);
   if(!on){
-    PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
     setBtnOn($("toggleTetrahedral"), false);
     PolyhedraModule.clearPolyhedra();
-    PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
-    toast("Oktaedre", "Vises");
+    const count = PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
+    toast("Oktaedre", `Vises (${count} hull)`);
   }else{
     PolyhedraModule.clearPolyhedra();
     toast("Oktaedre", "Skjult");
@@ -1895,7 +2006,7 @@ $("toggleOctahedral").addEventListener("click", ()=>{
 });
 
 // Measurement tool
-let measureMode = false;
+measureMode = false;
 $("toggleMeasure").addEventListener("click", ()=>{
   measureMode = !measureMode;
   setBtnOn($("toggleMeasure"), measureMode);
@@ -1905,8 +2016,12 @@ $("toggleMeasure").addEventListener("click", ()=>{
 
 $("clearMeasurements").addEventListener("click", ()=>{
   MeasurementModule.clearAllMeasurements();
+  resetActionHistory();
   updateMeasurementList();
   toast("Målinger", "Tømt");
+});
+$("undoMeasurement").addEventListener("click", ()=>{
+  undoLastAction(true);
 });
 
 function updateMeasurementList(){
@@ -1927,17 +2042,29 @@ function updateMeasurementList(){
 }
 
 // Manual atom placement
-let manualPlaceMode = false;
+manualPlaceMode = false;
 $("toggleManualPlace").addEventListener("click", ()=>{
   manualPlaceMode = !manualPlaceMode;
   setBtnOn($("toggleManualPlace"), manualPlaceMode);
   toast("Manuell plassering", manualPlaceMode ? "Aktivert - klikk i 3D" : "Deaktivert");
 });
+$("undoManualAtom").addEventListener("click", ()=>{
+  undoLastAction(true);
+});
 
 $("clearManualAtoms").addEventListener("click", ()=>{
   ManualAtomsModule.clearManualAtoms();
+  resetActionHistory();
   toast("Manuelle atomer", "Tømt");
   updateGuess(); // Re-analyze structure
+});
+
+$("manualAtomType").addEventListener("change", (e)=>{
+  const type = e.target.value;
+  const props = ManualAtomsModule.atomProperties[type] || ManualAtomsModule.atomProperties.custom;
+  $("manualRadius").value = props.radius.toFixed(2);
+  const hex = "#" + props.color.toString(16).padStart(6, "0");
+  $("manualColor").value = hex;
 });
 
 
