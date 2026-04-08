@@ -277,7 +277,7 @@ def generate_default_page(out: Path, title: str, desc: str, course_code: str = '
   
   <!-- 2. SIDEBAR SYSTEM (NY VERSJON v11.11.0 med modulstøtte) -->
   <script src="/includes/sidebar-html-loader.js"></script>
-  <script src="/includes/sidebar-loader.js?v=11.11.0"></script>
+  <script src="/includes/sidebar-loader.js?v=11.16.1"></script>
   
   <!-- 3. Theme system -->
   <script src="/assets/js/theme-switcher.js?v=4"></script>
