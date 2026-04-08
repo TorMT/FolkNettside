@@ -81,6 +81,26 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 - Legg til nytt innhold i rotmapper som `diverse/`, `docs/`, `semestre/` — hvert område har en `index.json` og `index.html`.
 - Quiz-funksjoner finnes i `Quiz/` og `assets/js/course-leaderboard.js`.
 
+### Karakterweb-funksjon (i sidebar)
+
+- Siden støtter egen **Karakterweb-knapp** i sidebaren når kurskode finnes.
+- Kurskode leses primært fra `<meta name="course-code" ...>` i kurssiden.
+- URL-mønster kan overstyres med `<meta name="karakterweb-url-template" ...>` (standard er `https://www.karakterweb.no/ntnu/{course_code}`).
+- Implementasjonen ligger i `includes/sidebar-loader.js` og åpner Karakterweb i viewer når brukeren klikker knappen.
+- For at dette skal virke godt i egne kurssider, sett `{{COURSE_CODE}}` i `course-template.html`/genererte sider.
+
+### Ekstra tools og verktøy (ikke nødvendig for grunnoppsett)
+
+Disse er valgfrie tillegg. Du trenger dem ikke for å kjøre en enkel kursside med navbar + sidebar:
+
+- `Tools/theme-creator.html` og `Tools/image-to-theme.html` — lag/juster temaer visuelt.
+- `Tools/PeriodicTable/` og `Tools/KrystallStrukturer/` — interaktive læringsverktøy.
+- `Tools/Coolprop/` — termo/fysikk-verktøy.
+- `includes/kodeLesere/` + `includes/three/` — visere for kode/3D/formater (STL/3MF/Fusion m.m.).
+- `assets/js/fusion-file-analyzer.js` + `assets/css/fusion-file-analyzer.css` — analysevisning for Fusion-relaterte filer.
+- `scripts/video_topic_enricher.py` + `SiteUpdater3.py --enrich-video-lists` — valgfri AI-beriking av videolister.
+- `scripts/export_repo.py` / `export/` — valgfri eksportflyt for publisering.
+
 **Vedlegg / nyttige kommandoer**
 
 ```bash
