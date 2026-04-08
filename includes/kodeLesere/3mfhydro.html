@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="no">
 <head>
   <meta charset="utf-8" />
@@ -102,7 +102,7 @@
     /* Dropdown menus */
     .dd{ position:relative; }
     .ddBtn{ position:relative; }
-    .ddBtn::after{ content:"▾"; margin-left:6px; font-size:10px; }
+    .ddBtn::after{ content:"▼"; margin-left:6px; font-size:10px; }
     .menu{
       position:absolute; top:calc(100% + 8px); left:0; z-index:300;
       background: var(--bg-card);
@@ -126,43 +126,6 @@
       font-size:11px;
       font-weight:900;
       margin-left:4px;
-    }
-    #materialModeBtn{
-      position:fixed;
-      right:12px;
-      top:12px;
-      z-index:205;
-      width:46px;
-      height:46px;
-      border-radius:999px;
-      border:1px solid var(--border-color);
-      background: var(--bg-card);
-      box-shadow: var(--shadow-soft);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      cursor:pointer;
-      font-size:20px;
-      user-select:none;
-    }
-    #materialModeBtn::after{
-      content: attr(data-mode);
-      position:absolute;
-      right:-4px;
-      bottom:-4px;
-      min-width:22px;
-      height:22px;
-      padding:0 6px;
-      border-radius:999px;
-      background: var(--primary);
-      color: var(--primary-contrast);
-      font-size:10px;
-      font-weight:900;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      text-transform:uppercase;
-      box-shadow: var(--shadow-soft);
     }
 
     /* Help overlay */
@@ -217,70 +180,79 @@
       .helpCard{ min-width: min(92vw, 420px); }
       .helpGrid{ grid-template-columns: 1fr; }
     }
-    /* Rapport-drawer */
+
+    /* Modal styles */
     .modal {
+      display: none;
       position: fixed;
       z-index: 1000;
-      inset: 0;
-      display: flex;
-      justify-content: flex-end;
-      pointer-events: none;
-      background-color: rgba(0,0,0,0.28);
-      opacity: 0;
-      transition: opacity .2s ease;
-      backdrop-filter: blur(3px);
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
     }
-    .modal.show {
-      opacity: 1;
-      pointer-events: auto;
-    }
+    .modal.show { display: flex; align-items: center; justify-content: center; }
     .modal-content {
       background: var(--bg-card);
-      border-radius: 24px 0 0 24px;
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
-      width: min(620px, 92vw);
-      height: 100vh;
+      max-width: 90vw;
+      max-height: 90vh;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      border-left: 1px solid var(--border-color);
-      transform: translateX(24px);
-      transition: transform .22s ease;
     }
-    .modal.show .modal-content { transform: translateX(0); }
     .modal-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 16px 20px;
       border-bottom: 1px solid var(--border-color);
-      gap: 12px;
     }
-    .modal-title-wrap{ display:flex; flex-direction:column; gap:6px; min-width:0; }
     .modal-header h2 { margin: 0; color: var(--text-main); }
-    .report-status-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    .report-status{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:900; border:1px solid var(--border-color); background: var(--bg-alt); color: var(--text-main); }
-    .report-status.is-stale{ background: color-mix(in srgb, #f59e0b 18%, var(--bg-card) 82%); color:#8a5200; border-color: rgba(245,158,11,.35); }
-    .report-status.is-fresh{ background: color-mix(in srgb, #10b981 14%, var(--bg-card) 86%); color:#0a6c4d; border-color: rgba(16,185,129,.28); }
-    .report-updated{ font-size:12px; color: var(--text-muted); }
-    .report-actions{ display:flex; gap:8px; flex-wrap:wrap; padding: 14px 20px 0 20px; }
-    .report-summary{ margin: 14px 20px 0 20px; padding: 14px 16px; border-radius: var(--radius-sm); border:1px solid var(--border-color); background: color-mix(in srgb, var(--bg-main) 80%, var(--bg-card) 20%); }
-    .report-summary h3{ margin:0 0 8px 0; font-size:15px; }
-    .report-summary p{ margin:0; color:var(--text-muted); line-height:1.5; font-size:13px; }
-    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted); }
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
     .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
 
     /* Tabs */
     #reportTabs { display: flex; gap: 8px; margin-bottom: 20px; }
-    .tab-btn { padding: 8px 16px; border: 1px solid var(--border-color); background: var(--bg-alt); color: var(--text-main); border-radius: var(--radius-sm); cursor: pointer; }
-    .tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .tab-btn {
+      padding: 8px 16px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-alt);
+      color: var(--text-main);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
     /* Report table */
-    #overviewTable { width: 100%; border-collapse: collapse; }
-    #overviewTable th, #overviewTable td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border-color); }
-    #overviewTable th { background: var(--bg-alt); font-weight: 600; width: 200px; }
+    #overviewTable {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #overviewTable th, #overviewTable td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    #overviewTable th {
+      background: var(--bg-alt);
+      font-weight: 600;
+      width: 200px;
+    }
 
     /* Curves */
     #curveContainer { display: flex; flex-direction: column; gap: 20px; }
@@ -374,12 +346,11 @@
 <body>
 
   <div id="canvasHost"></div>
-  <div id="hud">Laster 3MF...</div>
-  <button id="materialModeBtn" title="Materialmodus: auto / pa / av" data-mode="auto">&#9680;</button>
+  <div id="hud">Laster 3MF…</div>
   <div id="loadingOverlay" aria-live="polite" aria-busy="true">
     <div class="loading-card">
       <div class="loading-title">Laster modell</div>
-      <div class="loading-subtitle" id="loadingText">3MF og hydrodata klargjøres...</div>
+      <div class="loading-subtitle" id="loadingText">3MF og hydrodata klargjores...</div>
       <div class="loading-bar"></div>
     </div>
   </div>
@@ -397,7 +368,7 @@
       <span class="component-chip" data-comp="batteries" data-static="true">Batteries</span>
       <span class="component-chip" data-comp="sensors" data-static="true">Sensorer</span>
 
-      <div id="visibilityControls" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+      <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
         <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-muted); font-weight: 600;">VIS/SKJUL</div>
         <label style="display: block; margin: 4px 0; font-size: 13px;">
           <input type="checkbox" id="toggleHydroData" checked> Hydro-data
@@ -426,18 +397,10 @@
           <tr><th>Draft</th><td id="hydro-draft">?</td></tr>
           <tr><th>Trim</th><td id="hydro-trim">?</td></tr>
           <tr><th>Heel</th><td id="hydro-heel">?</td></tr>
-          <tr><th>GMt</th><td id="hydro-gmt">?</td></tr>
-          <tr><th>GMl</th><td id="hydro-gml">?</td></tr>
-          <tr><th>BMt</th><td id="hydro-bmt">?</td></tr>
-          <tr><th>BMl</th><td id="hydro-bml">?</td></tr>
-          <tr><th>LCF</th><td id="hydro-lcf">?</td></tr>
-          <tr><th>TCF</th><td id="hydro-tcf">?</td></tr>
-          <tr><th>Ixx</th><td id="hydro-ixx">?</td></tr>
-          <tr><th>Iyy</th><td id="hydro-iyy">?</td></tr>
-          <tr><th>Ixy</th><td id="hydro-ixy">?</td></tr>
+          <tr><th>GM (stabilitet)</th><td id="hydro-gm">?</td></tr>
+          <tr><th>BM</th><td id="hydro-bm">?</td></tr>
           <tr><th>Waterplane-areal</th><td id="hydro-wp">?</td></tr>
-          <tr><th>GZt</th><td id="hydro-gzt">?</td></tr>
-          <tr><th>GZl</th><td id="hydro-gzl">?</td></tr>
+          <tr><th>GZ (stabiliserende arm)</th><td id="hydro-gz">?</td></tr>
         </tbody>
       </table>
     </div>
@@ -505,6 +468,407 @@
       #componentList { flex-direction: row; margin-right: 0; gap: 8px; }
     }
   </style>
+    // --- Hydrostatikk-data UI ---
+    function updateHydroDataUI(hydroData) {
+      document.getElementById("hydro-vol").textContent = hydroData?.volume?.toFixed(3) || '?';
+      document.getElementById("hydro-disp").textContent = hydroData?.displacement?.toFixed(3) || '?';
+      document.getElementById("hydro-cb").textContent = hydroData?.cb ? `${hydroData.cb.x.toFixed(3)}, ${hydroData.cb.y.toFixed(3)}, ${hydroData.cb.z.toFixed(3)}` : '?';
+      document.getElementById("hydro-cg").textContent = hydroData?.cg ? `${hydroData.cg.x.toFixed(3)}, ${hydroData.cg.y.toFixed(3)}, ${hydroData.cg.z.toFixed(3)}` : '?';
+      document.getElementById("hydro-draft").textContent = hydroData?.draft?.toFixed(3) || '?';
+      document.getElementById("hydro-trim").textContent = hydroData?.trim?.toFixed(2) || '?';
+      document.getElementById("hydro-heel").textContent = hydroData?.heel?.toFixed(2) || '?';
+      document.getElementById("hydro-gm").textContent = hydroData?.gm?.toFixed(3) || '?';
+      document.getElementById("hydro-bm").textContent = hydroData?.bm?.toFixed(3) || '?';
+      document.getElementById("hydro-wp").textContent = hydroData?.wpArea?.toFixed(3) || '?';
+      document.getElementById("hydro-gz").textContent = hydroData?.gz?.toFixed(3) || '?';
+    }
+
+    // --- Komponent-liste highlight ---
+    let highlightedComponent = null;
+
+    function buildComponentList(mesh) {
+      const componentList = document.getElementById('componentList');
+      const existingChips = componentList.querySelectorAll('.component-chip:not([data-static])');
+      existingChips.forEach(chip => chip.remove());
+
+      // Alltid legg til standard komponenter
+      const standardChips = [
+        { comp: 'hull', name: 'Skrog' },
+        { comp: 'wl', name: 'Vannlinje' },
+        { comp: 'cb', name: 'CB' },
+        { comp: 'cg', name: 'CG' },
+        { comp: 'wp', name: 'Waterplane' }
+      ];
+
+      // Legg til dynamiske komponenter fra modellen
+      const dynamicComponents = [];
+      if (mesh.userData?.componentNames) {
+        mesh.userData.componentNames.forEach(name => {
+          const lowerName = name.toLowerCase();
+          let compType = 'component';
+          if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
+          else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
+          else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
+          else compType = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+          dynamicComponents.push({ comp: compType, name: name });
+        });
+      } else if (mesh.children && mesh.children.length > 0) {
+        // Fallback: travers mesh for navn
+        mesh.traverse(child => {
+          if (child.name && child !== mesh) {
+            const lowerName = child.name.toLowerCase();
+            let compType = 'component';
+            if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
+            else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
+            else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
+            else compType = child.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            dynamicComponents.push({ comp: compType, name: child.name });
+          }
+        });
+      }
+
+      // Kombiner og fjern duplikater
+      const allComponents = [...standardChips];
+      dynamicComponents.forEach(dc => {
+        if (!allComponents.find(ac => ac.comp === dc.comp)) {
+          allComponents.push(dc);
+        }
+      });
+
+      // Legg til chips i DOM
+      const insertPoint = componentList.querySelector('.component-chip[data-comp="wp"]').nextElementSibling;
+      allComponents.slice(5).forEach(comp => { // Hopp over standard (de er allerede i HTML)
+        const chip = document.createElement('span');
+        chip.className = 'component-chip';
+        chip.setAttribute('data-comp', comp.comp);
+        chip.textContent = comp.name;
+        componentList.insertBefore(chip, insertPoint);
+      });
+
+      // Re-bind event listeners for alle chips
+      document.querySelectorAll('.component-chip').forEach(chip => {
+        chip.addEventListener('mouseenter', e => {
+          chip.classList.add('active');
+          highlightComponent(chip.dataset.comp, true);
+        });
+        chip.addEventListener('mouseleave', e => {
+          if (highlightedComponent !== chip.dataset.comp) {
+            chip.classList.remove('active');
+          }
+          highlightComponent(chip.dataset.comp, false);
+        });
+        chip.addEventListener('click', e => {
+          // Fjern active fra alle
+          document.querySelectorAll('.component-chip').forEach(c => {
+            if (c !== chip) c.classList.remove('active');
+          });
+
+          // Toggle denne
+          if (highlightedComponent === chip.dataset.comp) {
+            chip.classList.remove('active');
+            highlightedComponent = null;
+            highlightComponent(null, false); // Fjern all highlight
+          } else {
+            chip.classList.add('active');
+            highlightedComponent = chip.dataset.comp;
+            highlightComponent(chip.dataset.comp, true);
+          }
+        });
+      });
+    }
+
+    function highlightComponent(compName, highlight) {
+      if (!hydro || !hydro.mesh) return;
+
+      // Reset alle materialer først
+      if (!highlight) {
+        hydro.mesh.traverse((child) => {
+          if (child.material) {
+            child.material.opacity = 1.0;
+            child.material.transparent = false;
+            child.material.emissive?.setHex(0x000000);
+            child.material.needsUpdate = true;
+          }
+        });
+        return;
+      }
+
+      // Highlight spesifikk komponent
+      hydro.mesh.traverse((child) => {
+        if (child.material) {
+          const childName = (child.name || '').toLowerCase();
+          const childData = child.userData?.componentName || child.userData?.component || '';
+
+          const isTarget = child.name === compName ||
+                          childData === compName ||
+                          (compName === 'hull' && child === hydro.mesh) ||
+                          (compName === 'wl' && child === hydro.wlContour) ||
+                          (compName === 'cb' && child === hydro.cbMarker) ||
+                          (compName === 'cg' && child === hydro.cgMarker) ||
+                          (compName === 'wp' && child === hydro.waterPlane) ||
+                          (compName === 'thrusters' && (childName.includes('thruster') || childName.includes('propeller') || childData === 'thrusters')) ||
+                          (compName === 'batteries' && (childName.includes('battery') || childName.includes('batt') || childData === 'batteries')) ||
+                          (compName === 'sensors' && (childName.includes('sensor') || childName.includes('lidar') || childName.includes('camera') || childData === 'sensors')) ||
+                          (childName === compName.toLowerCase() || childData === compName);
+
+          if (isTarget) {
+            // Highlight denne
+            child.material.opacity = 1.0;
+            child.material.transparent = false;
+            child.material.emissive?.setHex(0x444444);
+            if (child.material.color) {
+              child.material.color.multiplyScalar(1.5); // Gjør lysere
+            }
+          } else {
+            // Fade ut andre
+            child.material.opacity = 0.2;
+            child.material.transparent = true;
+            child.material.emissive?.setHex(0x000000);
+          }
+          child.material.needsUpdate = true;
+        }
+      });
+    }
+
+    // --- Oppdater hydrostatikk-data etter lasting ---
+    async function updateHydroAfterLoad() {
+      // Hent ut relevante data fra hydro/core
+      const h = hydro;
+      const last = h.lastHydro || {};
+      const data = {
+        volume: last.subV,
+        displacement: last.subV ? last.subV * h.waterDensity / 1000 : null, // tonn
+        cb: last.cbW,
+        cg: last.cgW,
+        draft: h.draftZWorld,
+        trim: h.trimDeg,
+        heel: h.heelDeg,
+        gm: last.gm?.roll || null,
+        bm: last.bm?.roll || null,
+        wpArea: last.wp?.A || null,
+        gz: last.gz_now?.roll || null,
+      };
+      updateHydroDataUI(data);
+    }
+
+    // Kall denne etter modell er lastet og hydrostatikk er kalkulert
+    core.onAfterRender = updateHydroAfterLoad;
+
+  <div id="uiWrap">
+    <div id="toolbar">
+
+      <button class="btn ghost" id="btnMobileMenu" style="display:none;">☰</button>
+
+      <!-- File -->
+      <div class="dd" data-menu="menuFile">
+        <button class="btn ddBtn" id="chipFileBtn">Fil <span class="chip" id="chipFile">last</span></button>
+        <div class="menu" id="menuFile">
+          <div class="row">
+            <button id="btnLoad" class="btn">Last 3MF-fil</button>
+            <input type="file" id="fileInput" accept=".3mf" style="display:none;">
+          </div>
+          <div class="row">
+            <button id="btnReset" class="btn">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hydro -->
+      <div class="dd" data-menu="menuHydro">
+        <button class="btn ddBtn" id="chipHydroBtn">Hydro <span class="chip" id="chipHydro">av</span></button>
+        <div class="menu" id="menuHydro">
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkHydro"> Hydrostatikk</label>
+          </div>
+
+          <div class="row" style="border-top:1px solid var(--border-color); margin-top:6px; padding-top:12px;">
+            <div style="font-weight:900;">Draft</div>
+          </div>
+
+          <div class="row">
+            <label>Draft</label>
+            <input id="numDraft" type="number" value="0" step="0.01" style="width:80px;">
+            <button id="btnDraftApply" class="btn">Apply</button>
+          </div>
+
+          <div class="row">
+            <label>Trim</label>
+            <input id="numTrim" type="number" value="0" step="0.01" style="width:80px;">
+            <button id="btnTrimApply" class="btn">Apply</button>
+          </div>
+
+          <div class="row">
+            <label>Heel</label>
+            <input id="numHeel" type="number" value="0" step="0.01" style="width:80px;">
+            <button id="btnHeelApply" class="btn">Apply</button>
+          </div>
+
+          <div class="row">
+            <button id="btnHydroReport" class="btn primary">Generer rapport</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- View -->
+      <div class="dd" data-menu="menuView">
+        <button class="btn ddBtn" id="chipViewBtn">Vis <span class="chip" id="chipView">modell</span></button>
+        <div class="menu" id="menuView">
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkAuto"> Auto-rotate</label>
+            <select id="selAutoSpeed">
+              <option value="slow">x0.5</option>
+              <option value="med" selected>x1</option>
+              <option value="fast">x2</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkAxes"> Vis XYZ-akse</label>
+          </div>
+
+          <div class="row" style="border-top:1px solid var(--border-color); margin-top:6px; padding-top:12px;">
+            <div style="font-weight:900;">Roter modell</div>
+            <div style="color:var(--text-muted); font-weight:800;">(ikke kamera)</div>
+          </div>
+
+          <div class="row">
+            <select id="selRotAxis">
+              <option value="x">X</option>
+              <option value="y">Y</option>
+              <option value="z" selected>Z</option>
+            </select>
+            <select id="selRotStep">
+              <option value="15">15°</option>
+              <option value="30">30°</option>
+              <option value="90" selected>90°</option>
+              <option value="180">180°</option>
+            </select>
+            <button id="btnRotApply" class="btn">Roter</button>
+          </div>
+
+          <div class="row">
+            <label>Fri vinkel</label>
+            <input id="numRotDeg" type="number" value="0" step="1" style="width:110px;">
+            <button id="btnRotApplyFree" class="btn">Apply</button>
+          </div>
+
+          <div class="row">
+            <button id="btnRotZero" class="btn">Nullstill rotasjon</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Render -->
+      <div class="dd" data-menu="menuRender">
+        <button class="btn ddBtn" id="chipRenderBtn">Render <span class="chip" id="chipRender">visning</span></button>
+        <div class="menu" id="menuRender">
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="chkWire"> Wireframe</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rapport -->
+      <button class="btn" id="btnReport">Rapport</button>
+
+    </div>
+  </div>
+
+  <!-- Rapport modal -->
+  <div id="reportModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Hydrostatikk Rapport</h2>
+        <button class="close-btn" id="closeReport">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="reportTabs">
+          <button class="tab-btn active" data-tab="overview">Oversikt</button>
+          <button class="tab-btn" data-tab="curves">Kurver</button>
+          <button class="tab-btn" data-tab="data">Data</button>
+        </div>
+        <div id="reportContent">
+          <!-- Oversikt -->
+          <div class="tab-content active" id="tabOverview">
+            <table id="overviewTable">
+              <tbody>
+                <tr><th>Volum</th><td id="rep-vol">?</td></tr>
+                <tr><th>Deplasement</th><td id="rep-disp">?</td></tr>
+                <tr><th>CB (tyngdepunkt)</th><td id="rep-cb">?</td></tr>
+                <tr><th>CG (massepunkt)</th><td id="rep-cg">?</td></tr>
+                <tr><th>Draft</th><td id="rep-draft">?</td></tr>
+                <tr><th>Trim</th><td id="rep-trim">?</td></tr>
+                <tr><th>Heel</th><td id="rep-heel">?</td></tr>
+                <tr><th>KB</th><td id="rep-kb">?</td></tr>
+                <tr><th>KG</th><td id="rep-kg">?</td></tr>
+                <tr><th>BM (roll)</th><td id="rep-bm-roll">?</td></tr>
+                <tr><th>BM (pitch)</th><td id="rep-bm-pitch">?</td></tr>
+                <tr><th>GM (roll)</th><td id="rep-gm-roll">?</td></tr>
+                <tr><th>GM (pitch)</th><td id="rep-gm-pitch">?</td></tr>
+                <tr><th>GZ (roll)</th><td id="rep-gz-roll">?</td></tr>
+                <tr><th>GZ (pitch)</th><td id="rep-gz-pitch">?</td></tr>
+                <tr><th>Waterplane areal</th><td id="rep-wp-area">?</td></tr>
+                <tr><th>Waterplane LCF</th><td id="rep-wp-lcf">?</td></tr>
+                <tr><th>Waterplane TCF</th><td id="rep-wp-tcf">?</td></tr>
+                <tr><th>SAK (wetted area)</th><td id="rep-sak">?</td></tr>
+                <tr><th>Max GZ roll</th><td id="rep-max-gz-roll">?</td></tr>
+                <tr><th>Max GZ pitch</th><td id="rep-max-gz-pitch">?</td></tr>
+                <tr><th>Angle at max GZ roll</th><td id="rep-angle-max-gz-roll">?</td></tr>
+                <tr><th>Angle at max GZ pitch</th><td id="rep-angle-max-gz-pitch">?</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Kurver -->
+          <div class="tab-content" id="tabCurves">
+            <div style="margin-bottom: 16px;">
+              <label><input type="radio" name="curveMode" value="roll" checked> Roll GZ-kurve</label>
+              <label style="margin-left: 20px;"><input type="radio" name="curveMode" value="pitch"> Pitch GZ-kurve</label>
+            </div>
+            <div id="curveContainer">
+              <canvas id="gzCurveCanvas" width="600" height="400"></canvas>
+              <canvas id="sakCurveCanvas" width="600" height="400"></canvas>
+            </div>
+          </div>
+          <!-- Data -->
+          <div class="tab-content" id="tabData">
+            <div id="dataContainer">
+              <button id="exportJSON" class="btn">Eksporter JSON</button>
+              <button id="exportCSV" class="btn">Eksporter CSV</button>
+              <pre id="rawData"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help overlay -->
+  <div id="helpOverlay">
+    <div class="helpCard">
+      <div class="helpHeader">
+        <div class="helpTitle">3MF Hydrostatics Viewer</div>
+        <div class="helpSubtitle">3D Manufacturing Format with hydrostatic calculations</div>
+      </div>
+      <div class="helpGrid">
+        <div class="helpNav">
+          <button class="btn active" data-help="overview">Oversikt</button>
+          <button class="btn" data-help="hydro">Hydrostatikk</button>
+          <button class="btn" data-help="controls">Kontroller</button>
+        </div>
+        <div class="helpContent" id="helpContent">
+          <h3>Oversikt</h3>
+          <p>Denne viewer viser 3MF-filer (3D Manufacturing Format) med integrerte hydrostatiske beregninger for maritime applikasjoner.</p>
+          <ul>
+            <li><strong>3MF støtte:</strong> ZIP-basert format med XML mesh data</li>
+            <li><strong>Hydrostatikk:</strong> Volum, tyngdepunkt, stabilitet, GZ-kurver</li>
+            <li><strong>Interaktiv:</strong> Juster draft, trim og heel i sanntid</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script type="module">
     // Theme sync for iframes
@@ -549,15 +913,8 @@
     const hud = document.getElementById("hud");
 
     function setHud(msg, isBad=false){
-      if (hud) {
-        hud.textContent = msg;
-        hud.classList.toggle("bad", !!isBad);
-      }
-    }
-
-    function setText(id, value) {
-      const el = document.getElementById(id);
-      if (el) el.textContent = value;
+      hud.textContent = msg;
+      hud.classList.toggle("bad", !!isBad);
     }
 
     const loadingOverlay = document.getElementById("loadingOverlay");
@@ -572,95 +929,6 @@
     }
 
     if (hydroDataWrap) hydroDataWrap.style.visibility = "hidden";
-
-    function applyRuntimeTextFixes() {
-      const style = document.createElement("style");
-      style.textContent = `
-        .ddBtn::after{ content:"\\25BE" !important; margin-left:6px; font-size:10px; }
-      `;
-      document.head.appendChild(style);
-
-      setText("hud", "Laster 3MF...");
-      if (loadingText) loadingText.textContent = fallbackMode ? "3MF og komponentdata klargj\u00F8res..." : "3MF og hydrodata klargj\u00F8res...";
-      const mobileMenuBtn = document.getElementById("btnMobileMenu");
-      if (mobileMenuBtn) mobileMenuBtn.textContent = "\u2630";
-      const materialModeBtn = document.getElementById("materialModeBtn");
-      if (materialModeBtn) materialModeBtn.title = "Materialmodus: auto / p\u00E5 / av";
-    }
-
-    applyRuntimeTextFixes();
-
-    const viewParams = new URLSearchParams(location.search);
-    const fallbackMode = /^(1|true)$/i.test(viewParams.get("fallback") || "");
-    const altFile = viewParams.get("altFile") || "";
-    let usedAltFile = false;
-
-    function scoreFallbackCandidate(name, sourceStem) {
-      const stem = String(name || '').replace(/\.[^.]+$/i, '').toLowerCase();
-      const tokens = [...new Set(String(sourceStem || '').split(/[_\-\s]+/).filter(Boolean))];
-      return (
-        (stem === sourceStem ? 100 : 0) +
-        ((stem.includes(sourceStem) || sourceStem.includes(stem)) ? 80 : 0) +
-        tokens.filter((token) => stem.includes(token)).length
-      );
-    }
-
-    async function resolveAutoFallbackCandidate(url) {
-      try {
-        const cleanUrl = String(url || '').split('?')[0].split('#')[0];
-        const sourceStem = cleanUrl.split('/').pop().replace(/\.[^.]+$/i, '').toLowerCase();
-        const basePath = cleanUrl.replace(/[^\/]+$/, '');
-        if (!basePath) return '';
-        const res = await fetch(`${basePath}index.json`, { cache: 'no-store' });
-        if (!res.ok) return '';
-        const data = await res.json();
-        const candidates = [];
-        Object.values(data || {}).forEach((value) => {
-          if (!value || !Array.isArray(value.files)) return;
-          value.files.forEach((file) => {
-            if (typeof file !== 'string') return;
-            if (/\.(3mf|3fm|fm3|stl)(?:$|[?#])/i.test(file)) candidates.push(file);
-          });
-        });
-        const unique = [...new Set(candidates)];
-        if (!unique.length) return '';
-        const ranked = unique.map((name) => {
-          const lower = String(name).toLowerCase();
-          const extWeight =
-            /\.3mf(?:$|[?#])/.test(lower) ? 400 :
-            /\.3fm(?:$|[?#])/.test(lower) ? 390 :
-            /\.fm3(?:$|[?#])/.test(lower) ? 380 :
-            /\.stl(?:$|[?#])/.test(lower) ? 300 : 0;
-          return { name, score: extWeight + scoreFallbackCandidate(name, sourceStem) };
-        }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'nb'));
-        const chosen = ranked[0];
-        if (!chosen || chosen.score <= 0) return '';
-        return `${basePath}${chosen.name}`;
-      } catch {
-        return '';
-      }
-    }
-
-    function injectToolbarPanelButton() {
-      const toolbar = document.getElementById("toolbar");
-      const helpBtn = document.getElementById("btnHelp");
-      if (!toolbar || !helpBtn || document.getElementById("btnBodiesPanel")) return;
-      const btn = document.createElement("button");
-      btn.id = "btnBodiesPanel";
-      btn.className = "btn";
-      btn.textContent = fallbackMode ? "Komponenter" : "Kropper";
-      btn.addEventListener("click", () => {
-        if (!hydroDataWrap) return;
-        const hidden = hydroDataWrap.style.display === "none";
-        hydroDataWrap.style.display = hidden ? "flex" : "none";
-        hydroDataWrap.style.visibility = hidden ? "visible" : "hidden";
-        if (hidden) hydroDataWrap.scrollIntoView({ behavior: "smooth", block: "start" });
-        setHud(hidden ? "Komponentpanel vist" : "Komponentpanel skjult", false);
-      });
-      toolbar.insertBefore(btn, helpBtn);
-    }
-
-    injectToolbarPanelButton();
 
     // --- Init core ---
     const host = document.getElementById("canvasHost");
@@ -700,196 +968,101 @@
     const helpData = getHelpData(lang);
     ui.init(core, hydro, clipper, measure, { helpData, lang });
 
-    function postViewerComponents(items, mode = "mesh") {
-      try {
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage({
-            type: "viewer-components",
-            mode,
-            items: Array.isArray(items) ? items : []
-          }, "*");
-        }
-      } catch {}
-    }
-
-    function hideById(id) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const host = el.closest('.dd') || el.closest('.row') || el.parentElement || el;
-      host.style.display = 'none';
-    }
-
-    function configureFallbackMode() {
-      if (!fallbackMode) return;
-      const toolbar = document.getElementById("toolbar");
-      const materialModeBtn = document.getElementById("materialModeBtn");
-      const bodiesBtn = document.getElementById("btnBodiesPanel");
-      if (bodiesBtn) bodiesBtn.textContent = "Komponenter";
-      const hydroData = document.getElementById("hydroData");
-      const visibilityControls = document.getElementById("visibilityControls");
-      if (toolbar) toolbar.style.display = "none";
-      if (materialModeBtn) materialModeBtn.style.display = "none";
-      if (hydroData) hydroData.style.display = "none";
-      if (visibilityControls) visibilityControls.style.display = "none";
-      document.querySelectorAll('.component-chip[data-static="true"]').forEach((el) => {
-        el.style.display = 'none';
-      });
-      ['btnReport','btnHydroReport','btnReportRefresh','chkHydro','btnHydroZero','btnDraftApply','btnTrimApply','btnHeelApply','numDraft','numTrim','numHeel'].forEach(hideById);
-      if (hydroDataWrap) {
-        hydroDataWrap.style.display = "none";
-        hydroDataWrap.style.visibility = "hidden";
-      }
-    }
-
-    configureFallbackMode();
-
     // --- Hydrostatikk-data UI ---
     function updateHydroDataUI(hydroData) {
-      setText("hydro-vol", hydroData?.volume?.toFixed(3) || '?');
-      setText("hydro-disp", hydroData?.displacement?.toFixed(3) || '?');
-      setText("hydro-cb", hydroData?.cb ? `${hydroData.cb.x.toFixed(3)}, ${hydroData.cb.y.toFixed(3)}, ${hydroData.cb.z.toFixed(3)}` : '?');
-      setText("hydro-cg", hydroData?.cg ? `${hydroData.cg.x.toFixed(3)}, ${hydroData.cg.y.toFixed(3)}, ${hydroData.cg.z.toFixed(3)}` : '?');
-      setText("hydro-draft", hydroData?.draft?.toFixed(3) || '?');
-      setText("hydro-trim", hydroData?.trim?.toFixed(2) || '?');
-      setText("hydro-heel", hydroData?.heel?.toFixed(2) || '?');
-      setText("hydro-gmt", hydroData?.gmT?.toFixed?.(3) || '?');
-      setText("hydro-gml", hydroData?.gmL?.toFixed?.(3) || '?');
-      setText("hydro-bmt", hydroData?.bmT?.toFixed?.(3) || '?');
-      setText("hydro-bml", hydroData?.bmL?.toFixed?.(3) || '?');
-      setText("hydro-wp", hydroData?.wpArea?.toFixed(3) || '?');
-      setText("hydro-gzt", hydroData?.gzT?.toFixed?.(3) || '?');
-      setText("hydro-gzl", hydroData?.gzL?.toFixed?.(3) || '?');
+      document.getElementById("hydro-vol").textContent = hydroData?.volume?.toFixed(3) || '?';
+      document.getElementById("hydro-disp").textContent = hydroData?.displacement?.toFixed(3) || '?';
+      document.getElementById("hydro-cb").textContent = hydroData?.cb ? `${hydroData.cb.x.toFixed(3)}, ${hydroData.cb.y.toFixed(3)}, ${hydroData.cb.z.toFixed(3)}` : '?';
+      document.getElementById("hydro-cg").textContent = hydroData?.cg ? `${hydroData.cg.x.toFixed(3)}, ${hydroData.cg.y.toFixed(3)}, ${hydroData.cg.z.toFixed(3)}` : '?';
+      document.getElementById("hydro-draft").textContent = hydroData?.draft?.toFixed(3) || '?';
+      document.getElementById("hydro-trim").textContent = hydroData?.trim?.toFixed(2) || '?';
+      document.getElementById("hydro-heel").textContent = hydroData?.heel?.toFixed(2) || '?';
+      document.getElementById("hydro-gm").textContent = hydroData?.gm?.toFixed(3) || '?';
+      document.getElementById("hydro-bm").textContent = hydroData?.bm?.toFixed(3) || '?';
+      document.getElementById("hydro-wp").textContent = hydroData?.wpArea?.toFixed(3) || '?';
+      document.getElementById("hydro-gz").textContent = hydroData?.gz?.toFixed(3) || '?';
     }
 
     let highlightedComponent = null;
-    let materialMode = 'auto';
-
-    function setMaterialMode(mode) {
-      materialMode = mode;
-      const btn = document.getElementById('materialModeBtn');
-      if (btn) btn.setAttribute('data-mode', mode);
-      if (highlightedComponent) highlightComponent(highlightedComponent, true, false);
-      else highlightComponent(null, false, false);
-    }
-
-    function shouldAutoTranslucent(targetObject) {
-      if (!targetObject || !hydro?.mesh) return false;
-      const targetBox = new THREE.Box3().setFromObject(targetObject);
-      if (targetBox.isEmpty()) return false;
-      const targetSize = new THREE.Vector3();
-      targetBox.getSize(targetSize);
-      const targetVolume = Math.max(targetSize.x * targetSize.y * targetSize.z, 1e-9);
-      let inside = false;
-      hydro.mesh.traverse((child) => {
-        if (inside || !child || child === targetObject || !child.isMesh) return;
-        const childBox = new THREE.Box3().setFromObject(child);
-        if (childBox.isEmpty()) return;
-        const childSize = new THREE.Vector3();
-        childBox.getSize(childSize);
-        const childVolume = childSize.x * childSize.y * childSize.z;
-        const contains =
-          childBox.min.x <= targetBox.min.x && childBox.min.y <= targetBox.min.y && childBox.min.z <= targetBox.min.z &&
-          childBox.max.x >= targetBox.max.x && childBox.max.y >= targetBox.max.y && childBox.max.z >= targetBox.max.z;
-        if (contains && childVolume > targetVolume * 1.15) inside = true;
-      });
-      return inside;
-    }
-
-    function focusCameraOnObject(object) {
-      if (!object || !core?.camera || !core?.controls) return;
-      const box = new THREE.Box3().setFromObject(object);
-      if (box.isEmpty()) return;
-      const center = new THREE.Vector3();
-      const size = new THREE.Vector3();
-      box.getCenter(center);
-      box.getSize(size);
-      const maxDim = Math.max(size.x, size.y, size.z, 0.1);
-      const dist = maxDim * 2.2;
-      core.controls.target.copy(center);
-      core.camera.position.set(center.x + dist, center.y + dist, center.z + dist * 0.7);
-      core.camera.near = Math.max(0.001, maxDim / 1000);
-      core.camera.far = Math.max(100, maxDim * 1000);
-      core.camera.updateProjectionMatrix();
-      core.controls.update();
-    }
 
     function buildComponentList(mesh) {
       const componentList = document.getElementById('componentList');
-      if (!componentList || !mesh) return [];
+      if (!componentList || !mesh) return;
 
       const existingChips = componentList.querySelectorAll('.component-chip:not([data-static])');
       existingChips.forEach(chip => chip.remove());
 
       const dynamicComponents = [];
-      mesh.traverse(child => {
-        if (!child || child === mesh || !child.name || !child.isMesh) return;
-        const exactName = String(child.userData?.componentName || child.name || '').trim();
-        if (!exactName) return;
-        const lowerName = exactName.toLowerCase();
-        let compType = 'component';
-        if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
-        else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
-        else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
-        else compType = lowerName.replace(/[^a-z0-9]/g, '') || 'component';
-        dynamicComponents.push({ comp: compType, name: exactName });
-      });
-      if (!dynamicComponents.length) {
-        postViewerComponents([], "mesh");
-        return [];
+      if (mesh.userData?.componentNames?.length) {
+        mesh.userData.componentNames.forEach(name => {
+          const lowerName = String(name || '').toLowerCase();
+          let compType = 'component';
+          if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
+          else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
+          else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
+          else compType = lowerName.replace(/[^a-z0-9]/g, '') || 'component';
+          dynamicComponents.push({ comp: compType, name: name });
+        });
+      } else if (mesh.children?.length) {
+        mesh.traverse(child => {
+          if (!child || child === mesh || !child.name) return;
+          const lowerName = child.name.toLowerCase();
+          let compType = 'component';
+          if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
+          else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
+          else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
+          else compType = lowerName.replace(/[^a-z0-9]/g, '') || 'component';
+          dynamicComponents.push({ comp: compType, name: child.name });
+        });
+      } else {
+        return;
       }
 
       const standardComps = new Set(['hull', 'wl', 'cb', 'cg', 'wp']);
+      const seen = new Set();
       const insertAfter = componentList.querySelector('.component-chip[data-comp="wp"]');
-      let insertAnchor = insertAfter;
-      const displayCounts = new Map();
-      const postedNames = [];
 
       dynamicComponents.forEach(comp => {
-        if (!comp?.comp || !comp.name || standardComps.has(comp.comp)) return;
-        const count = (displayCounts.get(comp.name) || 0) + 1;
-        displayCounts.set(comp.name, count);
+        if (!comp?.comp || standardComps.has(comp.comp) || seen.has(comp.comp)) return;
+        seen.add(comp.comp);
         const chip = document.createElement('span');
         chip.className = 'component-chip';
         chip.setAttribute('data-comp', comp.comp);
-        chip.setAttribute('data-target', `name:${comp.name}`);
-        chip.textContent = count > 1 ? `${comp.name} (${count})` : comp.name;
-        postedNames.push(chip.textContent);
-        if (insertAnchor?.parentNode) {
-          insertAnchor.parentNode.insertBefore(chip, insertAnchor.nextSibling);
-          insertAnchor = chip;
+        chip.textContent = comp.name;
+        if (insertAfter?.parentNode) {
+          insertAfter.parentNode.insertBefore(chip, insertAfter.nextSibling);
         } else {
           componentList.appendChild(chip);
-          insertAnchor = chip;
         }
       });
 
       document.querySelectorAll('.component-chip').forEach(chip => {
-        const target = chip.dataset.target || chip.dataset.comp;
-        chip.onmouseenter = () => {};
+        chip.onmouseenter = () => {
+          chip.classList.add('active');
+          highlightComponent(chip.dataset.comp, true);
+        };
         chip.onmouseleave = () => {
-          if (highlightedComponent !== target) chip.classList.remove('active');
+          if (highlightedComponent !== chip.dataset.comp) chip.classList.remove('active');
+          highlightComponent(chip.dataset.comp, false);
         };
         chip.onclick = () => {
           document.querySelectorAll('.component-chip').forEach(c => {
             if (c !== chip) c.classList.remove('active');
           });
-          if (highlightedComponent === target) {
+          if (highlightedComponent === chip.dataset.comp) {
             chip.classList.remove('active');
             highlightedComponent = null;
-            highlightComponent(null, false, false);
+            highlightComponent(null, false);
           } else {
             chip.classList.add('active');
-            highlightedComponent = target;
-            highlightComponent(target, true, true);
+            highlightedComponent = chip.dataset.comp;
+            highlightComponent(chip.dataset.comp, true);
           }
         };
       });
-
-      postViewerComponents(postedNames, "mesh");
-      return postedNames;
     }
 
-    function highlightComponent(compName, highlight, focus = false) {
+    function highlightComponent(compName, highlight) {
       if (!hydro || !hydro.mesh) return;
 
       if (!highlight || !compName) {
@@ -903,17 +1076,13 @@
         return;
       }
 
-      let focusObject = null;
-      const matchedObjects = [];
       hydro.mesh.traverse((child) => {
         if (!child.material) return;
         const childName = String(child.name || '').toLowerCase();
         const childData = String(child.userData?.componentName || child.userData?.component || '').toLowerCase();
         const target = String(compName || '').toLowerCase();
-        const exactTarget = target.startsWith('name:') ? target.slice(5) : null;
 
         const isTarget =
-          (exactTarget && (childName === exactTarget || childData === exactTarget)) ||
           childName === target ||
           childData === target ||
           (target === 'hull' && child === hydro.mesh) ||
@@ -928,33 +1097,14 @@
         if (isTarget) {
           child.material.opacity = 1.0;
           child.material.transparent = false;
-          child.material.emissive?.setHex(0x000000);
-          matchedObjects.push(child);
-          if (!focusObject && child.isObject3D) focusObject = child;
-        }
-      });
-      const useTranslucentOthers =
-        materialMode === 'on' ||
-        (materialMode === 'auto' && matchedObjects.some(obj => shouldAutoTranslucent(obj)));
-      hydro.mesh.traverse((child) => {
-        if (!child.material) return;
-        const isTarget = matchedObjects.includes(child);
-        if (isTarget) {
-          child.material.opacity = 1.0;
-          child.material.transparent = false;
-          child.material.emissive?.setHex(0x000000);
-        } else if (useTranslucentOthers) {
+          child.material.emissive?.setHex(0x444444);
+        } else {
           child.material.opacity = 0.18;
           child.material.transparent = true;
-          child.material.emissive?.setHex(0x000000);
-        } else {
-          child.material.opacity = 1.0;
-          child.material.transparent = false;
           child.material.emissive?.setHex(0x000000);
         }
         child.material.needsUpdate = true;
       });
-      if (focus && focusObject) focusCameraOnObject(focusObject);
     }
 
     async function updateHydroAfterLoad() {
@@ -968,18 +1118,10 @@
         draft: h.draftZWorld,
         trim: h.trimDeg,
         heel: h.heelDeg,
-        gmT: last.gm?.roll || null,
-        gmL: last.gm?.pitch || null,
-        bmT: last.bm?.roll || null,
-        bmL: last.bm?.pitch || null,
+        gm: last.gm?.roll || null,
+        bm: last.bm?.roll || null,
         wpArea: last.wp?.A || null,
-        lcf: last.wp?.xF || null,
-        tcf: last.wp?.yF || null,
-        ixx: last.wp?.Ixx || null,
-        iyy: last.wp?.Iyy || null,
-        ixy: last.wp?.Ixy || null,
-        gzT: last.gz_now?.roll || null,
-        gzL: last.gz_now?.pitch || null,
+        gz: last.gz_now?.roll || null,
       };
       updateHydroDataUI(data);
     }
@@ -1000,7 +1142,7 @@
     };
 
     // --- Load model from ?file= or file input ---
-    const params = viewParams;
+    const params = new URLSearchParams(location.search);
     let modelUrl = params.get("file") || "";
 
     async function loadModel(url) {
@@ -1021,7 +1163,7 @@
       }, TIMEOUT_MS);
 
       try{
-        setLoadingState(true, fallbackMode ? "Laster 3MF og komponentdata..." : "Laster 3MF og hydrodata...");
+        setLoadingState(true, "Laster 3MF og hydrodata...");
         setHud("Laster 3MF...");        // Først: test om filen finnes og er tilgjengelig
         let headOk = true;
         let headStatus = 0;
@@ -1039,7 +1181,7 @@
         if (!headOk) {
           clearTimeout(to);
           setLoadingState(false);
-          setHud(`Finner ikke filen (HEAD-feil, status ${headStatus}) på: ${url}`, true);
+          setHud(`Finner ikke filen (HEAD-feil, status ${headStatus}) p?: ${url}`, true);
           return;
         }
 
@@ -1057,19 +1199,10 @@
         buildComponentList(mesh);
 
         applyVisibilitySettings(); // Apply saved visibility settings to 3D elements
-        let hydroErr = null;
-        if (!fallbackMode) {
-          if (typeof hydro.initDraftAtOriginalPlane === "function") hydro.initDraftAtOriginalPlane();
-          else hydro.initDraftAtBottom();
-          setLoadingState(true, "Beregner hydrostatikk...");
-          try {
-            await hydro.recompute();
-            await updateHydroAfterLoad();
-          } catch (errHydro) {
-            hydroErr = errHydro;
-            console.error("[3mfhydro] Hydro-beregning feilet:", errHydro);
-          }
-        }
+        hydro.initDraftAtBottom();
+        setLoadingState(true, "Beregner hydrostatikk...");
+        await hydro.recompute();
+        await updateHydroAfterLoad();
 
         ui.afterModelLoaded({ mesh, geometry, volume, centroidLocal, modelUrl: url });
 
@@ -1082,26 +1215,10 @@
         });
 
         core.start();
-        if (!fallbackMode) syncHydroVisibility();
+        syncHydroVisibility();
         setLoadingState(false);
-        if (fallbackMode) {
-          setHud("Klar - 3MF lastet med komponenter");
-        } else if (hydroErr) {
-          setHud(`3MF lastet, men hydrostatikk feilet: ${hydroErr.message || hydroErr}`, true);
-        } else {
-          setHud("Klar - 3MF lastet med hydrostatikk");
-        }
+        setHud("Klar - 3MF lastet med hydrostatikk");
       }catch(err){
-        const fallbackTarget = (!usedAltFile && altFile && url !== altFile)
-          ? altFile
-          : (!usedAltFile && fallbackMode ? await resolveAutoFallbackCandidate(url) : "");
-        if (!usedAltFile && fallbackTarget && url !== fallbackTarget) {
-          usedAltFile = true;
-          console.warn("[3mfhydro] Direkte lasting feilet, prøver fallback-preview:", { url, fallbackTarget, err });
-          setHud("Direkte lasting feilet - prøver 3D-fallback...", true);
-          setLoadingState(true, "Bytter til tilgjengelig 3D-fallback...");
-          return loadModel(fallbackTarget);
-        }
         clearTimeout(to);
         let msg = "Feil under lasting av 3MF. ";
         if (err && err.message) {
@@ -1140,107 +1257,15 @@
     let currentReport = null;
     let currentReportRoll = null;
     let currentReportPitch = null;
-    let currentDraftScan = null;
-    let currentEquilibriumRoll = null;
-    let currentEquilibriumPitch = null;
-    let currentReportBundle = null;
-    const REPORT_CACHE_KEY = '3mfhydro_report_cache_v2';
-    let reportIsStale = true;
 
-    const reportModal = document.getElementById('reportModal');
-    const reportStatus = document.getElementById('reportStatus');
-    const reportUpdated = document.getElementById('reportUpdated');
-    const reportSummaryCard = document.getElementById('reportSummaryCard');
-    const reportSummaryText = document.getElementById('reportSummaryText');
-
-    const fmt = (value, digits = 3) => (typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '?');
-    const fmtVec = (value) => value ? `${fmt(value.x)}, ${fmt(value.y)}, ${fmt(value.z)}` : '?';
-
-    function openReportDrawer() {
-      reportModal?.classList.add('show');
-    }
-
-    function closeReportDrawer() {
-      reportModal?.classList.remove('show');
-    }
-
-    function buildSummaryText(bundle) {
-      const now = bundle?.roll?.now || bundle?.summary || null;
-      if (!now) return 'Ingen rapport generert enn\u00E5. Kj\u00F8r hydroberegning og generer rapport for \u00E5 fylle inn sammendrag og eksportdata.';
-      const volume = fmt(now.subV);
-      const disp = now.subV ? fmt((now.subV * hydro.waterDensity / 1000), 3) : '?';
-      const draft = fmt(bundle?.roll?.meta?.draftZWorld ?? hydro?.draftZWorld);
-      const heel = fmt(hydro?.heelDeg, 2);
-      const trim = fmt(hydro?.trimDeg, 2);
-      const gmt = fmt(now.gm?.roll);
-      const gml = fmt(now.gm?.pitch);
-      return `Fordrengt volum ${volume}, estimert deplasement ${disp} tonn, draft ${draft}, trim ${trim}\u00B0, heel ${heel}\u00B0, GMt ${gmt} og GMl ${gml}.`;
-    }
-
-    function updateReportMetaUI() {
-      if (!reportStatus || !reportUpdated || !reportSummaryText) return;
-      reportStatus.textContent = reportIsStale ? 'Utdatert' : 'Oppdatert';
-      reportStatus.classList.toggle('is-stale', reportIsStale);
-      reportStatus.classList.toggle('is-fresh', !reportIsStale);
-      const stamp = currentReportBundle?.generatedAt ? new Date(currentReportBundle.generatedAt).toLocaleString('nb-NO') : null;
-      reportUpdated.textContent = stamp ? `Sist generert ${stamp}` : 'Ingen rapport generert enn\u00E5';
-      reportSummaryText.textContent = buildSummaryText(currentReportBundle);
-      reportSummaryCard?.classList.toggle('is-stale', reportIsStale);
-    }
-
-    function persistReportBundle() {
-      try {
-        if (!currentReportBundle) return;
-        const payload = JSON.stringify(currentReportBundle);
-        localStorage.setItem(REPORT_CACHE_KEY, payload);
-        document.cookie = `hydro_report_cached=${encodeURIComponent(currentReportBundle.generatedAt || '1')}; path=/; max-age=604800; SameSite=Lax`;
-      } catch (err) {
-        console.warn('[3mfhydro] Kunne ikke lagre rapport-cache:', err);
-      }
-    }
-
-    function loadCachedReportBundle() {
-      try {
-        const raw = localStorage.getItem(REPORT_CACHE_KEY);
-        if (!raw) return;
-        currentReportBundle = JSON.parse(raw);
-        currentReportRoll = currentReportBundle?.roll || null;
-        currentReportPitch = currentReportBundle?.pitch || null;
-        currentDraftScan = currentReportBundle?.draftScan || null;
-        currentEquilibriumRoll = currentReportBundle?.equilibrium?.roll || null;
-        currentEquilibriumPitch = currentReportBundle?.equilibrium?.pitch || null;
-        currentReport = currentReportRoll || currentReportPitch || null;
-      } catch (err) {
-        console.warn('[3mfhydro] Kunne ikke lese rapport-cache:', err);
-      }
-    }
-
-    function markReportStale(reason = 'Hydrodata endret. Regenerer rapporten for oppdatert sammendrag og kurver.') {
-      reportIsStale = true;
-      if (reportSummaryText && currentReportBundle) reportSummaryText.textContent = reason;
-      updateReportMetaUI();
-    }
-
-    document.getElementById('btnReport').addEventListener('click', async () => {
-      openReportDrawer();
-      if (!currentReportBundle) await generateFullReport();
-      else updateReportMetaUI();
-    });
-
-    document.getElementById('btnReportRefresh')?.addEventListener('click', async () => {
-      await generateFullReport();
+    document.getElementById('btnReport').addEventListener('click', () => {
+      generateFullReport();
+      document.getElementById('reportModal').classList.add('show');
     });
 
     document.getElementById('closeReport').addEventListener('click', () => {
-      closeReportDrawer();
+      document.getElementById('reportModal').classList.remove('show');
     });
-
-    reportModal?.addEventListener('click', (event) => {
-      if (event.target === reportModal) closeReportDrawer();
-    });
-
-    loadCachedReportBundle();
-    updateReportMetaUI();
 
     // Curve mode switching
     document.querySelectorAll('input[name="curveMode"]').forEach(radio => {
@@ -1262,44 +1287,6 @@
       });
     });
 
-    async function generateFullReport() {
-      if (!hydro?.mesh) {
-        setHud('Last modellen ferdig først.', true);
-        return;
-      }
-      try {
-        setLoadingState(true, 'Kjører utvidet hydro-rapport...');
-        currentReportRoll = await hydro.generateHydroReport({ mode: 'roll', maxDeg: 60, stepDeg: 2, quality: 'low', includeSAK: true });
-        currentReportPitch = await hydro.generateHydroReport({ mode: 'pitch', maxDeg: 60, stepDeg: 2, quality: 'low', includeSAK: false });
-        currentEquilibriumRoll = hydro.cgLocal ? await hydro.solveEquilibrium('roll', { maxDeg: 30, scanStepDeg: 2 }) : null;
-        currentEquilibriumPitch = hydro.cgLocal ? await hydro.solveEquilibrium('pitch', { maxDeg: 30, scanStepDeg: 2 }) : null;
-        currentDraftScan = await hydro.generateDraftScan({ draftCount: 20, quality: 'low', includeAwp: true, includeSAK: false });
-        currentReport = currentReportRoll;
-        currentReportBundle = {
-          generatedAt: new Date().toISOString(),
-          stale: false,
-          quality: 'low',
-          quality: 'low',
-          summary: currentReportRoll?.now || null,
-          roll: currentReportRoll,
-          pitch: currentReportPitch,
-          equilibrium: { roll: currentEquilibriumRoll, pitch: currentEquilibriumPitch },
-          draftScan: currentDraftScan,
-        };
-        reportIsStale = false;
-        updateCurveDisplay();
-        updateReportMetaUI();
-        persistReportBundle();
-        document.getElementById('rawData').textContent = JSON.stringify(currentReportBundle, null, 2);
-        setHud('Utvidet hydro-rapport generert');
-      } catch (err) {
-        console.error('Generate full report failed:', err);
-        setHud('Feil ved hydro-rapport', true);
-      } finally {
-        setLoadingState(false);
-      }
-    }
-
     function updateCurveDisplay() {
       try {
         const mode = document.querySelector('input[name="curveMode"]:checked').value;
@@ -1320,59 +1307,43 @@
       const now = report.now;
 
       // Oversikt-tabell
-      setText('rep-vol', fmt(now.subV));
-      setText('rep-disp', now.subV ? fmt((now.subV * hydro.waterDensity / 1000)) : '?');
-      setText('rep-cb', fmtVec(now.cbW));
-      setText('rep-cg', fmtVec(now.cgW));
-      setText('rep-draft', fmt(report.meta.draftZWorld));
-      setText('rep-trim', fmt(hydro.trimDeg, 2));
-      setText('rep-heel', fmt(hydro.heelDeg, 2));
-      setText('rep-rho', fmt(hydro.waterDensity, 0) === '?' ? '?' : `${fmt(hydro.waterDensity, 0)} kg/m³`);
-      setText('rep-quality', currentReportBundle?.quality || report.meta?.qualityUsed || '?');
-      setText('rep-generated', currentReportBundle?.generatedAt ? new Date(currentReportBundle.generatedAt).toLocaleString('nb-NO') : '?');
-      setText('rep-kb', fmt(now.kb));
-      setText('rep-kg', fmt(now.kg));
-      setText('rep-bm-roll', fmt(now.bm?.roll));
-      setText('rep-bm-pitch', fmt(now.bm?.pitch));
-      setText('rep-gm-roll', fmt(now.gm?.roll));
-      setText('rep-gm-pitch', fmt(now.gm?.pitch));
+      document.getElementById('rep-vol').textContent = now.subV?.toFixed(3) || '?';
+      document.getElementById('rep-disp').textContent = now.subV ? (now.subV * hydro.waterDensity / 1000).toFixed(3) : '?';
+      document.getElementById('rep-cb').textContent = now.cbW ? `${now.cbW.x.toFixed(3)}, ${now.cbW.y.toFixed(3)}, ${now.cbW.z.toFixed(3)}` : '?';
+      document.getElementById('rep-cg').textContent = now.cgW ? `${now.cgW.x.toFixed(3)}, ${now.cgW.y.toFixed(3)}, ${now.cgW.z.toFixed(3)}` : '?';
+      document.getElementById('rep-draft').textContent = report.meta.draftZWorld?.toFixed(3) || '?';
+      document.getElementById('rep-trim').textContent = hydro.trimDeg?.toFixed(2) || '0.00';
+      document.getElementById('rep-heel').textContent = hydro.heelDeg?.toFixed(2) || '0.00';
+      document.getElementById('rep-kb').textContent = now.kb?.toFixed(3) || '?';
+      document.getElementById('rep-kg').textContent = now.kg?.toFixed(3) || '?';
+      document.getElementById('rep-bm-roll').textContent = now.bm?.roll?.toFixed(3) || '?';
+      document.getElementById('rep-gm-roll').textContent = now.gm?.roll?.toFixed(3) || '?';
+      document.getElementById('rep-gm-pitch').textContent = now.gm?.pitch?.toFixed(3) || '?';
 
       // Stabilitetsdata fra kurver
       if (currentReportRoll?.stability) {
         const stabRoll = currentReportRoll.stability;
-        setText('rep-max-gz-roll', fmt(stabRoll.maxGZ));
-        setText('rep-angle-max-gz-roll', fmt(stabRoll.angleAtMaxGZ, 1));
+        document.getElementById('rep-max-gz-roll').textContent = stabRoll.maxGZ?.toFixed(3) || '?';
+        document.getElementById('rep-angle-max-gz-roll').textContent = stabRoll.angleAtMaxGZ?.toFixed(1) || '?';
       }
       if (currentReportPitch?.stability) {
         const stabPitch = currentReportPitch.stability;
-        setText('rep-max-gz-pitch', fmt(stabPitch.maxGZ));
-        setText('rep-angle-max-gz-pitch', fmt(stabPitch.angleAtMaxGZ, 1));
+        document.getElementById('rep-max-gz-pitch').textContent = stabPitch.maxGZ?.toFixed(3) || '?';
+        document.getElementById('rep-angle-max-gz-pitch').textContent = stabPitch.angleAtMaxGZ?.toFixed(1) || '?';
       }
-      setText('rep-gz-roll', fmt(now.gz_now?.roll));
-      setText('rep-gz-pitch', fmt(now.gz_now?.pitch));
-      setText('rep-wp-area', fmt(now.wp?.A));
-      setText('rep-wp-lcf', fmt(now.wp?.xF));
-      setText('rep-wp-tcf', fmt(now.wp?.yF));
-      setText('rep-wp-ixx', fmt(now.wp?.Ixx));
-      setText('rep-wp-iyy', fmt(now.wp?.Iyy));
-      setText('rep-wp-ixy', fmt(now.wp?.Ixy));
-      setText('rep-sak', fmt(now.sak));
-      setText('rep-eq-roll', currentEquilibriumRoll ? `${fmt(currentEquilibriumRoll.angleDeg, 2)} deg / GZ ${fmt(currentEquilibriumRoll.gz)}` : '?');
-      setText('rep-eq-pitch', currentEquilibriumPitch ? `${fmt(currentEquilibriumPitch.angleDeg, 2)} deg / GZ ${fmt(currentEquilibriumPitch.gz)}` : '?');
-      setText('rep-avs-roll', fmt(currentReportRoll?.stability?.avs, 2));
-      setText('rep-avs-pitch', fmt(currentReportPitch?.stability?.avs, 2));
-      setText('rep-area-0-30', fmt(currentReportRoll?.stability?.area_0_30));
-      setText('rep-area-0-40', fmt(currentReportRoll?.stability?.area_0_40));
-      setText('rep-draft-scan-count', String(currentDraftScan?.data?.drafts?.length ?? '?'));
+      document.getElementById('rep-gz-roll').textContent = now.gz_now?.roll?.toFixed(3) || '?';
+      document.getElementById('rep-gz-pitch').textContent = now.gz_now?.pitch?.toFixed(3) || '?';
+      document.getElementById('rep-wp-area').textContent = now.wp?.A?.toFixed(3) || '?';
+      document.getElementById('rep-wp-lcf').textContent = now.wp?.xF?.toFixed(3) || '?';
+      document.getElementById('rep-wp-tcf').textContent = now.wp?.yF?.toFixed(3) || '?';
+      document.getElementById('rep-sak').textContent = now.sak?.toFixed(3) || '?';
 
       // Raw data
-      const data = currentReportBundle || {
+      const data = {
         roll: currentReportRoll,
-        pitch: currentReportPitch,
-        equilibrium: { roll: currentEquilibriumRoll, pitch: currentEquilibriumPitch },
-        draftScan: currentDraftScan,
+        pitch: currentReportPitch
       };
-      setText('rawData', JSON.stringify(data, null, 2));
+      document.getElementById('rawData').textContent = JSON.stringify(data, null, 2);
     }
 
     function drawCurves(report) {
@@ -1448,9 +1419,8 @@
 
     // --- Eksporter ---
     document.getElementById('exportJSON').addEventListener('click', () => {
-      const payload = currentReportBundle || currentReport;
-      if (!payload) return;
-      const dataStr = JSON.stringify(payload, null, 2);
+      if (!currentReport) return;
+      const dataStr = JSON.stringify(currentReport, null, 2);
       downloadFile('hydro_report.json', dataStr, 'application/json');
     });
 
@@ -1458,19 +1428,6 @@
       if (!currentReport) return;
       const csv = reportToCSV(currentReport);
       downloadFile('hydro_report.csv', csv, 'text/csv');
-    });
-
-    document.getElementById('exportTeX').addEventListener('click', () => {
-      const payload = currentReportBundle || { roll: currentReportRoll, pitch: currentReportPitch, draftScan: currentDraftScan };
-      if (!payload?.roll) return;
-      const tex = reportToTeX(payload);
-      downloadFile('hydro_report.tex', tex, 'text/plain');
-    });
-
-    document.getElementById('exportPDF').addEventListener('click', async () => {
-      const payload = currentReportBundle || { roll: currentReportRoll, pitch: currentReportPitch, draftScan: currentDraftScan };
-      if (!payload?.roll) return;
-      await exportReportPDF(payload);
     });
 
     function reportToCSV(report) {
@@ -1482,114 +1439,7 @@
       return csv;
     }
 
-    function reportToTeX(bundle) {
-      const roll = bundle.roll || {};
-      const now = roll.now || {};
-      const generated = bundle.generatedAt ? new Date(bundle.generatedAt).toLocaleString('nb-NO') : 'ikke tilgjengelig';
-      const summary = buildSummaryText(bundle).replace(/[{}]/g, '');
-      return String.raw`\documentclass[a4paper,11pt]{article}
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[norwegian]{babel}
-\usepackage{booktabs}
-\usepackage{geometry}
-\geometry{margin=2.2cm}
-\title{Hydrostatikkrapport}
-\date{${generated}}
-\begin{document}
-\maketitle
-\section*{Sammendrag}
-${summary}
-\section*{Nøkkeldata}
-\begin{tabular}{ll}
-\toprule
-Volum & ${fmt(now.subV)} \\
-Deplasement & ${now.subV ? fmt((now.subV * hydro.waterDensity / 1000), 3) : '?'} \\
-Draft & ${fmt(roll.meta?.draftZWorld ?? hydro?.draftZWorld)} \\
-Trim & ${fmt(hydro?.trimDeg, 2)} \\
-Heel & ${fmt(hydro?.heelDeg, 2)} \\
-GMt & ${fmt(now.gm?.roll)} \\
-GMl & ${fmt(now.gm?.pitch)} \\
-LCF & ${fmt(now.wp?.xF)} \\
-TCF & ${fmt(now.wp?.yF)} \\
-\bottomrule
-\end{tabular}
-\end{document}`;
-    }
-
-        async function ensureJsPdf() {
-      if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
-        script.async = true;
-        script.onload = resolve;
-        script.onerror = () => reject(new Error('Kunne ikke laste jsPDF'));
-        document.head.appendChild(script);
-      });
-      return window.jspdf?.jsPDF || null;
-    }
-    function buildPdfLines(bundle) {
-      const roll = bundle.roll || {};
-      const now = roll.now || {};
-      return [
-        'Hydrostatikkrapport',
-        `Generert: ${bundle.generatedAt ? new Date(bundle.generatedAt).toLocaleString('nb-NO') : 'ikke tilgjengelig'}`,
-        '',
-        'Sammendrag',
-        buildSummaryText(bundle),
-        '',
-        'Nøkkeldata',
-        `Volum: ${fmt(now.subV)}`,
-        `Deplasement: ${now.subV ? fmt((now.subV * hydro.waterDensity / 1000), 3) : '?'} tonn`,
-        `Draft: ${fmt(roll.meta?.draftZWorld ?? hydro?.draftZWorld)}`,
-        `Trim: ${fmt(hydro?.trimDeg, 2)}°`,
-        `Heel: ${fmt(hydro?.heelDeg, 2)}°`,
-        `GMt: ${fmt(now.gm?.roll)}`,
-        `GMl: ${fmt(now.gm?.pitch)}`,
-        `BMt: ${fmt(now.bm?.roll)}`,
-        `BMl: ${fmt(now.bm?.pitch)}`,
-        `LCF: ${fmt(now.wp?.xF)}`,
-        `TCF: ${fmt(now.wp?.yF)}`,
-        `Awp: ${fmt(now.wp?.A)}`,
-        `Vannets tetthet: ${fmt(hydro?.waterDensity, 0)} kg/m³`
-      ];
-    }
-    async function exportReportPDF(bundle) {
-      try {
-        const JsPdf = await ensureJsPdf();
-        if (!JsPdf) throw new Error('jsPDF utilgjengelig');
-        const doc = new JsPdf({ unit: 'mm', format: 'a4' });
-        const lines = buildPdfLines(bundle);
-        let y = 18;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.text('Hydrostatikkrapport', 16, y);
-        y += 10;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(11);
-        lines.slice(1).forEach((line) => {
-          const wrapped = doc.splitTextToSize(String(line), 178);
-          wrapped.forEach((part) => {
-            if (y > 280) {
-              doc.addPage();
-              y = 18;
-            }
-            doc.text(part, 16, y);
-            y += 6;
-          });
-        });
-        doc.save('hydro_report.pdf');
-      } catch (err) {
-        console.warn('[3mfhydro] PDF-eksport feilet, bruker print-fallback:', err);
-        const win = window.open('', '_blank', 'width=900,height=1200');
-        if (!win) return;
-        win.document.write(<!doctype html><html lang="no"><head><meta charset="utf-8"><title>Hydrostatikkrapport</title><style>body{font-family:Segoe UI,Arial,sans-serif;margin:32px;color:#111}h1{margin:0 0 18px}pre{white-space:pre-wrap;line-height:1.5;font:14px/1.5 Segoe UI,Arial,sans-serif}</style></head><body><h1>Hydrostatikkrapport</h1><pre></pre></body></html>);
-        win.document.close();
-        win.focus();
-        win.print();
-      }
-    }function downloadFile(filename, content, mimeType) {
+    function downloadFile(filename, content, mimeType) {
       const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1704,7 +1554,7 @@ TCF & ${fmt(now.wp?.yF)} \\
 
     const applyHydroInputs = async ({ draft = null, trim = null, heel = null } = {}) => {
       if (!hydro?.mesh) {
-        setHud('Last modellen ferdig først.', true);
+        setHud('Last modellen ferdig forst.', true);
         return;
       }
 
@@ -1720,7 +1570,6 @@ TCF & ${fmt(now.wp?.yF)} \\
         await hydro.recompute();
         await updateHydroAfterLoad();
         syncHydroVisibility();
-        markReportStale();
         setHud('Hydrostatikk oppdatert');
       } catch (err) {
         console.error('[3mfhydro] Hydro-oppdatering feilet:', err);
@@ -1732,7 +1581,7 @@ TCF & ${fmt(now.wp?.yF)} \\
 
     document.getElementById('chkHydro')?.addEventListener('change', () => {
       syncHydroVisibility();
-      setHud(document.getElementById('chkHydro')?.checked ? 'Hydrostatikk på' : 'Hydrostatikk av');
+      setHud(document.getElementById('chkHydro')?.checked ? 'Hydrostatikk pa' : 'Hydrostatikk av');
     });
 
     document.getElementById('toggleHydroData')?.addEventListener('change', () => {
@@ -1756,63 +1605,8 @@ TCF & ${fmt(now.wp?.yF)} \\
       document.getElementById('btnReport')?.click();
     });
 
-    document.getElementById('chkWire')?.addEventListener('change', (e) => {
-      const enabled = !!e.target.checked;
-      core.mesh?.traverse?.((child) => {
-        if (!child?.material) return;
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        mats.forEach((mat) => { if (mat) { mat.wireframe = enabled; mat.needsUpdate = true; } });
-      });
-      setHud(enabled ? 'Wireframe på' : 'Wireframe av');
-    });
-
-    document.getElementById('btnHelp')?.addEventListener('click', () => {
-      helpOverlay.classList.add('show');
-    });
-
-    document.getElementById('materialModeBtn')?.addEventListener('click', () => {
-      const next = materialMode === 'auto' ? 'on' : materialMode === 'on' ? 'off' : 'auto';
-      setMaterialMode(next);
-      setHud(
-        next === 'auto'
-          ? 'Materialmodus: auto-translucent for indre deler'
-          : next === 'on'
-            ? 'Materialmodus: translucens alltid på'
-            : 'Materialmodus: translucens av'
-      );
-    });
-
     document.getElementById('chkHydro').checked = true;
-    setMaterialMode('auto');
     syncHydroVisibility();
-
-    const dropdowns = Array.from(document.querySelectorAll('.dd'));
-    const closeAllMenus = (exceptId = '') => {
-      dropdowns.forEach((dd) => {
-        const menu = dd.querySelector('.menu');
-        if (!menu) return;
-        const shouldShow = exceptId && menu.id === exceptId;
-        menu.classList.toggle('show', !!shouldShow);
-      });
-    };
-
-    dropdowns.forEach((dd) => {
-      const btn = dd.querySelector('.ddBtn');
-      const menu = dd.querySelector('.menu');
-      if (!btn || !menu) return;
-      btn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const willOpen = !menu.classList.contains('show');
-        closeAllMenus(willOpen ? menu.id : '');
-      });
-      menu.addEventListener('click', (ev) => ev.stopPropagation());
-    });
-
-    document.addEventListener('click', () => closeAllMenus());
-    document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape') closeAllMenus();
-    });
 
     helpOverlay.addEventListener("click", (e) => {
       if(e.target === helpOverlay) {
@@ -1834,8 +1628,8 @@ TCF & ${fmt(now.wp?.yF)} \\
             <h3>Oversikt</h3>
             <p>Denne viewer viser 3MF-filer (3D Manufacturing Format) med integrerte hydrostatiske beregninger for maritime applikasjoner.</p>
             <ul>
-              <li><strong>3MF-støtte:</strong> ZIP-basert format med XML mesh-data</li>
-              <li><strong>Hydrostatikk:</strong> Volum, tyngdepunkt, stabilitet, GM/BM og GZ-kurver</li>
+              <li><strong>3MF støtte:</strong> ZIP-basert format med XML mesh data</li>
+              <li><strong>Hydrostatikk:</strong> Volum, tyngdepunkt, stabilitet, GZ-kurver</li>
               <li><strong>Interaktiv:</strong> Juster draft, trim og heel i sanntid</li>
             </ul>
           `;
@@ -1844,9 +1638,9 @@ TCF & ${fmt(now.wp?.yF)} \\
             <h3>Hydrostatikk</h3>
             <p>Hydrostatiske beregninger inkluderer:</p>
             <ul>
-              <li><strong>Volum:</strong> Fordrengt volum under vannlinjen</li>
+              <li><strong>Volum:</strong> Fordrängt volum under vannlinjen</li>
               <li><strong>Tyngdepunkt (G):</strong> Geometrisk tyngdepunkt</li>
-              <li><strong>Flottasjonssenter (B):</strong> Tyngdepunkt av fortrengt volum</li>
+              <li><strong>Flottasjonssenter (B):</strong> Tyngdepunkt av fordängt volum</li>
               <li><strong>Metacenter (M):</strong> Stabilitetspunkt</li>
               <li><strong>GZ-kurve:</strong> Rettingsmoment som funksjon av helning</li>
             </ul>
@@ -1868,4 +1662,3 @@ TCF & ${fmt(now.wp?.yF)} \\
   </script>
 </body>
 </html>
-
