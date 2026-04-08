@@ -170,6 +170,26 @@ Hva den gjør:
 - `add-semester`: legger til semester-dropdown i `includes/navbar.html` og oppretter `semestre/<nummer>`.
 - `add-course`: lager `index.html` i `semestre/<sem>/<slug>/`, oppretter `filer/index.json` med placeholder og oppdaterer navbar.
 
+### Oppsett for andre som vil bruke repoet som base
+
+Ja, andre kan bruke repoet ditt som "full rollout"-base, lage egne semestersider og samtidig pull'e nye funksjoner/tools senere.
+
+Anbefalt flyt:
+
+1. Klon repoet.
+2. Lag egne semestersider med:
+   - `python navbarupdater.py add-semester <nr>`
+   - `python navbarupdater.py add-course <semester> <slug> "<Tittel>" "<Beskrivelse>"`
+3. Legg inn egne øvinger/filer i de opprettede mappene under `semestre/<nr>/<kurs>/filer/`.
+4. Kjør:
+   - `python SiteUpdater3.py .`
+   for å regenerere `index.json` i mappene.
+5. Når nye funksjoner kommer i upstream, kan de pulles inn uten at lokale navbar-områder merket `LOCAL-ONLY` blir overskrevet.
+
+Merk:
+- `Hjem` er felles/generell.
+- semesterlenker er lokale per side (`NAVBAR_LEFT_SEMESTERS`), men `add-semester`/`add-course` er satt opp til å kunne oppdatere denne blokken lokalt.
+
 ---
 Praktiske tips
 ---
