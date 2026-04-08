@@ -4,72 +4,101 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fusion fil-analyse</title>
-  <link rel="stylesheet" href="/assets/css/themes.css">
-  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css">
+  <link rel="stylesheet" href="/assets/css/themes.css?v=20260408e">
+  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css?v=20260408e">
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>Fusion fil-behandler</h1>
-      <div id="headline" class="muted">Laster filinformasjon…</div>
-      <div style="margin-top:10px;" class="buttons action-buttons">
-        <a id="btnRaw" class="btn" target="_blank" rel="noopener">Åpne råfil</a>
-        <button id="btnFusion" class="primary">Åpne i Fusion</button>
-        <button id="btnBambu">Åpne i Bambu Studio</button>
-        <button id="btnStl">Åpne i 3D-viewer</button>
-        <button id="btnTabOverview" class="tab active">Tab: Oversikt</button>
-        <button id="btnTabHydro" class="tab">Tab: Hydrostatikk</button>
-        <button id="btnToggleTools">Hide/show tools ☰</button>
-        <button id="btnToggleInfo">Hide/show info ℹ️</button>
-        <a class="btn" href="/includes/kodeLesere/FUSION_FORMAT_CAPABILITIES.md" target="_blank" rel="noopener">Format-matrise</a>
-      </div>
-    </div>
-
-    <div class="card" id="infoCard">
-      <h2>Fil-metadata / timeline</h2>
-      <div class="grid" id="metaGrid"></div>
-      <div id="timeline" class="muted" style="margin-top:10px;"></div>
-    </div>
-
-    <div class="card" id="toolsCard">
-      <h2>Komponent- og geometri-sjekk</h2>
-      <div id="checks">Kjører analyser…</div>
-      <div id="details" class="muted" style="margin-top:10px;"></div>
-    </div>
-    <div class="card" id="hydroCard">
-      <h2>Hydrostatikk (estimat)</h2>
-      <div class="grid">
-        <div class="kv"><span class="muted">Vann-tetthet (kg/m³)</span><input id="inpRhoWater" type="number" value="1025" step="1" style="width:130px;"></div>
-        <div class="kv"><span class="muted">Materiale</span>
-          <select id="selMaterial" style="width:150px;">
-            <option value="steel">Stål</option>
-            <option value="aluminum">Aluminium</option>
-            <option value="grfp">GRP</option>
-            <option value="wood">Tre</option>
-            <option value="custom">Custom</option>
-          </select>
+  <div class="fusion-shell">
+    <section class="viewer-shell card">
+      <div class="viewer-topbar">
+        <div class="viewer-copy">
+          <p class="viewer-kicker">3D Modell</p>
+          <h1 id="viewerTitle">Fusion fil-behandler</h1>
+          <div id="headline" class="muted">Laster filinformasjon...</div>
         </div>
-        <div class="kv"><span class="muted">Material-tetthet (kg/m³)</span><input id="inpRhoMat" type="number" value="7850" step="1" style="width:130px;"></div>
-        <div class="kv"><span class="muted">KG-fraksjon av dybde</span><input id="inpKgFrac" type="number" value="0.55" step="0.01" min="0" max="1" style="width:130px;"></div>
-        <div class="kv"><span class="muted">Blokk-koeffisient (fallback)</span><input id="inpCb" type="number" value="0.60" step="0.01" min="0.1" max="1" style="width:130px;"></div>
-        <div class="kv"><span class="muted">Skall-tykkelse (mm, valgfri)</span><input id="inpThicknessMm" type="number" value="0" step="0.1" min="0" style="width:130px;"></div>
+        <div class="buttons compact-buttons">
+          <button id="btnToggleDrawer" class="primary" type="button">Skjul filbehandler ☰</button>
+        </div>
       </div>
-      <div style="margin-top:10px;" class="buttons">
-        <button id="btnHydroCalc" class="primary">Beregn hydrostatikk</button>
+
+      <div class="viewer-stage">
+        <div id="viewerLoading" class="viewer-loading">
+          <div class="spinner" aria-hidden="true"></div>
+          <strong id="viewerLoadingTitle">Laster 3D-visning...</strong>
+          <p id="viewerLoadingText" class="muted">Velger riktig viewer og henter modell.</p>
+        </div>
+        <iframe id="viewerFrame" title="3D-modellvisning" loading="eager"></iframe>
       </div>
-      <div id="hydroWarn" class="warn" style="margin-top:8px;"></div>
-      <pre id="hydroReport" style="white-space:pre-wrap;background:#12151c;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:10px;">Venter på beregning…</pre>
-    </div>
-    <div class="card" id="componentsCard">
-      <h2>Komponentliste</h2>
-      <div class="component-toolbar">
-        <input id="componentFilter" type="text" placeholder="Filtrer komponentnavn…" />
+    </section>
+
+    <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+
+    <aside id="drawer" class="inspector-drawer is-open">
+      <div class="drawer-inner">
+        <div class="card">
+          <h2>Filbehandler</h2>
+          <div class="buttons action-buttons">
+            <a id="btnRaw" class="btn" target="_blank" rel="noopener">Åpne råfil</a>
+            <button id="btnFusion" class="primary" type="button">Åpne i Fusion</button>
+            <button id="btnBambu" type="button">Åpne i Bambu Studio</button>
+            <button id="btnStl" type="button">Åpne i 3D-viewer</button>
+            <button id="btnTabOverview" class="tab active" type="button">Tab: Oversikt</button>
+            <button id="btnTabHydro" class="tab" type="button">Tab: Hydrostatikk</button>
+            <button id="btnToggleTools" type="button">Skjul/vis verktøy ☰</button>
+            <button id="btnToggleInfo" type="button">Skjul/vis info ℹ</button>
+            <a class="btn" href="/includes/kodeLesere/FUSION_FORMAT_CAPABILITIES.md" target="_blank" rel="noopener">Format-matrise</a>
+          </div>
+        </div>
+
+        <div class="card" id="infoCard">
+          <h2>Fil-metadata / timeline</h2>
+          <div class="grid" id="metaGrid"></div>
+          <div id="timeline" class="muted" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card" id="toolsCard">
+          <h2>Komponent- og geometri-sjekk</h2>
+          <div id="checks">Kjører analyser...</div>
+          <div id="details" class="muted" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card" id="hydroCard">
+          <h2>Hydrostatikk (estimat)</h2>
+          <div class="grid">
+            <div class="kv"><span class="muted">Vann-tetthet (kg/m³)</span><input id="inpRhoWater" type="number" value="1025" step="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Materiale</span>
+              <select id="selMaterial" style="width:150px;">
+                <option value="steel">Stål</option>
+                <option value="aluminum">Aluminium</option>
+                <option value="grfp">GRP</option>
+                <option value="wood">Tre</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="kv"><span class="muted">Material-tetthet (kg/m³)</span><input id="inpRhoMat" type="number" value="7850" step="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">KG-fraksjon av dypgang</span><input id="inpKgFrac" type="number" value="0.55" step="0.01" min="0" max="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Blokk-koeffisient (fallback)</span><input id="inpCb" type="number" value="0.60" step="0.01" min="0.1" max="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Skall-tykkelse (mm, valgfri)</span><input id="inpThicknessMm" type="number" value="0" step="0.1" min="0" style="width:130px;"></div>
+          </div>
+          <div class="buttons" style="margin-top:10px;">
+            <button id="btnHydroCalc" class="primary" type="button">Beregn hydrostatikk</button>
+          </div>
+          <div id="hydroWarn" class="warn" style="margin-top:8px;"></div>
+          <pre id="hydroReport" style="white-space:pre-wrap;padding:10px;margin-top:10px;">Venter på beregning...</pre>
+        </div>
+
+        <div class="card" id="componentsCard">
+          <h2>Komponentliste</h2>
+          <div class="component-toolbar">
+            <input id="componentFilter" type="text" placeholder="Filtrer komponentnavn..." />
+          </div>
+          <div class="muted" id="chosenMuted" style="margin-bottom:8px;">Valgt: – | Dempet: –</div>
+          <div id="components" class="muted">Ingen komponentdata ennå.</div>
+        </div>
       </div>
-      <div class="muted" id="chosenMuted" style="margin-bottom:8px;">Chosen: – | Muted: –</div>
-      <div id="components" class="muted">Ingen komponentdata ennå.</div>
-    </div>
+    </aside>
   </div>
 
-  <script src="/assets/js/fusion-file-analyzer.js" defer></script>
+  <script src="/assets/js/fusion-file-analyzer.js?v=20260408e" defer></script>
 </body>
 </html>

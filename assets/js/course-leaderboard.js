@@ -1,71 +1,141 @@
-/* --------------------------------------------------------------
-.clb{ background:#fff; color:#111; }
-.clb .wrap{ max-width:900px; margin:0 auto; padding:16px; }
-.clb h3{ margin:0 0 8px; font-size:20px; }
-.clb table{ width:100%; border-collapse:collapse; }
-.clb th,.clb td{ border-bottom:1px solid #eee; padding:6px 8px; text-align:left; }
-.clb .muted{ opacity:.75; margin:8px 0; }
+(function () {
+  "use strict";
+
+  function ensureCSS() {
+    const id = "course-leaderboard-css";
+    if (document.getElementById(id)) return;
+    const css = `
+.clb{color:var(--text-color,#17212f)}
+.clb-card{background:var(--card-bg,#fff);border:1px solid var(--border-color,#dbe3ef);border-radius:18px;box-shadow:0 12px 32px rgba(15,23,42,.08);padding:1rem}
+.clb-head{display:flex;justify-content:space-between;gap:.8rem;align-items:flex-start;flex-wrap:wrap;margin-bottom:.9rem}
+.clb-head h3{margin:0;font-size:1.1rem}
+.clb-muted{color:var(--text-muted,#60748a);font-size:.95rem}
+.clb-table{width:100%;border-collapse:collapse}
+.clb-table th,.clb-table td{padding:.7rem .65rem;border-bottom:1px solid var(--border-color,#e5edf7);text-align:left}
+.clb-table th{font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted,#60748a)}
+.clb-me{margin-top:.9rem;padding:.85rem 1rem;border-radius:14px;background:var(--surface-2,#f7faff);border:1px solid var(--border-color,#dbe3ef);font-weight:600}
+.clb-empty{padding:.9rem 0;color:var(--text-muted,#60748a)}
+@media (max-width: 768px){
+  .clb-card{padding:.85rem}
+  .clb-table thead{display:none}
+  .clb-table,.clb-table tbody,.clb-table tr,.clb-table td{display:block;width:100%}
+  .clb-table tr{padding:.7rem 0;border-bottom:1px solid var(--border-color,#e5edf7)}
+  .clb-table td{border-bottom:none;padding:.25rem 0}
+  .clb-table td::before{content:attr(data-label);display:block;font-size:.78rem;color:var(--text-muted,#60748a);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.15rem}
+}
 `;
-const s=document.createElement('style'); s.id=id; s.textContent=css; document.head.appendChild(s);
-}
+    const style = document.createElement("style");
+    style.id = id;
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
 
+  function fmtPct(scoreSum, totalSum) {
+    const value = totalSum > 0 ? (scoreSum / totalSum) * 100 : 0;
+    return `${(Math.round(value * 10) / 10).toFixed(1)}%`;
+  }
 
-async function get(endpoint, courseId, deviceId){
-const u = new URL(endpoint, location.origin);
-u.searchParams.set('course_id', courseId);
-if (deviceId) u.searchParams.set('device_id', deviceId);
-const r = await fetch(u.toString(), {headers:{'Accept':'application/json'}, cache:'no-store'});
-if(!r.ok) throw new Error(`Server svarte ${r.status}`);
-return r.json();
-}
+  function fmtMs(ms) {
+    const totalSeconds = Math.max(0, Math.round((Number(ms) || 0) / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
+  }
 
+  function getDeviceId() {
+    return localStorage.getItem("FQ::device_id") || "";
+  }
 
-function fmtPct(n){ return (Math.round(n*1000)/10).toFixed(1) + '%'; }
-function fmtMs(ms){ const s=(ms/1000)|0, m=(s/60)|0, r=s%60; return m? `${m}m ${r}s` : `${r}s`; }
+  async function fetchLeaderboard(endpoint, courseId, quizId) {
+    const url = new URL(endpoint, location.origin);
+    if (courseId) url.searchParams.set("course_id", courseId);
+    if (quizId) url.searchParams.set("quiz_id", quizId);
+    const deviceId = getDeviceId();
+    if (deviceId) url.searchParams.set("device_id", deviceId);
+    const response = await fetch(url.toString(), {
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      throw new Error(`Server svarte ${response.status}`);
+    }
+    return response.json();
+  }
 
+  async function render(container, { courseId = "", quizId = "", title = "", endpoint = "" } = {}) {
+    ensureCSS();
+    container.innerHTML = "";
+    endpoint = endpoint || window.FOLK_LEADERBOARD_ENDPOINT || "";
+    if (!endpoint) {
+      container.appendChild(Object.assign(document.createElement("div"), { className: "clb-empty", textContent: "Mangler leaderboard-endpoint." }));
+      return;
+    }
 
-async function init(container, {courseId, title, endpoint}){
-ensureCSS();
-endpoint = endpoint || window.FOLK_LEADERBOARD_ENDPOINT;
-if(!endpoint) { container.textContent = 'Mangler FOLK_LEADERBOARD_ENDPOINT'; return; }
-if(!courseId){ container.textContent = 'Mangler courseId'; return; }
+    const root = document.createElement("section");
+    root.className = "clb";
+    const card = document.createElement("div");
+    card.className = "clb-card";
+    root.appendChild(card);
+    const head = document.createElement("div");
+    head.className = "clb-head";
+    const titleWrap = document.createElement("div");
+    const h3 = document.createElement("h3");
+    h3.textContent = title || (quizId ? "Quiz-toppliste" : "Fag-toppliste");
+    const status = document.createElement("div");
+    status.className = "clb-muted";
+    status.textContent = "Laster toppliste…";
+    titleWrap.append(h3, status);
+    head.appendChild(titleWrap);
+    card.appendChild(head);
+    const body = document.createElement("div");
+    card.appendChild(body);
+    container.appendChild(root);
 
+    try {
+      const data = await fetchLeaderboard(endpoint, courseId, quizId);
+      const top = Array.isArray(data.top) ? data.top : [];
+      const you = data.you || null;
+      if (!top.length) {
+        body.innerHTML = '<div class="clb-empty">Ingen resultater ennå.</div>';
+      } else {
+        const table = document.createElement("table");
+        table.className = "clb-table";
+        table.innerHTML = `
+          <thead>
+            <tr><th>#</th><th>Navn</th><th>Poeng</th><th>Forsøk</th><th>Tid</th></tr>
+          </thead>
+        `;
+        const tbody = document.createElement("tbody");
+        top.forEach((entry, index) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td data-label="#">${index + 1}</td>
+            <td data-label="Navn">${entry.name || "Anonym"}</td>
+            <td data-label="Poeng">${fmtPct(entry.score_sum || 0, entry.total_sum || 0)}</td>
+            <td data-label="Forsøk">${entry.quizzes || 0}</td>
+            <td data-label="Tid">${fmtMs(entry.ms_sum || 0)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        body.appendChild(table);
+      }
 
-const root = document.createElement('div'); root.className='clb';
-const wrap = document.createElement('div'); wrap.className='wrap'; root.appendChild(wrap);
-const h = document.createElement('h3'); h.textContent = title || 'Toppliste (fag)'; wrap.appendChild(h);
-const status = document.createElement('div'); status.className='muted'; wrap.appendChild(status);
-const table = document.createElement('div'); wrap.appendChild(table);
+      if (you) {
+        const me = document.createElement("div");
+        me.className = "clb-me";
+        me.textContent = `Din plass: ${you.rank || "ukjent"} • ${fmtPct(you.score_sum || 0, you.total_sum || 0)} • ${you.quizzes || 0} forsøk • ${fmtMs(you.ms_sum || 0)}`;
+        body.appendChild(me);
+      }
 
+      status.textContent = top.length ? `Viser topp ${top.length}${quizId ? " for denne quizen" : ""}.` : "Ingen resultater ennå.";
+    } catch (error) {
+      status.textContent = `Kunne ikke hente toppliste: ${error.message}`;
+    }
+  }
 
-container.innerHTML=''; container.appendChild(root);
-
-
-try{
-const deviceId = localStorage.getItem('FQ::device_id') || '';
-const data = await get(endpoint, courseId, deviceId);
-const top = data.top || [];
-const you = data.you || null;
-
-
-const t = document.createElement('table');
-const thead = document.createElement('thead');
-thead.innerHTML = '<tr><th>#</th><th>Navn</th><th>Poeng%</th><th>Quiz antall</th><th>Total tid</th></tr>';
-t.appendChild(thead);
-const tb = document.createElement('tbody');
-top.forEach((e,ix)=>{
-const pct = e.total_sum>0 ? (e.score_sum/e.total_sum) : 0;
-const tr = document.createElement('tr');
-tr.innerHTML = `<td>${ix+1}</td><td>${e.name||'Anonym'}</td><td>${fmtPct(pct)}</td><td>${e.quizzes}</td><td>${fmtMs(e.ms_sum||0)}</td>`;
-tb.appendChild(tr);
-});
-t.appendChild(tb); table.appendChild(t);
-
-
-status.textContent = `Viser topp ${top.length}.` + (you? ` Din plass: ${fmtPct((you.score_sum/you.total_sum)||0)} (${you.quizzes} quiz).` : '');
-} catch(err){ status.textContent = 'Kunne ikke hente fag-toppliste: ' + err.message; }
-}
-
-
-window.CourseLeaderboard = { init };
-})();*/
+  window.CourseLeaderboard = {
+    fetchLeaderboard,
+    render
+  };
+})();

@@ -1,46 +1,136 @@
 <!DOCTYPE html>
 <html lang="no">
 <head>
-<meta charset="utf-8">
-<title>FBM viewer</title>
-<style>
-  html,body{margin:0;padding:0;height:100%;font-family:system-ui,Segoe UI,Arial;}
-  .wrap{padding:16px;max-width:900px;}
-  .box{border:1px solid #ddd;border-radius:10px;padding:14px;background:#fafafa}
-  code{background:#eee;padding:2px 6px;border-radius:6px}
-  button{padding:10px 12px;border:0;border-radius:8px;cursor:pointer}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FBM viewer</title>
+  <style>
+    :root{
+      --bg-main: var(--bg-main, var(--bgcolor, #f5f7fb));
+      --bg-card: var(--card-bg, var(--bg-card, #ffffff));
+      --text-main: var(--text-main, var(--textcolor, #162033));
+      --text-muted: var(--text-muted, #66758f);
+      --border-color: var(--border-color, rgba(15,35,75,.14));
+      --primary: var(--primary, var(--accent, #0b65c2));
+      --primary-contrast: var(--primary-contrast, #ffffff);
+    }
+
+    html,body{
+      margin:0;
+      padding:0;
+      min-height:100%;
+      background:var(--bg-main);
+      color:var(--text-main);
+      font-family:system-ui, Segoe UI, Arial, sans-serif;
+    }
+
+    .wrap{
+      padding:16px;
+      max-width:900px;
+    }
+
+    .box{
+      border:1px solid var(--border-color);
+      border-radius:16px;
+      padding:16px;
+      background:var(--bg-card);
+      box-shadow:0 8px 24px rgba(15,35,75,.08);
+    }
+
+    code{
+      background:color-mix(in srgb, var(--bg-card) 85%, #000 15%);
+      padding:2px 6px;
+      border-radius:8px;
+    }
+
+    .buttons{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:14px;
+    }
+
+    button, a{
+      padding:10px 12px;
+      border:1px solid var(--border-color);
+      border-radius:12px;
+      cursor:pointer;
+      background:var(--primary);
+      color:var(--primary-contrast);
+      text-decoration:none;
+      font-weight:700;
+    }
+
+    .muted{
+      color:var(--text-muted);
+    }
+
+    body.is-embedded .wrap{
+      padding:10px;
+    }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <h2>FBM / FM3</h2>
-  <div class="box" id="msg">Laster…</div>
-</div>
+  <div class="wrap">
+    <h2>FBM / FM3</h2>
+    <div class="box" id="msg">Laster…</div>
+  </div>
 
-<script>
-  const file = new URLSearchParams(location.search).get("file");
-  const msg = document.getElementById("msg");
+  <script>
+    function applyThemePayload(payload) {
+      try {
+        const root = document.documentElement;
+        if (payload && payload.themeAttr) root.setAttribute("data-theme", payload.themeAttr);
+        const vars = payload?.vars || {};
+        Object.keys(vars).forEach((k) => root.style.setProperty(k, vars[k]));
+      } catch {}
+    }
 
-  if (!file){
-    msg.textContent = "Mangler ?file=";
-  } else {
-    msg.innerHTML =
-      "Denne nettsiden kan ikke rendere <b>DelfShip .fbm/.fm3</b> direkte i nettleseren uten en egen parser.<br><br>" +
-      "Anbefalt: eksporter modellen fra DelfShip til <b>STL</b> (støttet nå) eller <b>GLB</b> (kan legges til).<br><br>" +
-      "<button id='open'>Åpne FBM/FM3 som fil</button> " +
-      "<button id='tryStl' style='margin-left:8px'>Prøv matchende STL</button> " +
-      "<button id='openFusion' style='margin-left:8px'>Fusion analyse</button> " +
-      "<span style='margin-left:10px;opacity:.8'>(" + file + ")</span>";
+    window.addEventListener("message", (e) => {
+      if (e?.data?.type === "theme-sync") applyThemePayload(e.data);
+    });
 
-    document.getElementById("open").onclick = () => window.open(file, "_blank");
-    document.getElementById("tryStl").onclick = () => {
+    try {
+      if (window.parent && window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        const parentStyle = getComputedStyle(parentRoot);
+        const vars = {};
+        for (let i = 0; i < parentStyle.length; i++) {
+          const name = parentStyle[i];
+          if (name.startsWith("--")) vars[name] = parentStyle.getPropertyValue(name).trim();
+        }
+        applyThemePayload({ themeAttr: parentRoot.getAttribute("data-theme"), vars });
+      }
+    } catch {}
+
+    const params = new URLSearchParams(location.search);
+    const file = params.get("file");
+    const embedded = params.get("embedded") === "1";
+    const msg = document.getElementById("msg");
+    if (embedded) document.body.classList.add("is-embedded");
+
+    if (!file) {
+      msg.textContent = "Mangler ?file=";
+    } else {
       const stlFile = file.replace(/\.(fbm|fm3)$/i, ".stl");
-      window.location.href = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlFile)}`;
-    };
-    document.getElementById("openFusion").onclick = () => {
-      window.location.href = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(file)}`;
-    };
-  }
-</script>
+      msg.innerHTML =
+        "<p>Denne vieweren kan ikke rendre <b>DelfShip .fbm/.fm3</b> direkte i nettleseren uten en egen parser.</p>" +
+        "<p>Anbefalt neste steg er å åpne en matchende STL hvis den finnes, eller å bruke Fusion-/CAD-skallet for metadata og videre ruting.</p>" +
+        "<div class='buttons'>" +
+        "<button id='open'>Åpne råfil</button>" +
+        "<button id='tryStl'>Prøv matchende STL</button>" +
+        "<button id='openFusion'>Åpne i Fusion-skall</button>" +
+        "</div>" +
+        "<p class='muted' style='margin-top:12px'>Kilde: <code>" + file + "</code></p>";
+
+      document.getElementById("open").onclick = () => window.open(file, "_blank", "noopener");
+      document.getElementById("tryStl").onclick = () => {
+        window.location.href = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlFile)}`;
+      };
+      document.getElementById("openFusion").onclick = () => {
+        window.location.href = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(file)}`;
+      };
+    }
+  </script>
 </body>
 </html>

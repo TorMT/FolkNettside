@@ -3,9 +3,8 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Hjem • FolkNettsideFolk</title>
+<title>Hjem - FolkNettsideFolk</title>
 
-<!-- Felles stilark -->
 <style>
     body.home main.content{
       margin: calc(var(--nav-h, 48px) + 2rem) auto 0;
@@ -60,7 +59,6 @@
       .home-cards{ grid-template-columns: 1fr; }
     }
 
-    /* Dashboard container følger tema */
     .analytics-wrapper{
       margin-top: 3rem;
       max-width: 900px;
@@ -86,11 +84,10 @@
 <link rel="stylesheet" href="/assets/css/sidebar-loader-theme-override.css">
 <link rel="stylesheet" href="/assets/css/navbar-theme-fix.css">
 
-<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}  
+  function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
   gtag('config', 'G-BJ41MZJP0L');
 </script>
@@ -100,48 +97,54 @@
 <div id="navbar"></div>
 
 <main class="content">
-<h1>Velkommen til mi sia</h1>
+<h1>Velkommen til mi side</h1>
 <p>
   Dette er startsiden. Her finner du informasjon, navigasjon
-  og innganger til fag og ressurser, d fungere sånn ish.
+  og innganger til fag og ressurser.
 </p>
 
 <section class="home-cards">
   <div class="card">
     <h2>Nytt nytt og funksjoner</h2>
     <ul>
-      <li>ChemDraw er nå importert (se organisk kjemi)</li>
-      <li>Støtte for å se 3d filer som stl samt vannlinjer og slikt (jobbes litt med, se marin intro båtprosjekt) </li>
+      <li>Videoviseren grupperer nå forelesninger bedre, med søk, temaer, gruppebeskrivelser og markering som sett.</li>
+      <li>Fluid og Fysikalsk kjemi bruker nå oppgraderte forelesningslister med bedre deling av deler og tema.</li>
+      <li>3MF-viseren har fått komponentliste, highlighting, rapportskuff og bedre hydrostatikk-flyt.</li>
+      <li>Fusion- og F3Z-filer får egen lokal åpner med metadata, container-visning og STL-fallback ved behov.</li>
+      <li>SiteUpdater har backup, dry-run og rollback, og brukes nå tryggere på `diverse` og `semestre`.</li>
     </ul>
   </div>
 
   <div class="card">
     <h2>Gammelt nytt og funksjoner</h2>
     <ul>
-      <li>Passordbeskyttede mapper</li>
-      <li>PDF‑viewer med fallback</li>
-      <li>Velkomstbilder per fagmappe</li>
-      <li>Bilder?! – kommer når jeg orker</li>
-      <li>Hydrometer‑tracker integrasjon</li>
-      <li>Kode kjøreren kan nå kjøre nestede pythonProgram dvs importere komponenter og ha filer som importeres av komponenter</li>
-      <li>Layout smoothness</li>
-      <li>Mobilvennlighet, endelig fikset dette</li>
-      <li>Viser data som stjeles mens du er på siden (foreløpig ikke så mye å skryte av)</li>
-      <li>Quiz til fag, forhåpentlig vis med scoreboard (par småfeil atm)</li>
-      <li>Du kan nå lese kode i farger WOOOOOO</li>
-      <li>Eksperimentell funksjon: kjør koden direkte på siden</li>
+      <li>Passordbeskyttede mapper.</li>
+      <li>PDF-viewer med fallback.</li>
+      <li>Velkomstbilder per fagmappe.</li>
+      <li>HTML-, kode- og notebook-visere for egne filer.</li>
+      <li>Hydrometer-tracker integrasjon.</li>
+      <li>Kodekjøreren kan kjøre nestede Python-programmer med egne importerte filer.</li>
+      <li>Layout smoothness.</li>
+      <li>Mobilvennlighet på hovedsider og sidepanel.</li>
+      <li>Webstatistikk og analytics på forsiden.</li>
+      <li>Quiz til fag med historikk, temaer og grunnleggende topplisteflyt.</li>
+      <li>Du kan nå lese kode i farger.</li>
+      <li>Eksperimentell funksjon: kjør koden direkte på siden.</li>
     </ul>
   </div>
 
   <div class="card">
     <h2>Pågående arbeid</h2>
     <ul>
-      <li>Quiz-modul med scoreboard mangler forsatt</li>
+      <li>Videre opprydding i tegnkoding og navn i enkelte `index.json`-filer.</li>
+      <li>Fusion/F3Z-åpner som viser selve CAD-fila enda mer direkte uten eksterne toppmenyer.</li>
+      <li>Hydrostatikk-rapport med bedre beregninger og penere eksport/PDF-flyt.</li>
+      <li>Quiz-modul med mer komplett leaderboard, studymodus og mobilforbedringer.</li>
+      <li>Autodesk APS-integrasjon for å hente Njord-modeller direkte fra hub/prosjekt.</li>
     </ul>
   </div>
 </section>
 
-<!-- === GOOGLE ANALYTICS DASHBOARD (THEME-FRIENDLY) === -->
 <div class="analytics-wrapper" data-theme-aware>
   <h2>Webstatistikk</h2>
   <iframe
@@ -158,8 +161,6 @@
 </main>
 
 <script>
-  // Sider/områder som IKKE skal få global navbar/header.
-  // IGNORERER nå hele /diverse/ (inkl. nye genererte sider).
   const NAVBAR_IGNORE_PATHS = [];
   const NAVBAR_IGNORE_PREFIXES = ['/diverse/'];
 
@@ -181,7 +182,6 @@
       .then(html => {
         document.getElementById('navbar').innerHTML = html;
 
-        // Last mobile-enhancer etter at navbar finnes i DOM
         const s = document.createElement('script');
         s.src = '/includes/mobile-enhancer.js';
         document.body.appendChild(s);

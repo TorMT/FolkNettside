@@ -41,6 +41,7 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse, parse_qs
 
 
 STOPWORDS = {
@@ -70,6 +71,29 @@ MOJIBAKE_MAP = {
 }
 
 
+def load_local_env() -> None:
+    candidates = [
+        Path.cwd() / ".env.local",
+        Path(__file__).resolve().parents[1] / ".env.local",
+    ]
+    for env_path in candidates:
+        if not env_path.exists():
+            continue
+        try:
+            for raw_line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+        except Exception:
+            pass
+        break
+
+
 def clean_group_label(text: str) -> str:
     s = str(text or "").strip()
     for bad, good in MOJIBAKE_MAP.items():
@@ -84,6 +108,101 @@ def normalize_group_key(text: str) -> str:
     s = clean_group_label(text).lower()
     s = re.sub(r"[^a-z0-9\s-]", " ", s)
     return re.sub(r"\s+", " ", s).strip()
+
+def looks_noisy_group_label(text: str) -> bool:
+    s = normalize_group_key(text)
+    if not s:
+        return True
+    noisy_bits = [
+        "webvtt",
+        "captions language",
+        "align start",
+        "position 0",
+        "felles forelesningsnavn",
+        "kort oppsummering",
+    ]
+    return any(bit in s for bit in noisy_bits)
+
+def extract_lecture_prefix(text: str) -> str:
+    raw = clean_group_label(text)
+    m = re.match(r"^(forelesning\s*\d+)\b", raw, flags=re.I)
+    if m:
+        number = re.sub(r"[^\d]", "", m.group(1))
+        return f"Forelesning {number}"
+    m = re.match(r"^(vl\s*\d+)\b", raw, flags=re.I)
+    if m:
+        return re.sub(r"\s+", "", m.group(1)).upper()
+    return ""
+
+def parse_structured_group_from_title(title: str) -> tuple[str, str]:
+    raw = clean_group_label(title)
+
+    m = re.match(r"^(forelesning\s*\d+)\s*[-–—:|]\s*(.+)$", raw, flags=re.I)
+    if m:
+        prefix = extract_lecture_prefix(m.group(1))
+        rest = clean_group_label(m.group(2))
+        part = ""
+        suffix = re.search(r"(?:\s*[-–—:|]\s*|\s+)([A-Z])$", rest)
+        if suffix:
+            part = clean_group_label(suffix.group(1))
+            rest = clean_group_label(rest[:suffix.start()])
+        dup = re.match(r"^(.*?)\s*[-–—:|]\s*(.*?)$", rest)
+        if dup and normalize_group_key(dup.group(1)) == normalize_group_key(dup.group(2)):
+            rest = clean_group_label(dup.group(1))
+        return f"{prefix} - {rest}".strip(" -"), part
+
+    m = re.match(r"^(vl\s*\d+)\s+part\s*([0-9]+[a-z]?)\s*[-–—:|]\s*(.*)$", raw, flags=re.I)
+    if m:
+        return f"{extract_lecture_prefix(m.group(1))} - {clean_group_label(m.group(3))}".strip(" -"), f"part {m.group(2)}"
+
+    m = re.match(r"^(vl\s*\d+)\s*[-–—:|]\s*(.*?)\s*[-–—:|]\s*(del)\s*([0-9]+[a-z]?)\s*[-–—:|]?\s*(.*)$", raw, flags=re.I)
+    if m:
+        detail = clean_group_label(m.group(5))
+        part = f"{m.group(3)} {m.group(4)}".strip()
+        if detail:
+            part = f"{part} - {detail}"
+        return f"{extract_lecture_prefix(m.group(1))} - {clean_group_label(m.group(2))}".strip(" -"), part
+
+    m = re.match(r"^(vl\s*\d+)\s*[-–—:|]\s*(.*?)\s*[-–—:|]\s*(del[0-9]+[a-z]?)\s*[-–—:|]?\s*(.*)$", raw, flags=re.I)
+    if m:
+        detail = clean_group_label(m.group(4))
+        part = clean_group_label(m.group(3))
+        if detail:
+            part = f"{part} - {detail}"
+        return f"{extract_lecture_prefix(m.group(1))} - {clean_group_label(m.group(2))}".strip(" -"), part
+
+    m = re.match(r"^(vl\s*\d+)\s*[-–—:|]\s*(.*?)\s*[-–—:|]\s*(del|part)\s*([0-9]+[a-z]?)$", raw, flags=re.I)
+    if m:
+        return f"{extract_lecture_prefix(m.group(1))} - {clean_group_label(m.group(2))}".strip(" -"), f"{m.group(3)} {m.group(4)}"
+
+    m = re.match(r"^(vl\s*\d+)\s*[-–—:|]\s*(.*?)\s*[-–—:|]\s*(del[0-9]+[a-z]?|part\s*[0-9]+[a-z]?)$", raw, flags=re.I)
+    if m:
+        return f"{extract_lecture_prefix(m.group(1))} - {clean_group_label(m.group(2))}".strip(" -"), clean_group_label(m.group(3))
+
+    m = re.match(r"^(?:exam)?\s*([12]\d{3})\b.*?\beksamen\b.*?(?:[-–—:|]\s*)?(?:exam)?\s*\1\s*(q[0-9a-z-]+)\b", raw, flags=re.I)
+    if m:
+        return f"Eksamen {m.group(1)}", clean_group_label(m.group(2))
+
+    m = re.match(r"^(?:exam)?\s*([12]\d{3})\b.*?\beksamen\b", raw, flags=re.I)
+    if m:
+        return f"Eksamen {m.group(1)}", ""
+
+    m = re.match(r"^(vl\s*\d+)\s+part\s*([0-9]+[a-z]?)$", raw, flags=re.I)
+    if m:
+        return extract_lecture_prefix(m.group(1)), f"part {m.group(2)}"
+
+    prefix = extract_lecture_prefix(raw)
+    if prefix:
+        rest = re.sub(r"^" + re.escape(prefix) + r"\s*[-–—:|]?\s*", "", raw, flags=re.I)
+        rest = re.sub(r"^(del|part|episode|ep)\s*[0-9]+[a-z]?\s*[-–—:|]\s*", "", rest, flags=re.I)
+        rest = re.sub(r"\s*[-–—:|]?\s*(del|part|episode|ep)\s*[0-9]+[a-z]?\s*$", "", rest, flags=re.I)
+        rest = re.sub(r"\s*[-–—:|]?\s*([A-Z])\s*$", "", rest)
+        rest = clean_group_label(rest)
+        if rest and normalize_group_key(rest) != normalize_group_key(prefix):
+            return f"{prefix} - {rest}", ""
+        return prefix, ""
+
+    return "", ""
 
 
 def split_title_parts(title: str) -> tuple[str, str]:
@@ -110,11 +229,20 @@ def derive_group_and_part(title: str, description: str = "", existing_group: str
     group_clean = clean_group_label(existing_group)
     part_clean = clean_group_label(existing_part)
 
-    if not group_clean:
-        if desc_clean and normalize_group_key(desc_clean) != normalize_group_key(title_clean):
-            group_clean = desc_clean
-        else:
-            group_clean = split_title_parts(title_clean)[0]
+    title_group, title_part = parse_structured_group_from_title(title_clean)
+    desc_group, _ = parse_structured_group_from_title(desc_clean)
+
+    if title_group:
+        group_clean = title_group
+        if title_part:
+            part_clean = title_part
+    elif desc_group and extract_lecture_prefix(title_clean) and normalize_group_key(extract_lecture_prefix(desc_group)) == normalize_group_key(extract_lecture_prefix(title_clean)):
+        group_clean = desc_group
+    elif not group_clean or looks_noisy_group_label(group_clean):
+        group_clean = split_title_parts(title_clean)[0]
+
+    if not part_clean and title_part:
+        part_clean = title_part
 
     if not part_clean and title_clean:
         prefix_pattern = r"^" + re.escape(group_clean) + r"(?:\s*[-:|]\s*)?"
@@ -181,14 +309,34 @@ def run_yt_dlp_subtitles(url: str, out_dir: Path, cookies_file: str | None = Non
         "--write-subs",
         "--write-auto-subs",
         "--sub-langs",
-        "no.*,nb.*,nn.*,en.*",
+        "no-orig,no,nb,nn,en",
         "--convert-subs",
         "srt",
         "-o",
         out_tpl,
     ]
-    subprocess.run(cmd, check=False, capture_output=True, text=True)
-    candidates = sorted(out_dir.glob("*.srt")) + sorted(out_dir.glob("*.vtt"))
+    proc = safe_run(cmd)
+    proc = retry_without_browser_cookies(
+        proc,
+        url,
+        cookies_file=cookies_file,
+        cookies_from_browser=cookies_from_browser,
+        extra_args=[
+            "--skip-download",
+            "--write-subs",
+            "--write-auto-subs",
+            "--sub-langs",
+            "no-orig,no,nb,nn,en",
+            "--convert-subs",
+            "srt",
+            "-o",
+            out_tpl,
+        ],
+    )
+    video_id = ytdlp_id_from_url(url)
+    candidates = sorted(out_dir.glob(f"{video_id}*.srt")) + sorted(out_dir.glob(f"{video_id}*.vtt")) if video_id else []
+    if not candidates:
+        candidates = sorted(out_dir.glob("*.srt")) + sorted(out_dir.glob("*.vtt"))
     if not candidates:
         return ""
     return candidates[0].read_text(encoding="utf-8", errors="ignore")
@@ -198,7 +346,8 @@ def run_yt_dlp_metadata(url: str, cookies_file: str | None = None, cookies_from_
     cmd = _build_yt_dlp_base_cmd(url, cookies_file=cookies_file, cookies_from_browser=cookies_from_browser)
     cmd[1:1] = ["--skip-download", "--dump-single-json"]
     try:
-        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        proc = safe_run(cmd)
+        proc = retry_without_browser_cookies(proc, url, cookies_file=cookies_file, cookies_from_browser=cookies_from_browser, extra_args=["--skip-download", "--dump-single-json"])
         if proc.returncode != 0 or not proc.stdout.strip():
             return {}
         raw = json.loads(proc.stdout)
@@ -256,6 +405,7 @@ def subtitle_to_text(raw: str) -> str:
 def extract_themes(text: str, k: int = 6) -> list[str]:
     words = re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]{2,}", text.lower())
     words = [w for w in words if w not in STOPWORDS]
+    words = [w for w in words if not looks_like_low_signal_theme(w)]
     freq = Counter(words)
     return [w for w, _ in freq.most_common(k)]
 
@@ -277,6 +427,72 @@ def normalize_themes(themes: list[str], k: int = 6) -> list[str]:
         if clean not in out:
             out.append(clean)
     return out[:k]
+
+
+def safe_run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, check=False, capture_output=True, text=True)
+
+
+def retry_without_browser_cookies(proc: subprocess.CompletedProcess[str], url: str, cookies_file: str | None = None, cookies_from_browser: str | None = None, extra_args: list[str] | None = None) -> subprocess.CompletedProcess[str]:
+    if proc.returncode == 0:
+        return proc
+    stderr = (proc.stderr or "") + "\n" + (proc.stdout or "")
+    if cookies_from_browser and "Could not copy Chrome cookie database" in stderr:
+        cmd = _build_yt_dlp_base_cmd(url, cookies_file=cookies_file, cookies_from_browser=None)
+        cmd[1:1] = extra_args or []
+        return safe_run(cmd)
+    return proc
+
+
+def looks_like_generic_description(description: str, title: str = "", group: str = "") -> bool:
+    desc = clean_group_label(description).lower()
+    if not desc:
+        return True
+    if len(desc) < 24:
+        return True
+    normalized_desc = normalize_group_key(desc)
+    normalized_title = normalize_group_key(title)
+    normalized_group = normalize_group_key(group)
+    if normalized_desc in {normalized_title, normalized_group}:
+        return True
+    generic_prefixes = ("forelesning", "vl", "exam", "eksamen")
+    if normalized_desc.startswith(generic_prefixes) and len(normalized_desc.split()) <= 5:
+        return True
+    return False
+
+
+def looks_like_low_signal_theme(theme: str) -> bool:
+    t = clean_group_label(theme).lower()
+    if not t:
+        return True
+    if re.fullmatch(r"\d{6,8}", t):
+        return True
+    if re.fullmatch(r"vl\d+[a-z]?", t):
+        return True
+    if re.fullmatch(r"del\d+[- ]?ukjent", t):
+        return True
+    if t in {"ukjent", "unknown", "video", "forelesning"}:
+        return True
+    return False
+
+
+def themes_need_improvement(themes: list[str]) -> bool:
+    if not themes:
+        return True
+    meaningful = [t for t in themes if not looks_like_low_signal_theme(t)]
+    return len(meaningful) < 2
+
+
+def ytdlp_id_from_url(url: str) -> str:
+    s = str(url or "")
+    match = re.search(r"youtu\.be/([A-Za-z0-9_-]+)", s)
+    if match:
+        return match.group(1)
+    parsed = urlparse(s)
+    qs = parse_qs(parsed.query)
+    if "v" in qs and qs["v"]:
+        return qs["v"][0]
+    return ""
 
 
 def looks_like_placeholder_title(title: str) -> bool:
@@ -329,6 +545,7 @@ def build_ai_prompt(text: str, title: str = "", description: str = "", source_me
         "Bruk bare informasjon som faktisk finnes i inputen. Ikke finn opp temaer eller titler. "
         "Hvis tittelen i input er ukjent eller svak, men kildetittel/metatekst er bedre, bruk den. "
         "Hvis flere videoer har nesten samme navn, f.eks. Del 1 og Del 2 eller A og B, skal group_title beholde fellesnavnet og part_label bare inneholde den unike delen.\n\n"
+        "Velg 3-6 meningsfulle themes som beskriver faginnholdet. Unnga rene datoer, bare kurskoder, bare 'forelesning', eller tags som bare sier 'ukjent'.\n\n"
         f"Eksisterende videotittel: {title}\n"
         f"Eksisterende beskrivelse: {description}\n"
         f"Kildetittel fra videoplattform: {source_title}\n"
@@ -492,11 +709,97 @@ def merge_source_metadata(title: str, description: str, themes: list[str], sourc
 
     if looks_like_placeholder_title(title) and source_title:
         title = source_title
-    if not description and source_description:
+    if (not description or looks_like_generic_description(description, title=title)) and source_description:
         description = make_description(source_description)
-    if not themes and source_tags:
+    if themes_need_improvement(themes) and source_tags:
         themes = source_tags[:6]
     return title, description, themes
+
+
+def build_group_description(group_title: str, items: list[dict[str, Any]], provider: str, ollama_model: str, openrouter_model: str, openrouter_api_key: str) -> str:
+    meaningful_descriptions = []
+    theme_counter: Counter[str] = Counter()
+    parts = []
+    for item in items:
+        desc = clean_group_label(item.get("description", ""))
+        if desc and not looks_like_generic_description(desc, title=item.get("title", ""), group=group_title):
+            meaningful_descriptions.append(desc)
+        for theme in normalize_themes(item.get("themes", []) or [], k=10):
+            if not looks_like_low_signal_theme(theme):
+                theme_counter[theme] += 1
+        part = clean_group_label(item.get("part", ""))
+        if part:
+            parts.append(part)
+
+    if provider in {"ollama", "openrouter"}:
+        source_blob = "\n".join(
+            filter(
+                None,
+                [
+                    f"Gruppe: {group_title}",
+                    "Deler: " + ", ".join(parts[:8]) if parts else "",
+                    "Temaer: " + ", ".join([t for t, _ in theme_counter.most_common(8)]) if theme_counter else "",
+                    "Beskrivelser: " + " | ".join(meaningful_descriptions[:6]) if meaningful_descriptions else "",
+                ],
+            )
+        )
+        prompt = (
+            "Svar kun med JSON pa formatet "
+            '{"group_description":"kort norsk gruppebeskrivelse (1-2 setninger)","themes":["tema1","tema2","tema3"]}. '
+            "Bruk bare det som finnes i inputen. Ikke finn opp detaljer. "
+            "Velg konkrete faglige temaer, ikke datoer eller generiske ord.\n\n"
+            + source_blob
+        )
+        ai_group = None
+        if provider == "ollama":
+            ai_group = ai_classify_with_ollama(source_blob, ollama_model, title=group_title, description="", source_meta={"title": group_title})
+        else:
+            ai_group = ai_classify_with_openrouter(source_blob, openrouter_model, openrouter_api_key, title=group_title, description="", source_meta={"title": group_title})
+        if ai_group:
+            desc = clean_group_label(ai_group.get("description", ""))
+            if desc:
+                return desc
+
+    if meaningful_descriptions:
+        unique_descriptions = []
+        seen_desc = set()
+        for desc in meaningful_descriptions:
+            key = normalize_group_key(desc)
+            if key in seen_desc:
+                continue
+            seen_desc.add(key)
+            unique_descriptions.append(desc)
+        if len(unique_descriptions) > 1 and len(items) > 1:
+            lead = unique_descriptions[0].rstrip(". ")
+            extra = unique_descriptions[1].rstrip(". ")
+            return f"{lead}. Dekker ogsa {extra.lower()}."
+        return unique_descriptions[0]
+    top_themes = [t for t, _ in theme_counter.most_common(4)]
+    if top_themes:
+        return f"Forelesningsgruppe om {', '.join(top_themes[:-1]) + ' og ' + top_themes[-1] if len(top_themes) > 1 else top_themes[0]}."
+    if parts:
+        return f"Inneholder {len(items)} deler: {', '.join(parts[:4])}{' ...' if len(parts) > 4 else ''}."
+    return ""
+
+
+def apply_group_descriptions(videos: list[dict[str, Any]], provider: str, ollama_model: str, openrouter_model: str, openrouter_api_key: str) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in videos:
+        key = normalize_group_key(item.get("group", "") or item.get("title", ""))
+        grouped.setdefault(key, []).append(item)
+
+    descriptions: dict[str, str] = {}
+    for key, items in grouped.items():
+        group_title = clean_group_label(items[0].get("group", "") or items[0].get("title", ""))
+        descriptions[key] = build_group_description(group_title, items, provider, ollama_model, openrouter_model, openrouter_api_key)
+
+    out: list[dict[str, Any]] = []
+    for item in videos:
+        key = normalize_group_key(item.get("group", "") or item.get("title", ""))
+        enriched_item = dict(item)
+        enriched_item["group_description"] = descriptions.get(key, "")
+        out.append(enriched_item)
+    return out
 
 
 def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_model: str = "llama3.1:8b", openrouter_model: str = "openrouter/free", openrouter_api_key: str = "", cookies_file: str | None = None, cookies_from_browser: str | None = None, transcribe_with_whisper: bool = False, whisper_model: str = "small") -> list[dict[str, Any]]:
@@ -513,7 +816,8 @@ def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_m
         title, description, themes = merge_source_metadata(title, description, themes, source_meta)
 
         txt = ""
-        if not description or not themes or looks_like_placeholder_title(title):
+        needs_better_text = looks_like_placeholder_title(title) or looks_like_generic_description(description, title=title, group=existing_group) or themes_need_improvement(themes)
+        if needs_better_text:
             with tempfile.TemporaryDirectory() as tmp:
                 raw_subs = run_yt_dlp_subtitles(url, Path(tmp), cookies_file=cookies_file, cookies_from_browser=cookies_from_browser)
             txt = subtitle_to_text(raw_subs)
@@ -546,25 +850,25 @@ def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_m
             ai_part = clean_group_label(ai_out.get("part_label", ""))
             if looks_like_placeholder_title(title) and ai_title:
                 title = ai_title
-            if not description and ai_desc:
+            if looks_like_generic_description(description, title=title, group=existing_group) and ai_desc:
                 description = ai_desc
-            if not themes and ai_themes:
+            if themes_need_improvement(themes) and ai_themes:
                 themes = ai_themes
             if not existing_group and ai_group:
                 existing_group = ai_group
             if not existing_part and ai_part:
                 existing_part = ai_part
         elif txt:
-            if not description:
+            if looks_like_generic_description(description, title=title, group=existing_group):
                 description = make_description(txt)
-            if not themes:
+            if themes_need_improvement(themes):
                 themes = extract_themes(txt)
 
-        if not themes:
+        if themes_need_improvement(themes):
             fallback_text = " ".join(x for x in [title, description, existing_group, existing_part, source_meta.get("title", ""), source_meta.get("description", ""), " ".join(source_meta.get("tags", [])[:8])] if x).strip()
             if fallback_text:
                 themes = extract_themes(fallback_text, k=6)
-        if not description:
+        if looks_like_generic_description(description, title=title, group=existing_group):
             fallback_text = " ".join(x for x in [description, source_meta.get("description", ""), title, existing_group, existing_part] if x).strip()
             if fallback_text:
                 description = make_description(fallback_text)
@@ -578,10 +882,11 @@ def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_m
             "group": clean_group_label(group),
             "part": clean_group_label(part),
         })
-    return enriched
+    return apply_group_descriptions(enriched, ai_provider, ollama_model, openrouter_model, openrouter_api_key)
 
 
 def main() -> None:
+    load_local_env()
     ap = argparse.ArgumentParser(description="Enrich videoliste med beskrivelse og tema")
     ap.add_argument("--input", required=True, help="Sti til videoliste (.txt/.md med URL-linjer)")
     ap.add_argument("--output", required=True, help="Sti til output JSON")

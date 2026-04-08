@@ -1,0 +1,270 @@
+{
+  "created_at": "2026-04-08T14:23:25",
+  "root": "\\\\webedit.ntnu.no\\tormt\\semestre",
+  "changes": [
+    {
+      "path": "1\\genkjemi\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "1\\genkjemi\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "1\\itgk\\filer\\Øving1\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "1\\itgk\\filer\\Øving2\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "1\\itgk\\filer\\Øving4\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "1\\itgk\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "1\\itgk\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "1\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving1\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving2\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving3\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving4\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving5\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving6\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving7\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving8\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving9\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving10\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving12\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving13\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\filer\\Øving14\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\mekanikk2\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\prosessteknikk\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\prosessteknikk\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\UorgKjemi\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\UorgKjemi\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "2\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\Fluid\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\Fluid\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\marin-intro\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\marine-konstruksjoner\\filer\\PythonProsjekt\\NyVersjon\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\marine-konstruksjoner\\filer\\PythonProsjekt\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\marine-konstruksjoner\\filer\\Øving9\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\marine-konstruksjoner\\filer\\Øving11\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\marine-konstruksjoner\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\marine-konstruksjoner\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\Matte3\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\mekanikk1\\filer\\PythonØving4\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\mekanikk1\\filer\\PythonØving5\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\mekanikk1\\filer\\PythonØving6\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\mekanikk1\\filer\\PythonØving7\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\mekanikk1\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\mekanikk1\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "3\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\FysikalskKjemi\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\FysikalskKjemi\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\filer\\Øving1\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\filer\\Øving3\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\filer\\Øving4\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\filer\\Øving8\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\filer\\Øving9\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\filer\\Øving11\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\filer\\Øving12\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\marin-Hydro\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\MaterialTeknikk\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\MaterialTeknikk\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\Strømming\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\TermoDynamikk\\filer\\Øving1\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\TermoDynamikk\\filer\\Øving4\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\TermoDynamikk\\filer\\Øving6\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\TermoDynamikk\\filer\\Øving9\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\TermoDynamikk\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\TermoDynamikk\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "4\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "index.json",
+      "action": "modified"
+    }
+  ]
+}

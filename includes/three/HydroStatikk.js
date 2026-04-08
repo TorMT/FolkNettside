@@ -1543,7 +1543,7 @@ updateWaterlineContour() {
 
   // ============================================================
   // EXPORT HELPERS (JSON/CSV + download)
-  // (PDF: anbefales via UI: render rapport-panelet og bruk browser "Print -> Save as PDF")
+  // (PDF håndteres i viewer-UI via jsPDF eller print-fallback)
   // ============================================================
 
   exportJSON(obj) {

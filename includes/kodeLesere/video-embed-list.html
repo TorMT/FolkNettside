@@ -41,7 +41,7 @@
     }
     *{box-sizing:border-box} html,body{margin:0;padding:0}
     body{font-family:"Segoe UI","Trebuchet MS",system-ui,sans-serif;color:var(--text);background:radial-gradient(circle at top right, rgba(11,97,201,.10), transparent 30%),radial-gradient(circle at top left, rgba(15,76,129,.08), transparent 22%),var(--bg);padding:1.1rem}
-    .shell{max-width:1500px;margin:0 auto;display:grid;gap:1rem}
+    .shell{max-width:1680px;margin:0 auto;display:grid;gap:.9rem}
     .hero{background:var(--hero);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow);padding:1.25rem;position:relative;overflow:hidden}
     .hero::after{content:"";position:absolute;inset:auto -8% -34% auto;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle, rgba(11,97,201,.18), rgba(11,97,201,0));pointer-events:none}
     .eyebrow{margin:0 0 .35rem;color:var(--accent);font-size:.84rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800}
@@ -53,7 +53,7 @@
     .toolbar input:focus,.toolbar select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(11,97,201,.12)} .toolbar button{font-weight:800;cursor:pointer}.toolbar button:hover{background:var(--surface-soft)}
     .groups{display:grid;gap:1rem}.group{border:1px solid var(--border);background:var(--surface);border-radius:24px;box-shadow:var(--shadow);overflow:hidden}
     .group-head{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;padding:1rem 1rem .85rem;border-bottom:1px solid var(--border);cursor:pointer} .group-head h2{margin:0;font-size:1.12rem}.group-head p{margin:.28rem 0 0;color:var(--muted);line-height:1.4}.group-meta{text-align:right;color:var(--muted);font-weight:700;white-space:nowrap}.group.is-collapsed .group-body{display:none}.group-caret{display:inline-grid;place-items:center;width:2rem;height:2rem;border-radius:999px;border:1px solid var(--border);background:var(--surface-soft);font-size:1rem;flex-shrink:0}.group.is-collapsed .group-caret{transform:rotate(-90deg)}.group-summary{margin:.55rem 0 0;color:var(--muted);font-size:.92rem;line-height:1.5}.group-summary strong{color:var(--text)}
-    .group-body{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.95fr);gap:1rem;padding:1rem}
+    .group-body{display:grid;grid-template-columns:minmax(0,1.52fr) minmax(320px,.88fr);gap:.9rem;padding:.95rem}
     .stage-card,.playlist-card{border:1px solid var(--border);border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0)),var(--card)}
     .stage-card{padding:.9rem;display:grid;gap:.85rem}.stage-wrap{position:relative;border-radius:18px;overflow:hidden;background:#000;border:1px solid rgba(0,0,0,.08)}.video-frame{width:100%;aspect-ratio:16/9;display:block;border:none;background:#000}
     .stage-top{display:flex;justify-content:space-between;gap:.8rem;align-items:flex-start;flex-wrap:wrap}.stage-top h3{margin:0;font-size:1.08rem;line-height:1.3}.stage-sub{margin:.32rem 0 0;color:var(--muted);line-height:1.5}
@@ -166,6 +166,12 @@
     function cleanLabelPart(value){
       return String(value || '').replace(/[\u2013\u2014]/g, ' - ').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').replace(/\s+\|\s+/g, ' | ').replace(/\burl\b/ig, '').trim();
     }
+    function prettifyViewerTitle(value){
+      const raw = cleanLabelPart(value || '');
+      if (!raw) return 'Videoer';
+      if (/^forelesning\.(txt|json|md|list|links|csv)$/i.test(raw) || /^forelesning$/i.test(raw)) return 'Forelesninger';
+      return raw.replace(/\.(txt|json|md|list|links|csv)$/i, '');
+    }
     function stripLeadingSeparators(value){ return cleanLabelPart(String(value || '').replace(/^[\s\-:|.]+/, '')); }
     function escapeRegExp(value){ return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
     function stripCommonPrefix(title, base){
@@ -188,35 +194,208 @@
       if (match) return { group: cleanLabelPart(match[1]), part: cleanLabelPart(match[2]) };
       return { group: raw, part: '' };
     }
+    function looksNoisyLabel(value){
+      const raw = cleanLabelPart(value || '');
+      const norm = normalizeText(raw);
+      if (!norm) return true;
+      return norm.includes('webvtt') || norm.includes('align start') || norm.includes('captions language') || norm.includes('felles forelesningsnavn') || norm.includes('kort oppsummering');
+    }
+    function isMeaningfulDescription(value, title = '', group = ''){
+      const raw = cleanLabelPart(value || '');
+      const norm = normalizeText(raw);
+      if (!raw || !norm) return false;
+      if (looksNoisyLabel(raw)) return false;
+      if (raw.length < 18) return false;
+      if (norm === normalizeText(title) || norm === normalizeText(group)) return false;
+      return true;
+    }
+    function cleanThemeList(themes){
+      const seen = new Set();
+      return (themes || [])
+        .map(theme => cleanLabelPart(theme || ''))
+        .filter(theme => {
+          const norm = normalizeText(theme);
+          if (!theme || !norm) return false;
+          if (looksNoisyLabel(theme)) return false;
+          if (/^(align|start|position|captions|language|webvtt|kind|video|ukjent|forelesning)$/i.test(theme)) return false;
+          if (/^\d+$/.test(theme)) return false;
+          if (norm.length < 3) return false;
+          if (seen.has(norm)) return false;
+          seen.add(norm);
+          return true;
+        });
+    }
+    function displayDescription(item, fallback = ''){
+      if (isMeaningfulDescription(item.description, item.title, item.groupLabel)) return cleanLabelPart(item.description);
+      if (isMeaningfulDescription(item.groupDescription, item.title, item.groupLabel)) return cleanLabelPart(item.groupDescription);
+      return cleanLabelPart(fallback || '');
+    }
+    function extractLecturePrefix(value){
+      const raw = cleanLabelPart(value || '');
+      let match = raw.match(/^(forelesning\s*\d+)\b/i);
+      if (match) return `Forelesning ${String(match[1]).replace(/[^\d]/g, '')}`;
+      match = raw.match(/^(vl\s*\d+)\b/i);
+      if (match) return String(match[1]).toUpperCase().replace(/\s+/g, '');
+      return '';
+    }
+function parseStructuredLectureTitle(title){
+      const raw = cleanLabelPart(title || '');
+      let match = raw.match(/^(forelesning\s*\d+)\s*[-:|]\s*(.+)$/i);
+      if (match){
+        let rest = cleanLabelPart(match[2]);
+        let part = '';
+        const suffix = rest.match(/(?:\s*[-:|]\s*|\s+)([A-Z])$/);
+        if (suffix){
+          part = cleanLabelPart(suffix[1]);
+          rest = cleanLabelPart(rest.slice(0, rest.length - suffix[0].length));
+        }
+        const dup = rest.match(/^(.*?)\s*[-:|]\s*(.*?)$/);
+        if (dup && normalizeText(dup[1]) === normalizeText(dup[2])) rest = cleanLabelPart(dup[1]);
+        return {
+          group: `${extractLecturePrefix(match[1])} - ${rest}`.replace(/\s+-\s+$/, ''),
+          part
+        };
+      }
+      match = raw.match(/^(vl\s*\d+)\s+part\s*([0-9]+[a-z]?)\s*[-:|]\s*(.*)$/i);
+      if (match){
+        return {
+          group: `${extractLecturePrefix(match[1])} - ${cleanLabelPart(match[3])}`.replace(/\s+-\s+$/, ''),
+          part: `part ${match[2]}`
+        };
+      }
+      match = raw.match(/^(vl\s*\d+)\s*[-:|]\s*(.*?)\s*[-:|]\s*(del)\s*([0-9]+[a-z]?)\s*[-:|]?\s*(.*)$/i);
+      if (match){
+        const detail = cleanLabelPart(match[5]);
+        return {
+          group: `${extractLecturePrefix(match[1])} - ${cleanLabelPart(match[2])}`.replace(/\s+-\s+$/, ''),
+          part: detail ? `${match[3]} ${match[4]} - ${detail}` : `${match[3]} ${match[4]}`
+        };
+      }
+      match = raw.match(/^(vl\s*\d+)\s*[-:|]\s*(.*?)\s*[-:|]\s*(del[0-9]+[a-z]?)\s*[-:|]?\s*(.*)$/i);
+      if (match){
+        const detail = cleanLabelPart(match[4]);
+        return {
+          group: `${extractLecturePrefix(match[1])} - ${cleanLabelPart(match[2])}`.replace(/\s+-\s+$/, ''),
+          part: detail ? `${cleanLabelPart(match[3])} - ${detail}` : cleanLabelPart(match[3])
+        };
+      }
+      match = raw.match(/^(vl\s*\d+)\s*[-:|]\s*(.*?)\s*[-:|]\s*(del|part)\s*([0-9]+[a-z]?)$/i);
+      if (match){
+        return {
+          group: `${extractLecturePrefix(match[1])} - ${cleanLabelPart(match[2])}`.replace(/\s+-\s+$/, ''),
+          part: `${match[3]} ${match[4]}`.trim()
+        };
+      }
+      match = raw.match(/^(vl\s*\d+)\s+part\s*([0-9]+[a-z]?)$/i);
+      if (match){
+        return {
+          group: extractLecturePrefix(match[1]),
+          part: `part ${match[2]}`
+        };
+      }
+      return null;
+    }
+    function inferLectureTitle(title){
+      const raw = cleanLabelPart(title || '');
+      const structured = parseStructuredLectureTitle(raw);
+      if (structured) return structured.group;
+      const prefix = extractLecturePrefix(raw);
+      if (!prefix) return null;
+      let rest = raw.replace(new RegExp('^' + escapeRegExp(prefix) + '\\s*[-:|]?\\s*', 'i'), '');
+      rest = rest.replace(/^(del|part|episode|ep)\s*[0-9]+[a-z]?\s*[-:|]\s*/i, '');
+      rest = rest.replace(/\s*[-:|]?\s*(del|part|episode|ep)\s*[0-9]+[a-z]?\s*$/i, '');
+      rest = rest.replace(/\s*[-:|]?\s*([A-Z])\s*$/i, '');
+      rest = rest.replace(/\s*[-:|]?\s*q[0-9]+[a-z0-9-]*\s*$/i, '');
+      rest = cleanLabelPart(rest);
+      if (!rest || normalizeText(rest) === normalizeText(prefix)) return prefix;
+      return `${prefix} - ${rest}`;
+    }
     function chooseGroupLabel(item){
       const explicitGroup = cleanLabelPart(item.group || item.group_title || '');
       const description = cleanLabelPart(item.description || '');
       const title = cleanLabelPart(item.title || 'Video');
-      if (explicitGroup) return explicitGroup;
+      if (explicitGroup && !looksNoisyLabel(explicitGroup)) return explicitGroup;
+      const inferred = inferLectureTitle(title);
+      if (inferred) return inferred;
       if (description && normalizeText(description) !== normalizeText(title)) return description;
       return splitTitleParts(title).group || title;
     }
     function choosePartLabel(item, groupLabel){
       const explicitPart = cleanLabelPart(item.part || item.part_label || '');
       const title = cleanLabelPart(item.title || '');
-      if (explicitPart) return explicitPart;
+      const structured = parseStructuredLectureTitle(title);
+      if (structured && structured.part) return structured.part;
+      if (explicitPart && !looksNoisyLabel(explicitPart)) return explicitPart;
       const fromPrefix = stripCommonPrefix(title, groupLabel);
       if (fromPrefix) return fromPrefix;
       return splitTitleParts(title).part || '';
     }
-    function createSearchBlob(item){ return normalizeText([item.title, item.description, item.groupLabel, item.partLabel, (item.themes || []).join(' ')].join(' ')); }
+    function createSearchBlob(item){ return normalizeText([item.title, item.description, item.groupLabel, item.partLabel, item.groupDescription || '', (item.themes || []).join(' ')].join(' ')); }
+    const naturalCollator = new Intl.Collator('no', { sensitivity: 'base', numeric: true });
+    function extractDateParts(value){
+      const text = cleanLabelPart(value);
+      let match = text.match(/\b(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})\b/);
+      if (match){
+        let year = Number(match[3]);
+        if (year < 100) year += 2000;
+        return { year, month: Number(match[2]), day: Number(match[1]) };
+      }
+      match = text.match(/\b(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})\b/);
+      if (match) return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+      return null;
+    }
+    function naturalCompare(a, b){
+      const aText = cleanLabelPart(a || '');
+      const bText = cleanLabelPart(b || '');
+      const aDate = extractDateParts(aText);
+      const bDate = extractDateParts(bText);
+      if (aDate && bDate){
+        const byYear = aDate.year - bDate.year;
+        if (byYear) return byYear;
+        const byMonth = aDate.month - bDate.month;
+        if (byMonth) return byMonth;
+        const byDay = aDate.day - bDate.day;
+        if (byDay) return byDay;
+      }
+      return naturalCollator.compare(aText, bText);
+    }
+    function compareItems(a, b){
+      const byGroup = naturalCompare(a.group || a.groupLabel || a.title, b.group || b.groupLabel || b.title);
+      if (byGroup) return byGroup;
+      const byPart = naturalCompare(a.part || a.partLabel || a.title, b.part || b.partLabel || b.title);
+      if (byPart) return byPart;
+      const byTitle = naturalCompare(a.title, b.title);
+      if (byTitle) return byTitle;
+      return (a.index || 0) - (b.index || 0);
+    }
     function groupItems(items){
       const map = new Map();
       items.forEach((item) => {
         const groupLabel = chooseGroupLabel(item) || item.title || 'Videoer';
         const partLabel = choosePartLabel(item, groupLabel);
-        const enriched = { ...item, groupLabel, partLabel, searchBlob: '' };
+      const enriched = { ...item, groupLabel, partLabel, groupDescription: cleanLabelPart(item.group_description || ''), themes: cleanThemeList(item.themes || []), searchBlob: '' };
         enriched.searchBlob = createSearchBlob(enriched);
         const key = normalizeText(groupLabel || item.title || '');
         if (!map.has(key)) map.set(key, { key, title: groupLabel, items: [] });
         map.get(key).items.push(enriched);
       });
-      return Array.from(map.values()).map((group, index) => ({ ...group, index, items: group.items.slice().sort((a, b) => a.index - b.index) }));
+      return Array.from(map.values())
+        .map((group) => ({
+          ...group,
+          index: Math.min(...group.items.map(item => item.index)),
+          items: group.items.slice().sort(compareItems).map(item => ({ ...item }))
+        }))
+        .map((group) => {
+          if (group.items.length === 1) {
+            const only = group.items[0];
+            if (/^(?:[A-Z]|part\s*\d+[a-z]?|del\s*\d+[a-z]?)$/i.test(String(only.partLabel || '').trim())) {
+              only.partLabel = '';
+            }
+          }
+          return group;
+        })
+        .sort((a, b) => naturalCompare(a.title, b.title) || a.index - b.index)
+        .map((group, index) => ({ ...group, index }));
     }
     function toYouTubeEmbed(url, options = {}){
       const s = String(url || '').trim();
@@ -351,7 +530,7 @@
       const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'item-button' + (isActive ? ' is-active' : ''); btn.addEventListener('click', onClick);
       const top = document.createElement('div'); top.className = 'item-top';
       const badge = document.createElement('div'); badge.className = 'item-index'; badge.textContent = item.partLabel || String(item.index + 1);
-      const copy = document.createElement('div'); const title = document.createElement('p'); title.className = 'item-title'; title.textContent = item.partLabel || item.title; const sub = document.createElement('p'); sub.className = 'item-sub'; sub.textContent = item.description || item.groupLabel || item.title; copy.appendChild(title); copy.appendChild(sub); top.appendChild(badge); top.appendChild(copy); btn.appendChild(top);
+      const copy = document.createElement('div'); const title = document.createElement('p'); title.className = 'item-title'; title.textContent = item.partLabel || item.title; const sub = document.createElement('p'); sub.className = 'item-sub'; sub.textContent = displayDescription(item, item.groupLabel || item.title); copy.appendChild(title); copy.appendChild(sub); top.appendChild(badge); top.appendChild(copy); btn.appendChild(top);
       const badges = document.createElement('div'); badges.className = 'item-badges';
       const state = document.createElement('span'); state.className = 'mini-badge' + (isWatched(item.url) ? ' is-watched' : ''); state.textContent = isWatched(item.url) ? TEXT.watched : TEXT.notWatched; badges.appendChild(state);
       if (item.themes && item.themes.length){ item.themes.slice(0, 2).forEach(theme => { const tag = document.createElement('span'); tag.className = 'mini-badge'; tag.textContent = theme; badges.appendChild(tag); }); }
@@ -370,13 +549,13 @@
           if (!key) return;
           themeCounts.set(key, (themeCounts.get(key) || 0) + 1);
         });
-        const desc = String(item.description || '').trim();
+        const desc = displayDescription(item, '');
         if (desc && normalizeText(desc) !== normalizeText(group.title)){
           descCounts.set(desc, (descCounts.get(desc) || 0) + 1);
         }
       });
       const themes = Array.from(themeCounts.entries()).sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0], 'no')).map(([name]) => name).slice(0, 6);
-      let description = '';
+      let description = group.items.find(item => isMeaningfulDescription(item.groupDescription, item.title, group.title))?.groupDescription || '';
       if (descCounts.size){
         description = Array.from(descCounts.entries()).sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0], 'no'))[0][0];
       }
@@ -415,8 +594,8 @@
       const stageWrap = section.querySelector('[data-role="stage-wrap"]');
       const openBtn = section.querySelector('[data-role="open-original"]');
       const copyBtn = section.querySelector('[data-role="copy-link"]');
-      stageTitle.textContent = active.partLabel ? `${active.partLabel} - ${group.title}` : active.title;
-      stageSub.textContent = active.description || group.title;
+      stageTitle.textContent = active.partLabel ? `${group.title} - ${active.partLabel}` : group.title;
+      stageSub.textContent = displayDescription(active, group.title) || group.title;
       watchCheckbox.checked = isWatched(active.url);
       watchState.textContent = watchCheckbox.checked ? TEXT.watched : TEXT.notWatched;
       watchState.classList.toggle('is-watched', watchCheckbox.checked);
@@ -494,7 +673,7 @@
       const fsBtn = document.createElement('button'); fsBtn.type = 'button'; fsBtn.textContent = TEXT.fullscreen; fsBtn.addEventListener('click', (ev) => { ev.stopPropagation(); requestFullscreenFor(stageWrap); });
       actions.appendChild(openBtn); actions.appendChild(copyBtn); actions.appendChild(fsBtn); stageCard.appendChild(actions);
       const playlistCard = document.createElement('div'); playlistCard.className = 'playlist-card';
-      const playlistHead = document.createElement('div'); playlistHead.className = 'playlist-head'; const playlistCopy = document.createElement('div'); const playlistTitle = document.createElement('h3'); playlistTitle.textContent = group.items.length > 1 ? 'Videoer i gruppen' : 'Video'; const playlistSub = document.createElement('p'); playlistSub.textContent = group.items.length > 1 ? 'Klikk for ? bytte aktiv video. P? mobil vises ett kort per rad, p? stor skjerm flere samtidig.' : 'Aktiv video vises under.'; playlistCopy.appendChild(playlistTitle); playlistCopy.appendChild(playlistSub); const playlistCount = document.createElement('div'); playlistCount.className = 'group-meta'; playlistCount.textContent = formatCount(group.items.length, 'video', 'videoer'); playlistHead.appendChild(playlistCopy); playlistHead.appendChild(playlistCount); playlistCard.appendChild(playlistHead);
+      const playlistHead = document.createElement('div'); playlistHead.className = 'playlist-head'; const playlistCopy = document.createElement('div'); const playlistTitle = document.createElement('h3'); playlistTitle.textContent = group.items.length > 1 ? 'Videoer i gruppen' : 'Video'; const playlistSub = document.createElement('p'); playlistSub.textContent = group.items.length > 1 ? 'Klikk for å bytte aktiv video. På mobil vises ett kort per rad, på stor skjerm flere samtidig.' : 'Aktiv video vises under.'; playlistCopy.appendChild(playlistTitle); playlistCopy.appendChild(playlistSub); const playlistCount = document.createElement('div'); playlistCount.className = 'group-meta'; playlistCount.textContent = formatCount(group.items.length, 'video', 'videoer'); playlistHead.appendChild(playlistCopy); playlistHead.appendChild(playlistCount); playlistCard.appendChild(playlistHead);
       const playlistGrid = document.createElement('div'); playlistGrid.className = 'playlist-grid'; group.items.forEach((item, idx) => playlistGrid.appendChild(createPlaylistItem(item, false, () => updateGroupStage(section, group, idx)))); playlistCard.appendChild(playlistGrid);
       body.appendChild(stageCard); body.appendChild(playlistCard); section.appendChild(body);
       const toggleCollapse = () => {
@@ -520,8 +699,10 @@
     try{ if (window.parent && window.parent !== window && window.parent.__videoPlaylistPayloads){ payload = window.parent.__videoPlaylistPayloads[key] || null; try { delete window.parent.__videoPlaylistPayloads[key]; } catch (e) {} } }catch(e){}
     if (!payload){ try{ payload = JSON.parse(localStorage.getItem(key) || 'null'); localStorage.removeItem(key); }catch(e){} }
     if (!payload || !Array.isArray(payload.items) || !payload.items.length){ document.body.innerHTML = `<p>${TEXT.noVideos}</p>`; throw new Error('Empty playlist payload'); }
-    if (payload.title) document.getElementById('title').textContent = payload.title;
-    const normalized = payload.items.map((item, index) => ({ index, title: cleanLabelPart(item.title || 'Video'), description: cleanLabelPart(item.description || ''), themes: Array.isArray(item.themes) ? item.themes.map(t => String(t || '').trim()).filter(Boolean) : [], url: item.url || '', group: cleanLabelPart(item.group || item.group_title || ''), part: cleanLabelPart(item.part || item.part_label || '') }));
+    if (payload.title) document.getElementById('title').textContent = prettifyViewerTitle(payload.title);
+    const normalized = payload.items
+      .map((item, index) => ({ index, title: cleanLabelPart(item.title || 'Video'), description: cleanLabelPart(item.description || ''), themes: cleanThemeList(Array.isArray(item.themes) ? item.themes.map(t => String(t || '').trim()).filter(Boolean) : []), url: item.url || '', group: cleanLabelPart(item.group || item.group_title || ''), part: cleanLabelPart(item.part || item.part_label || '') }))
+      .sort(compareItems);
     const grouped = groupItems(normalized);
 
     function render(groups){
@@ -536,12 +717,12 @@
       const sortMode = document.getElementById('sortSelect').value;
       let visibleGroups = grouped.map(group => ({ ...group, items: group.items.filter(item => { if (hideWatched && isWatched(item.url)) return false; if (!query) return true; return item.searchBlob.includes(query); }) })).filter(group => group.items.length);
       if (sortMode === 'title'){
-        visibleGroups = visibleGroups.slice().sort((a, b) => a.title.localeCompare(b.title, 'no', { sensitivity: 'base', numeric: true }));
-        visibleGroups.forEach(group => { group.items = group.items.slice().sort((a, b) => (a.partLabel || a.title).localeCompare((b.partLabel || b.title), 'no', { sensitivity: 'base', numeric: true })); });
+        visibleGroups = visibleGroups.slice().sort((a, b) => naturalCompare(a.title, b.title));
+        visibleGroups.forEach(group => { group.items = group.items.slice().sort(compareItems); });
       } else if (sortMode === 'watched'){
         visibleGroups = visibleGroups.slice().sort((a, b) => a.items.filter(item => isWatched(item.url)).length - b.items.filter(item => isWatched(item.url)).length || a.index - b.index);
       } else if (sortMode === 'group'){
-        visibleGroups = visibleGroups.slice().sort((a, b) => b.items.length - a.items.length || a.title.localeCompare(b.title, 'no', { sensitivity: 'base', numeric: true }));
+        visibleGroups = visibleGroups.slice().sort((a, b) => b.items.length - a.items.length || naturalCompare(a.title, b.title));
       } else {
         visibleGroups = visibleGroups.slice().sort((a, b) => a.index - b.index);
       }
