@@ -15,6 +15,15 @@
   const params = new URLSearchParams(location.search);
   const file = params.get("file");
   const frame = document.getElementById("frame");
+  let _statusSent = false;
+
+  function sendStatus(status){
+    if (_statusSent && status !== 'loaded') return;
+    if (status === 'loaded') _statusSent = true;
+    try{
+      window.parent.postMessage({ type: 'htmlview-status', status, file }, '*');
+    }catch(e){}
+  }
 
   if (!file) {
     document.body.innerHTML = "<h3>Mangler fil</h3>";
@@ -68,8 +77,26 @@
   // last inn siden
   frame.src = file;
 
+  // fallback hvis innhold ikke kommer opp i iframe (f.eks. X-Frame-Options/CSP)
+  setTimeout(() => {
+    if (_statusSent) return;
+    sendStatus('timeout');
+  }, 4000);
+
   // sync når iframe er lastet
   frame.addEventListener("load", () => {
+    try {
+      // Hvis iframe fortsatt er about:blank etter load er det ofte blokkert.
+      const href = frame.contentWindow?.location?.href || '';
+      if (href === 'about:blank') {
+        sendStatus('blocked');
+        return;
+      }
+    } catch (e) {
+      // Cross-origin tilgang feil => sannsynligvis lastet ekstern side OK.
+    }
+
+    sendStatus('loaded');
     copyThemeToIframe();
 
     // 1) observer data-theme endringer i parent (theme switcher)

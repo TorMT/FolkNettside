@@ -125,15 +125,25 @@ def update_index(dir_path: Path, use_progress: bool):
 
 # --- side- og navbar-funksjoner -----------------------------------------
 
-def generate_page(template: Path, out: Path, title: str, desc: str):
+def normalize_course_code(raw: str) -> str:
+    return str(raw or '').strip().upper()
+
+
+def generate_page(template: Path, out: Path, title: str, desc: str, course_code: str = ''):
     """Genererer en ny fagside fra template."""
     if not template.exists():
         print(f"✗ Template ikke funnet: {template}")
         print("  Oppretter standard HTML-mal...")
-        return generate_default_page(out, title, desc)
+        return generate_default_page(out, title, desc, course_code)
     
     tpl = template.read_text(encoding='utf-8')
-    html = tpl.replace('{{TITLE}}', title).replace('{{DESCRIPTION}}', desc)
+    code = normalize_course_code(course_code)
+    html = (
+        tpl
+        .replace('{{TITLE}}', title)
+        .replace('{{DESCRIPTION}}', desc)
+        .replace('{{COURSE_CODE}}', code)
+    )
     
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding='utf-8')
@@ -141,7 +151,7 @@ def generate_page(template: Path, out: Path, title: str, desc: str):
     return True
 
 
-def generate_default_page(out: Path, title: str, desc: str):
+def generate_default_page(out: Path, title: str, desc: str, course_code: str = ''):
     """Genererer en standard fagside hvis template mangler."""
     # Les HTML template fra fil eller bruk hardkodet versjon
     html_content = '''<!DOCTYPE html>
@@ -159,6 +169,8 @@ def generate_default_page(out: Path, title: str, desc: str):
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#004f9f">
   <meta name="description" content="{{DESCRIPTION}}">
+  <meta name="course-code" content="{{COURSE_CODE}}">
+  <meta name="karakterweb-url-template" content="https://www.karakterweb.no/ntnu/{course_code}">
   <title>{{TITLE}} - Studieressurser</title>
 
   <!-- Preload kritiske ressurser for raskere lasting -->
@@ -280,7 +292,13 @@ def generate_default_page(out: Path, title: str, desc: str):
 </html>'''
     
     # Replace placeholders
-    html = html_content.replace('{{TITLE}}', title).replace('{{DESCRIPTION}}', desc)
+    code = normalize_course_code(course_code)
+    html = (
+        html_content
+        .replace('{{TITLE}}', title)
+        .replace('{{DESCRIPTION}}', desc)
+        .replace('{{COURSE_CODE}}', code)
+    )
     
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding='utf-8')
@@ -435,6 +453,11 @@ def main():
         default='',
         help='Kursbeskrivelse (valgfri)'
     )
+    course_parser.add_argument(
+        '--course-code',
+        default='',
+        help='Fagkode for Karakterweb (f.eks. EXPH0300). Standard: bruker slug.'
+    )
     
     # bulk
     bulk_parser = subparsers.add_parser(
@@ -467,7 +490,8 @@ def main():
         
         # Generer side
         course_path = root / 'semestre' / args.semester / args.slug / 'index.html'
-        if generate_page(template, course_path, args.title, args.description):
+        course_code = args.course_code or args.slug
+        if generate_page(template, course_path, args.title, args.description, course_code):
             # Opprett filer-mappe og index.json med welcome placeholder
             files_dir = course_path.parent / 'filer'
             files_dir.mkdir(parents=True, exist_ok=True)
@@ -504,7 +528,8 @@ def main():
                     template,
                     spath,
                     c['title'],
-                    c.get('description', '')
+                    c.get('description', ''),
+                    c.get('course_code', c.get('slug', ''))
                 ):
                     # Opprett filer-mappe med placeholder
                     files_dir = spath.parent / 'filer'
