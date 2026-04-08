@@ -62,6 +62,9 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 
 - `scripts/` inneholder verkt?y for oppdatering og eksport (`export_repo.py`, `export/`, etc.). Les filene for mer detaljer. Kj?r Python-skript med et passende virtuelt milj?.
 - `scripts/video_topic_enricher.py` kan brukes til ? gj?re en videoliste om til JSON med `description`, `themes`, `group` og `part`.
+- `scripts/video_topic_enricher.py` stotter na `--ai-provider openrouter` og kan bruke `OPENROUTER_API_KEY` for ekte metadata fra undertekster og videometadata.
+- Hvis en videotittel er `Ukjent` eller svak, prover enrich-scriptet forst a hente en bedre kildetittel fra `yt-dlp` metadata f?r AI/fallback brukes.
+- Eksempelfil for lokal setup finnes i `.env.openrouter.example` (ikke commit ekte nokler).
 - `SiteUpdater3.py` st?tter n? ogs? `--enrich-video-lists` for ? kj?re enrich automatisk etter indeksoppdatering (valgfritt med cookies/ollama/whisper-flagg).
 - Enrich-trinnet hopper n? over filer uten endringer (bruk `--enrich-force` for ? tvinge full kj?ring).
 - Etter enrich vises en oppsummering med antall kandidater/kj?rte/skippede/feilede filer.
@@ -273,3 +276,22 @@ git push origin main
 > Tipset: Documenter alltid endringer i `README.md` og `index.json` slik at både styringsteam og automasjoner har samme referanse.
 
 ---
+
+
+**OpenRouter for video-metadata**
+
+Bruk dette hvis du vil generere ekte beskrivelser, tags og bedre titler fra undertekster / videometadata:
+
+```bash
+# PowerShell
+$env:OPENROUTER_API_KEY="din-nokkel-her"
+$env:OPENROUTER_MODEL="openrouter/free"
+
+python scripts/video_topic_enricher.py --input semestre/3/Fluid/filer/Forelesning.txt --output semestre/3/Fluid/filer/Forelesning.json --ai-provider openrouter --cookies-from-browser chrome
+python scripts/video_topic_enricher.py --input semestre/4/FysikalskKjemi/filer/Forelesning.txt --output semestre/4/FysikalskKjemi/filer/Forelesning.json --ai-provider openrouter --cookies-from-browser chrome
+```
+
+Tips:
+- `--cookies-from-browser chrome` hjelper for innloggede videoer som Panopto.
+- Legg til `--transcribe-with-whisper` hvis du senere installerer `whisper` lokalt og vil bruke tale-til-tekst nar undertekster mangler.
+- Scriptet holder gruppene stabile ved a foretrekke eksisterende `group`/`part`, men kan forbedre `Ukjent`-titler og tags nar kildedata finnes.

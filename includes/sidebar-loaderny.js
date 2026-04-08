@@ -846,7 +846,7 @@ function openFile(url){
   if (clean.endsWith('.fbm')) return openInViewer(url, 'fbm');
   if (/\.(3mf|3fm|fm3)$/.test(clean)) return openInViewer(url, '3mf');
   if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|sat|smt|x_t|x_b|sldprt|sldasm)$/.test(clean)) return openInViewer(url, 'fusion');
-  if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)) return openInViewer(url, 'f3d');
+  if (/\.(step|stp|iges|igs|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb|sat|smt|x_t|x_b|sldprt|sldasm|slddrw)$/.test(lower)) return openInViewer(url, 'f3d');
   if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mov') || lower.endsWith('.m4v')){
     return openInViewer(url, 'video');
   }
@@ -1010,7 +1010,7 @@ function iconForFile(file){
         + '</span>';
     }
 
-    if (lower.endsWith('.stl') || lower.endsWith('.fbm') || (/\.(3mf|3fm|fm3)$/.test(lower)) || /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)){
+    if (lower.endsWith('.stl') || lower.endsWith('.fbm') || (/\.(3mf|3fm|fm3)$/.test(lower)) || /\.(step|stp|iges|igs|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb|sat|smt|x_t|x_b|sldprt|sldasm|slddrw)$/.test(lower)){
   return '<span class="file-icon model" style="background:#009688;border-radius:3px">'
     + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg">'
     + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
@@ -1532,7 +1532,7 @@ async function initSidebar(){
       lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.stl') ||
       lower.endsWith('.mov') || lower.endsWith('.m4v') ||lower.split('?')[0].split('#')[0].endsWith('.fbm') ||
       /\.(3mf|3fm|fm3)$/.test(lower.split('?')[0].split('#')[0]) ||
-      /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower) ||
+      /\.(step|stp|iges|igs|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb|sat|smt|x_t|x_b|sldprt|sldasm|slddrw)$/.test(lower) ||
       /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(href) ||
       /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(href) ||
       /\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lower)

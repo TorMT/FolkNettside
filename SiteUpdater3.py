@@ -41,7 +41,9 @@ ALLOWED_EXT = {
     ".mp4", ".webm", ".ogg", ".mov", ".m4v",
     ".url", ".webloc",
     ".html", ".txt", ".md", ".list", ".links", ".csv", ".json",
-    ".stl", ".fbm", ".3mf", ".3fz"
+    ".stl", ".fbm", ".3mf", ".3fz", ".f3d", ".3fm", ".fm3",
+    ".step", ".stp", ".iges", ".igs", ".obj", ".ply", ".fbx", ".gltf", ".glb",
+    ".sat", ".smt", ".x_t", ".x_b", ".sldprt", ".sldasm", ".slddrw"
 }
 # Standard mapper vi alltid ignorerer (case-insensitiv)
 DEFAULT_BLACKLIST = {"node_modules", ".git", "__pycache__", "venv", ".venv"}

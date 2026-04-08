@@ -397,10 +397,18 @@
           <tr><th>Draft</th><td id="hydro-draft">?</td></tr>
           <tr><th>Trim</th><td id="hydro-trim">?</td></tr>
           <tr><th>Heel</th><td id="hydro-heel">?</td></tr>
-          <tr><th>GM (stabilitet)</th><td id="hydro-gm">?</td></tr>
-          <tr><th>BM</th><td id="hydro-bm">?</td></tr>
+          <tr><th>GMt</th><td id="hydro-gmt">?</td></tr>
+          <tr><th>GMl</th><td id="hydro-gml">?</td></tr>
+          <tr><th>BMt</th><td id="hydro-bmt">?</td></tr>
+          <tr><th>BMl</th><td id="hydro-bml">?</td></tr>
+          <tr><th>LCF</th><td id="hydro-lcf">?</td></tr>
+          <tr><th>TCF</th><td id="hydro-tcf">?</td></tr>
+          <tr><th>Ixx</th><td id="hydro-ixx">?</td></tr>
+          <tr><th>Iyy</th><td id="hydro-iyy">?</td></tr>
+          <tr><th>Ixy</th><td id="hydro-ixy">?</td></tr>
           <tr><th>Waterplane-areal</th><td id="hydro-wp">?</td></tr>
-          <tr><th>GZ (stabiliserende arm)</th><td id="hydro-gz">?</td></tr>
+          <tr><th>GZt</th><td id="hydro-gzt">?</td></tr>
+          <tr><th>GZl</th><td id="hydro-gzl">?</td></tr>
         </tbody>
       </table>
     </div>
@@ -470,17 +478,25 @@
   </style>
     // --- Hydrostatikk-data UI ---
     function updateHydroDataUI(hydroData) {
-      document.getElementById("hydro-vol").textContent = hydroData?.volume?.toFixed(3) || '?';
-      document.getElementById("hydro-disp").textContent = hydroData?.displacement?.toFixed(3) || '?';
-      document.getElementById("hydro-cb").textContent = hydroData?.cb ? `${hydroData.cb.x.toFixed(3)}, ${hydroData.cb.y.toFixed(3)}, ${hydroData.cb.z.toFixed(3)}` : '?';
-      document.getElementById("hydro-cg").textContent = hydroData?.cg ? `${hydroData.cg.x.toFixed(3)}, ${hydroData.cg.y.toFixed(3)}, ${hydroData.cg.z.toFixed(3)}` : '?';
-      document.getElementById("hydro-draft").textContent = hydroData?.draft?.toFixed(3) || '?';
-      document.getElementById("hydro-trim").textContent = hydroData?.trim?.toFixed(2) || '?';
-      document.getElementById("hydro-heel").textContent = hydroData?.heel?.toFixed(2) || '?';
-      document.getElementById("hydro-gm").textContent = hydroData?.gm?.toFixed(3) || '?';
-      document.getElementById("hydro-bm").textContent = hydroData?.bm?.toFixed(3) || '?';
-      document.getElementById("hydro-wp").textContent = hydroData?.wpArea?.toFixed(3) || '?';
-      document.getElementById("hydro-gz").textContent = hydroData?.gz?.toFixed(3) || '?';
+      document.getElementById("hydro-vol").textContent = fmt(hydroData?.volume);
+      document.getElementById("hydro-disp").textContent = fmt(hydroData?.displacement);
+      document.getElementById("hydro-cb").textContent = fmtVec(hydroData?.cb);
+      document.getElementById("hydro-cg").textContent = fmtVec(hydroData?.cg);
+      document.getElementById("hydro-draft").textContent = fmt(hydroData?.draft);
+      document.getElementById("hydro-trim").textContent = fmt(hydroData?.trim, 2);
+      document.getElementById("hydro-heel").textContent = fmt(hydroData?.heel, 2);
+      document.getElementById("hydro-gmt").textContent = fmt(hydroData?.gmT);
+      document.getElementById("hydro-gml").textContent = fmt(hydroData?.gmL);
+      document.getElementById("hydro-bmt").textContent = fmt(hydroData?.bmT);
+      document.getElementById("hydro-bml").textContent = fmt(hydroData?.bmL);
+      document.getElementById("hydro-lcf").textContent = fmt(hydroData?.lcf);
+      document.getElementById("hydro-tcf").textContent = fmt(hydroData?.tcf);
+      document.getElementById("hydro-ixx").textContent = fmt(hydroData?.ixx);
+      document.getElementById("hydro-iyy").textContent = fmt(hydroData?.iyy);
+      document.getElementById("hydro-ixy").textContent = fmt(hydroData?.ixy);
+      document.getElementById("hydro-wp").textContent = fmt(hydroData?.wpArea);
+      document.getElementById("hydro-gzt").textContent = fmt(hydroData?.gzT);
+      document.getElementById("hydro-gzl").textContent = fmt(hydroData?.gzL);
     }
 
     // --- Komponent-liste highlight ---
@@ -771,6 +787,8 @@
       </div>
 
       <!-- Rapport -->
+      <button class="btn" id="btnHelp">Hjelp</button>
+
       <button class="btn" id="btnReport">Rapport</button>
 
     </div>
@@ -803,20 +821,30 @@
                 <tr><th>Heel</th><td id="rep-heel">?</td></tr>
                 <tr><th>KB</th><td id="rep-kb">?</td></tr>
                 <tr><th>KG</th><td id="rep-kg">?</td></tr>
-                <tr><th>BM (roll)</th><td id="rep-bm-roll">?</td></tr>
-                <tr><th>BM (pitch)</th><td id="rep-bm-pitch">?</td></tr>
-                <tr><th>GM (roll)</th><td id="rep-gm-roll">?</td></tr>
-                <tr><th>GM (pitch)</th><td id="rep-gm-pitch">?</td></tr>
-                <tr><th>GZ (roll)</th><td id="rep-gz-roll">?</td></tr>
-                <tr><th>GZ (pitch)</th><td id="rep-gz-pitch">?</td></tr>
+                <tr><th>BMt</th><td id="rep-bm-roll">?</td></tr>
+                <tr><th>BMl</th><td id="rep-bm-pitch">?</td></tr>
+                <tr><th>GMt</th><td id="rep-gm-roll">?</td></tr>
+                <tr><th>GMl</th><td id="rep-gm-pitch">?</td></tr>
+                <tr><th>GZt</th><td id="rep-gz-roll">?</td></tr>
+                <tr><th>GZl</th><td id="rep-gz-pitch">?</td></tr>
                 <tr><th>Waterplane areal</th><td id="rep-wp-area">?</td></tr>
                 <tr><th>Waterplane LCF</th><td id="rep-wp-lcf">?</td></tr>
                 <tr><th>Waterplane TCF</th><td id="rep-wp-tcf">?</td></tr>
+                <tr><th>Ixx</th><td id="rep-wp-ixx">?</td></tr>
+                <tr><th>Iyy</th><td id="rep-wp-iyy">?</td></tr>
+                <tr><th>Ixy</th><td id="rep-wp-ixy">?</td></tr>
                 <tr><th>SAK (wetted area)</th><td id="rep-sak">?</td></tr>
+                <tr><th>Likevekt roll</th><td id="rep-eq-roll">?</td></tr>
+                <tr><th>Likevekt pitch</th><td id="rep-eq-pitch">?</td></tr>
                 <tr><th>Max GZ roll</th><td id="rep-max-gz-roll">?</td></tr>
                 <tr><th>Max GZ pitch</th><td id="rep-max-gz-pitch">?</td></tr>
                 <tr><th>Angle at max GZ roll</th><td id="rep-angle-max-gz-roll">?</td></tr>
                 <tr><th>Angle at max GZ pitch</th><td id="rep-angle-max-gz-pitch">?</td></tr>
+                <tr><th>AVS roll</th><td id="rep-avs-roll">?</td></tr>
+                <tr><th>AVS pitch</th><td id="rep-avs-pitch">?</td></tr>
+                <tr><th>Areal 0-30</th><td id="rep-area-0-30">?</td></tr>
+                <tr><th>Areal 0-40</th><td id="rep-area-0-40">?</td></tr>
+                <tr><th>Draft scan punkter</th><td id="rep-draft-scan-count">?</td></tr>
               </tbody>
             </table>
           </div>
@@ -1118,10 +1146,18 @@
         draft: h.draftZWorld,
         trim: h.trimDeg,
         heel: h.heelDeg,
-        gm: last.gm?.roll || null,
-        bm: last.bm?.roll || null,
+        gmT: last.gm?.roll || null,
+        gmL: last.gm?.pitch || null,
+        bmT: last.bm?.roll || null,
+        bmL: last.bm?.pitch || null,
         wpArea: last.wp?.A || null,
-        gz: last.gz_now?.roll || null,
+        lcf: last.wp?.xF || null,
+        tcf: last.wp?.yF || null,
+        ixx: last.wp?.Ixx || null,
+        iyy: last.wp?.Iyy || null,
+        ixy: last.wp?.Ixy || null,
+        gzT: last.gz_now?.roll || null,
+        gzL: last.gz_now?.pitch || null,
       };
       updateHydroDataUI(data);
     }
@@ -1199,7 +1235,8 @@
         buildComponentList(mesh);
 
         applyVisibilitySettings(); // Apply saved visibility settings to 3D elements
-        hydro.initDraftAtBottom();
+        if (typeof hydro.initDraftAtOriginalPlane === "function") hydro.initDraftAtOriginalPlane();
+        else hydro.initDraftAtBottom();
         setLoadingState(true, "Beregner hydrostatikk...");
         await hydro.recompute();
         await updateHydroAfterLoad();
@@ -1257,10 +1294,17 @@
     let currentReport = null;
     let currentReportRoll = null;
     let currentReportPitch = null;
+    let currentDraftScan = null;
+    let currentEquilibriumRoll = null;
+    let currentEquilibriumPitch = null;
+    let currentReportBundle = null;
 
-    document.getElementById('btnReport').addEventListener('click', () => {
-      generateFullReport();
+    const fmt = (value, digits = 3) => (typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '?');
+    const fmtVec = (value) => value ? `${fmt(value.x)}, ${fmt(value.y)}, ${fmt(value.z)}` : '?';
+
+    document.getElementById('btnReport').addEventListener('click', async () => {
       document.getElementById('reportModal').classList.add('show');
+      await generateFullReport();
     });
 
     document.getElementById('closeReport').addEventListener('click', () => {
@@ -1287,6 +1331,37 @@
       });
     });
 
+    async function generateFullReport() {
+      if (!hydro?.mesh) {
+        setHud('Last modellen ferdig forst.', true);
+        return;
+      }
+      try {
+        setLoadingState(true, 'Kjorer utvidet hydro-rapport...');
+        currentReportRoll = await hydro.generateHydroReport({ mode: 'roll', maxDeg: 60, stepDeg: 2, quality: 'low', includeSAK: true });
+        currentReportPitch = await hydro.generateHydroReport({ mode: 'pitch', maxDeg: 60, stepDeg: 2, quality: 'low', includeSAK: false });
+        currentEquilibriumRoll = hydro.cgLocal ? await hydro.solveEquilibrium('roll', { maxDeg: 30, scanStepDeg: 2 }) : null;
+        currentEquilibriumPitch = hydro.cgLocal ? await hydro.solveEquilibrium('pitch', { maxDeg: 30, scanStepDeg: 2 }) : null;
+        currentDraftScan = await hydro.generateDraftScan({ draftCount: 20, quality: 'low', includeAwp: true, includeSAK: false });
+        currentReport = currentReportRoll;
+        currentReportBundle = {
+          summary: currentReportRoll?.now || null,
+          roll: currentReportRoll,
+          pitch: currentReportPitch,
+          equilibrium: { roll: currentEquilibriumRoll, pitch: currentEquilibriumPitch },
+          draftScan: currentDraftScan,
+        };
+        updateCurveDisplay();
+        document.getElementById('rawData').textContent = JSON.stringify(currentReportBundle, null, 2);
+        setHud('Utvidet hydro-rapport generert');
+      } catch (err) {
+        console.error('Generate full report failed:', err);
+        setHud('Feil ved hydro-rapport', true);
+      } finally {
+        setLoadingState(false);
+      }
+    }
+
     function updateCurveDisplay() {
       try {
         const mode = document.querySelector('input[name="curveMode"]:checked').value;
@@ -1307,41 +1382,53 @@
       const now = report.now;
 
       // Oversikt-tabell
-      document.getElementById('rep-vol').textContent = now.subV?.toFixed(3) || '?';
-      document.getElementById('rep-disp').textContent = now.subV ? (now.subV * hydro.waterDensity / 1000).toFixed(3) : '?';
-      document.getElementById('rep-cb').textContent = now.cbW ? `${now.cbW.x.toFixed(3)}, ${now.cbW.y.toFixed(3)}, ${now.cbW.z.toFixed(3)}` : '?';
-      document.getElementById('rep-cg').textContent = now.cgW ? `${now.cgW.x.toFixed(3)}, ${now.cgW.y.toFixed(3)}, ${now.cgW.z.toFixed(3)}` : '?';
-      document.getElementById('rep-draft').textContent = report.meta.draftZWorld?.toFixed(3) || '?';
-      document.getElementById('rep-trim').textContent = hydro.trimDeg?.toFixed(2) || '0.00';
-      document.getElementById('rep-heel').textContent = hydro.heelDeg?.toFixed(2) || '0.00';
-      document.getElementById('rep-kb').textContent = now.kb?.toFixed(3) || '?';
-      document.getElementById('rep-kg').textContent = now.kg?.toFixed(3) || '?';
-      document.getElementById('rep-bm-roll').textContent = now.bm?.roll?.toFixed(3) || '?';
-      document.getElementById('rep-gm-roll').textContent = now.gm?.roll?.toFixed(3) || '?';
-      document.getElementById('rep-gm-pitch').textContent = now.gm?.pitch?.toFixed(3) || '?';
+      document.getElementById('rep-vol').textContent = fmt(now.subV);
+      document.getElementById('rep-disp').textContent = now.subV ? fmt((now.subV * hydro.waterDensity / 1000)) : '?';
+      document.getElementById('rep-cb').textContent = fmtVec(now.cbW);
+      document.getElementById('rep-cg').textContent = fmtVec(now.cgW);
+      document.getElementById('rep-draft').textContent = fmt(report.meta.draftZWorld);
+      document.getElementById('rep-trim').textContent = fmt(hydro.trimDeg, 2);
+      document.getElementById('rep-heel').textContent = fmt(hydro.heelDeg, 2);
+      document.getElementById('rep-kb').textContent = fmt(now.kb);
+      document.getElementById('rep-kg').textContent = fmt(now.kg);
+      document.getElementById('rep-bm-roll').textContent = fmt(now.bm?.roll);
+      document.getElementById('rep-gm-roll').textContent = fmt(now.gm?.roll);
+      document.getElementById('rep-gm-pitch').textContent = fmt(now.gm?.pitch);
 
       // Stabilitetsdata fra kurver
       if (currentReportRoll?.stability) {
         const stabRoll = currentReportRoll.stability;
-        document.getElementById('rep-max-gz-roll').textContent = stabRoll.maxGZ?.toFixed(3) || '?';
-        document.getElementById('rep-angle-max-gz-roll').textContent = stabRoll.angleAtMaxGZ?.toFixed(1) || '?';
+        document.getElementById('rep-max-gz-roll').textContent = fmt(stabRoll.maxGZ);
+        document.getElementById('rep-angle-max-gz-roll').textContent = fmt(stabRoll.angleAtMaxGZ, 1);
       }
       if (currentReportPitch?.stability) {
         const stabPitch = currentReportPitch.stability;
-        document.getElementById('rep-max-gz-pitch').textContent = stabPitch.maxGZ?.toFixed(3) || '?';
-        document.getElementById('rep-angle-max-gz-pitch').textContent = stabPitch.angleAtMaxGZ?.toFixed(1) || '?';
+        document.getElementById('rep-max-gz-pitch').textContent = fmt(stabPitch.maxGZ);
+        document.getElementById('rep-angle-max-gz-pitch').textContent = fmt(stabPitch.angleAtMaxGZ, 1);
       }
-      document.getElementById('rep-gz-roll').textContent = now.gz_now?.roll?.toFixed(3) || '?';
-      document.getElementById('rep-gz-pitch').textContent = now.gz_now?.pitch?.toFixed(3) || '?';
-      document.getElementById('rep-wp-area').textContent = now.wp?.A?.toFixed(3) || '?';
-      document.getElementById('rep-wp-lcf').textContent = now.wp?.xF?.toFixed(3) || '?';
-      document.getElementById('rep-wp-tcf').textContent = now.wp?.yF?.toFixed(3) || '?';
-      document.getElementById('rep-sak').textContent = now.sak?.toFixed(3) || '?';
+      document.getElementById('rep-gz-roll').textContent = fmt(now.gz_now?.roll);
+      document.getElementById('rep-gz-pitch').textContent = fmt(now.gz_now?.pitch);
+      document.getElementById('rep-wp-area').textContent = fmt(now.wp?.A);
+      document.getElementById('rep-wp-lcf').textContent = fmt(now.wp?.xF);
+      document.getElementById('rep-wp-tcf').textContent = fmt(now.wp?.yF);
+      document.getElementById('rep-wp-ixx').textContent = fmt(now.wp?.Ixx);
+      document.getElementById('rep-wp-iyy').textContent = fmt(now.wp?.Iyy);
+      document.getElementById('rep-wp-ixy').textContent = fmt(now.wp?.Ixy);
+      document.getElementById('rep-sak').textContent = fmt(now.sak);
+      document.getElementById('rep-eq-roll').textContent = currentEquilibriumRoll ? `${fmt(currentEquilibriumRoll.angleDeg, 2)} deg / GZ ${fmt(currentEquilibriumRoll.gz)}` : '?';
+      document.getElementById('rep-eq-pitch').textContent = currentEquilibriumPitch ? `${fmt(currentEquilibriumPitch.angleDeg, 2)} deg / GZ ${fmt(currentEquilibriumPitch.gz)}` : '?';
+      document.getElementById('rep-avs-roll').textContent = fmt(currentReportRoll?.stability?.avs, 2);
+      document.getElementById('rep-avs-pitch').textContent = fmt(currentReportPitch?.stability?.avs, 2);
+      document.getElementById('rep-area-0-30').textContent = fmt(currentReportRoll?.stability?.area_0_30);
+      document.getElementById('rep-area-0-40').textContent = fmt(currentReportRoll?.stability?.area_0_40);
+      document.getElementById('rep-draft-scan-count').textContent = currentDraftScan?.data?.drafts?.length ?? '?';
 
       // Raw data
-      const data = {
+      const data = currentReportBundle || {
         roll: currentReportRoll,
-        pitch: currentReportPitch
+        pitch: currentReportPitch,
+        equilibrium: { roll: currentEquilibriumRoll, pitch: currentEquilibriumPitch },
+        draftScan: currentDraftScan,
       };
       document.getElementById('rawData').textContent = JSON.stringify(data, null, 2);
     }
@@ -1419,8 +1506,9 @@
 
     // --- Eksporter ---
     document.getElementById('exportJSON').addEventListener('click', () => {
-      if (!currentReport) return;
-      const dataStr = JSON.stringify(currentReport, null, 2);
+      const payload = currentReportBundle || currentReport;
+      if (!payload) return;
+      const dataStr = JSON.stringify(payload, null, 2);
       downloadFile('hydro_report.json', dataStr, 'application/json');
     });
 
@@ -1605,8 +1693,50 @@
       document.getElementById('btnReport')?.click();
     });
 
+    document.getElementById('chkWire')?.addEventListener('change', (e) => {
+      const enabled = !!e.target.checked;
+      core.mesh?.traverse?.((child) => {
+        if (!child?.material) return;
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((mat) => { if (mat) { mat.wireframe = enabled; mat.needsUpdate = true; } });
+      });
+      setHud(enabled ? 'Wireframe pa' : 'Wireframe av');
+    });
+
+    document.getElementById('btnHelp')?.addEventListener('click', () => {
+      helpOverlay.classList.add('show');
+    });
+
     document.getElementById('chkHydro').checked = true;
     syncHydroVisibility();
+
+    const dropdowns = Array.from(document.querySelectorAll('.dd'));
+    const closeAllMenus = (exceptId = '') => {
+      dropdowns.forEach((dd) => {
+        const menu = dd.querySelector('.menu');
+        if (!menu) return;
+        const shouldShow = exceptId && menu.id === exceptId;
+        menu.classList.toggle('show', !!shouldShow);
+      });
+    };
+
+    dropdowns.forEach((dd) => {
+      const btn = dd.querySelector('.ddBtn');
+      const menu = dd.querySelector('.menu');
+      if (!btn || !menu) return;
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const willOpen = !menu.classList.contains('show');
+        closeAllMenus(willOpen ? menu.id : '');
+      });
+      menu.addEventListener('click', (ev) => ev.stopPropagation());
+    });
+
+    document.addEventListener('click', () => closeAllMenus());
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') closeAllMenus();
+    });
 
     helpOverlay.addEventListener("click", (e) => {
       if(e.target === helpOverlay) {
