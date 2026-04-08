@@ -59,6 +59,8 @@ DEFAULT_ANDREKOK_STUDIET = "MTKJ"
 DEFAULT_BACKUP_DIRNAME = ".siteupdater-backups"
 PREFERRED_SIDECAR_EXT = ".json"
 SKIP_IF_JSON_EXISTS_EXT = {".txt", ".md", ".list", ".links"}
+FUSION_ARCHIVE_EXTS = {".f3d", ".f3z", ".3fz", ".fbm"}
+FUSION_FALLBACK_HIDE_EXTS = {".3mf", ".3fm", ".fm3", ".step", ".stp"}
 
 # Global cache
 _quiz_normalized: Set[Path] = set()
@@ -115,7 +117,10 @@ def should_skip_sidecar_variant(name: str, sibling_names: Set[str]) -> bool:
     path = Path(name)
     suffix = path.suffix.lower()
     if suffix not in SKIP_IF_JSON_EXISTS_EXT:
-        return False
+        if suffix not in FUSION_FALLBACK_HIDE_EXTS:
+            return False
+        stem = path.stem.lower()
+        return any(f"{stem}{ext}" in sibling_names for ext in FUSION_ARCHIVE_EXTS)
     preferred = f"{path.stem}{PREFERRED_SIDECAR_EXT}".lower()
     return preferred in sibling_names
 

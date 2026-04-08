@@ -622,6 +622,54 @@ function isPotentialVideoListFile(url){
   );
 }
 
+function isFusionShareUrl(url){
+  const s = String(url || '').trim();
+  return /^https?:\/\/[^\s]+$/i.test(s) && /(?:a360\.co|autode\.sk|autodesk|autodesk360|fusion)/i.test(s);
+}
+
+function extractFusionShareUrl(text){
+  const matches = String(text || '').match(/https?:\/\/[^\s"'<>]+/gi) || [];
+  return matches.find(url => isFusionShareUrl(url)) || '';
+}
+
+function isPotentialFusionShareFile(url){
+  const lower = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+  return (
+    lower.endsWith('.txt') ||
+    lower.endsWith('.md') ||
+    lower.endsWith('.list') ||
+    lower.endsWith('.links') ||
+    lower.endsWith('.url') ||
+    lower.endsWith('.webloc')
+  );
+}
+
+async function tryOpenFusionShareFile(url){
+  try{
+    if (isFusionShareUrl(url)){
+      openInViewer(url, 'fusionshare');
+      return true;
+    }
+    if (!isPotentialFusionShareFile(url)) return false;
+    const res = await fetch(url, {cache: 'no-store'}).catch(() => null);
+    if (!res || !res.ok) return false;
+    const text = await res.text();
+    const shareUrl = extractFusionShareUrl(text);
+    if (!shareUrl) return false;
+    openInViewer(`${url}#fusion-share`, 'fusionshare');
+    const { box } = ensureViewer();
+    const frame = box?.querySelector('#pdf-viewer');
+    if (frame) {
+      const target = `/includes/kodeLesere/fusionshareview.html?file=${encodeURIComponent(url)}&share=${encodeURIComponent(shareUrl)}`;
+      if (frame.tagName.toLowerCase() === 'iframe') frame.src = target;
+      else frame.data = target;
+    }
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
 async function tryOpenVideoListFile(url){
   try{
     if (!isPotentialVideoListFile(url)) return false;
@@ -804,9 +852,10 @@ function openInViewer(url, kind){
   else if (kind === 'html')  target = `/includes/kodeLesere/htmlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'stl') target = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fbm') target = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
-  else if (kind === '3mf') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}&v=20260408m`;
-  else if (kind === 'fusion3d') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}&fallback=1&v=20260408m`;
+  else if (kind === '3mf') target = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'fusion3d') target = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'f3d') target = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'fusionshare') target = `/includes/kodeLesere/fusionshareview.html?share=${encodeURIComponent(url)}`;
   else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'csv')   target = `/includes/kodeLesere/csvview.html?file=${encodeURIComponent(url)}`;
 
@@ -901,6 +950,7 @@ function openFile(url){
     }
     return openInViewer(url, 'html');
   }
+  if (isFusionShareUrl(url)) return openInViewer(url, 'fusionshare');
   if (isFusionArchive) return openInViewer(url, 'fusion3d');
   if (clean.endsWith('.fbm') && fusionViewerEnabled) return openInViewer(url, 'fusion');
   if (clean.endsWith('.fbm')) return openInViewer(url, 'fbm');
@@ -1850,6 +1900,11 @@ async function initSidebar(){
     }
     const href = a.getAttribute('href'); 
     if(!href) return;
+    if (await tryOpenFusionShareFile(href)){
+      sb.querySelectorAll('.dropdown-oving').forEach(d=>d.classList.remove('active'));
+      a.closest('.dropdown-oving')?.classList.add('active');
+      return;
+    }
     if (await tryOpenVideoListFile(href)){
       sb.querySelectorAll('.dropdown-oving').forEach(d=>d.classList.remove('active'));
       a.closest('.dropdown-oving')?.classList.add('active');

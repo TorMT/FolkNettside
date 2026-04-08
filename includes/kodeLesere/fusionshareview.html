@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fusion Share Viewer</title>
+  <style>
+    :root{
+      --bg-main: var(--bg-main, var(--bgcolor, #ffffff));
+      --bg-card: var(--bg-card, var(--card-bg, #f7f8fb));
+      --text-main: var(--text-main, var(--textcolor, #111827));
+      --text-muted: var(--text-muted, rgba(17,24,39,.64));
+      --border-color: var(--border-color, rgba(17,24,39,.12));
+      --primary: var(--primary, var(--accent, #2f6fed));
+      --primary-contrast: #fff;
+      --radius: 18px;
+      --shadow: 0 14px 30px -24px rgba(0,0,0,.35);
+    }
+
+    html, body{
+      margin:0;
+      padding:0;
+      height:100%;
+      background:var(--bg-main);
+      color:var(--text-main);
+      font-family:system-ui, "Segoe UI", Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .shell{
+      height:100%;
+      display:grid;
+      grid-template-rows:auto minmax(0,1fr);
+      gap:14px;
+      padding:14px;
+      box-sizing:border-box;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      background:var(--bg-card);
+      border:1px solid var(--border-color);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:14px 16px;
+    }
+
+    .copy h1{
+      margin:0;
+      font-size:28px;
+      line-height:1.1;
+    }
+
+    .copy p{
+      margin:6px 0 0 0;
+      color:var(--text-muted);
+    }
+
+    .buttons{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:10px 14px;
+      border-radius:12px;
+      border:1px solid var(--border-color);
+      background:var(--bg-main);
+      color:var(--text-main);
+      text-decoration:none;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .btn.primary{
+      background:var(--primary);
+      border-color:var(--primary);
+      color:var(--primary-contrast);
+    }
+
+    .stage{
+      position:relative;
+      min-height:0;
+      background:var(--bg-card);
+      border:1px solid var(--border-color);
+      border-radius:var(--radius);
+      overflow:hidden;
+      box-shadow:var(--shadow);
+    }
+
+    iframe{
+      width:100%;
+      height:100%;
+      border:none;
+      background:#fff;
+      display:block;
+    }
+
+    .loading{
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+      background:color-mix(in srgb, var(--bg-card) 85%, #fff 15%);
+      z-index:5;
+      transition:opacity .18s ease;
+    }
+
+    .loading.is-hidden{
+      opacity:0;
+      pointer-events:none;
+    }
+
+    .loading-card{
+      min-width:min(420px, calc(100vw - 48px));
+      background:var(--bg-main);
+      border:1px solid var(--border-color);
+      border-radius:16px;
+      box-shadow:var(--shadow);
+      padding:18px 20px;
+    }
+
+    .loading-card strong{
+      display:block;
+      font-size:22px;
+      margin-bottom:10px;
+    }
+
+    .muted{
+      color:var(--text-muted);
+    }
+
+    .progress{
+      margin-top:14px;
+      height:10px;
+      border-radius:999px;
+      background:color-mix(in srgb, var(--bg-card) 86%, #000 14%);
+      overflow:hidden;
+    }
+
+    .progress > span{
+      display:block;
+      width:32%;
+      height:100%;
+      border-radius:999px;
+      background:linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 75%, #fff 25%));
+      animation:slide 1.2s linear infinite;
+    }
+
+    @keyframes slide{
+      from{ transform:translateX(-110%); }
+      to{ transform:translateX(320%); }
+    }
+
+    .error{
+      padding:22px;
+      display:grid;
+      gap:12px;
+    }
+
+    code{
+      display:block;
+      white-space:pre-wrap;
+      word-break:break-word;
+      padding:12px;
+      border-radius:12px;
+      background:color-mix(in srgb, var(--bg-card) 82%, #000 18%);
+      font-size:12px;
+    }
+
+    @media (max-width: 900px){
+      .topbar{
+        flex-direction:column;
+        align-items:flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div class="copy">
+        <h1 id="title">Fusion Share</h1>
+        <p id="subtitle" class="muted">Laster Fusion-delingslenke…</p>
+      </div>
+      <div class="buttons">
+        <a id="btnOpenShare" class="btn primary" href="#" target="_blank" rel="noopener">Åpne i ny fane</a>
+        <a id="btnOpenSource" class="btn" href="#" target="_blank" rel="noopener">Åpne kildefil</a>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div id="loading" class="loading">
+        <div class="loading-card">
+          <strong>Laster Fusion-visning…</strong>
+          <div class="muted" id="loadingText">Henter delingslenke og prøver å åpne den innebygd.</div>
+          <div class="progress"><span></span></div>
+        </div>
+      </div>
+      <iframe id="shareFrame" title="Fusion Share Viewer" loading="eager"></iframe>
+      <div id="errorBox" class="error" hidden>
+        <strong>Kunne ikke vise Fusion-lenken innebygd.</strong>
+        <div class="muted">Dette skjer ofte hvis Autodesk blokkerer innbygging i `iframe`. Du kan fortsatt åpne lenken direkte.</div>
+        <code id="errorLink"></code>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function applyThemePayload(payload) {
+      try {
+        const root = document.documentElement;
+        if (payload && payload.themeAttr) root.setAttribute("data-theme", payload.themeAttr);
+        const vars = payload?.vars || {};
+        Object.keys(vars).forEach((k) => root.style.setProperty(k, vars[k]));
+      } catch {}
+    }
+
+    window.addEventListener("message", (e) => {
+      if (e?.data?.type === "theme-sync") applyThemePayload(e.data);
+    });
+
+    try {
+      if (window.parent && window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        const parentStyle = getComputedStyle(parentRoot);
+        const vars = {};
+        for (let i = 0; i < parentStyle.length; i++) {
+          const name = parentStyle[i];
+          if (name.startsWith("--")) vars[name] = parentStyle.getPropertyValue(name).trim();
+        }
+        applyThemePayload({ themeAttr: parentRoot.getAttribute("data-theme"), vars });
+      }
+    } catch {}
+
+    const qs = new URLSearchParams(location.search);
+    const file = qs.get("file") || "";
+    const explicitShare = qs.get("share") || "";
+    const frame = document.getElementById("shareFrame");
+    const loading = document.getElementById("loading");
+    const loadingText = document.getElementById("loadingText");
+    const errorBox = document.getElementById("errorBox");
+    const errorLink = document.getElementById("errorLink");
+    const btnOpenShare = document.getElementById("btnOpenShare");
+    const btnOpenSource = document.getElementById("btnOpenSource");
+    const title = document.getElementById("title");
+    const subtitle = document.getElementById("subtitle");
+
+    function hideLoading() {
+      loading.classList.add("is-hidden");
+    }
+
+    function showError(url, reason) {
+      hideLoading();
+      errorBox.hidden = false;
+      frame.hidden = true;
+      subtitle.textContent = reason || "Fusion-lenken kunne ikke vises i denne visningen.";
+      errorLink.textContent = url || "Ingen lenke funnet.";
+      if (url) btnOpenShare.href = url;
+    }
+
+    function extractFusionShareUrl(text) {
+      const matches = String(text || "").match(/https?:\/\/[^\s"'<>]+/gi) || [];
+      return matches.find((url) => /(?:a360\.co|autode\.sk|autodesk|autodesk360|fusion)/i.test(url)) || "";
+    }
+
+    async function resolveShareUrl() {
+      if (explicitShare) return explicitShare;
+      if (!file) return "";
+      const res = await fetch(file, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      return extractFusionShareUrl(text);
+    }
+
+    async function run() {
+      try {
+        if (file) btnOpenSource.href = file;
+        const shareUrl = await resolveShareUrl();
+        if (!shareUrl) {
+          showError("", "Fant ingen Fusion-delingslenke i filen.");
+          return;
+        }
+        btnOpenShare.href = shareUrl;
+        title.textContent = (file.split("/").pop() || "Fusion Share").replace(/\.[^/.?#]+$/, "");
+        subtitle.textContent = shareUrl;
+        loadingText.textContent = "Prøver å laste Autodesk/Fusion-lenken i visningen.";
+        errorLink.textContent = shareUrl;
+
+        let loaded = false;
+        const fallbackTimer = setTimeout(() => {
+          if (!loaded) showError(shareUrl, "Autodesk-lenken svarte ikke i innebygd visning.");
+        }, 8000);
+
+        frame.addEventListener("load", () => {
+          loaded = true;
+          clearTimeout(fallbackTimer);
+          hideLoading();
+        }, { once: true });
+
+        frame.src = shareUrl;
+      } catch (err) {
+        showError(explicitShare || file, `Feil under lasting: ${String(err)}`);
+      }
+    }
+
+    run();
+  </script>
+</body>
+</html>

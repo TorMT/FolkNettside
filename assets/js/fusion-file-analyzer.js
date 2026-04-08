@@ -85,24 +85,71 @@
   const clean = decodedFile.split("?")[0].split("#")[0];
   const ext = (clean.split(".").pop() || "").toLowerCase();
   const fileName = clean.split("/").pop();
+  const FUSION_ARCHIVE_EXTS = new Set(["f3d", "f3z", "3fz", "fbm"]);
+  const MESH_PREVIEW_EXTS = new Set(["3mf", "3fm", "fm3", "stl"]);
+  const CAD_PREVIEW_EXTS = new Set(["step", "stp", "iges", "igs", "obj", "ply", "fbx", "gltf", "glb", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm", "slddrw"]);
   let stlCandidate = (() => {
     const m = decodedFile.match(/^([^?#]+)([?#].*)?$/);
     const base = m?.[1] || decodedFile;
     const tail = m?.[2] || "";
     return `${base.replace(/\.[^.\/]+$/i, ".stl")}${tail}`;
   })();
-  let resolvedStlCandidate = stlCandidate;
+  let resolvedStlCandidate = "";
   let resolvedPreviewCandidate = "";
 
   btnRaw.href = decodedFile;
   headline.textContent = `Fil: ${fileName} (.${ext || "ukjent"})`;
   if (viewerTitle) viewerTitle.textContent = fileName || "3D-modell";
 
+  function cleanUrlPath(value) {
+    return String(value || "").split("?")[0].split("#")[0];
+  }
+  function basenameFromUrl(value) {
+    return cleanUrlPath(value).split("/").pop() || "";
+  }
+  function fileExtFromUrl(value) {
+    return (cleanUrlPath(value).match(/\.([^.\/]+)$/)?.[1] || "").toLowerCase();
+  }
+  function previewExtWeight(name) {
+    const lower = String(name || "").toLowerCase();
+    return (
+      (/\.3mf(?:$|[?#])/.test(lower) ? 500 :
+      /\.3fm(?:$|[?#])/.test(lower) ? 490 :
+      /\.fm3(?:$|[?#])/.test(lower) ? 480 :
+      /\.(step|stp)(?:$|[?#])/.test(lower) ? 420 :
+      /\.(iges|igs)(?:$|[?#])/.test(lower) ? 390 :
+      /\.(obj|glb|gltf|fbx|ply)(?:$|[?#])/.test(lower) ? 340 :
+      /\.stl(?:$|[?#])/.test(lower) ? 300 :
+      /\.(sat|smt|x_t|x_b|sldprt|sldasm|slddrw)(?:$|[?#])/.test(lower) ? 260 : 0)
+    );
+  }
+  function sameStemCandidates(url) {
+    const cleanUrl = cleanUrlPath(url);
+    const match = cleanUrl.match(/^(.*?)(\.[^./?#]+)$/);
+    if (!match) return [];
+    const stem = match[1];
+    const suffix = String(url || "").slice(cleanUrl.length);
+    return [
+      `${stem}.3mf${suffix}`,
+      `${stem}.3fm${suffix}`,
+      `${stem}.fm3${suffix}`,
+      `${stem}.step${suffix}`,
+      `${stem}.stp${suffix}`,
+      `${stem}.iges${suffix}`,
+      `${stem}.igs${suffix}`,
+      `${stem}.obj${suffix}`,
+      `${stem}.glb${suffix}`,
+      `${stem}.gltf${suffix}`,
+      `${stem}.fbx${suffix}`,
+      `${stem}.ply${suffix}`,
+      `${stem}.stl${suffix}`
+    ];
+  }
   function getActiveStlCandidate() {
-    return resolvedStlCandidate || stlCandidate;
+    return resolvedStlCandidate || "";
   }
   function getActivePreviewCandidate() {
-    return resolvedPreviewCandidate || getActiveStlCandidate() || decodedFile;
+    return resolvedPreviewCandidate || "";
   }
   function candidateScore(name, sourceStem) {
     const stem = String(name).replace(/\.[^.]+$/i, "").toLowerCase();
@@ -115,7 +162,7 @@
   }
 
   async function resolveSiblingStlCandidate() {
-    const preferred = getActiveStlCandidate();
+    const preferred = stlCandidate;
     try {
       const exact = await fetch(preferred, { method: "HEAD", cache: "no-store" });
       if (exact.ok) {
@@ -160,6 +207,16 @@
     return getActiveStlCandidate();
   }
   async function resolveSiblingPreviewCandidate() {
+    for (const candidate of sameStemCandidates(decodedFile)) {
+      try {
+        const res = await fetch(candidate, { method: "HEAD", cache: "no-store" });
+        if (res.ok) {
+          resolvedPreviewCandidate = candidate;
+          if (/\.stl(?:$|[?#])/i.test(candidate)) resolvedStlCandidate = candidate;
+          return resolvedPreviewCandidate;
+        }
+      } catch {}
+    }
     try {
       const basePath = clean.replace(/[^\/]+$/, "");
       if (!basePath) return getActivePreviewCandidate();
@@ -172,7 +229,7 @@
         if (!value || !Array.isArray(value.files)) return;
         value.files.forEach((file) => {
           if (typeof file !== "string") return;
-          if (/\.(3mf|3fm|fm3|stl)(?:$|[?#])/i.test(file)) siblingFiles.push(file);
+          if (/\.(3mf|3fm|fm3|step|stp|iges|igs|obj|glb|gltf|fbx|ply|stl|sat|smt|x_t|x_b|sldprt|sldasm|slddrw)(?:$|[?#])/i.test(file)) siblingFiles.push(file);
         });
       });
       const unique = [...new Set(siblingFiles)];
@@ -180,13 +237,7 @@
 
       const sourceStem = (fileName || "").replace(/\.[^.]+$/i, "").toLowerCase();
       const ranked = unique.map((name) => {
-        const lower = String(name).toLowerCase();
-        const extWeight =
-          /\.3mf(?:$|[?#])/.test(lower) ? 400 :
-          /\.3fm(?:$|[?#])/.test(lower) ? 390 :
-          /\.fm3(?:$|[?#])/.test(lower) ? 380 :
-          /\.stl(?:$|[?#])/.test(lower) ? 300 : 0;
-        return { name, score: extWeight + candidateScore(name, sourceStem) };
+        return { name, score: previewExtWeight(name) + candidateScore(name, sourceStem) };
       }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "nb"));
 
       const chosen = ranked[0];
@@ -201,27 +252,35 @@
     const lowerExt = String(ext || "").toLowerCase();
     let targetUrl = decodedFile;
     let viewerPath = "/includes/kodeLesere/stlview.html";
-    const cacheBust = "20260408k";
+    const cacheBust = "20260408o";
     const previewCandidate = getActivePreviewCandidate();
-    const isFusionArchiveExt = ["f3d", "f3z", "3fz", "fbm"].includes(lowerExt);
-    if (["3mf", "3fm", "fm3"].includes(lowerExt)) viewerPath = "/includes/kodeLesere/3mfhydro.html";
-    else if (isFusionArchiveExt) viewerPath = "/includes/kodeLesere/3mfhydro.html";
-    else if (["step", "stp", "iges", "igs", "obj", "ply", "fbx", "gltf", "glb", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm", "slddrw"].includes(lowerExt)) viewerPath = "/includes/kodeLesere/f3dview.html";
-    else if (!["stl"].includes(lowerExt)) targetUrl = getActiveStlCandidate();
-    const extras = [];
-    extras.push(`v=${cacheBust}`);
-    if (viewerPath.endsWith("/3mfhydro.html") && isFusionArchiveExt) {
-      extras.push("fallback=1");
-      if (previewCandidate && previewCandidate !== decodedFile) {
-        extras.push(`altFile=${encodeURIComponent(previewCandidate)}`);
+    const previewExt = fileExtFromUrl(previewCandidate);
+    const isFusionArchiveExt = FUSION_ARCHIVE_EXTS.has(lowerExt);
+
+    if (["3mf", "3fm", "fm3"].includes(lowerExt)) {
+      viewerPath = "/includes/kodeLesere/3mfhydro.html";
+    } else if (isFusionArchiveExt) {
+      if (MESH_PREVIEW_EXTS.has(previewExt)) {
+        targetUrl = previewCandidate;
+        viewerPath = previewExt === "stl" ? "/includes/kodeLesere/stlview.html" : "/includes/kodeLesere/3mfhydro.html";
+      } else {
+        targetUrl = previewCandidate || decodedFile;
+        viewerPath = "/includes/kodeLesere/f3dview.html";
       }
+    } else if (CAD_PREVIEW_EXTS.has(lowerExt)) {
+      viewerPath = "/includes/kodeLesere/f3dview.html";
+    } else if (!["stl"].includes(lowerExt)) {
+      targetUrl = getActiveStlCandidate() || decodedFile;
     }
+
+    const extras = [`v=${cacheBust}`];
     if (viewerPath.endsWith("/f3dview.html")) {
       extras.push(`sourceFile=${encodeURIComponent(decodedFile)}`);
       extras.push(`stlCandidate=${encodeURIComponent(getActiveStlCandidate())}`);
       extras.push(`previewFile=${encodeURIComponent(previewCandidate)}`);
       extras.push(`sourceExt=${encodeURIComponent(lowerExt)}`);
     }
+
     return `${viewerPath}?file=${encodeURIComponent(targetUrl)}&embedded=1${extras.length ? `&${extras.join("&")}` : ""}`;
   }
 
@@ -324,7 +383,13 @@
   function addMeta(label, value) {
     const el = document.createElement("div");
     el.className = "kv";
-    el.innerHTML = `<span class="muted">${label}</span><span>${value}</span>`;
+    const labelEl = document.createElement("span");
+    labelEl.className = "muted";
+    labelEl.textContent = label;
+    const valueEl = document.createElement("span");
+    valueEl.textContent = value;
+    el.appendChild(labelEl);
+    el.appendChild(valueEl);
     metaGrid.appendChild(el);
   }
   const fmtBytes = (n) => (!Number.isFinite(n) || n < 0) ? "ukjent" : n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : n < 1024 ** 3 ? `${(n / 1024 ** 2).toFixed(1)} MB` : `${(n / 1024 ** 3).toFixed(2)} GB`;
@@ -372,6 +437,129 @@
     const hour = (dosTime >> 11) & 0x1f;
     if (!year || !month || !day) return "ukjent";
     return new Date(year, month - 1, day, hour, min, sec).toLocaleString("nb-NO");
+  }
+
+  async function ensureJsZip() {
+    if (window.JSZip) return window.JSZip;
+    const candidates = ["/jszip.min.js", "/includes/three/jszip.min.js"];
+    for (const src of candidates) {
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = src;
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        if (window.JSZip) return window.JSZip;
+      } catch {}
+    }
+    throw new Error("Kunne ikke laste JSZip.");
+  }
+
+  function stripExt(name) {
+    return String(name || "").replace(/\.[^.]+$/i, "");
+  }
+
+  function basename(path) {
+    const parts = String(path || "").split(/[\\/]/);
+    return parts[parts.length - 1] || String(path || "");
+  }
+
+  function looksGuidish(value) {
+    const base = stripExt(basename(value)).trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(base)
+      || /^[0-9a-f]{32}$/i.test(base);
+  }
+
+  function prettyFusionName(raw) {
+    const source = String(raw || "").trim();
+    if (!source) return "";
+    const base = stripExt(basename(source));
+    if (!base || looksGuidish(base)) return "";
+    return base.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeComponentItem(item, index = 0) {
+    if (typeof item === "string") {
+      const label = String(item);
+      return {
+        key: label || `component-${index}`,
+        label,
+        subtitle: "",
+        description: "",
+        search: label.toLowerCase()
+      };
+    }
+
+    const label =
+      prettyFusionName(item.label) ||
+      prettyFusionName(item.name) ||
+      prettyFusionName(item.displayName) ||
+      prettyFusionName(item.friendlyName) ||
+      prettyFusionName(item.rootFileName) ||
+      prettyFusionName(item.file) ||
+      `Komponent ${index + 1}`;
+
+    const subtitleParts = [];
+    if (item.type) subtitleParts.push(String(item.type).replace(/^application\//i, ""));
+    const fileHint = prettyFusionName(item.rootFileName) || prettyFusionName(item.file);
+    if (fileHint && fileHint.toLowerCase() !== String(label).toLowerCase()) subtitleParts.push(fileHint);
+
+    return {
+      key: String(item.key || item.file || label || `component-${index}`),
+      label,
+      subtitle: subtitleParts.join(" · "),
+      description: String(item.description || "").trim(),
+      search: [
+        label,
+        item.name,
+        item.displayName,
+        item.friendlyName,
+        item.file,
+        item.rootFileName,
+        item.description,
+        item.type
+      ].filter(Boolean).join(" ").toLowerCase()
+    };
+  }
+
+  async function extractFusionComponentData(ab) {
+    const JSZip = await ensureJsZip();
+    const outer = await JSZip.loadAsync(ab);
+    const ddEntry = outer.file("DesignDescription.json");
+    const manifestEntry = outer.file("Manifest.json");
+    if (!ddEntry) return null;
+
+    const designDescription = JSON.parse(await ddEntry.async("string"));
+    const manifest = manifestEntry ? JSON.parse(await manifestEntry.async("string")) : null;
+    const designObjects = designDescription?.designDescription?.designGraphs?.[0]?.designObjects || [];
+    const rootFile = manifest?.root || null;
+    const rootObject = designObjects.find((obj) => obj.relativePath === rootFile) || designObjects[0] || null;
+    const seen = new Set();
+    const components = [];
+
+    for (const obj of designObjects) {
+      const normalized = normalizeComponentItem({
+        key: obj.relativePath || obj.displayName || obj.friendlyName,
+        label: obj.displayName || obj.friendlyName || obj.metadata?.rootFileName || obj.relativePath,
+        type: obj.contentType || "",
+        file: obj.relativePath || "",
+        rootFileName: obj.metadata?.rootFileName || "",
+        description: obj.metadata?.description || ""
+      }, components.length);
+      const key = `${normalized.label}::${normalized.subtitle}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      components.push(normalized);
+    }
+
+    return {
+      components,
+      rootName: rootObject?.displayName || rootObject?.friendlyName || prettyFusionName(rootObject?.metadata?.rootFileName) || "",
+      entryCount: Object.keys(outer.files || {}).length
+    };
   }
 
   function parseObj(text) {
@@ -580,6 +768,74 @@ GML=${fmt(GML,3)} m`;
     renderChosenMuted();
   }
 
+  function renderChosenMuted() {
+    const chosen = [...chosenSet].slice(0, 12).join(", ") || "-";
+    const muted = [...mutedSet].slice(0, 12).join(", ") || "-";
+    chosenMuted.textContent = `Valgt: ${chosen} | Dempet: ${muted}`;
+  }
+
+  function renderComponentList(items, mode) {
+    componentState = {
+      items: (items || []).slice(0, 200).map((item, idx) => normalizeComponentItem(item, idx)),
+      mode
+    };
+    renderFilteredComponents();
+  }
+
+  function renderFilteredComponents() {
+    const filter = (componentFilter?.value || "").trim().toLowerCase();
+    const filtered = componentState.items.filter((item) => !filter || item.search.includes(filter));
+    if (!filtered.length) {
+      components.textContent = filter ? "Ingen komponenter matcher filteret." : "Ingen komponentnavn funnet i denne filtypen.";
+      renderChosenMuted();
+      return;
+    }
+
+    const lis = filtered.map((item, idx) => `
+      <li class="comp-row">
+        <button data-comp="${idx}" class="btn comp-main" type="button">
+          <span class="comp-title">${escapeHtml(item.label)}</span>
+          ${item.subtitle ? `<span class="comp-sub">${escapeHtml(item.subtitle)}</span>` : ""}
+          ${item.description ? `<span class="comp-sub">${escapeHtml(item.description)}</span>` : ""}
+        </button>
+        <button class="btn" data-choose="${idx}" type="button">Chosen</button>
+        <button class="btn" data-mute="${idx}" type="button">Muted</button>
+      </li>
+    `).join("");
+    components.innerHTML = `
+      <div class="muted muted-box" style="margin-bottom:8px;">
+        ${componentState.mode === "mesh"
+          ? "Komponent-highlighting i 3D er mulig når filen åpnes i en mesh-viewer som støtter separate grupper/materialer."
+          : componentState.mode === "fusion"
+            ? "Komponentnavn hentet fra Fusion-metadata i filcontaineren. Full 3D-highlighting krever fortsatt scenegraph i vieweren."
+            : "Komponentnavn hentet fra filstruktur. Full 3D-highlighting krever viewer med scenegraph-støtte."}
+      </div>
+      <ul class="comp-list">${lis}</ul>
+    `;
+
+    components.querySelectorAll("button[data-choose]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.getAttribute("data-choose"));
+        const name = filtered[idx]?.label;
+        if (!name) return;
+        if (chosenSet.has(name)) chosenSet.delete(name); else chosenSet.add(name);
+        mutedSet.delete(name);
+        renderChosenMuted();
+      });
+    });
+    components.querySelectorAll("button[data-mute]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.getAttribute("data-mute"));
+        const name = filtered[idx]?.label;
+        if (!name) return;
+        if (mutedSet.has(name)) mutedSet.delete(name); else mutedSet.add(name);
+        chosenSet.delete(name);
+        renderChosenMuted();
+      });
+    });
+    renderChosenMuted();
+  }
+
   function parseIges(text) {
     const lines = text.split(/\r?\n/);
     let s = 0, g = 0, d = 0, p = 0, t = 0;
@@ -678,7 +934,23 @@ GML=${fmt(GML,3)} m`;
           const modelFiles = zip.entries.filter(e => /(^|\/)3d\/.*\.model$/i.test(e.name));
           items.push(`<li>3MF model-filer funnet: ${modelFiles.length}</li>`);
         }
-        renderComponentList(zip.entries.map(e => e.name), "cad");
+        if (["f3d", "f3z", "3fz", "fbm"].includes(ext)) {
+          try {
+            const fusionMeta = await extractFusionComponentData(ab);
+            if (fusionMeta?.components?.length) {
+              items.push(`<li>Fusion-komponenter fra metadata: ${fusionMeta.components.length.toLocaleString("nb-NO")}</li>`);
+              if (fusionMeta.rootName) items.push(`<li>Rotdesign: <b>${escapeHtml(fusionMeta.rootName)}</b></li>`);
+              renderComponentList(fusionMeta.components, "fusion");
+            } else {
+              renderComponentList(zip.entries.map(e => e.name), "cad");
+            }
+          } catch (e) {
+            items.push(`<li class="warn">Kunne ikke lese Fusion-metadata: ${escapeHtml(String(e))}</li>`);
+            renderComponentList(zip.entries.map(e => e.name), "cad");
+          }
+        } else {
+          renderComponentList(zip.entries.map(e => e.name), "cad");
+        }
       }
     } else {
       items.push("<li>Komponent-sjekk: full struktur/timeline for Fusion krever Autodesk API eller eksport til STL/STEP.</li>");
@@ -706,8 +978,8 @@ GML=${fmt(GML,3)} m`;
     addMeta("Filtype", ext || "ukjent");
     await resolveSiblingPreviewCandidate();
     await resolveSiblingStlCandidate();
-    addMeta("3D-preview", getActivePreviewCandidate().split("/").pop());
-    addMeta("STL-kandidat", getActiveStlCandidate().split("/").pop());
+    addMeta("3D-kandidat", basenameFromUrl(getActivePreviewCandidate()) || "Ingen kandidat funnet");
+    if (getActiveStlCandidate()) addMeta("STL-kandidat", basenameFromUrl(getActiveStlCandidate()));
 
     let headRes = null;
     try { headRes = await fetch(decodedFile, { method: "HEAD", cache: "no-store" }); } catch {}
