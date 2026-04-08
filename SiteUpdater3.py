@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
@@ -19,8 +19,9 @@ Tilpasninger:
 """
 
 from __future__ import annotations
-import argparse, json, re, os, hashlib, subprocess, sys
+import argparse, json, re, os, hashlib, subprocess, sys, shutil
 from pathlib import Path
+from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
 from functools import lru_cache
 
@@ -41,14 +42,20 @@ ALLOWED_EXT = {
     ".mp4", ".webm", ".ogg", ".mov", ".m4v",
     ".url", ".webloc",
     ".html", ".txt", ".md", ".list", ".links", ".csv", ".json",
-    ".stl", ".fbm", ".3mf", ".3fz"
+    ".stl", ".fbm", ".3mf", ".3fz", ".f3d", ".f3z", ".3fm", ".fm3",
+    ".step", ".stp", ".iges", ".igs", ".obj", ".ply", ".fbx", ".gltf", ".glb",
+    ".sat", ".smt", ".x_t", ".x_b", ".sldprt", ".sldasm", ".slddrw"
 }
 # Standard mapper vi alltid ignorerer (case-insensitiv)
-DEFAULT_BLACKLIST = {"node_modules", ".git", "__pycache__", "venv", ".venv"}
+DEFAULT_BLACKLIST = {
+    "node_modules", ".git", "__pycache__", "venv", ".venv", ".siteupdater-backups",
+    ".vscode", ".github", "docs", "includes", "scripts", "temp", "temp_subs", "tools"
+}
 IMAGE_EXT        = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
 DEFAULT_WELCOME  = "/img/welcome-generic.svg"
 DEFAULT_ANDREKOK_SOURCE = "https://perrur.folk.ntnu.no/script.js"
 DEFAULT_ANDREKOK_STUDIET = "MTKJ"
+DEFAULT_BACKUP_DIRNAME = ".siteupdater-backups"
 
 # Global cache
 _quiz_normalized: Set[Path] = set()
@@ -69,6 +76,149 @@ def format_path_cached(path_str: str) -> str:
 
 def format_path(path: Path) -> str:
     return format_path_cached(str(path))
+
+def natural_sort_key(text: str) -> Tuple[Tuple[int, object], ...]:
+    parts = re.split(r"(\d+)", repair_mojibake(text).lower())
+    key: List[Tuple[int, object]] = []
+    for part in parts:
+        if not part:
+            continue
+        if part.isdigit():
+            key.append((0, int(part)))
+        else:
+            key.append((1, part))
+    return tuple(key)
+
+def sort_strings_natural(items: List[str]) -> None:
+    items.sort(key=natural_sort_key)
+
+def should_skip_index_file(name: str) -> bool:
+    name_lower = name.lower()
+    if name_lower in {"index.html", "index.json", "aps-config.json"}:
+        return True
+    if name_lower.endswith("_inview.html"):
+        return True
+    if name_lower.endswith(".bak.html"):
+        return True
+    if name_lower.startswith("readme") and name_lower.endswith(".md"):
+        return True
+    if name_lower.startswith("siteupdater") and (name_lower.endswith(".log") or name_lower.endswith(".txt")):
+        return True
+    if name_lower in {"todo list.txt", "ntnu_webedit.md", "fusion_format_capabilities.md", "import-blocklist.txt"}:
+        return True
+    return False
+
+def describe_index_diff(old: Dict[str, object], new: Dict[str, object]) -> str:
+    old_keys = set(old.keys())
+    new_keys = set(new.keys())
+    added = sorted(new_keys - old_keys, key=natural_sort_key)
+    removed = sorted(old_keys - new_keys, key=natural_sort_key)
+    changed = sorted(
+        [k for k in (old_keys & new_keys) if old.get(k) != new.get(k)],
+        key=natural_sort_key,
+    )
+    bits: List[str] = []
+    if added:
+        bits.append(f"lagt til {len(added)} ({', '.join(added[:4])}{' ...' if len(added) > 4 else ''})")
+    if removed:
+        bits.append(f"fjernet {len(removed)} ({', '.join(removed[:4])}{' ...' if len(removed) > 4 else ''})")
+    if changed:
+        bits.append(f"endret {len(changed)} ({', '.join(changed[:4])}{' ...' if len(changed) > 4 else ''})")
+    return "; ".join(bits) if bits else "ingen innholdsendringer"
+
+def resolve_backup_root(root: Path, backup_root: Optional[Path] = None) -> Path:
+    if backup_root:
+        return backup_root.resolve()
+    return (root / DEFAULT_BACKUP_DIRNAME).resolve()
+
+def backup_file(path: Path, root: Path, backup_run_dir: Optional[Path]) -> None:
+    if backup_run_dir is None or not path.exists():
+        return
+    try:
+        rel = path.resolve().relative_to(root.resolve())
+    except Exception:
+        rel = Path(path.name)
+    dest = backup_run_dir / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(path, dest)
+
+def write_backup_manifest(backup_run_dir: Path, root: Path, changes: List[Dict[str, str]]) -> None:
+    manifest = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "root": str(root.resolve()),
+        "changes": changes,
+    }
+    (backup_run_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+def list_backup_ids(backup_root: Path) -> List[str]:
+    if not backup_root.exists():
+        return []
+    return sorted(
+        [p.name for p in backup_root.iterdir() if p.is_dir()],
+        reverse=True,
+    )
+
+def prune_backup_runs(backup_root: Path, keep: int) -> int:
+    if keep < 0 or not backup_root.exists():
+        return 0
+    backups = [p for p in backup_root.iterdir() if p.is_dir()]
+    backups.sort(key=lambda p: p.name, reverse=True)
+    removed = 0
+    for old in backups[keep:]:
+        shutil.rmtree(old, ignore_errors=True)
+        removed += 1
+    return removed
+
+def write_sidecar_bak(path: Path) -> None:
+    if not path.exists():
+        return
+    bak = path.with_name(path.name + ".bak")
+    shutil.copy2(path, bak)
+
+def rollback_backup(root: Path, backup_root: Path, backup_id: str) -> int:
+    if backup_id == "latest":
+        backups = list_backup_ids(backup_root)
+        if not backups:
+            raise FileNotFoundError(f"Fant ingen backups i {backup_root}")
+        backup_id = backups[0]
+
+    backup_dir = backup_root / backup_id
+    if not backup_dir.exists():
+        raise FileNotFoundError(f"Fant ikke backup-id '{backup_id}' i {backup_root}")
+
+    restored = 0
+    manifest_path = backup_dir / "manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for change in manifest.get("changes", []):
+                if not isinstance(change, dict):
+                    continue
+                if change.get("action") != "created":
+                    continue
+                rel_path = str(change.get("path", "")).strip()
+                if not rel_path:
+                    continue
+                dest = root / rel_path
+                if dest.exists():
+                    dest.unlink()
+                    print(f"[ROLLBACK] Fjernet ny fil {format_path(dest)}")
+        except Exception:
+            pass
+
+    for src in backup_dir.rglob("*"):
+        if not src.is_file() or src.name == "manifest.json":
+            continue
+        rel = src.relative_to(backup_dir)
+        dest = root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        restored += 1
+        print(f"[ROLLBACK] Gjenopprettet {format_path(dest)}")
+    return restored
 
 @lru_cache(maxsize=512)
 @lru_cache(maxsize=512)
@@ -180,7 +330,7 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
                             suf = os.path.splitext(entry.name)[1].lower() if entry.name else ""
                             if suf in ALLOWED_EXT:
                                 # âœ… Endring: aldri ta med index.html i fil-lister
-                                if entry.name.lower() == "index.html":
+                                if should_skip_index_file(entry.name):
                                     continue
 
                                 # Hvis shortcut-fil, prÃ¸v Ã¥ hente mÃ¥l-URL â€“ behold original filnavn som label
@@ -204,7 +354,7 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
             pass
 
     scan_dir(str(dir_root))
-    out.sort(key=str.lower)
+    out.sort(key=natural_sort_key)
     _file_cache[dir_root] = out
     return out
 
@@ -372,9 +522,9 @@ def sort_keys(index: Dict[str, object], include_quiz: bool) -> List[str]:
             others.append(k)
 
     oving_keys.sort(key=lambda k: int(OVING_KEY.match(k).group(1)))  # type: ignore[union-attr]
-    py_keys.sort(key=str.lower)
-    others.sort(key=str.lower)
-    locked.sort(key=str.lower)
+    py_keys.sort(key=natural_sort_key)
+    others.sort(key=natural_sort_key)
+    locked.sort(key=natural_sort_key)
 
     order.extend(oving_keys)
     order.extend(py_keys)
@@ -526,6 +676,12 @@ def update_directory(
     max_depth: Optional[int] = None,
     current_depth: int = 0,
     global_blacklist: Optional[Set[str]] = None,
+    dry_run: bool = False,
+    backup_run_dir: Optional[Path] = None,
+    backup_root: Optional[Path] = None,
+    run_root: Optional[Path] = None,
+    changed_files: Optional[List[Dict[str, str]]] = None,
+    bak_files: bool = False,
 ) -> Dict[str, object]:
     """
     Oppdater index.json for en mappe.
@@ -598,17 +754,17 @@ def update_directory(
         q_here = dir_path / "quiz" / "quiz.json"
         if q_here.exists():
             quiz_rel = "quiz/quiz.json"
-            normalize_quiz_images(dir_path, dry_run=False, verbose=True)
+            normalize_quiz_images(dir_path, dry_run=dry_run, verbose=True)
         elif dir_path.name.lower() == "filer":
             q_sibling = dir_path.parent / "quiz" / "quiz.json"
             if q_sibling.exists():
                 quiz_rel = "quiz/quiz.json"
-                normalize_quiz_images(dir_path.parent, dry_run=False, verbose=True)
+                normalize_quiz_images(dir_path.parent, dry_run=dry_run, verbose=True)
         if quiz_rel:
             index["quiz"] = quiz_rel
 
     # 2) Sorter entries
-    entries.sort(key=lambda x: x[0].lower())
+    entries.sort(key=lambda x: natural_sort_key(x[0]))
 
     if use_progress and tqdm is not None:
         entries = tqdm(entries, desc=format_path(dir_path), unit="item", leave=False)  # type: ignore[assignment]
@@ -639,7 +795,7 @@ def update_directory(
 
             if suf in ALLOWED_EXT:
                 # âœ… Endring: aldri legg index.html inn i index.json (sidebar)
-                if name_lower == "index.html":
+                if should_skip_index_file(name):
                     continue
 
                 key = make_oving_key(raw)
@@ -667,7 +823,20 @@ def update_directory(
         beskyttet = is_beskyttet(name)
 
         if should_recurse:
-            sub_index = update_directory(entry_path, use_progress, include_quiz, max_depth, current_depth + 1, global_blacklist=global_blacklist)
+            sub_index = update_directory(
+                entry_path,
+                use_progress,
+                include_quiz,
+                max_depth,
+                current_depth + 1,
+                global_blacklist=global_blacklist,
+                dry_run=dry_run,
+                backup_run_dir=backup_run_dir,
+                backup_root=backup_root,
+                run_root=run_root,
+                changed_files=changed_files,
+                bak_files=bak_files,
+            )
         else:
             sub_index = {}
 
@@ -685,7 +854,7 @@ def update_directory(
         if isinstance(v, dict) and "files" in v:
             files_list = v["files"]
             if isinstance(files_list, list) and len(files_list) > 1:
-                files_list.sort(key=str.lower)
+                files_list.sort(key=natural_sort_key)
 
     # 4) Skriv index.json - kun hvis endret
     if index:
@@ -708,17 +877,48 @@ def update_directory(
                 pass
 
         if needs_update:
-            with open(idx_file, "w", encoding="utf-8") as f:
-                json.dump(ordered_index, f, indent=2, ensure_ascii=False)
-                f.write("\n")
-            print(f"Oppdatert {format_path(idx_file)}")
+            existing: Dict[str, object] = {}
+            had_existing_file = idx_file.exists()
+            if idx_file.exists():
+                try:
+                    with open(idx_file, "r", encoding="utf-8") as f:
+                        existing = json.load(f)
+                except Exception:
+                    existing = {}
+            diff_summary = describe_index_diff(existing, ordered_index) if existing else "ny fil"
+            if dry_run:
+                print(f"[DRY-RUN] Ville oppdatert {format_path(idx_file)} ({diff_summary})")
+            else:
+                backup_file(idx_file, run_root or dir_path, backup_run_dir)
+                if bak_files:
+                    write_sidecar_bak(idx_file)
+                with open(idx_file, "w", encoding="utf-8") as f:
+                    json.dump(ordered_index, f, indent=2, ensure_ascii=False)
+                    f.write("\n")
+                print(f"Oppdatert {format_path(idx_file)} ({diff_summary})")
+                if changed_files is not None:
+                    changed_files.append({
+                        "path": str((idx_file.resolve()).relative_to((run_root or dir_path).resolve())),
+                        "action": "modified" if had_existing_file else "created",
+                    })
 
         _visited_paths.discard(real_path)
         return ordered_index
 
     if idx_file.exists():
-        idx_file.unlink()
-        print(f"Slettet {format_path(idx_file)}")
+        if dry_run:
+            print(f"[DRY-RUN] Ville slettet {format_path(idx_file)}")
+        else:
+            backup_file(idx_file, run_root or dir_path, backup_run_dir)
+            if bak_files:
+                write_sidecar_bak(idx_file)
+            idx_file.unlink()
+            print(f"Slettet {format_path(idx_file)}")
+            if changed_files is not None:
+                changed_files.append({
+                    "path": str((idx_file.resolve()).relative_to((run_root or dir_path).resolve())),
+                    "action": "deleted",
+                })
 
     _visited_paths.discard(real_path)
     return {}
@@ -733,16 +933,39 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--shallow", "-s", action="store_true", help="Oppdater denne mappen og ett nivÃ¥ ned.")
     parser.add_argument("--blacklist", help="Komma-separert liste av mappe-navn Ã¥ blacklist'e i alle mapper (pÃ¥virker ikke vedvarende indeks).", default="")
     parser.add_argument("--enrich-video-lists", action="store_true", help="KjÃ¸r video_topic_enricher.py pÃ¥ videolistefiler etter index-oppdatering.")
-    parser.add_argument("--enrich-ai-provider", choices=["heuristic", "ollama"], default="heuristic", help="AI-provider for enrich-trinn.")
+    parser.add_argument("--enrich-ai-provider", choices=["heuristic", "ollama", "openrouter"], default="heuristic", help="AI-provider for enrich-trinn.")
     parser.add_argument("--enrich-cookies", default=None, help="Cookies-fil for enrich (Panopto/innlogging).")
     parser.add_argument("--enrich-cookies-from-browser", default=None, help="Cookies fra nettleser (f.eks. chrome).")
     parser.add_argument("--enrich-transcribe-with-whisper", action="store_true", help="Bruk whisper-fallback nÃ¥r undertekster mangler.")
     parser.add_argument("--enrich-force", action="store_true", help="Tving enrich selv om output ser oppdatert ut.")
+    parser.add_argument("--dry-run", action="store_true", help="Vis hva som ville blitt endret uten å skrive filer.")
+    parser.add_argument("--no-backup", action="store_true", help="Ikke lag backup av filer før endring.")
+    parser.add_argument("--backup-root", type=Path, default=None, help="Mappe for site-updater-backups.")
+    parser.add_argument("--list-backups", action="store_true", help="List tilgjengelige backups for valgt root.")
+    parser.add_argument("--rollback", default=None, help="Gjenopprett backup-id, eller bruk 'latest'.")
+    parser.add_argument("--keep-backups", type=int, default=5, help="Behold bare de N nyeste backup-kjøringene.")
+    parser.add_argument("--bak-files", action="store_true", help="Lag også sidecar .bak-filer ved siden av endrede index.json.")
     args = parser.parse_args(argv)
 
     root = args.root.resolve()
+    backup_root = resolve_backup_root(root, args.backup_root)
     if not root.is_dir():
         parser.error(f"Sti mÃ¥ vÃ¦re en eksisterende mappe, fikk: {root}")
+
+    if args.list_backups:
+        backups = list_backup_ids(backup_root)
+        if not backups:
+            print(f"Ingen backups funnet i {format_path(backup_root)}")
+        else:
+            print(f"Backups i {format_path(backup_root)}:")
+            for backup_id in backups:
+                print(f" - {backup_id}")
+        return
+
+    if args.rollback:
+        restored = rollback_backup(root, backup_root, args.rollback)
+        print(f"Rollback fullf?rt: {restored} filer gjenopprettet fra {args.rollback}")
+        return
 
     use_prog = not args.no_progress and tqdm is not None
     if not use_prog and tqdm is None and not args.no_progress:
@@ -774,7 +997,37 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Parse global CLI blacklist (ikke persistert med mindre du legger det i index.json selv)
     global_blacklist = set(n.strip() for n in args.blacklist.split(",") if n.strip()) if args.blacklist else set()
 
-    update_directory(root, use_prog, include_quiz=not args.no_quiz, max_depth=max_depth, global_blacklist=global_blacklist)
+    changed_files: List[Dict[str, str]] = []
+    backup_run_dir: Optional[Path] = None
+    if not args.dry_run and not args.no_backup:
+        run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_run_dir = backup_root / run_id
+        backup_run_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Backup for denne kj?ringen: {format_path(backup_run_dir)}")
+
+    update_directory(
+        root,
+        use_prog,
+        include_quiz=not args.no_quiz,
+        max_depth=max_depth,
+        global_blacklist=global_blacklist,
+        dry_run=args.dry_run,
+        backup_run_dir=backup_run_dir,
+        backup_root=backup_root,
+        run_root=root,
+        changed_files=changed_files,
+        bak_files=args.bak_files,
+    )
+
+    if backup_run_dir is not None:
+        if changed_files:
+            write_backup_manifest(backup_run_dir, root, changed_files)
+            removed = prune_backup_runs(backup_root, args.keep_backups)
+            if removed:
+                print(f"Ryddet bort {removed} gamle backup-kjøringer i {format_path(backup_root)}")
+        else:
+            shutil.rmtree(backup_run_dir, ignore_errors=True)
+            print("Ingen filer ble endret, sletter tom backup-mappe.")
 
     if args.enrich_video_lists:
         base = Path(__file__).resolve().parent
@@ -836,5 +1089,3 @@ def main(argv: Optional[List[str]] = None) -> None:
 
 if __name__ == "__main__":
     main()
-
-

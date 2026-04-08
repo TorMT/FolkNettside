@@ -992,7 +992,6 @@ let manualPlaceMode = false;
 let bondLines = null;
 let cutLines = null;
 let isBuilding = false;
-let savedVisibilityState = null;
 const actionHistory = [];
 const MAX_HISTORY = 200;
 
@@ -1012,47 +1011,6 @@ function refreshDerivedVisuals(){
   }else if($("toggleOctahedral").dataset.on==="1"){
     PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
   }
-  if($("toggleUnitCell").dataset.on==="1"){
-    rebuildUnitCellPreview();
-    applyUnitCellIsolation(true);
-  }
-}
-
-function applyUnitCellIsolation(on){
-  if(on){
-    if(!savedVisibilityState){
-      savedVisibilityState = {
-        crystal: crystalGroup.visible,
-        placed: placedGroup.visible,
-        bonds: bondGroup.visible,
-        planes: planeGroup.visible,
-        cuts: cutGroup.visible
-      };
-    }
-    crystalGroup.visible = false;
-    placedGroup.visible = false;
-    bondGroup.visible = false;
-    planeGroup.visible = false;
-    cutGroup.visible = false;
-    unitCellGroup.visible = true;
-    return;
-  }
-  
-  if(savedVisibilityState){
-    crystalGroup.visible = savedVisibilityState.crystal;
-    placedGroup.visible = savedVisibilityState.placed;
-    bondGroup.visible = savedVisibilityState.bonds;
-    planeGroup.visible = savedVisibilityState.planes;
-    cutGroup.visible = savedVisibilityState.cuts;
-  } else {
-    crystalGroup.visible = true;
-    placedGroup.visible = true;
-    bondGroup.visible = true;
-    planeGroup.visible = true;
-    cutGroup.visible = true;
-  }
-  unitCellGroup.visible = false;
-  savedVisibilityState = null;
 }
 
 /* atoms & snap points */
@@ -1676,8 +1634,6 @@ async function buildCrystal(){
   }else{
     PolyhedraModule.clearPolyhedra();
   }
-  rebuildUnitCellPreview();
-  applyUnitCellIsolation($("toggleUnitCell").dataset.on==="1");
 
   $("build").disabled = false;
   isBuilding = false;
@@ -1873,7 +1829,7 @@ function placeAtSnap(){
     
     const added = ManualAtomsModule.addManualAtom(sp.pos, atomType, color, radius, scene);
     if(added) pushAction({ type: "manualAtom" });
-    toast("Manuell atom", `${props.name} plassert`);
+    toast("Manuell atom", `${ManualAtomsModule.atomProperties[atomType].name} plassert`);
     updateGuess(); // Re-analyze structure
     return;
   }

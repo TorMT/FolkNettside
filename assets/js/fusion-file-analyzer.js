@@ -29,6 +29,12 @@
 
   const qs = new URLSearchParams(location.search);
   const file = qs.get("file");
+  const viewerFrame = document.getElementById("viewerFrame");
+  const viewerLoading = document.getElementById("viewerLoading");
+  const viewerTitle = document.getElementById("viewerTitle");
+  const btnToggleDrawer = document.getElementById("btnToggleDrawer");
+  const drawer = document.getElementById("drawer");
+  const drawerBackdrop = document.getElementById("drawerBackdrop");
   const headline = document.getElementById("headline");
   const metaGrid = document.getElementById("metaGrid");
   const checks = document.getElementById("checks");
@@ -79,15 +85,188 @@
   const clean = decodedFile.split("?")[0].split("#")[0];
   const ext = (clean.split(".").pop() || "").toLowerCase();
   const fileName = clean.split("/").pop();
-  const stlCandidate = (() => {
+  let stlCandidate = (() => {
     const m = decodedFile.match(/^([^?#]+)([?#].*)?$/);
     const base = m?.[1] || decodedFile;
     const tail = m?.[2] || "";
     return `${base.replace(/\.[^.\/]+$/i, ".stl")}${tail}`;
   })();
+  let resolvedStlCandidate = stlCandidate;
+  let resolvedPreviewCandidate = "";
 
   btnRaw.href = decodedFile;
   headline.textContent = `Fil: ${fileName} (.${ext || "ukjent"})`;
+  if (viewerTitle) viewerTitle.textContent = fileName || "3D-modell";
+
+  function getActiveStlCandidate() {
+    return resolvedStlCandidate || stlCandidate;
+  }
+  function getActivePreviewCandidate() {
+    return resolvedPreviewCandidate || getActiveStlCandidate() || decodedFile;
+  }
+  function candidateScore(name, sourceStem) {
+    const stem = String(name).replace(/\.[^.]+$/i, "").toLowerCase();
+    const tokens = [...new Set(sourceStem.split(/[_\-\s]+/).filter(Boolean))];
+    return (
+      (stem === sourceStem ? 100 : 0) +
+      ((stem.includes(sourceStem) || sourceStem.includes(stem)) ? 80 : 0) +
+      tokens.filter((token) => stem.includes(token)).length
+    );
+  }
+
+  async function resolveSiblingStlCandidate() {
+    const preferred = getActiveStlCandidate();
+    try {
+      const exact = await fetch(preferred, { method: "HEAD", cache: "no-store" });
+      if (exact.ok) {
+        resolvedStlCandidate = preferred;
+        return resolvedStlCandidate;
+      }
+    } catch {}
+
+    try {
+      const basePath = clean.replace(/[^\/]+$/, "");
+      if (!basePath) return preferred;
+      const indexUrl = `${basePath}index.json`;
+      const res = await fetch(indexUrl, { cache: "no-store" });
+      if (!res.ok) return preferred;
+      const data = await res.json();
+      const siblingFiles = [];
+      Object.entries(data || {}).forEach(([key, value]) => {
+        if (!value || !Array.isArray(value.files)) return;
+        value.files.forEach((file) => {
+          if (typeof file === "string" && /\.stl(?:$|[?#])/i.test(file)) siblingFiles.push(file);
+        });
+      });
+      const unique = [...new Set(siblingFiles)];
+      if (!unique.length) return preferred;
+
+      const sourceStem = (fileName || "").replace(/\.[^.]+$/i, "").toLowerCase();
+      const normalized = unique.map((name) => {
+        const stem = String(name).replace(/\.[^.]+$/i, "").toLowerCase();
+        const score =
+          stem === sourceStem ? 100 :
+          stem.includes(sourceStem) || sourceStem.includes(stem) ? 80 :
+          [...new Set(sourceStem.split(/[_\-\s]+/).filter(Boolean))].filter((token) => stem.includes(token)).length;
+        return { name, stem, score };
+      }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "nb"));
+
+      const chosen = normalized[0];
+      if (!chosen) return preferred;
+      if (chosen.score > 0 || unique.length === 1) {
+        resolvedStlCandidate = `${basePath}${chosen.name}`;
+      }
+    } catch {}
+    return getActiveStlCandidate();
+  }
+  async function resolveSiblingPreviewCandidate() {
+    try {
+      const basePath = clean.replace(/[^\/]+$/, "");
+      if (!basePath) return getActivePreviewCandidate();
+      const indexUrl = `${basePath}index.json`;
+      const res = await fetch(indexUrl, { cache: "no-store" });
+      if (!res.ok) return getActivePreviewCandidate();
+      const data = await res.json();
+      const siblingFiles = [];
+      Object.entries(data || {}).forEach(([, value]) => {
+        if (!value || !Array.isArray(value.files)) return;
+        value.files.forEach((file) => {
+          if (typeof file !== "string") return;
+          if (/\.(3mf|3fm|fm3|stl)(?:$|[?#])/i.test(file)) siblingFiles.push(file);
+        });
+      });
+      const unique = [...new Set(siblingFiles)];
+      if (!unique.length) return getActivePreviewCandidate();
+
+      const sourceStem = (fileName || "").replace(/\.[^.]+$/i, "").toLowerCase();
+      const ranked = unique.map((name) => {
+        const lower = String(name).toLowerCase();
+        const extWeight =
+          /\.3mf(?:$|[?#])/.test(lower) ? 400 :
+          /\.3fm(?:$|[?#])/.test(lower) ? 390 :
+          /\.fm3(?:$|[?#])/.test(lower) ? 380 :
+          /\.stl(?:$|[?#])/.test(lower) ? 300 : 0;
+        return { name, score: extWeight + candidateScore(name, sourceStem) };
+      }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "nb"));
+
+      const chosen = ranked[0];
+      if (!chosen || chosen.score <= 0) return getActivePreviewCandidate();
+      resolvedPreviewCandidate = `${basePath}${chosen.name}`;
+      if (/\.stl(?:$|[?#])/i.test(chosen.name)) resolvedStlCandidate = resolvedPreviewCandidate;
+    } catch {}
+    return getActivePreviewCandidate();
+  }
+
+  function buildViewerTarget() {
+    const lowerExt = String(ext || "").toLowerCase();
+    let targetUrl = decodedFile;
+    let viewerPath = "/includes/kodeLesere/stlview.html";
+    const cacheBust = "20260408e";
+    const hasConfirmedStlPreview = analysisState.source === "STL-kandidat (binary mesh)";
+    const previewCandidate = getActivePreviewCandidate();
+    if (["3mf", "3fm", "fm3"].includes(lowerExt)) viewerPath = "/includes/kodeLesere/3mfhydro.html";
+    else if (["fbm"].includes(lowerExt)) viewerPath = "/includes/kodeLesere/fbmview.html";
+    else if (["f3d", "f3z", "3fz"].includes(lowerExt)) {
+      if (/\.(3mf|3fm|fm3)(?:$|[?#])/i.test(previewCandidate)) {
+        viewerPath = "/includes/kodeLesere/3mfhydro.html";
+        targetUrl = previewCandidate;
+      } else if (/\.(stl)(?:$|[?#])/i.test(previewCandidate) || hasConfirmedStlPreview) {
+        viewerPath = "/includes/kodeLesere/stlview.html";
+        targetUrl = /\.(stl)(?:$|[?#])/i.test(previewCandidate) ? previewCandidate : getActiveStlCandidate();
+      } else {
+        viewerPath = "/includes/kodeLesere/f3dview.html";
+      }
+    }
+    else if (["step", "stp", "iges", "igs", "obj", "ply", "fbx", "gltf", "glb", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm", "slddrw"].includes(lowerExt)) viewerPath = "/includes/kodeLesere/f3dview.html";
+    else if (!["stl"].includes(lowerExt)) targetUrl = getActiveStlCandidate();
+    const extras = [];
+    extras.push(`v=${cacheBust}`);
+    if (viewerPath.endsWith("/f3dview.html")) {
+      extras.push(`sourceFile=${encodeURIComponent(decodedFile)}`);
+      extras.push(`stlCandidate=${encodeURIComponent(getActiveStlCandidate())}`);
+      extras.push(`sourceExt=${encodeURIComponent(lowerExt)}`);
+    }
+    return `${viewerPath}?file=${encodeURIComponent(targetUrl)}&embedded=1${extras.length ? `&${extras.join("&")}` : ""}`;
+  }
+
+  function isCompactViewport() {
+    return window.matchMedia("(max-width: 1180px)").matches;
+  }
+
+  function postThemeToViewer() {
+    try {
+      if (!viewerFrame?.contentWindow) return;
+      const root = document.documentElement;
+      const style = getComputedStyle(root);
+      const vars = {};
+      for (let i = 0; i < style.length; i++) {
+        const name = style[i];
+        if (name.startsWith("--")) vars[name] = style.getPropertyValue(name).trim();
+      }
+      viewerFrame.contentWindow.postMessage({
+        type: "theme-sync",
+        themeAttr: root.getAttribute("data-theme"),
+        vars
+      }, "*");
+    } catch {}
+  }
+
+  function setDrawerOpen(open) {
+    if (!drawer || !btnToggleDrawer) return;
+    drawer.classList.toggle("is-open", !!open);
+    if (drawerBackdrop) drawerBackdrop.hidden = !(!!open && isCompactViewport());
+    btnToggleDrawer.textContent = open ? "Skjul filbehandler ☰" : "Vis filbehandler ☰";
+  }
+
+  function loadIntegratedViewer() {
+    if (!viewerFrame) return;
+    if (viewerLoading) viewerLoading.classList.remove("is-hidden");
+    viewerFrame.onload = () => {
+      if (viewerLoading) viewerLoading.classList.add("is-hidden");
+      postThemeToViewer();
+    };
+      viewerFrame.src = buildViewerTarget();
+  }
 
   function setDisabled(el, disabled, titleWhenDisabled = "") {
     if (!el) return;
@@ -104,10 +283,13 @@
   setDisabled(btnBambu, !BAMBU_EXT.has(ext), "Bambu-knapp støttes best for STL/3MF/OBJ.");
   setDisabled(btnStl, !CAD_EXT.has(ext), "3D-viewer er kun relevant for CAD-relaterte filer.");
 
-  btnStl.onclick = () => {
-    const viewerTarget = ["stl", "3mf", "3fm", "fm3", "f3z", "f3d", "fbm"].includes(ext) ? decodedFile : stlCandidate;
-    location.href = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(viewerTarget)}`;
-  };
+  btnStl.onclick = () => loadIntegratedViewer();
+  btnToggleDrawer && (btnToggleDrawer.onclick = () => setDrawerOpen(!drawer?.classList.contains("is-open")));
+  drawerBackdrop && drawerBackdrop.addEventListener("click", () => setDrawerOpen(false));
+  window.addEventListener("resize", () => {
+    if (!isCompactViewport()) setDrawerOpen(true);
+    else if (drawerBackdrop) drawerBackdrop.hidden = !drawer?.classList.contains("is-open");
+  });
 
   function setTab(tabName) {
     const showOverview = tabName !== "hydro";
@@ -269,6 +451,24 @@
   }
 
   const fmt = (n, d = 3) => Number.isFinite(n) ? Number(n).toFixed(d) : "–";
+
+  async function tryHydroFromResolvedStl() {
+    const candidate = getActiveStlCandidate();
+    if (!candidate) return false;
+    try {
+      const res = await fetch(candidate, { cache: "no-store" });
+      if (!res.ok) return false;
+      const ab = await res.arrayBuffer();
+      const parsed = parseBinaryStlBboxAndVolume(ab);
+      if (!parsed?.bbox) return false;
+      analysisState.bbox = parsed.bbox;
+      analysisState.solidVolumeM3 = parsed.solidVolume;
+      analysisState.source = "STL-kandidat (binary mesh)";
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   function buildHydroReport() {
     const b = analysisState.bbox;
@@ -467,7 +667,7 @@ GML=${fmt(GML,3)} m`;
       const iges = parseIges(decodeText(ab));
       items.push(`<li>IGES seksjoner: S=${iges.s}, G=${iges.g}, D=${iges.d}, P=${iges.p}, T=${iges.t}</li>`);
       renderComponentList([], "cad");
-    } else if (["3mf", "3fm", "f3d", "fbm", "fm3"].includes(ext)) {
+    } else if (["3mf", "3fm", "f3d", "f3z", "3fz", "fbm", "fm3"].includes(ext)) {
       const zip = parseZipCentralDirectory(ab);
       if (zip.error) {
         items.push(`<li class="warn">Kunne ikke lese ZIP-struktur: ${zip.error}</li>`);
@@ -489,6 +689,13 @@ GML=${fmt(GML,3)} m`;
       renderComponentList([], "cad");
     }
 
+    if (!analysisState.bbox && ["f3d", "f3z", "3fz", "fbm", "fm3", "step", "stp", "iges", "igs", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm"].includes(ext)) {
+      const recovered = await tryHydroFromResolvedStl();
+      if (recovered) {
+        items.push("<li>Hydro-fallback: bruker matchende STL-eksport for bbox og volumestimat.</li>");
+      }
+    }
+
     if (["fbm", "fm3", "3fm"].includes(ext)) {
       items.push("<li>Tips: eksporter til STL/3MF for slicing i Bambu Studio og visning i nettleser.</li>");
     }
@@ -501,7 +708,10 @@ GML=${fmt(GML,3)} m`;
   async function run() {
     addMeta("Filnavn", fileName || "ukjent");
     addMeta("Filtype", ext || "ukjent");
-    addMeta("STL-kandidat", stlCandidate.split("/").pop());
+    await resolveSiblingPreviewCandidate();
+    await resolveSiblingStlCandidate();
+    addMeta("3D-preview", getActivePreviewCandidate().split("/").pop());
+    addMeta("STL-kandidat", getActiveStlCandidate().split("/").pop());
 
     let headRes = null;
     try { headRes = await fetch(decodedFile, { method: "HEAD", cache: "no-store" }); } catch {}
@@ -535,6 +745,10 @@ GML=${fmt(GML,3)} m`;
       mo.observe(pr, { attributes: true, attributeFilter: ["data-theme", "style", "class"] });
     }
   } catch {}
-  setInterval(syncFromParentTheme, 1000);
-  run();
+  setInterval(() => {
+    syncFromParentTheme();
+    postThemeToViewer();
+  }, 1000);
+  setDrawerOpen(!isCompactViewport());
+  run().finally(() => loadIntegratedViewer());
 })();

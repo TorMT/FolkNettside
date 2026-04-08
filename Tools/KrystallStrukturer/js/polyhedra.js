@@ -228,7 +228,10 @@
     tetHoles.forEach(hole => {
       const neighbors = findNearestAtoms(hole.pos, atomPositions, 4);
       if (neighbors.length >= 4) {
-        drawTetrahedron(neighbors.slice(0, 4).map(n => n.pos), hole.pos, scene);
+        const nearest = neighbors[0].dist;
+        const filtered = neighbors.filter(n => n.dist <= nearest * 1.35);
+        if (filtered.length < 4) return;
+        drawTetrahedron(filtered.slice(0, 4).map(n => n.pos), hole.pos, scene);
         drawn += 1;
       }
     });
@@ -246,7 +249,10 @@
     octHoles.forEach(hole => {
       const neighbors = findNearestAtoms(hole.pos, atomPositions, 6);
       if (neighbors.length >= 6) {
-        drawOctahedron(neighbors.slice(0, 6).map(n => n.pos), hole.pos, scene);
+        const nearest = neighbors[0].dist;
+        const filtered = neighbors.filter(n => n.dist <= nearest * 1.35);
+        if (filtered.length < 6) return;
+        drawOctahedron(filtered.slice(0, 6).map(n => n.pos), hole.pos, scene);
         drawn += 1;
       }
     });

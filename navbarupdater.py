@@ -38,6 +38,10 @@ except ModuleNotFoundError:
 OVING_RE = re.compile(r"^(?:øving|oving)0*(\d+)$", re.IGNORECASE)
 ALLOWED_EXT = {'.py', '.pdf', '.ipynb'}
 IMAGE_EXT = {'.jpg', '.jpeg', '.png', '.gif'}
+LOCAL_ONLY_BLOCK_RE = re.compile(
+    r'<!--\s*LOCAL-ONLY-START:\s*([A-Za-z0-9_-]+)\s*-->(.*?)<!--\s*LOCAL-ONLY-END:\s*\1\s*-->',
+    re.DOTALL,
+)
 
 
 def clean_name(name: str) -> str:
@@ -113,7 +117,7 @@ def update_index(dir_path: Path, use_progress: bool):
     
     for k in sorted(index):
         ordered[k] = index[k]
-    
+
     # Skriv til fil hvis endret
     idx_file = dir_path / 'index.json'
     text = json.dumps(ordered, indent=2, ensure_ascii=False) + '\n'
@@ -125,15 +129,25 @@ def update_index(dir_path: Path, use_progress: bool):
 
 # --- side- og navbar-funksjoner -----------------------------------------
 
-def generate_page(template: Path, out: Path, title: str, desc: str):
+def normalize_course_code(raw: str) -> str:
+    return str(raw or '').strip().upper()
+
+
+def generate_page(template: Path, out: Path, title: str, desc: str, course_code: str = ''):
     """Genererer en ny fagside fra template."""
     if not template.exists():
         print(f"✗ Template ikke funnet: {template}")
         print("  Oppretter standard HTML-mal...")
-        return generate_default_page(out, title, desc)
+        return generate_default_page(out, title, desc, course_code)
     
     tpl = template.read_text(encoding='utf-8')
-    html = tpl.replace('{{TITLE}}', title).replace('{{DESCRIPTION}}', desc)
+    code = normalize_course_code(course_code)
+    html = (
+        tpl
+        .replace('{{TITLE}}', title)
+        .replace('{{DESCRIPTION}}', desc)
+        .replace('{{COURSE_CODE}}', code)
+    )
     
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding='utf-8')
@@ -141,7 +155,7 @@ def generate_page(template: Path, out: Path, title: str, desc: str):
     return True
 
 
-def generate_default_page(out: Path, title: str, desc: str):
+def generate_default_page(out: Path, title: str, desc: str, course_code: str = ''):
     """Genererer en standard fagside hvis template mangler."""
     # Les HTML template fra fil eller bruk hardkodet versjon
     html_content = '''<!DOCTYPE html>
@@ -159,6 +173,8 @@ def generate_default_page(out: Path, title: str, desc: str):
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#004f9f">
   <meta name="description" content="{{DESCRIPTION}}">
+  <meta name="course-code" content="{{COURSE_CODE}}">
+  <meta name="karakterweb-url-template" content="https://www.karakterweb.no/ntnu/{course_code}">
   <title>{{TITLE}} - Studieressurser</title>
 
   <!-- Preload kritiske ressurser for raskere lasting -->
@@ -265,7 +281,7 @@ def generate_default_page(out: Path, title: str, desc: str):
   
   <!-- 2. SIDEBAR SYSTEM (NY VERSJON v11.11.0 med modulstøtte) -->
   <script src="/includes/sidebar-html-loader.js"></script>
-  <script src="/includes/sidebar-loader.js?v=11.11.0"></script>
+  <script src="/includes/sidebar-loader.js?v=11.16.1"></script>
   
   <!-- 3. Theme system -->
   <script src="/assets/js/theme-switcher.js?v=4"></script>
@@ -280,7 +296,13 @@ def generate_default_page(out: Path, title: str, desc: str):
 </html>'''
     
     # Replace placeholders
-    html = html_content.replace('{{TITLE}}', title).replace('{{DESCRIPTION}}', desc)
+    code = normalize_course_code(course_code)
+    html = (
+        html_content
+        .replace('{{TITLE}}', title)
+        .replace('{{DESCRIPTION}}', desc)
+        .replace('{{COURSE_CODE}}', code)
+    )
     
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding='utf-8')
@@ -298,13 +320,46 @@ def find_dropdown_header(dropdown):
     )
 
 
+def extract_local_only_blocks(raw_html: str):
+    """Hent ut blokker som skal bevares 1:1 mellom oppdateringer."""
+    blocks = {}
+    for m in LOCAL_ONLY_BLOCK_RE.finditer(raw_html):
+        name = m.group(1).strip()
+        blocks[name] = m.group(0)
+    return blocks
+
+
+def restore_local_only_blocks(original_html: str, generated_html: str, skip_names=None) -> str:
+    """Erstatt LOCAL-ONLY-blokker i generert html med originalt innhold."""
+    blocks = extract_local_only_blocks(original_html)
+    if not blocks:
+        return generated_html
+    skip = {str(x).strip() for x in (skip_names or [])}
+
+    def repl(match):
+        name = match.group(1).strip()
+        if name in skip:
+            return match.group(0)
+        return blocks.get(name, match.group(0))
+
+    return LOCAL_ONLY_BLOCK_RE.sub(repl, generated_html)
+
+
+def write_navbar_preserving_local_only(nav: Path, soup: BeautifulSoup, original_html: str, skip_names=None):
+    """Skriv navbar-filen og behold side-spesifikke LOCAL-ONLY-blokker."""
+    generated = str(soup)
+    merged = restore_local_only_blocks(original_html, generated, skip_names=skip_names)
+    nav.write_text(merged, encoding='utf-8')
+
+
 def update_navbar(nav: Path, sem: str, slug: str, title: str):
     """Legger til et nytt kurs i navbar under riktig semester."""
     if not nav.exists():
         print(f"✗ Navbar ikke funnet: {nav}")
         return False
     
-    soup = BeautifulSoup(nav.read_text(encoding='utf-8'), 'html.parser')
+    original_html = nav.read_text(encoding='utf-8')
+    soup = BeautifulSoup(original_html, 'html.parser')
     heading = f"{sem}. Semester"
     
     # Finn riktig semester-dropdown
@@ -336,7 +391,12 @@ def update_navbar(nav: Path, sem: str, slug: str, title: str):
     dropdown_content.append('\n        ')
     dropdown_content.append(a)
     
-    nav.write_text(str(soup), encoding='utf-8')
+    write_navbar_preserving_local_only(
+        nav,
+        soup,
+        original_html,
+        skip_names={'NAVBAR_LEFT_SEMESTERS'},
+    )
     print(f"✓ Oppdatert navbar: la til {title} i {heading}")
     return True
 
@@ -347,7 +407,8 @@ def add_semester(nav: Path, base: Path, sem: str):
         print(f"✗ Navbar ikke funnet: {nav}")
         return False
     
-    soup = BeautifulSoup(nav.read_text(encoding='utf-8'), 'html.parser')
+    original_html = nav.read_text(encoding='utf-8')
+    soup = BeautifulSoup(original_html, 'html.parser')
     left = soup.select_one('.navbar-left')
     
     if not left:
@@ -389,7 +450,12 @@ def add_semester(nav: Path, base: Path, sem: str):
     sem_path.mkdir(parents=True, exist_ok=True)
     print(f"✓ Opprettet mappe 'semestre/{sem}'")
     
-    nav.write_text(str(soup), encoding='utf-8')
+    write_navbar_preserving_local_only(
+        nav,
+        soup,
+        original_html,
+        skip_names={'NAVBAR_LEFT_SEMESTERS'},
+    )
     return True
 
 
@@ -435,6 +501,11 @@ def main():
         default='',
         help='Kursbeskrivelse (valgfri)'
     )
+    course_parser.add_argument(
+        '--course-code',
+        default='',
+        help='Fagkode for Karakterweb (f.eks. EXPH0300). Standard: bruker slug.'
+    )
     
     # bulk
     bulk_parser = subparsers.add_parser(
@@ -467,7 +538,8 @@ def main():
         
         # Generer side
         course_path = root / 'semestre' / args.semester / args.slug / 'index.html'
-        if generate_page(template, course_path, args.title, args.description):
+        course_code = args.course_code or args.slug
+        if generate_page(template, course_path, args.title, args.description, course_code):
             # Opprett filer-mappe og index.json med welcome placeholder
             files_dir = course_path.parent / 'filer'
             files_dir.mkdir(parents=True, exist_ok=True)
@@ -504,7 +576,8 @@ def main():
                     template,
                     spath,
                     c['title'],
-                    c.get('description', '')
+                    c.get('description', ''),
+                    c.get('course_code', c.get('slug', ''))
                 ):
                     # Opprett filer-mappe med placeholder
                     files_dir = spath.parent / 'filer'

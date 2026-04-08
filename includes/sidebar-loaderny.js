@@ -1,4 +1,4 @@
-﻿/* --------------------------------------------------------------------
+/* --------------------------------------------------------------------
    FolkNettsideFolk â€“ sidebar-loader.js  v11.15.2
    --------------------------------------------------------------------
    FIKSET: Fil ikoner og CSS/JS-blanding
@@ -40,7 +40,8 @@
       top:var(--nav-h);
       left:0; 
       width:var(--side-w);
-      height:calc(100vh - var(--nav-h)); 
+      height:calc(100vh - var(--nav-h));
+      height:calc(100dvh - var(--nav-h)); 
       background:var(--sidebar-bg, #004f9f);
       color:var(--sidebar-text, #fff);
       overflow-y:auto;
@@ -82,6 +83,7 @@
         opacity:1;
         transition:opacity 0.1s ease;
         max-height:calc(100vh - var(--nav-h) - 20px);
+        max-height:calc(100dvh - var(--nav-h) - 20px);
         overflow-y:auto;
         overflow-x:hidden;
         -webkit-overflow-scrolling:touch;
@@ -131,6 +133,7 @@
         opacity:0;
         transition:opacity 0.1s ease;
         max-height:calc(100vh - var(--nav-h) - 20px);
+        max-height:calc(100dvh - var(--nav-h) - 20px);
         overflow-y:auto;
         overflow-x:hidden;
         -webkit-overflow-scrolling:touch;
@@ -201,8 +204,8 @@
     .course-description{margin:0 0 1rem 0;max-width:42rem;line-height:1.5;}
 
     /* ---------- VIEWER/QUIZ ---------- */
-    #pdf-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);overflow:auto;}
-    #media-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);overflow:auto;}
+    #pdf-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);height:calc(100dvh - var(--nav-h) - 3rem);overflow:auto;}
+    #media-viewer-container{display:none;height:calc(100vh - var(--nav-h) - 3rem);height:calc(100dvh - var(--nav-h) - 3rem);overflow:auto;}
     #media-viewer{width:100%;height:100%;border:none;background:#000}
     
     .file-icon{
@@ -832,6 +835,27 @@ function openFile(url){
   const fusionViewerEnabled =
     window.ENABLE_FUSION_VIEWER !== false &&
     fusionFlag !== '0';
+  const isFusionCad =
+    clean.endsWith('.f3d') || clean.endsWith('.f3z') ||
+    clean.endsWith('.fbm') || clean.endsWith('.3fz') ||
+    clean.endsWith('.3fm') || clean.endsWith('.fm3') ||
+    clean.endsWith('.step') || clean.endsWith('.stp') ||
+    clean.endsWith('.iges') || clean.endsWith('.igs') ||
+    clean.endsWith('.obj') ||
+    clean.endsWith('.sat') || clean.endsWith('.smt') ||
+    clean.endsWith('.x_t') || clean.endsWith('.x_b') ||
+    clean.endsWith('.sldprt') || clean.endsWith('.sldasm') || clean.endsWith('.slddrw');
+  const isRenderableCad =
+    clean.endsWith('.step') || clean.endsWith('.stp') ||
+    clean.endsWith('.iges') || clean.endsWith('.igs') ||
+    clean.endsWith('.fbx') || clean.endsWith('.abc') ||
+    clean.endsWith('.usd') || clean.endsWith('.usda') || clean.endsWith('.usdc') || clean.endsWith('.usdz') ||
+    clean.endsWith('.ifc') || clean.endsWith('.draco') || clean.endsWith('.vdb') ||
+    clean.endsWith('.obj') || clean.endsWith('.ply') || clean.endsWith('.vtk') ||
+    clean.endsWith('.gltf') || clean.endsWith('.glb') ||
+    clean.endsWith('.sat') || clean.endsWith('.smt') ||
+    clean.endsWith('.x_t') || clean.endsWith('.x_b') ||
+    clean.endsWith('.sldprt') || clean.endsWith('.sldasm') || clean.endsWith('.slddrw');
   if (clean.endsWith('.pdf'))   return openInViewer(url, 'pdf');
   if (clean.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
   if (clean.endsWith('.py'))    return openInViewer(url, 'py');
@@ -843,10 +867,11 @@ function openFile(url){
     }
     return openInViewer(url, 'html');
   }
+  if (clean.endsWith('.fbm') && fusionViewerEnabled) return openInViewer(url, 'fusion');
   if (clean.endsWith('.fbm')) return openInViewer(url, 'fbm');
-  if (/\.(3mf|3fm|fm3)$/.test(clean)) return openInViewer(url, '3mf');
-  if (fusionViewerEnabled && /\.(f3d|f3z|step|stp|iges|igs|obj|sat|smt|x_t|x_b|sldprt|sldasm)$/.test(clean)) return openInViewer(url, 'fusion');
-  if (/\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)) return openInViewer(url, 'f3d');
+  if (clean.endsWith('.3mf') || clean.endsWith('.3fm') || clean.endsWith('.fm3')) return openInViewer(url, '3mf');
+  if (fusionViewerEnabled && isFusionCad) return openInViewer(url, 'fusion');
+  if (isRenderableCad) return openInViewer(url, 'f3d');
   if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mov') || lower.endsWith('.m4v')){
     return openInViewer(url, 'video');
   }
@@ -961,6 +986,7 @@ function iconForFile(file){
     let s = String(file||'').trim();
     if (s.indexOf('|') >= 0){ const p = s.split('|'); s = (p[1] || p[0] || '').trim(); }
     const lower = s.toLowerCase();
+    const isAnyOf = (exts) => exts.some(ext => lower.endsWith(ext));
     
     if (/^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(s)){
       return '<span class="file-icon youtube" style="background:#FF0000;border-radius:3px">'
@@ -1010,13 +1036,45 @@ function iconForFile(file){
         + '</span>';
     }
 
-    if (lower.endsWith('.stl') || lower.endsWith('.fbm') || (/\.(3mf|3fm|fm3)$/.test(lower)) || /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower)){
-  return '<span class="file-icon model" style="background:#009688;border-radius:3px">'
-    + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg">'
-    + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
-    + '<path d="M4 12l6-8 6 8z" fill="#fff"/>'
-    + '</svg></span>';
-}
+    if (isAnyOf(['.f3d', '.f3z', '.3fz', '.fbm', '.3fm', '.fm3'])){
+      return '<span class="file-icon model fusion" style="background:#F57C00;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<path d="M6 11V5l5-2 5 2v6l-5 2z" fill="none" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>'
+        + '<path d="M11 3v10M6 5l5 3 5-3" fill="none" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>'
+        + '</svg>'
+        + '</span>';
+    }
+
+    if (isAnyOf(['.step', '.stp', '.iges', '.igs', '.sat', '.smt', '.x_t', '.x_b', '.ifc'])){
+      return '<span class="file-icon model cad" style="background:#1976D2;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<path d="M5 11V5l4-2 4 2v6l-4 2z" fill="none" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/>'
+        + '<path d="M15 4h4M15 8h4M15 12h4" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>'
+        + '</svg>'
+        + '</span>';
+    }
+
+    if (isAnyOf(['.sldprt', '.sldasm', '.slddrw'])){
+      return '<span class="file-icon model solidworks" style="background:#C62828;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<path d="M8 8a2.4 2.4 0 1 0 4.8 0A2.4 2.4 0 0 0 8 8z" fill="none" stroke="#fff" stroke-width="1.4"/>'
+        + '<path d="M10.4 3.5v1.6M10.4 10.9v1.6M6.7 5.1l1.1 1.1M13 9.4l1.1 1.1M6.7 10.9l1.1-1.1M13 6.6l1.1-1.1" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/>'
+        + '</svg>'
+        + '</span>';
+    }
+
+    if (isAnyOf(['.stl', '.3mf', '.obj', '.ply', '.vtk', '.fbx', '.abc', '.usd', '.usda', '.usdc', '.usdz', '.draco', '.vdb', '.gltf', '.glb'])){
+      return '<span class="file-icon model mesh" style="background:#00897B;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<path d="M4 11l4-6 5 2 3-3 4 7H4z" fill="none" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/>'
+        + '<circle cx="8" cy="5" r="1" fill="#fff"/><circle cx="13" cy="7" r="1" fill="#fff"/><circle cx="16" cy="4" r="1" fill="#fff"/>'
+        + '</svg>'
+        + '</span>';
+    }
     
     if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mov') || lower.endsWith('.m4v')){
       return '<span class="file-icon video" style="background:#444;border-radius:3px">'
@@ -1027,7 +1085,12 @@ function iconForFile(file){
         + '</span>';
     }
   }catch(e){}
-  return '';
+  return '<span class="file-icon generic" style="background:#607D8B;border-radius:3px">'
+    + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+    + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+    + '<path d="M7 2.5h7l3 3v8H7z" fill="#fff"/><path d="M14 2.5v3h3" fill="#CFD8DC"/>'
+    + '</svg>'
+    + '</span>';
 }
 
 function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
@@ -1353,13 +1416,24 @@ async function initSidebar(){
     
     let hoverTimer = null;
     let isCalculating = false;
+
+    const getNavHeightPx = () => {
+      const navbar = document.querySelector('.navbar');
+      if (navbar) {
+        const h = Math.round(navbar.getBoundingClientRect().height);
+        if (Number.isFinite(h) && h > 0) return h;
+      }
+      const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--nav-h').trim();
+      const parsed = Number.parseFloat(cssVar);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 48;
+    };
     
     const calculatePosition = () => {
       if (isCalculating) return;
       isCalculating = true;
       
       const r = div.getBoundingClientRect();
-      const navHeight = 48;
+      const navHeight = getNavHeightPx();
       
       menu.style.visibility = 'hidden';
       menu.style.display = 'block';
@@ -1399,7 +1473,7 @@ async function initSidebar(){
       if (lockedMenu === menu) return;
       clearTimeout(hoverTimer);
       
-      const hasOpenNested = Array.from(menu.querySelectorAll('.nested-flyout')).some(nf => 
+      const hasOpenNested = Array.from(document.querySelectorAll('.nested-flyout')).some(nf => 
         nf.style.display === 'block' && nf.style.opacity === '1'
       );
       
@@ -1441,10 +1515,20 @@ async function initSidebar(){
       }
     });
     
+    const shouldKeepOpenForNested = (target) => {
+      return !!(target && target.closest && target.closest('.nested-flyout'));
+    };
+
     div.addEventListener('mouseenter', show);
-    div.addEventListener('mouseleave', hide);
+    div.addEventListener('mouseleave', (e) => {
+      if (shouldKeepOpenForNested(e.relatedTarget)) return;
+      hide();
+    });
     menu.addEventListener('mouseenter', () => clearTimeout(hoverTimer));
-    menu.addEventListener('mouseleave', hide);
+    menu.addEventListener('mouseleave', (e) => {
+      if (shouldKeepOpenForNested(e.relatedTarget)) return;
+      hide();
+    });
     
     menu.querySelectorAll('.nested-folder-item').forEach(folderItem => {
       setupNestedFlyout(folderItem, menu);
@@ -1530,9 +1614,20 @@ async function initSidebar(){
     if (
       lower.endsWith('.pdf') || lower.endsWith('.py') || lower.endsWith('.ipynb') || lower.endsWith('.html') ||
       lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.stl') ||
-      lower.endsWith('.mov') || lower.endsWith('.m4v') ||lower.split('?')[0].split('#')[0].endsWith('.fbm') ||
-      /\.(3mf|3fm|fm3)$/.test(lower.split('?')[0].split('#')[0]) ||
-      /\.(step|iges|fbx|abc|usd|usda|usdc|usdz|ifc|draco|vdb|obj|ply|vtk|gltf|glb)$/.test(lower) ||
+      lower.endsWith('.mov') || lower.endsWith('.m4v') || lower.split('?')[0].split('#')[0].endsWith('.fbm') ||
+      lower.split('?')[0].split('#')[0].endsWith('.3mf') ||
+      lower.split('?')[0].split('#')[0].endsWith('.3fz') ||
+      lower.split('?')[0].split('#')[0].endsWith('.f3d') ||
+      lower.split('?')[0].split('#')[0].endsWith('.f3z') ||
+      lower.split('?')[0].split('#')[0].endsWith('.3fm') ||
+      lower.split('?')[0].split('#')[0].endsWith('.fm3') ||
+      lower.endsWith('.step') || lower.endsWith('.stp') || lower.endsWith('.iges') || lower.endsWith('.igs') ||
+      lower.endsWith('.fbx') || lower.endsWith('.abc') || lower.endsWith('.usd') || lower.endsWith('.usda') || lower.endsWith('.usdc') || lower.endsWith('.usdz') ||
+      lower.endsWith('.ifc') || lower.endsWith('.draco') || lower.endsWith('.vdb') ||
+      lower.endsWith('.obj') || lower.endsWith('.ply') || lower.endsWith('.vtk') ||
+      lower.endsWith('.gltf') || lower.endsWith('.glb') ||
+      lower.endsWith('.sat') || lower.endsWith('.smt') || lower.endsWith('.x_t') || lower.endsWith('.x_b') ||
+      lower.endsWith('.sldprt') || lower.endsWith('.sldasm') || lower.endsWith('.slddrw') ||
       /^https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\//i.test(href) ||
       /^https?:\/\/(?:[\w.-]+\.)?panopto\.eu\//i.test(href) ||
       /\.(c|cc|cpp|cxx|h|hh|hpp|cs|java)$/.test(lower)

@@ -238,13 +238,16 @@
      QUIZ
   ======================================== */
   
-  .quiz-container {
+  .quiz-container,
+  .folk-quiz,
+  [data-quiz] {
     padding: 1rem !important;
     margin: 0 !important;
     width: 100% !important;
   }
   
-  .quiz-question {
+  .quiz-question,
+  .quiz-q-title {
     font-size: 1.1rem !important;
     margin: 1rem 0 !important;
   }
@@ -256,11 +259,38 @@
     min-height: 44px !important;
   }
   
-  .quiz-button {
+  .quiz-button,
+  .quiz-btn,
+  .quiz-chip-btn,
+  .quiz-btn-filter,
+  .quiz-btn-filter-clear,
+  .quiz-mode-btn {
     width: 100% !important;
     margin: 0.5rem 0 !important;
     padding: 1rem !important;
     font-size: 1rem !important;
+  }
+
+  .quiz-actions,
+  .quiz-modebar,
+  .quiz-profilebar,
+  .quiz-topcontrols {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .quiz-maxsel {
+    width: 100% !important;
+    justify-content: stretch !important;
+  }
+
+  .quiz-maxsel-input {
+    width: 100% !important;
+  }
+
+  .quiz-filter-list {
+    grid-template-columns: 1fr !important;
   }
   
   /* ========================================

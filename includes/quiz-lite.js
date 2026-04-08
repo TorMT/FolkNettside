@@ -38,6 +38,70 @@
 
   const toArray = (x) => Array.isArray(x) ? x : (x == null ? [] : [x]);
   const norm = (s) => (s || "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+  const slugify = (s) => norm(s).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+  function uuidv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+  function getDeviceId() {
+    let id = localStorage.getItem('FQ::device_id');
+    if (!id) { id = uuidv4(); localStorage.setItem('FQ::device_id', id); }
+    return id;
+  }
+  function getStoredName() {
+    return (localStorage.getItem('FQ::name') || '').trim();
+  }
+  function ensurePlayerName() {
+    let name = getStoredName();
+    if (name) return name;
+    name = (window.prompt('Navn til leaderboard:', '') || '').trim();
+    if (name) localStorage.setItem('FQ::name', name);
+    return name;
+  }
+  function questionSignature(q) {
+    const answer = toArray(q.answer).map(String).sort().join('|');
+    return slugify(`${getQuestionText(q)}::${answer}`);
+  }
+  function getQuizIdentity(data, persist) {
+    const persistKey = (persist && typeof persist === "object") ? (persist.key || "folkquiz") : (persist || "folkquiz");
+    const quizId = slugify((persist && typeof persist === "object" && persist.quizId) || data.id || data.title || persistKey || 'quiz');
+    const courseId = slugify((persist && typeof persist === "object" && persist.courseId) || data.courseId || window.FOLK_COURSE_ID || '');
+    return { persistKey, quizId, courseId };
+  }
+  function loadMode(modeKey) {
+    const mode = (localStorage.getItem(modeKey) || 'test').trim();
+    return ['test', 'study', 'wrong'].includes(mode) ? mode : 'test';
+  }
+  function saveMode(modeKey, mode) {
+    localStorage.setItem(modeKey, mode);
+  }
+  function loadWrongBank(key) {
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_) { return []; }
+  }
+  function saveWrongBank(key, values) {
+    localStorage.setItem(key, JSON.stringify(Array.from(new Set(values)).slice(-500)));
+  }
+  async function fetchLeaderboardData(endpoint, courseId, quizId) {
+    if (!endpoint) return null;
+    try {
+      if (window.CourseLeaderboard && typeof window.CourseLeaderboard.fetchLeaderboard === "function") {
+        return await window.CourseLeaderboard.fetchLeaderboard(endpoint, courseId, quizId);
+      }
+      const url = new URL(endpoint, location.origin);
+      if (courseId) url.searchParams.set('course_id', courseId);
+      if (quizId) url.searchParams.set('quiz_id', quizId);
+      const deviceId = getDeviceId();
+      if (deviceId) url.searchParams.set('device_id', deviceId);
+      const response = await fetch(url.toString(), { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!response.ok) throw new Error(`Server svarte ${response.status}`);
+      return await response.json();
+    } catch (_) {
+      return null;
+    }
+  }
 
   function mulberry32(a) {
     return function () {
@@ -283,8 +347,13 @@
     container.innerHTML = "";
     try { document.documentElement.style.background = '#f8fafc'; document.body.style.background = '#f8fafc'; } catch {}
 
-    const persistKey = (persist && typeof persist === "object") ? (persist.key || "folkquiz") : (persist || "folkquiz");
+    const { persistKey, quizId, courseId } = getQuizIdentity(data, persist);
     const quizBase = guessQuizBase(persist, data);
+    const modeKey = persistKey + ":mode";
+    const wrongKey = persistKey + ":wrong";
+    const nameKey = 'FQ::name';
+    let currentMode = loadMode(modeKey);
+    const quizStartTs = Date.now();
 
     const allQuestions = (data.questions || []).slice();
 
@@ -381,6 +450,32 @@ const header = el.make("div", { class: "quiz-header" },
       el.make("h2", {}, data.title || "Quiz"),
       dynamicDescription ? el.make("p", {}, dynamicDescription) : null
     );
+
+    const modeButtons = [
+      { key: "test", label: "Testmodus" },
+      { key: "study", label: "Studymodus" },
+      { key: "wrong", label: "Feilspørsmål" }
+    ];
+    const modeBar = el.make("div", { class: "quiz-modebar", role: "tablist", "aria-label": "Quizmodus" });
+    modeButtons.forEach(mode => {
+      const btn = el.make("button", {
+        type: "button",
+        class: `quiz-mode-btn${currentMode === mode.key ? " is-active" : ""}`,
+        "data-mode": mode.key,
+        role: "tab",
+        "aria-selected": currentMode === mode.key ? "true" : "false"
+      }, mode.label);
+      btn.addEventListener("click", () => {
+        saveMode(modeKey, mode.key);
+        render(container, data, persist);
+      });
+      modeBar.appendChild(btn);
+    });
+
+    const profileBar = el.make("div", { class: "quiz-profilebar" },
+      el.make("span", { class: "quiz-profile-label" }, `Spiller: ${getStoredName() || "Anonym"}`),
+      el.make("span", { class: "quiz-profile-hint" }, currentMode === "study" ? "Studymodus viser forklaringer fortløpende." : currentMode === "wrong" ? "Kun tidligere feil blir valgt når de finnes." : "Vanlig testmodus med score og tid.")
+    );
     
 
     const maxUI = (function buildMaxUI() {
@@ -409,7 +504,18 @@ const header = el.make("div", { class: "quiz-header" },
     })();
 
     // Velg spørsmål
-    const chosenPool = filtered.length ? filtered : allQuestions;
+    let chosenPool = filtered.length ? filtered : allQuestions;
+    const wrongBank = loadWrongBank(wrongKey);
+    if (currentMode === "wrong") {
+      const wrongSet = new Set(wrongBank);
+      const wrongPool = chosenPool.filter(q => wrongSet.has(questionSignature(q)));
+      if (wrongPool.length > 0) {
+        chosenPool = wrongPool;
+      } else {
+        currentMode = "test";
+        saveMode(modeKey, currentMode);
+      }
+    }
     const chosen = (effectiveMax > 0 && effectiveMax < chosenPool.length)
       ? sampleN(chosenPool, effectiveMax, Date.now())
       : chosenPool.slice();
@@ -424,7 +530,7 @@ const header = el.make("div", { class: "quiz-header" },
     const old = JSON.parse(localStorage.getItem(persistKey) || "{}");
 
     if (chosen.length === 0) {
-      container.append(header, maxUI);
+      container.append(header, profileBar, modeBar, maxUI);
       if (filterUI) container.append(filterUI);
       container.append(el.make("div", { class: "quiz-empty" }, "⚠️ Ingen spørsmål matcher kapittelfiltrene!"));
       return;
@@ -509,20 +615,30 @@ const header = el.make("div", { class: "quiz-header" },
     });
 
     const inlineScore = el.make("span", { class: "quiz-inline-score" });
-    const btnCheck = el.make("button", { class: "quiz-btn", type: "button" }, "✓ Sjekk svar", inlineScore);
+    const btnCheck = el.make("button", { class: "quiz-btn", type: "button" }, currentMode === "study" ? "✓ Fullfør økt" : "✓ Sjekk svar", inlineScore);
     const btnReset = el.make("button", { class: "quiz-btn quiz-btn-secondary", type: "button" }, "↻ Nullstill");
-
-    const btnToggleLog = el.make("button", { class: "quiz-btn quiz-btn-tertiary", type: "button" }, "📊 Vis historikk");
+    const btnSetName = el.make("button", { class: "quiz-btn quiz-btn-ghost", type: "button" }, "👤 Navn");
+    const btnToggleLog = el.make("button", { class: "quiz-btn quiz-btn-tertiary", type: "button" }, "📊 Historikk og toppliste");
     const lbWrap = el.make("div", { class: "quiz-lb-wrap", style: "display:none;" });
-    btnToggleLog.addEventListener("click", () => {
-      lbWrap.style.display = lbWrap.style.display === "none" ? "block" : "none";
+    btnToggleLog.addEventListener("click", async () => {
+      const show = lbWrap.style.display === "none";
+      lbWrap.style.display = show ? "block" : "none";
+      if (show) await refreshLeaderboard();
+    });
+    btnSetName.addEventListener("click", async () => {
+      const current = getStoredName();
+      const updated = (window.prompt("Navn til leaderboard:", current) || "").trim();
+      if (updated) localStorage.setItem(nameKey, updated);
+      else localStorage.removeItem(nameKey);
+      render(container, data, persist);
     });
 
-    const actions = el.make("div", { class: "quiz-actions" }, btnCheck, btnReset, btnToggleLog);
+    const leaderboardMount = el.make("div", { class: "quiz-remote-leaderboard" });
+    const actions = el.make("div", { class: "quiz-actions" }, btnCheck, btnReset, btnSetName, btnToggleLog);
 
     // Append-sekvens: header -> antall -> filter -> form
-    if (filterUI) container.append(header, maxUI, filterUI, form, actions, lbWrap);
-    else container.append(header, maxUI, form, actions, lbWrap);
+    if (filterUI) container.append(header, profileBar, modeBar, maxUI, filterUI, form, actions, lbWrap);
+    else container.append(header, profileBar, modeBar, maxUI, form, actions, lbWrap);
 
     // Lokal historikk-tabell
     const log = JSON.parse(localStorage.getItem(logKey) || "[]").slice(-10).reverse();
@@ -539,14 +655,52 @@ const header = el.make("div", { class: "quiz-header" },
       const tb = el.make("tbody");
       log.forEach((e, i) => {
         tb.append(el.make("tr", {},
-          el.make("td", {}, String(i+1)),
-          el.make("td", {}, new Date(e.ts).toLocaleString()),
-          el.make("td", {}, `${e.score}/${e.total}`),
-          el.make("td", {}, e.ms ? Math.round(e.ms/1000)+"s" : "-")
+          el.make("td", { "data-label": "#" }, String(i+1)),
+          el.make("td", { "data-label": "Dato" }, new Date(e.ts).toLocaleString()),
+          el.make("td", { "data-label": "Score" }, `${e.score}/${e.total}`),
+          el.make("td", { "data-label": "Tid" }, e.ms ? Math.round(e.ms/1000)+"s" : "-")
         ));
       });
       table.append(tb);
       lbWrap.append(table);
+    }
+    lbWrap.append(leaderboardMount);
+
+    async function refreshLeaderboard() {
+      if (!window.FOLK_LEADERBOARD_ENDPOINT) return;
+      if (window.CourseLeaderboard && typeof window.CourseLeaderboard.render === "function") {
+        await window.CourseLeaderboard.render(leaderboardMount, {
+          courseId,
+          quizId,
+          title: "Toppliste",
+          endpoint: window.FOLK_LEADERBOARD_ENDPOINT
+        });
+        return;
+      }
+      const data = await fetchLeaderboardData(window.FOLK_LEADERBOARD_ENDPOINT, courseId, quizId);
+      if (!data) return;
+      leaderboardMount.innerHTML = `<div class="quiz-leaderboard-inline">Toppliste lastet. Din plass: ${data.you && data.you.rank ? data.you.rank : "ukjent"}</div>`;
+    }
+
+    if (currentMode === "study") {
+      let studyTextIndex = 0;
+      chosen.forEach((q, index) => {
+        if (q.type === "text") {
+          const input = form.querySelectorAll(".quiz-text input")[studyTextIndex++];
+          if (!input) return;
+          input.addEventListener("change", () => {
+            renderQuestionFeedback(q, index, input.value);
+            typesetMath(form);
+          });
+        } else {
+          const inputs = Array.from(form.querySelectorAll(`[name="${q.id}"], [id^="${q.id}_"]`));
+          inputs.forEach(input => input.addEventListener("change", () => {
+            const values = readUser();
+            renderQuestionFeedback(q, index, values[q.id]);
+            typesetMath(form);
+          }));
+        }
+      });
     }
 
     function readUser() {
@@ -577,80 +731,67 @@ const header = el.make("div", { class: "quiz-header" },
       return { u, correct, total, pct };
     }
 
-    btnCheck.addEventListener("click", () => {
-      const { u, correct, total, pct } = computeScore();
-      inlineScore.textContent = `  ${correct}/${total} (${pct}%)`;
-      const h = header.querySelector("h2");
-      if (h) h.textContent = (data.title || "Quiz") + ` – ${correct}/${total} (${pct}%)`;
-
-      chosen.forEach((q, i) => {
-        const fb = form.querySelectorAll(".quiz-feedback")[i];
-        const res = scoreQuestion(q, u[q.id]);
-        let extra = "";
-
-        if (!res.correct) {
-          if (q.type === "text") {
-            extra = q.explanation ? `<div class="quiz-expl">${q.explanation}</div>` : "";
-          } else {
-            const ans = toArray(q.answer);
-            const opts = q.options || [];
-            const labels = ans
-              .map(ai => (opts[ai] != null ? opts[ai] : `Alternativ ${ai}`))
-              .join("<br>");
-
-            // Vis forklaring for brukerens valgte alternativ(er) hvis det finnes
-            let userChoiceExpl = "";
-            if (q.optionExplanations && Array.isArray(q.optionExplanations)) {
-              const userChoice = u[q.id];
-              const userChoices = Array.isArray(userChoice)
-                ? userChoice
-                : (userChoice != null ? [userChoice] : []);
-
-              userChoices.forEach(choice => {
-                const idx = parseInt(choice, 10);
-                if (!isNaN(idx) && q.optionExplanations[idx] && q.optionExplanations[idx].trim() !== "") {
-                  const optLabel = opts[idx] != null ? opts[idx] : `Alternativ ${idx}`;
-                  userChoiceExpl += `<div class="quiz-expl quiz-expl-wrong">
-                    <strong>"${optLabel}":</strong> ${q.optionExplanations[idx]}
-                  </div>`;
-                }
-              });
-            }
-
-            // Bygg feedback: riktig svar + forklaring for feil valg + generell forklaring
-            extra =
-              `<div class="quiz-expl"><strong>Riktig svar:</strong><br>${labels}</div>` +
-              userChoiceExpl +
-              (q.explanation ? `<div class="quiz-expl">${q.explanation}</div>` : "");
-          }
+    function buildFeedbackMarkup(q, userValue, correct) {
+      let extra = "";
+      if (!correct) {
+        if (q.type === "text") {
+          extra = q.explanation ? `<div class="quiz-expl">${q.explanation}</div>` : "";
         } else {
-          // Hvis riktig svar, vis forklaring for riktig alternativ
+          const ans = toArray(q.answer);
+          const opts = q.options || [];
+          const labels = ans.map(ai => (opts[ai] != null ? opts[ai] : `Alternativ ${ai}`)).join("<br>");
+          let userChoiceExpl = "";
           if (q.optionExplanations && Array.isArray(q.optionExplanations)) {
-            const userChoice = u[q.id];
-            const userChoices = Array.isArray(userChoice)
-              ? userChoice
-              : (userChoice != null ? [userChoice] : []);
-            const opts = q.options || [];
-
+            const userChoices = Array.isArray(userValue) ? userValue : (userValue != null ? [userValue] : []);
             userChoices.forEach(choice => {
               const idx = parseInt(choice, 10);
               if (!isNaN(idx) && q.optionExplanations[idx] && q.optionExplanations[idx].trim() !== "") {
                 const optLabel = opts[idx] != null ? opts[idx] : `Alternativ ${idx}`;
-                extra += `<div class="quiz-expl quiz-expl-correct">
-                  <strong>"${optLabel}":</strong> ${q.optionExplanations[idx]}
-                </div>`;
+                userChoiceExpl += `<div class="quiz-expl quiz-expl-wrong"><strong>"${optLabel}":</strong> ${q.optionExplanations[idx]}</div>`;
               }
             });
           }
-
-          // Legg til generell forklaring hvis den finnes (og ikke allerede vist per-alternativ forklaring)
-          if (q.explanation && !extra) {
-            extra = `<div class="quiz-expl">${q.explanation}</div>`;
-          }
+          extra = `<div class="quiz-expl"><strong>Riktig svar:</strong><br>${labels}</div>` + userChoiceExpl + (q.explanation ? `<div class="quiz-expl">${q.explanation}</div>` : "");
         }
+      } else {
+        if (q.optionExplanations && Array.isArray(q.optionExplanations)) {
+          const userChoices = Array.isArray(userValue) ? userValue : (userValue != null ? [userValue] : []);
+          const opts = q.options || [];
+          userChoices.forEach(choice => {
+            const idx = parseInt(choice, 10);
+            if (!isNaN(idx) && q.optionExplanations[idx] && q.optionExplanations[idx].trim() !== "") {
+              const optLabel = opts[idx] != null ? opts[idx] : `Alternativ ${idx}`;
+              extra += `<div class="quiz-expl quiz-expl-correct"><strong>"${optLabel}":</strong> ${q.optionExplanations[idx]}</div>`;
+            }
+          });
+        }
+        if (q.explanation && !extra) extra = `<div class="quiz-expl">${q.explanation}</div>`;
+      }
+      return (correct ? "✅ Riktig" : "❌ Feil") + extra;
+    }
 
-        fb.innerHTML = (res.correct ? "✅ Riktig" : "❌ Feil") + extra;
-        fb.classList.add("quiz-feedback-shown");
+    function renderQuestionFeedback(q, questionIndex, userValue) {
+      const fb = form.querySelectorAll(".quiz-feedback")[questionIndex];
+      const result = scoreQuestion(q, userValue);
+      fb.innerHTML = buildFeedbackMarkup(q, userValue, result.correct);
+      fb.classList.add("quiz-feedback-shown");
+      return result.correct;
+    }
+
+    btnCheck.addEventListener("click", () => {
+      if (window.FOLK_LEADERBOARD_ENDPOINT && !getStoredName()) ensurePlayerName();
+      const { u, correct, total, pct } = computeScore();
+      inlineScore.textContent = `  ${correct}/${total} (${pct}%)`;
+      const h = header.querySelector("h2");
+      if (h) h.textContent = (data.title || "Quiz") + ` – ${correct}/${total} (${pct}%)`;
+      const elapsedMs = Math.max(0, Date.now() - quizStartTs);
+      const wrongsThisRun = [];
+      const seenThisRun = [];
+
+      chosen.forEach((q, i) => {
+        seenThisRun.push(questionSignature(q));
+        const isCorrect = renderQuestionFeedback(q, i, u[q.id]);
+        if (!isCorrect) wrongsThisRun.push(questionSignature(q));
       }); // ✅ LUKK forEach HER (viktig!)
 
       // ✅ LaTeX typeset ETTER at all feedback er satt
@@ -659,16 +800,19 @@ const header = el.make("div", { class: "quiz-header" },
       // ✅ Best-score (fjernet dobbelt const prev)
       try {
         const prev = JSON.parse(localStorage.getItem(bestKey) || "null");
-        if (!prev || pct > prev.pct) {
-          localStorage.setItem(bestKey, JSON.stringify({ score: correct, total, pct }));
+        if (!prev || pct > prev.pct || (pct === prev.pct && elapsedMs < (prev.ms || Number.MAX_SAFE_INTEGER))) {
+          localStorage.setItem(bestKey, JSON.stringify({ score: correct, total, pct, ms: elapsedMs, ts: Date.now(), mode: currentMode }));
         }
       } catch {}
 
       // Lås inputs
-      $$("input", form).forEach(inp => (inp.disabled = true));
+      if (currentMode !== "study") $$("input", form).forEach(inp => (inp.disabled = true));
 
       // Logg
-      const entry = { score: correct, total, pct, ms: 0, ts: Date.now() };
+      const existingWrong = loadWrongBank(wrongKey);
+      const keptWrong = existingWrong.filter(sig => !seenThisRun.includes(sig));
+      saveWrongBank(wrongKey, keptWrong.concat(wrongsThisRun));
+      const entry = { score: correct, total, pct, ms: elapsedMs, ts: Date.now(), mode: currentMode };
       const fullLog = JSON.parse(localStorage.getItem(logKey) || "[]");
       fullLog.push(entry);
       if (fullLog.length > 200) fullLog.splice(0, fullLog.length - 200);
@@ -676,6 +820,12 @@ const header = el.make("div", { class: "quiz-header" },
 
       // Event for patch
       container.dispatchEvent(new CustomEvent("quiz:done", { detail: entry }));
+      if (window.FOLK_LEADERBOARD_ENDPOINT) {
+        lbWrap.style.display = "block";
+        refreshLeaderboard();
+      } else if (lbWrap.style.display !== "none") {
+        refreshLeaderboard();
+      }
     }); // ✅ LUKK addEventListener HER (viktig!)
 
 
@@ -689,21 +839,9 @@ const header = el.make("div", { class: "quiz-header" },
     typesetMath(container);
   }
 
-  /* === Auto-logg + Leaderboard patch === */
+/* === Auto-logg + Leaderboard patch === */
   (function() {
     if (!window.FolkQuiz) return;
-
-    function uuidv4() {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-    }
-    function getDeviceId() {
-      let id = localStorage.getItem('FQ::device_id');
-      if (!id) { id = uuidv4(); localStorage.setItem('FQ::device_id', id); }
-      return id;
-    }
 
     function saveResult(quizId, entry) {
       const logKey = `FQ::log::${quizId}`;
@@ -745,12 +883,13 @@ const header = el.make("div", { class: "quiz-header" },
     const origRender = window.FolkQuiz.render;
     window.FolkQuiz.render = function(container, data, opts) {
       origRender(container, data, opts);
-      const quizId = (opts?.quizId || data.id || 'quiz').toLowerCase().replace(/\s+/g,'-');
-      const courseId = opts?.courseId || window.FOLK_COURSE_ID || '';
+      if (container.__folkQuizLeaderboardBound) return;
+      container.__folkQuizLeaderboardBound = true;
+      const identity = getQuizIdentity(data, opts);
       container.addEventListener('quiz:done', e => {
         const entry = e.detail;
-        const best = saveResult(quizId, entry);
-        sendResult(quizId, courseId, best);
+        const best = saveResult(identity.quizId, entry);
+        sendResult(identity.quizId, identity.courseId, best);
       });
     };
   })();
@@ -832,6 +971,35 @@ const header = el.make("div", { class: "quiz-header" },
 }
 .quiz-header h2 { margin: 0 0 0.5rem 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
 .quiz-header p { margin: 0; font-size: 1.1rem; opacity: 0.95; font-weight: 400; }
+
+.quiz-profilebar, .quiz-modebar {
+  display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; margin:0 0 1rem 0;
+}
+.quiz-profilebar {
+  background: var(--quiz-bg);
+  border: 1px solid var(--quiz-border);
+  border-radius: var(--quiz-radius-sm);
+  padding: .85rem 1rem;
+  box-shadow: var(--quiz-shadow);
+}
+.quiz-profile-label { font-weight: 700; color: var(--quiz-txt); }
+.quiz-profile-hint { color: var(--quiz-txt-light); font-size: .95rem; }
+.quiz-mode-btn {
+  border: 1px solid var(--quiz-border);
+  background: var(--quiz-bg);
+  color: var(--quiz-txt);
+  border-radius: 999px;
+  padding: .7rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+.quiz-mode-btn:hover { transform: translateY(-1px); box-shadow: var(--quiz-shadow); }
+.quiz-mode-btn.is-active {
+  background: linear-gradient(135deg, var(--quiz-primary) 0%, var(--quiz-primary-hover) 100%);
+  color: white;
+  border-color: transparent;
+}
 
 /* Antall-kontroller (plassert over filteret) */
 .quiz-topcontrols {
@@ -964,6 +1132,7 @@ const header = el.make("div", { class: "quiz-header" },
 .quiz-btn:active { transform: translateY(0); }
 .quiz-btn-secondary { background: linear-gradient(135deg, var(--quiz-secondary) 0%, #059669 100%); }
 .quiz-btn-tertiary { background: linear-gradient(135deg, #64748b 0%, #475569 100%); }
+.quiz-btn-ghost { background: linear-gradient(135deg, #0f172a 0%, #334155 100%); }
 .quiz-inline-score { background: rgba(255, 255, 255, 0.2); padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.95rem; font-weight: 700; }
 
 /* Historikk-tabell */
@@ -974,6 +1143,8 @@ const header = el.make("div", { class: "quiz-header" },
 .quiz-log-table th { background: var(--quiz-bg-alt); font-weight: 700; color: var(--quiz-txt); text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em; }
 .quiz-log-table tr:hover { background: var(--quiz-bg-alt); }
 .quiz-log-table tr:last-child td { border-bottom: none; }
+.quiz-remote-leaderboard { margin-top: 1rem; }
+.quiz-leaderboard-inline { padding: .9rem 1rem; border-radius: var(--quiz-radius-sm); background: white; border: 1px solid var(--quiz-border); box-shadow: var(--quiz-shadow); }
 
 /* Tom state */
 .quiz-empty { color: var(--quiz-danger); font-weight: 600; padding: 2rem; text-align: center; background: white; border: 2px dashed var(--quiz-border); border-radius: var(--quiz-radius); margin-top: 1rem; }

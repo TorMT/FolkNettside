@@ -1,15 +1,24 @@
 (function() {
   'use strict';
-  
-  // Data URL - Periodic Table JSON from GitHub
+
   const DATA_URL = 'https://raw.githubusercontent.com/Bowserinator/Periodic-Table-JSON/master/PeriodicTableJSON.json';
-  
-  let elementsData = null;
+  const STORAGE_KEY = 'periodic_table_preferences_v2';
+
+  let elementsData = [];
+  let filteredElements = [];
   let currentProperty = 'atomic_mass';
-  let currentTemp = 298; // Kelvin (room temperature)
+  let currentTemp = 298;
   let selectedElement = null;
-  
-  // Category colors
+  let activeFilters = {
+    search: '',
+    category: 'all',
+    period: 'all',
+    group: 'all',
+    phase: 'all',
+    crystal: 'all',
+    quick: ''
+  };
+
   const categoryColors = {
     'alkali metal': '#ff6b6b',
     'alkaline earth metal': '#ffd93d',
@@ -20,339 +29,617 @@
     'halogen': '#ffeb3b',
     'noble gas': '#e1bee7',
     'lanthanide': '#ffccbc',
-    'actinide': '#ffab91'
+    'actinide': '#ffab91',
+    unknown: '#cfd8dc'
   };
-  
-  // Norwegian translations
+
   const translations = {
     'alkali metal': 'Alkalimetall',
     'alkaline earth metal': 'Jordalkalimetall',
     'transition metal': 'Overgangsmetall',
     'post-transition metal': 'Post-overgangsmetall',
-    'metalloid': 'Halvmetall',
-    'nonmetal': 'Ikke-metall',
-    'halogen': 'Halogen',
+    metalloid: 'Halvmetall',
+    nonmetal: 'Ikke-metall',
+    halogen: 'Halogen',
     'noble gas': 'Edelgass',
-    'lanthanide': 'Lantanoid',
-    'actinide': 'Aktinoid'
+    lanthanide: 'Lantanoid',
+    actinide: 'Aktinoid',
+    unknown: 'Ukjent'
   };
-  
-  // Property labels
+
+  const crystalTranslation = {
+    bcc: 'BCC',
+    fcc: 'FCC',
+    hcp: 'HCP',
+    cubic: 'Kubisk',
+    tetragonal: 'Tetragonal',
+    orthorhombic: 'Ortorombisk',
+    monoclinic: 'Monoklin',
+    triclinic: 'Triklin',
+    rhombohedral: 'Rombohedral',
+    hexagonal: 'Heksagonal',
+    molecular: 'Molekylær',
+    amorphous: 'Amorf',
+    chain: 'Kjede',
+    unknown: 'Ukjent'
+  };
+
+  const crystalStructures = {
+    Li: 'bcc', Na: 'bcc', K: 'bcc', Rb: 'bcc', Cs: 'bcc', Fr: 'bcc',
+    Be: 'hcp', Mg: 'hcp', Ca: 'fcc', Sr: 'fcc', Ba: 'bcc', Ra: 'bcc',
+    Sc: 'hcp', Ti: 'hcp', V: 'bcc', Cr: 'bcc', Mn: 'bcc', Fe: 'bcc', Co: 'hcp', Ni: 'fcc',
+    Cu: 'fcc', Zn: 'hcp', Y: 'hcp', Zr: 'hcp', Nb: 'bcc', Mo: 'bcc', Tc: 'hcp', Ru: 'hcp',
+    Rh: 'fcc', Pd: 'fcc', Ag: 'fcc', Cd: 'hcp', Hf: 'hcp', Ta: 'bcc', W: 'bcc', Re: 'hcp',
+    Os: 'hcp', Ir: 'fcc', Pt: 'fcc', Au: 'fcc', Hg: 'rhombohedral', Rf: 'hcp',
+    Al: 'fcc', Ga: 'orthorhombic', In: 'tetragonal', Sn: 'tetragonal', Tl: 'hcp', Pb: 'fcc',
+    Si: 'cubic', Ge: 'cubic', C: 'hexagonal', B: 'rhombohedral', P: 'molecular', S: 'orthorhombic',
+    Se: 'hexagonal', Te: 'hexagonal', As: 'rhombohedral', Sb: 'rhombohedral', Bi: 'rhombohedral',
+    H: 'molecular', N: 'molecular', O: 'molecular', F: 'molecular', Cl: 'orthorhombic', Br: 'orthorhombic', I: 'orthorhombic',
+    He: 'hcp', Ne: 'fcc', Ar: 'fcc', Kr: 'fcc', Xe: 'fcc', Rn: 'fcc'
+  };
+
   const propertyLabels = {
-    'atomic_mass': { label: 'Atomvekt', unit: 'u', format: (v) => v?.toFixed(3) },
-    'density': { label: 'Tetthet', unit: 'g/cm³', format: (v) => v?.toFixed(3) },
-    'melting_point': { label: 'Smeltepunkt', unit: 'K', format: (v) => v?.toFixed(1) },
-    'boiling_point': { label: 'Kokepunkt', unit: 'K', format: (v) => v?.toFixed(1) },
-    'electronegativity': { label: 'Elektronegativitet', unit: 'Pauling', format: (v) => v?.toFixed(2) },
-    'atomic_radius': { label: 'Atomradius', unit: 'pm', format: (v) => v?.toFixed(0) },
-    'ionization_energy': { label: 'Ioniseringsenergi', unit: 'kJ/mol', format: (v) => v?.toFixed(1) },
-    'electron_affinity': { label: 'Elektronaffinitet', unit: 'kJ/mol', format: (v) => v?.toFixed(1) }
+    atomic_mass: { label: 'Atommasse', unit: 'u', source: 'atomic_mass', format: (v) => Number(v).toFixed(3) },
+    density: { label: 'Tetthet', unit: 'g/cm³', source: 'density', format: (v) => Number(v).toFixed(3) },
+    melt: { label: 'Smeltepunkt', unit: 'K', source: 'melt', format: (v) => Number(v).toFixed(1) },
+    boil: { label: 'Kokepunkt', unit: 'K', source: 'boil', format: (v) => Number(v).toFixed(1) },
+    electronegativity_pauling: { label: 'Elektronegativitet', unit: 'Pauling', source: 'electronegativity_pauling', format: (v) => Number(v).toFixed(2) },
+    atomic_radius: { label: 'Atomradius', unit: 'pm', source: 'atomic_radius', format: (v) => Number(v).toFixed(0) },
+    first_ionization: {
+      label: '1. ioniseringsenergi',
+      unit: 'eV',
+      source: (el) => el.ionization_energies?.[0],
+      format: (v) => Number(v).toFixed(2)
+    },
+    electron_affinity: { label: 'Elektronaffinitet', unit: 'eV', source: 'electron_affinity', format: (v) => Number(v).toFixed(2) },
+    abundance: {
+      label: 'Mengde i jordskorpe',
+      unit: 'mg/kg',
+      source: 'abundance',
+      format: (v) => Number(v).toFixed(1)
+    }
   };
-  
-  // Initialize
+
   async function init() {
     try {
+      loadPreferences();
       const response = await fetch(DATA_URL);
       const data = await response.json();
-      elementsData = data.elements;
-      
+
+      elementsData = data.elements.map((el) => enrichElement(el));
+      filteredElements = [...elementsData];
+
+      hydrateFilterDropdowns();
       renderPeriodicTable();
       renderLegend();
+      syncUiFromState();
       setupEventListeners();
-      
+      applyFilters();
+      restoreElementFromHash();
     } catch (error) {
       console.error('Failed to load element data:', error);
-      document.getElementById('tableContent').innerHTML = 
-        '<div style="color: var(--danger); padding: 40px; text-align: center;">' +
-        '⚠️ Kunne ikke laste element-data. Sjekk internettforbindelse.' +
-        '</div>';
+      document.getElementById('tableContent').innerHTML =
+        '<div style="color: var(--danger); padding: 40px; text-align: center;">⚠️ Kunne ikke laste element-data. Sjekk internettforbindelse.</div>';
     }
   }
-  
-  // Render periodic table
+
+  function enrichElement(element) {
+    const structure = crystalStructures[element.symbol] || inferCrystalStructure(element);
+    const block = inferBlock(element);
+    const materialTag = inferMaterialTag(element);
+    return {
+      ...element,
+      crystal_structure: structure,
+      block,
+      material_tag: materialTag,
+      searchable_text: [
+        element.name,
+        element.symbol,
+        element.number,
+        element.category,
+        element.summary,
+        element.discovered_by,
+        element.electron_configuration,
+        structure,
+        crystalTranslation[structure],
+        materialTag,
+        block
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+    };
+  }
+
+  function inferBlock(element) {
+    const group = element.group;
+    if (!group) return 'f';
+    if (group <= 2) return 's';
+    if (group >= 13) return 'p';
+    return 'd';
+  }
+
+  function inferMaterialTag(element) {
+    const category = (element.category || '').toLowerCase();
+    if (category.includes('metal')) return 'metall';
+    if (category.includes('metalloid')) return 'halvmetall';
+    return 'ikke-metall';
+  }
+
+  function inferCrystalStructure(element) {
+    const phase = (element.phase || '').toLowerCase();
+    const category = (element.category || '').toLowerCase();
+
+    if (phase === 'gas') return 'molecular';
+    if (category.includes('noble gas')) return 'fcc';
+    if (category.includes('alkali')) return 'bcc';
+    if (category.includes('alkaline earth')) return 'hcp';
+    return 'unknown';
+  }
+
+  function hydrateFilterDropdowns() {
+    const categories = [...new Set(elementsData.map((el) => (el.category || 'unknown').toLowerCase()))].sort();
+    const categorySelect = document.getElementById('categoryFilter');
+
+    categorySelect.innerHTML = '<option value="all">Alle kategorier</option>';
+    categories.forEach((category) => {
+      const option = document.createElement('option');
+      option.value = category;
+      option.textContent = translations[category] || category;
+      categorySelect.appendChild(option);
+    });
+  }
+
+  function applyFilters() {
+    filteredElements = elementsData.filter((element) => {
+      const category = (element.category || 'unknown').toLowerCase();
+      const phase = (element.phase || 'unknown').toLowerCase();
+      const crystal = element.crystal_structure || 'unknown';
+      const period = String(element.period || '');
+      const group = String(element.group || '');
+
+      const matchesSearch = !activeFilters.search || element.searchable_text.includes(activeFilters.search);
+      const matchesCategory = activeFilters.category === 'all' || activeFilters.category === category;
+      const matchesPeriod = activeFilters.period === 'all' || activeFilters.period === period;
+      const matchesGroup = activeFilters.group === 'all' || activeFilters.group === group;
+      const matchesPhase = activeFilters.phase === 'all' || activeFilters.phase === phase;
+      const matchesCrystal = activeFilters.crystal === 'all' || activeFilters.crystal === crystal;
+      const matchesQuick = matchesQuickFilter(element, activeFilters.quick);
+
+      return matchesSearch && matchesCategory && matchesPeriod && matchesGroup && matchesPhase && matchesCrystal && matchesQuick;
+    });
+
+    persistPreferences();
+    renderPeriodicTable();
+    updateFilterCount();
+    syncQuickButtons();
+  }
+
+  function matchesQuickFilter(element, quickFilter) {
+    if (!quickFilter) return true;
+    if (quickFilter === 'metall') return element.material_tag === 'metall';
+    if (quickFilter === 'ikke-metall') return element.material_tag === 'ikke-metall';
+    if (quickFilter === 'stp-gass') return (element.phase || '').toLowerCase() === 'gas';
+    if (quickFilter === 'struktur-bcc') return element.crystal_structure === 'bcc';
+    if (quickFilter === 'struktur-fcc') return element.crystal_structure === 'fcc';
+    if (quickFilter === 'radioaktiv') return element.number >= 84;
+    return true;
+  }
+
+  function updateFilterCount() {
+    const count = document.getElementById('filterCount');
+    count.textContent = `${filteredElements.length} / ${elementsData.length} elementer`;
+  }
+
   function renderPeriodicTable() {
     const container = document.getElementById('tableContent');
     container.className = '';
     container.innerHTML = '';
-    
-    // Create main table grid
+
+    const visibleNumbers = new Set(filteredElements.map((el) => el.number));
+
     const table = document.createElement('div');
     table.className = 'periodicTable';
-    
-    // Create 18x7 grid (periods 1-7)
+
     for (let period = 1; period <= 7; period++) {
       for (let group = 1; group <= 18; group++) {
         const element = findElement(period, group);
-        
+
         if (element) {
-          table.appendChild(createElementCell(element));
+          table.appendChild(createElementCell(element, visibleNumbers.has(element.number)));
         } else if (period === 6 && group === 3) {
-          // Lanthanides spacer
           const spacer = document.createElement('div');
           spacer.className = 'spacer';
           spacer.textContent = '57-71';
           table.appendChild(spacer);
         } else if (period === 7 && group === 3) {
-          // Actinides spacer
           const spacer = document.createElement('div');
           spacer.className = 'spacer';
           spacer.textContent = '89-103';
           table.appendChild(spacer);
         } else {
-          // Empty cell
           const empty = document.createElement('div');
           empty.className = 'empty';
           table.appendChild(empty);
         }
       }
     }
-    
+
     container.appendChild(table);
-    
-    // Add lanthanides and actinides rows
+
     const separateRows = document.createElement('div');
     separateRows.className = 'separateRows';
-    
-    // Lanthanides (57-71)
+
     for (let z = 57; z <= 71; z++) {
-      const element = elementsData.find(el => el.number === z);
-      if (element) {
-        separateRows.appendChild(createElementCell(element));
-      }
+      const element = elementsData.find((el) => el.number === z);
+      if (element) separateRows.appendChild(createElementCell(element, visibleNumbers.has(element.number)));
     }
-    
-    // Actinides (89-103)
+
     for (let z = 89; z <= 103; z++) {
-      const element = elementsData.find(el => el.number === z);
-      if (element) {
-        separateRows.appendChild(createElementCell(element));
-      }
+      const element = elementsData.find((el) => el.number === z);
+      if (element) separateRows.appendChild(createElementCell(element, visibleNumbers.has(element.number)));
     }
-    
+
     container.appendChild(separateRows);
+
+    if (selectedElement) {
+      const same = elementsData.find((el) => el.number === selectedElement.number);
+      if (same) showElementInfo(same);
+    }
   }
-  
-  // Find element by period and group
+
   function findElement(period, group) {
-    return elementsData.find(el => {
-      // Skip lanthanides and actinides from main table
-      if ((el.number >= 57 && el.number <= 71) || (el.number >= 89 && el.number <= 103)) {
-        return false;
-      }
-      
-      // Match period
+    return elementsData.find((el) => {
+      if ((el.number >= 57 && el.number <= 71) || (el.number >= 89 && el.number <= 103)) return false;
       if (el.period !== period) return false;
-      
-      // Match group (handle special cases)
       if (el.group === group) return true;
-      
-      // Handle group 3 (Sc, Y should be in group 3)
       if (group === 3 && (el.number === 21 || el.number === 39)) return true;
-      
       return false;
     });
   }
-  
-  // Create element cell
-  function createElementCell(element) {
+
+  function createElementCell(element, isVisible) {
     const cell = document.createElement('div');
     cell.className = 'element';
+    if (!isVisible) cell.classList.add('filteredOut');
     cell.dataset.number = element.number;
-    
-    // Apply category color
-    const category = element.category?.toLowerCase() || 'unknown';
-    const color = categoryColors[category] || '#cccccc';
-    cell.style.background = `linear-gradient(135deg, ${color}22, ${color}44)`;
+
+    const category = (element.category || 'unknown').toLowerCase();
+    const color = categoryColors[category] || categoryColors.unknown;
+    cell.style.background = `linear-gradient(135deg, ${color}20, ${color}50)`;
     cell.style.borderColor = color;
-    
-    // Atomic number
+
     const number = document.createElement('div');
     number.className = 'number';
     number.textContent = element.number;
     cell.appendChild(number);
-    
-    // Symbol
+
     const symbol = document.createElement('div');
     symbol.className = 'symbol';
     symbol.textContent = element.symbol;
     cell.appendChild(symbol);
-    
-    // Name
+
     const name = document.createElement('div');
     name.className = 'name';
     name.textContent = element.name;
     cell.appendChild(name);
-    
-    // Property value
+
     const propValue = getPropertyValue(element, currentProperty);
-    if (propValue !== null && propValue !== undefined) {
-      const prop = document.createElement('div');
-      prop.className = 'property';
-      prop.textContent = propValue;
-      cell.appendChild(prop);
-    }
-    
-    // State indicator (at current temperature)
+    const prop = document.createElement('div');
+    prop.className = 'property';
+    prop.textContent = propValue;
+    cell.appendChild(prop);
+
+    const crystalBadge = document.createElement('div');
+    crystalBadge.className = 'crystalBadge';
+    crystalBadge.textContent = crystalTranslation[element.crystal_structure] || 'Ukjent';
+    cell.appendChild(crystalBadge);
+
     const state = getStateAtTemp(element, currentTemp);
     const indicator = document.createElement('div');
     indicator.className = `stateIndicator state-${state}`;
+    indicator.title = `Fase ved ${currentTemp} K: ${state}`;
     cell.appendChild(indicator);
-    
-    // Click handler
+
     cell.addEventListener('click', () => showElementInfo(element));
-    
+
     return cell;
   }
-  
-  // Get property value formatted
+
   function getPropertyValue(element, property) {
-    const value = element[property];
-    if (value === null || value === undefined) return '—';
-    
     const config = propertyLabels[property];
-    if (!config) return value;
-    
-    const formatted = config.format(value);
-    return formatted || '—';
+    if (!config) return '—';
+
+    const raw = typeof config.source === 'function' ? config.source(element) : element[config.source];
+    if (raw === null || raw === undefined || Number.isNaN(Number(raw))) return '—';
+
+    return config.format(raw);
   }
-  
-  // Get state at temperature
+
   function getStateAtTemp(element, temp) {
     const mp = element.melt;
     const bp = element.boil;
-    
+
     if (mp === null || mp === undefined) return 'unknown';
-    if (bp === null || bp === undefined) {
-      return temp < mp ? 'solid' : 'unknown';
-    }
-    
+    if (bp === null || bp === undefined) return temp < mp ? 'solid' : 'unknown';
+
     if (temp < mp) return 'solid';
     if (temp >= mp && temp < bp) return 'liquid';
     if (temp >= bp) return 'gas';
-    
     return 'unknown';
   }
-  
-  // Render legend
+
   function renderLegend() {
     const legend = document.getElementById('legend');
     legend.innerHTML = '';
-    
-    Object.keys(categoryColors).forEach(category => {
+
+    Object.keys(categoryColors).forEach((category) => {
+      if (category === 'unknown') return;
       const item = document.createElement('div');
       item.className = 'legendItem';
-      
+
       const colorBox = document.createElement('div');
       colorBox.className = 'legendColor';
       colorBox.style.background = categoryColors[category];
-      
+
       const label = document.createElement('span');
       label.textContent = translations[category] || category;
-      
+
       item.appendChild(colorBox);
       item.appendChild(label);
       legend.appendChild(item);
     });
   }
-  
-  // Show element info panel
+
   function showElementInfo(element) {
     selectedElement = element;
-    
-    // Update selected state
-    document.querySelectorAll('.element').forEach(el => {
+
+    document.querySelectorAll('.element').forEach((el) => {
       el.classList.remove('selected');
-      if (el.dataset.number == element.number) {
-        el.classList.add('selected');
-      }
+      if (Number(el.dataset.number) === element.number) el.classList.add('selected');
     });
-    
-    // Update info panel
+
     document.getElementById('infoSymbol').textContent = element.symbol;
     document.getElementById('infoName').textContent = element.name;
-    
-    const category = translations[element.category?.toLowerCase()] || element.category || 'Ukjent';
-    document.getElementById('infoMeta').textContent = 
-      `Atomnummer ${element.number} • ${category}`;
-    
-    // Build properties grid
+
+    const category = translations[(element.category || 'unknown').toLowerCase()] || element.category || 'Ukjent';
+    document.getElementById('infoMeta').textContent = `Atomnummer ${element.number} • ${category} • Periode ${element.period} • Gruppe ${element.group || '—'} • Blokk ${element.block.toUpperCase()}`;
+    window.location.hash = `el=${element.number}`;
+    const wiki = document.getElementById('infoWiki');
+    const summary = document.getElementById('infoSummary');
+    if (element.source) {
+      wiki.style.display = 'inline-flex';
+      wiki.href = element.source;
+    } else {
+      wiki.style.display = 'none';
+      wiki.href = '#';
+    }
+    summary.textContent = element.summary || 'Ingen beskrivelse tilgjengelig.';
+
     const grid = document.getElementById('infoGrid');
     grid.innerHTML = '';
-    
+
     const props = [
-      { key: 'atomic_mass', label: 'Atomvekt', value: element.atomic_mass, unit: 'u' },
-      { key: 'density', label: 'Tetthet', value: element.density, unit: 'g/cm³' },
-      { key: 'melt', label: 'Smeltepunkt', value: element.melt, unit: 'K' },
-      { key: 'boil', label: 'Kokepunkt', value: element.boil, unit: 'K' },
-      { key: 'electronegativity_pauling', label: 'Elektronegativitet', value: element.electronegativity_pauling, unit: '' },
-      { key: 'atomic_radius', label: 'Atomradius', value: element.atomic_radius, unit: 'pm' },
-      { key: 'ionization_energies', label: '1. Ioniseringsenergi', value: element.ionization_energies?.[0], unit: 'eV' },
-      { key: 'electron_affinity', label: 'Elektronaffinitet', value: element.electron_affinity, unit: 'eV' },
-      { key: 'electron_configuration', label: 'Elektronkonfigurasjon', value: element.electron_configuration, unit: '' },
-      { key: 'discovered_by', label: 'Oppdaget av', value: element.discovered_by, unit: '' },
-      { key: 'year_discovered', label: 'Oppdaget år', value: element.year_discovered, unit: '' },
-      { key: 'phase', label: 'Fase (STP)', value: element.phase, unit: '' }
+      ['Atommasse', element.atomic_mass, 'u'],
+      ['Tetthet', element.density, 'g/cm³'],
+      ['Smeltepunkt', element.melt, 'K'],
+      ['Kokepunkt', element.boil, 'K'],
+      ['Elektronegativitet', element.electronegativity_pauling, 'Pauling'],
+      ['1. Ioniseringsenergi', element.ionization_energies?.[0], 'eV'],
+      ['Elektronaffinitet', element.electron_affinity, 'eV'],
+      ['Krystallstruktur', crystalTranslation[element.crystal_structure] || 'Ukjent', ''],
+      ['Materialklasse', element.material_tag, ''],
+      ['Periode', element.period, ''],
+      ['Gruppe', element.group, ''],
+      ['Elektronskall', element.shells ? element.shells.join(', ') : null, ''],
+      ['Elektronkonfigurasjon', element.electron_configuration, ''],
+      ['Oksidasjonstilstander', element.oxidation_states, ''],
+      ['Fase (STP)', element.phase, ''],
+      ['Oppdaget av', element.discovered_by, ''],
+      ['Oppdaget år', element.year_discovered, '']
     ];
-    
-    props.forEach(prop => {
-      if (prop.value !== null && prop.value !== undefined && prop.value !== '') {
-        const propEl = document.createElement('div');
-        propEl.className = 'infoProp';
-        
-        const label = document.createElement('div');
-        label.className = 'label';
-        label.textContent = prop.label;
-        
-        const value = document.createElement('div');
-        value.className = 'value';
-        
-        if (typeof prop.value === 'number') {
-          value.textContent = prop.value.toFixed(prop.value < 10 ? 3 : 1) + (prop.unit ? ' ' + prop.unit : '');
-        } else {
-          value.textContent = prop.value;
-        }
-        
-        propEl.appendChild(label);
-        propEl.appendChild(value);
-        grid.appendChild(propEl);
+
+    props.forEach(([labelText, rawValue, unit]) => {
+      if (rawValue === null || rawValue === undefined || rawValue === '') return;
+      const propEl = document.createElement('div');
+      propEl.className = 'infoProp';
+
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = labelText;
+
+      const value = document.createElement('div');
+      value.className = 'value';
+      if (typeof rawValue === 'number') {
+        value.textContent = `${rawValue.toFixed(rawValue < 10 ? 3 : 2)}${unit ? ` ${unit}` : ''}`;
+      } else {
+        value.textContent = `${rawValue}${unit ? ` ${unit}` : ''}`;
       }
+
+      propEl.appendChild(label);
+      propEl.appendChild(value);
+      grid.appendChild(propEl);
     });
-    
-    // Show panel
-    document.getElementById('infoPanel').classList.add('show');
-    document.getElementById('infoPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
   }
-  
-  // Setup event listeners
+
   function setupEventListeners() {
-    // Property tabs
-    document.querySelectorAll('.propertyTab').forEach(tab => {
+    document.querySelectorAll('.propertyTab').forEach((tab) => {
       tab.addEventListener('click', () => {
-        document.querySelectorAll('.propertyTab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.propertyTab').forEach((t) => t.classList.remove('active'));
         tab.classList.add('active');
-        
         currentProperty = tab.dataset.property;
+        persistPreferences();
         renderPeriodicTable();
       });
     });
-    
-    // Temperature slider
+
     const tempSlider = document.getElementById('tempSlider');
     const tempValue = document.getElementById('tempValue');
-    
+
     tempSlider.addEventListener('input', (e) => {
-      currentTemp = parseInt(e.target.value);
+      currentTemp = Number(e.target.value);
       tempValue.textContent = `${currentTemp} K`;
+      persistPreferences();
       renderPeriodicTable();
     });
-    
-    // Close info panel
-    document.getElementById('closeInfo').addEventListener('click', () => {
-      document.getElementById('infoPanel').classList.remove('show');
-      document.querySelectorAll('.element').forEach(el => el.classList.remove('selected'));
+
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      activeFilters.search = e.target.value.trim().toLowerCase();
+      applyFilters();
+    });
+
+    document.getElementById('categoryFilter').addEventListener('change', (e) => {
+      activeFilters.category = e.target.value;
+      applyFilters();
+    });
+
+    document.getElementById('periodFilter').addEventListener('change', (e) => {
+      activeFilters.period = e.target.value;
+      applyFilters();
+    });
+
+    document.getElementById('groupFilter').addEventListener('change', (e) => {
+      activeFilters.group = e.target.value;
+      applyFilters();
+    });
+
+    document.getElementById('phaseFilter').addEventListener('change', (e) => {
+      activeFilters.phase = e.target.value;
+      applyFilters();
+    });
+
+    document.getElementById('crystalFilter').addEventListener('change', (e) => {
+      activeFilters.crystal = e.target.value;
+      applyFilters();
+    });
+
+    document.querySelectorAll('.quickBtn').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.quick;
+        activeFilters.quick = activeFilters.quick === key ? '' : key;
+        applyFilters();
+      });
+    });
+
+    document.getElementById('resetFilters').addEventListener('click', () => {
+      activeFilters = { search: '', category: 'all', period: 'all', group: 'all', phase: 'all', crystal: 'all' };
+      document.getElementById('searchInput').value = '';
+      document.getElementById('categoryFilter').value = 'all';
+      document.getElementById('periodFilter').value = 'all';
+      document.getElementById('groupFilter').value = 'all';
+      document.getElementById('phaseFilter').value = 'all';
+      document.getElementById('crystalFilter').value = 'all';
+      activeFilters.quick = '';
+      applyFilters();
+    });
+
+    document.getElementById('clearSelection').addEventListener('click', () => {
+      document.querySelectorAll('.element').forEach((el) => el.classList.remove('selected'));
+      selectedElement = null;
+      document.getElementById('infoSymbol').textContent = '—';
+      document.getElementById('infoName').textContent = 'Velg et element';
+      document.getElementById('infoMeta').textContent = 'Klikk i tabellen for detaljer.';
+      document.getElementById('infoSummary').textContent = 'Ingen element valgt.';
+      document.getElementById('infoWiki').style.display = 'none';
+      document.getElementById('infoWiki').href = '#';
+      document.getElementById('infoGrid').innerHTML = '<div class="placeholder">Ingen element valgt.</div>';
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      persistPreferences();
     });
   }
-  
-  // Start
+
+  function syncQuickButtons() {
+    document.querySelectorAll('.quickBtn').forEach((button) => {
+      button.classList.toggle('active', button.dataset.quick === activeFilters.quick);
+    });
+  }
+
+  function syncUiFromState() {
+    const searchInput = document.getElementById('searchInput');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const phaseFilter = document.getElementById('phaseFilter');
+    const crystalFilter = document.getElementById('crystalFilter');
+    const periodFilter = document.getElementById('periodFilter');
+    const groupFilter = document.getElementById('groupFilter');
+    const tempSlider = document.getElementById('tempSlider');
+    const tempValue = document.getElementById('tempValue');
+
+    if (searchInput) searchInput.value = activeFilters.search;
+    if (categoryFilter) categoryFilter.value = activeFilters.category;
+    if (periodFilter) periodFilter.value = activeFilters.period;
+    if (groupFilter) groupFilter.value = activeFilters.group;
+    if (phaseFilter) phaseFilter.value = activeFilters.phase;
+    if (crystalFilter) crystalFilter.value = activeFilters.crystal;
+    if (tempSlider) tempSlider.value = String(currentTemp);
+    if (tempValue) tempValue.textContent = `${currentTemp} K`;
+
+    document.querySelectorAll('.propertyTab').forEach((tab) => {
+      tab.classList.toggle('active', tab.dataset.property === currentProperty);
+    });
+    syncQuickButtons();
+  }
+
+  function persistPreferences() {
+    try {
+      const payload = {
+        currentProperty,
+        currentTemp,
+        activeFilters,
+        selectedElementNumber: selectedElement?.number ?? null
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.warn('Could not persist preferences:', error);
+    }
+  }
+
+  function loadPreferences() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed.currentProperty && propertyLabels[parsed.currentProperty]) currentProperty = parsed.currentProperty;
+      if (Number.isFinite(parsed.currentTemp)) currentTemp = Math.max(0, Math.min(5000, Number(parsed.currentTemp)));
+      if (parsed.activeFilters) {
+        activeFilters = {
+          search: parsed.activeFilters.search || '',
+          category: parsed.activeFilters.category || 'all',
+          period: parsed.activeFilters.period || 'all',
+          group: parsed.activeFilters.group || 'all',
+          phase: parsed.activeFilters.phase || 'all',
+          crystal: parsed.activeFilters.crystal || 'all',
+          quick: parsed.activeFilters.quick || ''
+        };
+      }
+    } catch (error) {
+      console.warn('Could not load preferences:', error);
+    }
+  }
+
+  function restoreElementFromHash() {
+    const hash = window.location.hash || '';
+    const match = hash.match(/el=(\d+)/);
+    const saved = getSavedSelectedElement();
+    const number = match ? Number(match[1]) : saved;
+    if (!number) return;
+
+    const found = elementsData.find((el) => el.number === number);
+    if (found) {
+      showElementInfo(found);
+    }
+  }
+
+  function getSavedSelectedElement() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return Number.isFinite(parsed.selectedElementNumber) ? parsed.selectedElementNumber : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   init();
 })();

@@ -549,6 +549,24 @@ updateWaterlineContour() {
     return this.setDraftFromSlider(0);
   }
 
+  initDraftAtOriginalPlane() {
+    if (!this.mesh) return this.draftZWorld;
+
+    const ref = this.getReferenceBoundsNoHydroRot();
+    const zMin = ref.min.z;
+    const zMax = ref.max.z;
+
+    if (zMin <= 0 && zMax >= 0) {
+      this.draftZWorld = 0;
+      this.updateWaterPlane();
+      this._invalidateCache();
+      this.scheduleRecalc(true);
+      return this.draftZWorld;
+    }
+
+    return this.initDraftAtBottom();
+  }
+
   // ============================================================
   // TRIM / HEEL
   // ============================================================
@@ -1525,7 +1543,7 @@ updateWaterlineContour() {
 
   // ============================================================
   // EXPORT HELPERS (JSON/CSV + download)
-  // (PDF: anbefales via UI: render rapport-panelet og bruk browser "Print -> Save as PDF")
+  // (PDF håndteres i viewer-UI via jsPDF eller print-fallback)
   // ============================================================
 
   exportJSON(obj) {
