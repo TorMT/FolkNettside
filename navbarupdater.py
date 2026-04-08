@@ -38,6 +38,10 @@ except ModuleNotFoundError:
 OVING_RE = re.compile(r"^(?:øving|oving)0*(\d+)$", re.IGNORECASE)
 ALLOWED_EXT = {'.py', '.pdf', '.ipynb'}
 IMAGE_EXT = {'.jpg', '.jpeg', '.png', '.gif'}
+LOCAL_ONLY_BLOCK_RE = re.compile(
+    r'<!--\s*LOCAL-ONLY-START:\s*([A-Za-z0-9_-]+)\s*-->(.*?)<!--\s*LOCAL-ONLY-END:\s*\1\s*-->',
+    re.DOTALL,
+)
 
 
 def clean_name(name: str) -> str:
@@ -113,7 +117,7 @@ def update_index(dir_path: Path, use_progress: bool):
     
     for k in sorted(index):
         ordered[k] = index[k]
-    
+
     # Skriv til fil hvis endret
     idx_file = dir_path / 'index.json'
     text = json.dumps(ordered, indent=2, ensure_ascii=False) + '\n'
@@ -316,13 +320,46 @@ def find_dropdown_header(dropdown):
     )
 
 
+def extract_local_only_blocks(raw_html: str):
+    """Hent ut blokker som skal bevares 1:1 mellom oppdateringer."""
+    blocks = {}
+    for m in LOCAL_ONLY_BLOCK_RE.finditer(raw_html):
+        name = m.group(1).strip()
+        blocks[name] = m.group(0)
+    return blocks
+
+
+def restore_local_only_blocks(original_html: str, generated_html: str, skip_names=None) -> str:
+    """Erstatt LOCAL-ONLY-blokker i generert html med originalt innhold."""
+    blocks = extract_local_only_blocks(original_html)
+    if not blocks:
+        return generated_html
+    skip = {str(x).strip() for x in (skip_names or [])}
+
+    def repl(match):
+        name = match.group(1).strip()
+        if name in skip:
+            return match.group(0)
+        return blocks.get(name, match.group(0))
+
+    return LOCAL_ONLY_BLOCK_RE.sub(repl, generated_html)
+
+
+def write_navbar_preserving_local_only(nav: Path, soup: BeautifulSoup, original_html: str, skip_names=None):
+    """Skriv navbar-filen og behold side-spesifikke LOCAL-ONLY-blokker."""
+    generated = str(soup)
+    merged = restore_local_only_blocks(original_html, generated, skip_names=skip_names)
+    nav.write_text(merged, encoding='utf-8')
+
+
 def update_navbar(nav: Path, sem: str, slug: str, title: str):
     """Legger til et nytt kurs i navbar under riktig semester."""
     if not nav.exists():
         print(f"✗ Navbar ikke funnet: {nav}")
         return False
     
-    soup = BeautifulSoup(nav.read_text(encoding='utf-8'), 'html.parser')
+    original_html = nav.read_text(encoding='utf-8')
+    soup = BeautifulSoup(original_html, 'html.parser')
     heading = f"{sem}. Semester"
     
     # Finn riktig semester-dropdown
@@ -354,7 +391,12 @@ def update_navbar(nav: Path, sem: str, slug: str, title: str):
     dropdown_content.append('\n        ')
     dropdown_content.append(a)
     
-    nav.write_text(str(soup), encoding='utf-8')
+    write_navbar_preserving_local_only(
+        nav,
+        soup,
+        original_html,
+        skip_names={'NAVBAR_LEFT_SEMESTERS'},
+    )
     print(f"✓ Oppdatert navbar: la til {title} i {heading}")
     return True
 
@@ -365,7 +407,8 @@ def add_semester(nav: Path, base: Path, sem: str):
         print(f"✗ Navbar ikke funnet: {nav}")
         return False
     
-    soup = BeautifulSoup(nav.read_text(encoding='utf-8'), 'html.parser')
+    original_html = nav.read_text(encoding='utf-8')
+    soup = BeautifulSoup(original_html, 'html.parser')
     left = soup.select_one('.navbar-left')
     
     if not left:
@@ -407,7 +450,12 @@ def add_semester(nav: Path, base: Path, sem: str):
     sem_path.mkdir(parents=True, exist_ok=True)
     print(f"✓ Opprettet mappe 'semestre/{sem}'")
     
-    nav.write_text(str(soup), encoding='utf-8')
+    write_navbar_preserving_local_only(
+        nav,
+        soup,
+        original_html,
+        skip_names={'NAVBAR_LEFT_SEMESTERS'},
+    )
     return True
 
 
