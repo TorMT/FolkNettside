@@ -71,6 +71,9 @@ export class STLViewerCore {
     this.importFixGroup.rotation.set(0, 0, 0);
 
     this.mesh = null;
+    this._explodeFactor = 0;
+    this._explodeItems = [];
+    this._explodeBaseMaxDim = 1;
 
     // Units scale: meters per STL-unit
     this.unitsScale = 1.0;
@@ -192,6 +195,9 @@ export class STLViewerCore {
   setMesh(mesh) {
     if (this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh);
     this.mesh = mesh || null;
+    this._explodeFactor = 0;
+    this._explodeItems = [];
+    this._explodeBaseMaxDim = 1;
 
     if (this.mesh) this.hydroRotGroup.add(this.mesh);
 
@@ -213,23 +219,133 @@ export class STLViewerCore {
     return { box, size, center, maxDim };
   }
 
+  _ensureExplodeItems() {
+    if (!this.mesh) {
+      this._explodeItems = [];
+      return this._explodeItems;
+    }
+    if (this._explodeItems.length) return this._explodeItems;
+
+    const targets = this._getRenderableMeshes().filter((target) => target && target !== this.mesh);
+    if (targets.length <= 1) {
+      this._explodeItems = [];
+      this._explodeBaseMaxDim = 1;
+      return this._explodeItems;
+    }
+
+    this.modelGroup.updateMatrixWorld(true);
+    this.mesh.updateMatrixWorld(true);
+    this._explodeBaseMaxDim = this.computeBoundsWorld(this.mesh).maxDim || 1;
+
+    const meshCenterBox = new THREE.Box3();
+    const meshCenters = targets.map((target) => {
+      if (target.geometry?.computeBoundingBox) target.geometry.computeBoundingBox();
+      const localCenter = target.geometry?.boundingBox?.getCenter(new THREE.Vector3()) || new THREE.Vector3();
+      const worldCenter = target.localToWorld(localCenter.clone());
+      const meshCenter = this.mesh.worldToLocal(worldCenter.clone());
+      meshCenterBox.expandByPoint(meshCenter);
+      return meshCenter;
+    });
+
+    const modelCenter = meshCenterBox.isEmpty()
+      ? new THREE.Vector3()
+      : meshCenterBox.getCenter(new THREE.Vector3());
+
+    this._explodeItems = targets.map((target, index) => {
+      const dirMesh = meshCenters[index].clone().sub(modelCenter);
+      if (dirMesh.lengthSq() < 1e-9) {
+        const angle = (index / Math.max(1, targets.length)) * Math.PI * 2;
+        dirMesh.set(Math.cos(angle), Math.sin(angle), ((index % 3) - 1) * 0.24);
+      }
+      dirMesh.normalize();
+      return {
+        target,
+        basePosition: target.position.clone(),
+        centerMesh: meshCenters[index].clone(),
+        dirMesh,
+      };
+    });
+
+    return this._explodeItems;
+  }
+
+  getExplodablePartCount() {
+    return this._ensureExplodeItems().length;
+  }
+
+  canExplode() {
+    return this.getExplodablePartCount() > 1;
+  }
+
+  getExplodeFactor() {
+    return this._explodeFactor || 0;
+  }
+
+  setExplodeFactor(amount = 0) {
+    const items = this._ensureExplodeItems();
+    const clamped = Math.max(0, Math.min(1, Number(amount) || 0));
+    this._explodeFactor = items.length > 1 ? clamped : 0;
+
+    if (!items.length) return this._explodeFactor;
+
+    this.modelGroup.updateMatrixWorld(true);
+    this.mesh.updateMatrixWorld(true);
+
+    const spreadDistance = (this._explodeBaseMaxDim || 1) * 0.42 * this._explodeFactor;
+
+    items.forEach((item) => {
+      const parent = item.target.parent;
+      if (!parent) return;
+
+      const fromWorld = this.mesh.localToWorld(item.centerMesh.clone());
+      const toWorld = this.mesh.localToWorld(
+        item.centerMesh.clone().addScaledVector(item.dirMesh, spreadDistance)
+      );
+
+      const fromParent = parent.worldToLocal(fromWorld.clone());
+      const toParent = parent.worldToLocal(toWorld.clone());
+      const deltaParent = toParent.sub(fromParent);
+
+      item.target.position.copy(item.basePosition).add(deltaParent);
+      item.target.updateMatrixWorld(true);
+    });
+
+    this.modelGroup.updateMatrixWorld(true);
+
+    if (this._bboxHelper) {
+      try {
+        this._bboxHelper.box.setFromObject(this.modelGroup);
+      } catch {}
+    }
+    if (this._axesHelper) this.setAxesVisible(true);
+
+    return this._explodeFactor;
+  }
+
+  resetExplode() {
+    return this.setExplodeFactor(0);
+  }
+
   // ---------- kamera ----------
 
   fitToModel() {
     if (!this.mesh) return;
 
-    const { center, maxDim } = this.computeBoundsWorld(this.modelGroup);
-    const d = maxDim * 1.6;
+    const { center, size, maxDim } = this.computeBoundsWorld(this.modelGroup);
+    const radius = Math.max(size.length() * 0.5, maxDim * 0.5, 0.01);
+    const aspect = Math.max(0.1, this.camera.aspect || (window.innerWidth / Math.max(window.innerHeight, 1)));
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov || 60);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+    const limitingFov = Math.max(0.15, Math.min(vFov, hFov));
+    const padding = 1.14;
+    const distance = (radius / Math.sin(limitingFov / 2)) * padding;
+    const direction = new THREE.Vector3(1, 1, 0.82).normalize();
 
     this.controls.target.copy(center);
-    this.camera.position.set(
-      center.x + d * 0.75,
-      center.y + d * 0.75,
-      center.z + d * 0.55
-    );
+    this.camera.position.copy(center).addScaledVector(direction, distance);
 
-    this.camera.near = maxDim / 1000;
-    this.camera.far = maxDim * 1000;
+    this.camera.near = Math.max(0.01, distance / 150);
+    this.camera.far = Math.max(distance * 20, maxDim * 1000);
     this.camera.updateProjectionMatrix();
     this.controls.update();
 
@@ -247,8 +363,13 @@ export class STLViewerCore {
   setPresetView(name = "iso") {
     if (!this.mesh) return;
 
-    const { center, maxDim } = this.computeBoundsWorld(this.modelGroup);
-    const d = maxDim * 1.7;
+    const { center, size, maxDim } = this.computeBoundsWorld(this.modelGroup);
+    const radius = Math.max(size.length() * 0.5, maxDim * 0.5, 0.01);
+    const aspect = Math.max(0.1, this.camera.aspect || (window.innerWidth / Math.max(window.innerHeight, 1)));
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov || 60);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+    const limitingFov = Math.max(0.15, Math.min(vFov, hFov));
+    const distance = (radius / Math.sin(limitingFov / 2)) * 1.16;
 
     const dirMap = {
       iso: new THREE.Vector3(1, 1, 0.8),
@@ -263,10 +384,10 @@ export class STLViewerCore {
     const v = (dirMap[name] || dirMap.iso).clone().normalize();
 
     this.controls.target.copy(center);
-    this.camera.position.copy(center).addScaledVector(v, d);
+    this.camera.position.copy(center).addScaledVector(v, distance);
 
-    this.camera.near = maxDim / 1000;
-    this.camera.far = maxDim * 1000;
+    this.camera.near = Math.max(0.01, distance / 150);
+    this.camera.far = Math.max(distance * 20, maxDim * 1000);
     this.camera.updateProjectionMatrix();
     this.controls.update();
   }
@@ -311,92 +432,112 @@ export class STLViewerCore {
 
   // ---------- render props ----------
 
-  _getMeshMaterial() {
-    if (!this.mesh) return null;
-    const mat = this.mesh.material;
-    return Array.isArray(mat) ? mat : mat || null;
+  _getRenderableMeshes() {
+    if (!this.mesh) return [];
+
+    const targets = [];
+    const seen = new Set();
+    const visit = (obj) => {
+      if (!obj || seen.has(obj)) return;
+      seen.add(obj);
+      if (obj.isMesh && obj.geometry && obj.material) targets.push(obj);
+    };
+
+    if (this.mesh.isMesh) visit(this.mesh);
+    if (typeof this.mesh.traverse === "function") {
+      this.mesh.traverse((child) => {
+        if (child === this.mesh && !this.mesh.isMesh) return;
+        visit(child);
+      });
+    }
+
+    return targets;
+  }
+
+  _applyToRenderableMaterials(fn) {
+    const meshes = this._getRenderableMeshes();
+    for (const target of meshes) {
+      const mats = Array.isArray(target.material) ? target.material : [target.material];
+      mats.forEach((mat) => fn(mat, target));
+    }
   }
 
   setWireframe(on) {
     if (!this.mesh) return;
-    const mat = this._getMeshMaterial();
-    const apply = (m) => {
-      if (m) {
-        m.wireframe = !!on;
-        m.needsUpdate = true;
-      }
-    };
-    if (Array.isArray(mat)) mat.forEach(apply);
-    else apply(mat);
+    this._applyToRenderableMaterials((mat) => {
+      if (!mat) return;
+      mat.wireframe = !!on;
+      mat.needsUpdate = true;
+    });
   }
 
   setFlatShading(on) {
     if (!this.mesh) return;
-    const mat = this._getMeshMaterial();
-    const apply = (m) => {
-      if (m) {
-        m.flatShading = !!on;
-        m.needsUpdate = true;
-      }
-    };
-    if (Array.isArray(mat)) mat.forEach(apply);
-    else apply(mat);
+    this._applyToRenderableMaterials((mat) => {
+      if (!mat) return;
+      mat.flatShading = !!on;
+      mat.needsUpdate = true;
+    });
   }
 
   setOpacity(alpha = 1) {
     if (!this.mesh) return;
     const a = Math.max(0.0, Math.min(1.0, Number(alpha)));
-    const mat = this._getMeshMaterial();
-    const apply = (m) => {
-      if (!m) return;
-      m.opacity = a;
-      m.transparent = a < 0.999;
-      m.depthWrite = a >= 0.999;
-      m.needsUpdate = true;
-    };
-    if (Array.isArray(mat)) mat.forEach(apply);
-    else apply(mat);
+    this._applyToRenderableMaterials((mat) => {
+      if (!mat) return;
+      mat.opacity = a;
+      mat.transparent = a < 0.999;
+      mat.depthWrite = a >= 0.999;
+      mat.needsUpdate = true;
+    });
   }
 
   setModelColor(cssColor) {
     if (!this.mesh) return;
-    const mat = this._getMeshMaterial();
     const color = new THREE.Color(cssColor || "#5da9ff");
-    const apply = (m) => {
-      if (m?.color) {
-        m.color.copy(color);
-        m.needsUpdate = true;
-      }
-    };
-    if (Array.isArray(mat)) mat.forEach(apply);
-    else apply(mat);
+    this._applyToRenderableMaterials((mat) => {
+      if (!mat?.color) return;
+      mat.color.copy(color);
+      mat.needsUpdate = true;
+    });
+  }
+
+  _clearEdgeHelpers() {
+    if (!this.mesh || typeof this.mesh.traverse !== "function") return;
+    this.mesh.traverse((obj) => {
+      const stale = (obj.children || []).filter((child) => child?.userData?.viewerEdgeHelper);
+      stale.forEach((child) => obj.remove(child));
+    });
   }
 
   // ---------- edges ----------
 
   setEdgesVisible(on) {
     if (!this.mesh) return;
-
-    if (this._edgesLine && this._edgesLine.parent)
-      this._edgesLine.parent.remove(this._edgesLine);
+    this._clearEdgeHelpers();
     this._edgesLine = null;
 
     if (!on) return;
 
-    const geom = this.mesh.geometry;
-    if (!geom) return;
+    const targets = this._getRenderableMeshes();
+    if (!targets.length) return;
 
-    const edgesGeom = new THREE.EdgesGeometry(geom, 12);
-    const lineMat = new THREE.LineBasicMaterial({
-      color: 0x000000,
-      transparent: true,
-      opacity: 0.75,
-    });
-    const lines = new THREE.LineSegments(edgesGeom, lineMat);
-    lines.renderOrder = 3;
-
-    this.mesh.add(lines);
-    this._edgesLine = lines;
+    let added = 0;
+    for (const target of targets) {
+      if (!target.geometry) continue;
+      const edgesGeom = new THREE.EdgesGeometry(target.geometry, 12);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.75,
+      });
+      const lines = new THREE.LineSegments(edgesGeom, lineMat);
+      lines.renderOrder = 3;
+      lines.userData.viewerEdgeHelper = true;
+      target.add(lines);
+      added += 1;
+    }
+    this._edgesLine = added > 0 ? { count: added } : null;
   }
 
   // ---------- bbox ----------

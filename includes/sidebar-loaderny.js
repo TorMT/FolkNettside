@@ -1,20 +1,20 @@
-/* --------------------------------------------------------------------
-   FolkNettsideFolk â€“ sidebar-loader.js  v11.15.2
+﻿/* --------------------------------------------------------------------
+   FolkNettsideFolk Ã¢â‚¬â€œ sidebar-loader.js  v11.15.2
    --------------------------------------------------------------------
    FIKSET: Fil ikoner og CSS/JS-blanding
    
-   â€¢ Riktig rekkefÃ¸lge: ØvingXX â†’ PythonØvingâ€¦ â†’ andre â†’ beskyttet
-   â€¢ PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
-   â€¢ pyview/nbview/codeview bruker ?file= â€¦
-   â€¢ Skjuler beskyttet flyout/innhold til passord er godkjent
-   â€¢ Quiz-knapp rendrer i innholdet (auto-finner quiz.json + fikser bildepaths)
-   â€¢ Tittel/innhold havner ikke under sidebaren
-   â€¢ Robust JSON-innlasting (stripper BOM, viser feilsnutt ved HTML/404, osv.)
-   â€¢ Nested flyouts: Filer med "/" i navnet (f.eks. "DelA/fil.pdf") fÃ¥r nested flyout
-   â€¢ BUGFIX v11.15.2:
-     â€“ Fikset CSS/JS-blanding som Ã¸dela fil-ikoner
-     â€“ Alle ikoner fungerer nÃ¥ korrekt
-     â€“ Bedre struktur i CSS-injeksjon
+   Ã¢â‚¬Â¢ Riktig rekkefÃƒÂ¸lge: Ã˜vingXX Ã¢â€ â€™ PythonÃ˜vingÃ¢â‚¬Â¦ Ã¢â€ â€™ andre Ã¢â€ â€™ beskyttet
+   Ã¢â‚¬Â¢ PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
+   Ã¢â‚¬Â¢ pyview/nbview/codeview bruker ?file= Ã¢â‚¬Â¦
+   Ã¢â‚¬Â¢ Skjuler beskyttet flyout/innhold til passord er godkjent
+   Ã¢â‚¬Â¢ Quiz-knapp rendrer i innholdet (auto-finner quiz.json + fikser bildepaths)
+   Ã¢â‚¬Â¢ Tittel/innhold havner ikke under sidebaren
+   Ã¢â‚¬Â¢ Robust JSON-innlasting (stripper BOM, viser feilsnutt ved HTML/404, osv.)
+   Ã¢â‚¬Â¢ Nested flyouts: Filer med "/" i navnet (f.eks. "DelA/fil.pdf") fÃƒÂ¥r nested flyout
+   Ã¢â‚¬Â¢ BUGFIX v11.15.2:
+     Ã¢â‚¬â€œ Fikset CSS/JS-blanding som ÃƒÂ¸dela fil-ikoner
+     Ã¢â‚¬â€œ Alle ikoner fungerer nÃƒÂ¥ korrekt
+     Ã¢â‚¬â€œ Bedre struktur i CSS-injeksjon
 -------------------------------------------------------------------- */
 
 /**************** 1) Dynamisk CSS ****************************************/
@@ -171,7 +171,7 @@
       }
       
       .nested-folder-item::after{ 
-        content:'â–¸';
+        content:'Ã¢â€“Â¸';
         position:absolute;
         right:8px;
         font-size:1.1em; 
@@ -274,14 +274,14 @@
     }
     
     .file-label.watched::before{
-      content:"âœ“ ";
+      content:"Ã¢Å“â€œ ";
       color:#8BC34A;
       margin-right:6px;
       font-weight:700;
     }
     
     .nested-folder-item.watched>.file-label::after{
-      content:" âœ“";
+      content:" Ã¢Å“â€œ";
       color:#8BC34A;
       margin-left:6px;
     }
@@ -768,7 +768,7 @@ function openInViewer(url, kind){
         ctrl.style.right='12px'; 
         ctrl.style.bottom='12px'; 
         ctrl.style.zIndex='9999'; 
-        ctrl.innerHTML = '<button class="mark-watched">Markér som sett</button>'; 
+        ctrl.innerHTML = '<button class="mark-watched">Marker som sett</button>'; 
         holder.appendChild(ctrl); 
         ctrl.querySelector('.mark-watched').addEventListener('click', ()=> markVideoWatched(url)); 
       }catch(e){}
@@ -830,8 +830,8 @@ function openInViewer(url, kind){
   else if (kind === 'html')  target = `/includes/kodeLesere/htmlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'stl') target = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fbm') target = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
-  else if (kind === '3mf') target = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
-  else if (kind === 'fusion3d') target = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === '3mf') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'fusion3d') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'f3d') target = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fusionshare') target = `/includes/kodeLesere/fusionshareview.html?share=${encodeURIComponent(url)}`;
   else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
@@ -967,23 +967,23 @@ async function autoFindQuizRel(courseDir){
 /**************** 3) Navn + sort (UENDRET) *******************************/
 function repairMojibakeLabel(value){
   return String(value || '')
-    .replace(/Ã˜/g, 'Ø')
-    .replace(/Ã¸/g, 'ø')
-    .replace(/Ã…/g, 'Å')
-    .replace(/Ã¥/g, 'å')
-    .replace(/Ã†/g, 'Æ')
-    .replace(/Ã¦/g, 'æ')
-    .replace(/â€“|â€”/g, ' - ')
-    .replace(/Â/g, '')
+    .replace(/ÃƒËœ/g, 'Ã˜')
+    .replace(/ÃƒÂ¸/g, 'Ã¸')
+    .replace(/Ãƒâ€¦/g, 'Ã…')
+    .replace(/ÃƒÂ¥/g, 'Ã¥')
+    .replace(/Ãƒâ€ /g, 'Ã†')
+    .replace(/ÃƒÂ¦/g, 'Ã¦')
+    .replace(/Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
+    .replace(/Ã‚/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 function displayName(key){
   const fixed = repairMojibakeLabel(key);
-  const m = fixed.match(/^\s*[Øøo]ving(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m)  return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m = fixed.match(/^\s*[Ã˜Ã¸o]ving(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m)  return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = fixed.match(/^oving(\d{1,3})$/i);
-  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  if (m2) return `Ã˜ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
   return fixed.replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '').replace(/\.[^/.]+$/, '');
 }
 
@@ -992,10 +992,10 @@ function sortSidebarKeys(data){
   const ovingNum = (k) => {
     const fixed = repairMojibakeLabel(k);
     if (/^oving\d{2}$/i.test(fixed)) return parseInt(fixed.slice(5), 10);
-    const m = fixed.match(/^\s*[Øøo]ving(?:er)?\s*0*(\d{1,3})\b/i);
+    const m = fixed.match(/^\s*[Ã˜Ã¸o]ving(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy   = k => /^pythonøving/i.test(repairMojibakeLabel(k));
+  const isPy   = k => /^pythonÃ¸ving/i.test(repairMojibakeLabel(k));
   const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(k));
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
   const py    = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
@@ -1006,16 +1006,16 @@ function sortSidebarKeys(data){
 
 repairMojibakeLabel = function(value){
   return String(value || '')
-    .replace(/ÃƒËœ|Ã˜/g, 'Ø')
-    .replace(/ÃƒÂ¸|Ã¸/g, 'ø')
-    .replace(/Ãƒâ€¦|Ã…/g, 'Å')
-    .replace(/ÃƒÂ¥|Ã¥/g, 'å')
-    .replace(/Ãƒâ€ |Ã†/g, 'Æ')
-    .replace(/ÃƒÂ¦|Ã¦/g, 'æ')
-    .replace(/Ã¢â‚¬â€œ|Ã¢â‚¬â€|–|—/g, ' - ')
-    .replace(/Ã‚/g, '')
-    .replace(/ðŸ[^ ]*/g, '')
-    .replace(/[■□]/g, '')
+    .replace(/ÃƒÆ’Ã‹Å“|ÃƒËœ/g, 'Ã˜')
+    .replace(/ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, 'Ã¸')
+    .replace(/ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, 'Ã…')
+    .replace(/ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, 'Ã¥')
+    .replace(/ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, 'Ã†')
+    .replace(/ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, 'Ã¦')
+    .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|â€“|â€”/g, ' - ')
+    .replace(/Ãƒâ€š/g, '')
+    .replace(/Ã°Å¸[^ ]*/g, '')
+    .replace(/[â– â–¡]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 };
@@ -1023,16 +1023,16 @@ repairMojibakeLabel = function(value){
 displayName = function(key){
   const fixed = repairMojibakeLabel(key);
   const cleaned = fixed
-    .replace(/^[■□▪▫◆◇◼◻⬛⬜]+\s*/g, '')
-    .replace(/ðŸ[^ ]*/g, '')
+    .replace(/^[â– â–¡â–ªâ–«â—†â—‡â—¼â—»â¬›â¬œ]+\s*/g, '')
+    .replace(/Ã°Å¸[^ ]*/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-  const m = cleaned.match(/^\s*(?:øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m = cleaned.match(/^\s*(?:Ã¸ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m) return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = cleaned.match(/^oving(\d{1,3})$/i);
-  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
-  const py = cleaned.match(/^python(?:ø|o)ving\s*0*(\d{1,3})$/i);
-  if (py) return `PythonØving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
+  if (m2) return `Ã˜ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  const py = cleaned.match(/^python(?:Ã¸|o)ving\s*0*(\d{1,3})$/i);
+  if (py) return `PythonÃ˜ving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
   return cleaned
     .replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '')
     .replace(/\.[^/.]+$/, '');
@@ -1040,34 +1040,34 @@ displayName = function(key){
 
 repairMojibakeLabel = function(value){
   return String(value || '')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ|Ã˜/g, 'Ø')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸|Ã¸/g, 'ø')
-    .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦|Ã…/g, 'Å')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥|Ã¥/g, 'å')
-    .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ |Ã†/g, 'Æ')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦|Ã¦/g, 'æ')
-    .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€|â€“|â€”/g, ' - ')
-    .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|Ã¢â‚¬Â¦/g, '...')
-    .replace(/Ãƒâ€š/g, '')
-    .replace(/ðŸ[^A-Za-zÆØÅæøå0-9]*/g, '')
-    .replace(/[■□▪▫◆◇◼◻⬛⬜�]/g, '')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹Ãƒâ€¦Ã¢â‚¬Å“|ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ/g, 'Ã˜')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, 'Ã¸')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, 'Ã…')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, 'Ã¥')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â |ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, 'Ã†')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, 'Ã¦')
+    .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
+    .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦/g, '...')
+    .replace(/ÃƒÆ’Ã¢â‚¬Å¡/g, '')
+    .replace(/Ã°Å¸[^A-Za-zÃ†Ã˜Ã…Ã¦Ã¸Ã¥0-9]*/g, '')
+    .replace(/[â– â–¡â–ªâ–«â—†â—‡â—¼â—»â¬›â¬œï¿½]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 };
 
 displayName = function(key){
   const cleaned = repairMojibakeLabel(key)
-    .replace(/^[■□▪▫◆◇◼◻⬛⬜]+\s*/g, '')
+    .replace(/^[â– â–¡â–ªâ–«â—†â—‡â—¼â—»â¬›â¬œ]+\s*/g, '')
     .replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '')
     .replace(/\.[^/.]+$/, '')
     .replace(/\s+/g, ' ')
     .trim();
-  let m = cleaned.match(/^\s*(?:Øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  let m = cleaned.match(/^\s*(?:Ã˜ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m) return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   m = cleaned.match(/^oving(\d{1,3})$/i);
-  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
-  const py = cleaned.match(/^python(?:ø|o)ving\s*0*(\d{1,3})$/i);
-  if (py) return `PythonØving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
+  if (m) return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const py = cleaned.match(/^python(?:Ã¸|o)ving\s*0*(\d{1,3})$/i);
+  if (py) return `PythonÃ˜ving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
   return cleaned;
 };
 
@@ -1076,10 +1076,10 @@ sortSidebarKeys = function(data){
   const ovingNum = (k) => {
     const fixed = repairMojibakeLabel(k);
     if (/^oving\d{2,3}$/i.test(fixed)) return parseInt(fixed.slice(5), 10);
-    const m = fixed.match(/^\s*(?:øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+    const m = fixed.match(/^\s*(?:Ã¸ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy = k => /^python(?:ø|o)ving/i.test(repairMojibakeLabel(k));
+  const isPy = k => /^python(?:Ã¸|o)ving/i.test(repairMojibakeLabel(k));
   const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(k));
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
   const py = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
@@ -1287,12 +1287,12 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
         const m = anyVid || s.match(/[?&]v=([^&]+)/i);
         if (m) {
           if (labelPart) return labelPart;
-          return 'YouTube â€“ ' + decodeURIComponent(m[1]);
+          return 'YouTube Ã¢â‚¬â€œ ' + decodeURIComponent(m[1]);
         }
         const m2 = s.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
         if (m2) {
           if (labelPart) return labelPart;
-          return 'YouTube â€“ ' + decodeURIComponent(m2[1]);
+          return 'YouTube Ã¢â‚¬â€œ ' + decodeURIComponent(m2[1]);
         }
         try{
           const u = new URL(s);
@@ -1314,7 +1314,7 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
   rootItems.forEach(item => {
     const f = item.f;
     const href = makeHrefFunc(f);
-    const label = (isPyGroup ? 'ðŸ ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'â€¦' : item.label);
+    const label = (isPyGroup ? 'Ã°Å¸ÂÂ ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'Ã¢â‚¬Â¦' : item.label);
     const icon = iconForFile(f);
     html += `<a href="${href}" data-file="${f}">${icon}<span class="file-label">${label}</span></a>`;
   });
@@ -1434,7 +1434,7 @@ buildNestedFlyoutHTML = function(files, makeHrefFunc, isPyGroup) {
     }).filter(Boolean);
     if (playlistItems.length) {
       const payload = encodeURIComponent(JSON.stringify({ title: repairMojibakeLabel(folderName), items: playlistItems }));
-      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Åpne alle videoer i innebygd modus">`;
+      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="\\u00C5pne alle videoer i innebygd modus">`;
       html += `<span class="file-icon" style="background:#D32F2F">ALL</span>`;
       html += `<span class="file-label">Se alle videoer (embedded)</span>`;
       html += `</a>`;
@@ -1521,7 +1521,7 @@ async function initSidebar(){
     return new URL(encoded, location.origin + courseDir).href;
   }
 
-  let html = '<h3>Øvinger</h3>';
+  let html = '<h3>\\u00D8vinger</h3>';
   html += keys.map(key=>{
     const obj = data[key];
     const locked = !!(obj && obj.beskyttet);
@@ -1535,7 +1535,7 @@ async function initSidebar(){
     }
 
     if (files && files.length){
-      const isPyGroup = /^pythonøving/i.test(String(key));
+      const isPyGroup = /^pythonÃ¸ving/i.test(String(key));
       const contentHTML = buildNestedFlyoutHTML(files, (f) => makeHref(key, obj, f), isPyGroup);
       
       return `<div class="dropdown-oving">
@@ -1547,7 +1547,7 @@ async function initSidebar(){
   }).join('');
 
   if (data.quiz){ 
-    html += `<div class="dropdown-oving"><div class="dropdown-btn" id="quiz-btn">ðŸ§© Quiz</div></div>`; 
+    html += `<div class="dropdown-oving"><div class="dropdown-btn" id="quiz-btn">&#129513; Quiz</div></div>`; 
   }
   sb.innerHTML = html;
   refreshWatchedStatus();
@@ -1835,7 +1835,7 @@ async function initSidebar(){
     });
   });
 
-  /* Klikk-Ã¥pne filer */
+  /* Klikk-ÃƒÂ¥pne filer */
   async function handleFlyoutAnchorClick(e, a){
     e.preventDefault();
     const q = document.getElementById('quiz-container'); 
@@ -1904,7 +1904,7 @@ async function initSidebar(){
     if (a) handleFlyoutAnchorClick(e, a);
   });
 
-  /* Hjem pÃ¥ tittel */
+  /* Hjem pÃƒÂ¥ tittel */
   document.querySelector('.content h1')?.addEventListener('click', ()=>{
     location.reload();
   });
@@ -2002,7 +2002,7 @@ async function initSidebar(){
         }
       }
 
-      alert('Quiz-modulen er ikke tilgjengelig.\nForsÃ¸kte:\n- ' + tried.join('\n- '));
+      alert('Quiz-modulen er ikke tilgjengelig.\nForsÃƒÂ¸kte:\n- ' + tried.join('\n- '));
     });
   }
 
@@ -2010,16 +2010,16 @@ async function initSidebar(){
   if (window.SidebarSearch && typeof window.SidebarSearch.init === 'function') {
     try {
       window.SidebarSearch.init(sb);
-      console.log('âœ“ Sidebar Search Module initialized');
+      console.log('Ã¢Å“â€œ Sidebar Search Module initialized');
     } catch (err) {
-      console.error('[sidebar-loader] Kunne ikke initialisere sÃ¸kemodul:', err);
+      console.error('[sidebar-loader] Kunne ikke initialisere sÃƒÂ¸kemodul:', err);
     }
   }
   
   if (window.SidebarNotifications && typeof window.SidebarNotifications.init === 'function') {
     try {
       window.SidebarNotifications.init(courseDir);
-      console.log('âœ“ Sidebar Notifications Module initialized');
+      console.log('Ã¢Å“â€œ Sidebar Notifications Module initialized');
     } catch (err) {
       console.error('[sidebar-loader] Kunne ikke initialisere notifikasjonsmodul:', err);
     }
@@ -2061,17 +2061,17 @@ document.readyState==='loading'
 
   function cleanSidebarText(value){
     return String(value || '')
-      .replace(/ÃƒÆ’Ã‹Å“|ÃƒËœ|Ã˜/g, '\u00D8')
-      .replace(/ÃƒÆ’Ã‚Â¸|ÃƒÂ¸|Ã¸/g, '\u00F8')
-      .replace(/ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦|Ã…/g, '\u00C5')
-      .replace(/ÃƒÆ’Ã‚Â¥|ÃƒÂ¥|Ã¥/g, '\u00E5')
-      .replace(/ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ |Ã†/g, '\u00C6')
-      .replace(/ÃƒÆ’Ã‚Â¦|ÃƒÂ¦|Ã¦/g, '\u00E6')
-      .replace(/Ã¢â‚¬â€œ|Ã¢â‚¬â€|â€“|â€”/g, ' - ')
-      .replace(/Ã¢â‚¬Â¦|â€¦/g, '...')
-      .replace(/Ã‚/g, '')
-      .replace(/ðŸ[^ ]*/g, '')
-      .replace(/[■□]/g, '')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ/g, '\u00D8')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, '\u00F8')
+      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, '\u00C5')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, '\u00E5')
+      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, '\u00C6')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, '\u00E6')
+      .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
+      .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|Ã¢â‚¬Â¦/g, '...')
+      .replace(/Ãƒâ€š/g, '')
+      .replace(/Ã°Å¸[^ ]*/g, '')
+      .replace(/[â– â–¡]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -2084,7 +2084,7 @@ document.readyState==='loading'
     if (m) return `\u00D8ving ${String(parseInt(m[1], 10)).padStart(2, '0')}`;
     m = fixed.match(/^python(?:\u00D8|o)ving\s*0*(\d{1,3})$/i);
     if (m) return `Python\u00D8ving ${String(parseInt(m[1], 10)).padStart(2, '0')}`;
-    return fixed.replace(/^ðŸ\S*\s*/g, '').replace(/[■□�]/g, '').trim();
+    return fixed.replace(/^Ã°Å¸\S*\s*/g, '').replace(/[â– â–¡ï¿½]/g, '').trim();
   }
 
   function badgeForSidebarFile(name, isFolder){
@@ -2102,8 +2102,43 @@ document.readyState==='loading'
     if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(lower)) return { text: 'IMG', bg: '#4CAF50' };
     if (/\.(mp4|webm|ogg|mov|m4v)$/i.test(lower)) return { text: 'VID', bg: '#444444' };
     if (/\.html?$/i.test(lower)) return { text: 'HTM', bg: '#5C6BC0' };
-    if (/\.txt$/i.test(lower)) return { text: 'TXT', bg: '#546E7A' };
+    if (/\\.txt$/i.test(lower)) return { text: 'TXT', bg: '#546E7A' };
     return { text: 'FIL', bg: '#607D8B' };
+  }
+  const fusionShareBadge = { text: 'FUS', bg: '#F57C00' };
+  const fusionShareBadgeCache = new Map();
+
+  async function detectFusionShareBadgeTarget(ref){
+    const target = String(ref || '').trim();
+    if (!target) return false;
+    if (isFusionShareUrl(target)) return true;
+    if (!isPotentialFusionShareFile(target)) return false;
+    if (fusionShareBadgeCache.has(target)) return fusionShareBadgeCache.get(target);
+    const pending = (async () => {
+      try{
+        const res = await fetch(target, { cache: 'no-store' }).catch(() => null);
+        if (!res || !res.ok) return false;
+        const text = await res.text();
+        return !!extractFusionShareUrl(text);
+      }catch{
+        return false;
+      }
+    })();
+    fusionShareBadgeCache.set(target, pending);
+    return pending;
+  }
+
+  async function upgradeFusionShareBadges(sidebar){
+    if (!sidebar) return;
+    const links = [...sidebar.querySelectorAll('a[data-file], .nested-flyout a, .dropdown-content a')];
+    await Promise.all(links.map(async (link) => {
+      const ref = link.getAttribute('data-file') || link.getAttribute('href') || '';
+      if (!await detectFusionShareBadgeTarget(ref)) return;
+      const icon = link.querySelector('.file-icon');
+      if (!icon) return;
+      icon.textContent = fusionShareBadge.text;
+      icon.style.background = fusionShareBadge.bg;
+    }));
   }
 
   let queued = false;
@@ -2186,4 +2221,6 @@ document.readyState==='loading'
   b.textContent=txt;
 })();
 /* -------------------------------------------------------------------- */
+
+
 

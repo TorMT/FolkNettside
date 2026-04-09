@@ -9,14 +9,44 @@
 
 import * as THREE from "./three.module.js";
 import { STLLoader } from "./STLLoader.js";
-import { ThreeMFLoader } from "./ThreeMFLoader.js";
-import { FusionArchiveLoader } from "./FusionArchiveLoader.js";
+import { ThreeMFLoader } from "./ThreeMFLoader.js?v=20260409j";
+import { FusionArchiveLoader } from "./FusionArchiveLoader.js?v=20260409j";
+import { StepLoader } from "./StepLoader.js?v=20260409i";
+
+const ARRAY_BUFFER_CACHE = new Map();
+
+async function fetchArrayBufferCached(url) {
+  const key = String(url || "");
+  if (!key) throw new Error("fetchArrayBufferCached: url mangler");
+  if (!ARRAY_BUFFER_CACHE.has(key)) {
+    const promise = fetch(key, { cache: "default" })
+      .then(async (res) => {
+        console.info("[ModelLoader] HTTP-respons:", {
+          url: key,
+          status: res.status,
+          ok: res.ok,
+          contentType: res.headers.get("content-type") || "ukjent",
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} ved lasting av ${key}`);
+        }
+        return res.arrayBuffer();
+      })
+      .catch((error) => {
+        ARRAY_BUFFER_CACHE.delete(key);
+        throw error;
+      });
+    ARRAY_BUFFER_CACHE.set(key, promise);
+  }
+  return ARRAY_BUFFER_CACHE.get(key);
+}
 
 export class ModelLoader {
   constructor() {
     this.stlLoader = new STLLoader();
     this.threeMFLoader = new ThreeMFLoader();
     this.fusionLoader = new FusionArchiveLoader();
+    this.stepLoader = new StepLoader();
   }
 
   /**
@@ -27,37 +57,40 @@ export class ModelLoader {
     if (!url) throw new Error("ModelLoader: url mangler");
 
     console.info("[ModelLoader] Starter lasting:", url);
-    const res = await fetch(url, { cache: "no-store" });
-    console.info("[ModelLoader] HTTP-respons:", {
-      url,
-      status: res.status,
-      ok: res.ok,
-      contentType: res.headers.get("content-type") || "ukjent",
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ved lasting av ${url}`);
-    }
 
-    const buf = await res.arrayBuffer();
-    console.info("[ModelLoader] Bytes mottatt:", buf.byteLength);
-
-    // Detect file type from URL extension (ignorer query/hash)
     const cleanUrl = String(url).split('?')[0].split('#')[0].toLowerCase();
     const is3MF = cleanUrl.endsWith('.3mf') || cleanUrl.endsWith('.3fm') || cleanUrl.endsWith('.fm3');
-    const isFusionArchive = cleanUrl.endsWith('.3fz') || cleanUrl.endsWith('.f3d') || cleanUrl.endsWith('.fbm');
+    const isFusionArchive =
+      cleanUrl.endsWith('.3fz') ||
+      cleanUrl.endsWith('.f3z') ||
+      cleanUrl.endsWith('.f3d') ||
+      cleanUrl.endsWith('.fbm');
+    const isStep = cleanUrl.endsWith('.step') || cleanUrl.endsWith('.stp');
+    const isIges = cleanUrl.endsWith('.iges') || cleanUrl.endsWith('.igs');
+    const warmupOcct = (isStep || isIges) ? this.stepLoader.prewarm().catch(() => null) : null;
+
+    const buf = await fetchArrayBufferCached(url);
+    console.info("[ModelLoader] Bytes mottatt:", buf.byteLength);
+
     const isZip = buf.byteLength >= 4 && new DataView(buf).getUint32(0, true) === 0x04034b50;
-    console.info("[ModelLoader] Filtypedeteksjon:", { cleanUrl, is3MF, isFusionArchive, isZip });
+    console.info("[ModelLoader] Filtypedeteksjon:", { cleanUrl, is3MF, isFusionArchive, isStep, isIges, isZip });
 
     let geometry;
     let components = null;
-    if (is3MF || isFusionArchive || isZip) {
+    if (is3MF || isFusionArchive || isZip || isStep || isIges) {
       // 3MF/Fusion loaders return arrays of components
       if (is3MF) {
-        components = await this.threeMFLoader.load(url);
+        components = await this.threeMFLoader.parse(buf);
+      } else if (isStep) {
+        await warmupOcct;
+        components = await this.stepLoader.parse(buf, { format: 'step' });
+      } else if (isIges) {
+        await warmupOcct;
+        components = await this.stepLoader.parse(buf, { format: 'iges' });
       } else if (isFusionArchive) {
-        components = await this.fusionLoader.load(url);
+        components = await this.fusionLoader.parse(buf);
       } else {
-        components = await this._loadZipByBestEffort(url);
+        components = await this._loadZipByBestEffort(buf);
       }
       if (!Array.isArray(components)) {
         // Single component - wrap in array
@@ -78,6 +111,7 @@ export class ModelLoader {
       let totalVolume = 0;
       const totalCentroid = new THREE.Vector3();
       const normalizedComponents = [];
+      const componentMassProps = [];
 
       for (const comp of components) {
         const geometry = this._normalizeComponentGeometry(comp);
@@ -89,18 +123,59 @@ export class ModelLoader {
         geometry.computeBoundingBox();
 
         const compName = comp?.name || comp?.userData?.componentName || 'component';
+        const compKey = String(
+          comp?.userData?.componentKey ||
+          [
+            compName,
+            comp?.userData?.nodePath,
+            comp?.userData?.sourceName,
+            `part-${normalizedComponents.length + 1}`
+          ].filter(Boolean).join(" :: ")
+        );
         const compMesh = new THREE.Mesh(geometry, null); // Material set below
         compMesh.name = compName;
         compMesh.userData.componentName = compName;
+        compMesh.userData.componentKey = compKey;
+        compMesh.userData.nodePath = String(comp?.userData?.nodePath || "");
+        compMesh.userData.brepFaces = Array.isArray(comp?.userData?.brepFaces)
+          ? comp.userData.brepFaces.length
+          : Number(comp?.userData?.brepFaces) || 0;
+        compMesh.userData.sourceName = String(comp?.userData?.sourceName || "");
         group.add(compMesh);
 
-        // Calculate component volume/centroid
-        const { volume, centroid } = this.computeVolumeAndCentroid(geometry);
+        // Calculate component volume/centroid + geometry moments for later mass combine
+        const geometryMassProps = this.computeGeometryMassProps(geometry);
+        const volume = Number.isFinite(geometryMassProps?.volume) ? geometryMassProps.volume : 0;
+        const centroid = this._vectorFromPlain(geometryMassProps?.centroidLocal) || new THREE.Vector3();
         totalVolume += volume;
         totalCentroid.addScaledVector(centroid, volume);
 
+        const componentMassEntry = {
+          key: compKey,
+          name: compName,
+          nodePath: String(comp?.userData?.nodePath || ""),
+          sourceName: String(comp?.userData?.sourceName || ""),
+          materialHint: comp?.userData?.materialHint || null,
+          densityKgM3: this._resolveDensityHint(comp?.userData?.materialHint),
+          ...geometryMassProps,
+        };
+        componentMassProps.push(componentMassEntry);
+        compMesh.userData.volume = volume;
+        compMesh.userData.centroidLocal = centroid.clone();
+        compMesh.userData.geometryMassProps = componentMassEntry;
+
         componentNames.push(compName);
-        normalizedComponents.push({ ...comp, name: compName, geometry });
+        normalizedComponents.push({
+          ...comp,
+          key: compKey,
+          name: compName,
+          geometry,
+          userData: {
+            ...(comp?.userData || {}),
+            componentKey: compKey,
+            componentName: compName,
+          },
+        });
       }
 
       if (!group.children.length) {
@@ -113,15 +188,22 @@ export class ModelLoader {
         group.userData.aggregateGeometry = mergedGeometry;
       }
 
+      const combinedGeometryMassProps = this.combineGeometryMassProps(componentMassProps);
+
       // Final centroid
       if (totalVolume > 0) {
         totalCentroid.divideScalar(totalVolume);
       }
 
       mesh = group;
-      mesh.userData.volume = totalVolume;
-      mesh.userData.centroidLocal = totalCentroid;
+      mesh.userData.volume = Number.isFinite(combinedGeometryMassProps?.volume) ? combinedGeometryMassProps.volume : totalVolume;
+      mesh.userData.centroidLocal = this._vectorFromPlain(combinedGeometryMassProps?.centroidLocal) || totalCentroid;
       mesh.userData.componentNames = componentNames;
+      mesh.userData.componentMassProps = componentMassProps;
+      mesh.userData.geometryMassProps = {
+        ...(combinedGeometryMassProps || {}),
+        components: componentMassProps,
+      };
 
       // Material setup for group
       const { material, meta } = this._buildMaterialForComponents(normalizedComponents);
@@ -131,7 +213,12 @@ export class ModelLoader {
 
       mesh.userData.modelMeta = {
         ...meta,
-        fileType: isFusionArchive ? 'fusion-archive' : (is3MF ? '3mf' : 'zip-auto'),
+        fileType:
+          isFusionArchive ? 'fusion-archive' :
+          is3MF ? '3mf' :
+          isStep ? 'step' :
+          isIges ? 'iges' :
+          'zip-auto',
         url: url,
         components: componentNames.length
       };
@@ -139,8 +226,8 @@ export class ModelLoader {
       return {
         mesh,
         geometry: null, // Group doesn't have single geometry
-        volume: totalVolume,
-        centroidLocal: totalCentroid,
+        volume: mesh.userData.volume,
+        centroidLocal: mesh.userData.centroidLocal,
       };
 
     } else {
@@ -152,17 +239,39 @@ export class ModelLoader {
       geometry.computeBoundingBox();
 
       // Beregn totalvolum + centroid i LOCAL space
-      const { volume, centroid } = this.computeVolumeAndCentroid(geometry);
+      const geometryMassProps = this.computeGeometryMassProps(geometry);
+      const volume = Number.isFinite(geometryMassProps?.volume) ? geometryMassProps.volume : 0;
+      const centroid = this._vectorFromPlain(geometryMassProps?.centroidLocal) || new THREE.Vector3();
 
       // --- Materialeoppsett ---
       const { material, meta } = this._buildMaterialForGeometry(geometry);
 
       mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.volume = volume;
+      mesh.userData.centroidLocal = centroid.clone();
+      mesh.userData.componentMassProps = [{
+        key: "model-root",
+        name: "Modell",
+        nodePath: "",
+        sourceName: "",
+        materialHint: null,
+        densityKgM3: null,
+        ...geometryMassProps,
+      }];
+      mesh.userData.geometryMassProps = {
+        ...geometryMassProps,
+        components: mesh.userData.componentMassProps,
+      };
 
       // Litt metadata kan være nyttig for debugging/GUI senere
       mesh.userData.modelMeta = {
         ...meta,
-        fileType: is3MF ? '3mf' : (isFusionArchive ? 'fusion-archive' : 'stl'),
+        fileType:
+          is3MF ? '3mf' :
+          isFusionArchive ? 'fusion-archive' :
+          isStep ? 'step' :
+          isIges ? 'iges' :
+          'stl',
         url: url
       };
 
@@ -175,12 +284,12 @@ export class ModelLoader {
     }
   }
 
-  async _loadZipByBestEffort(url) {
+  async _loadZipByBestEffort(data) {
     try {
-      return await this.threeMFLoader.load(url);
+      return await this.threeMFLoader.parse(data);
     } catch (err3mf) {
       console.warn("[ModelLoader] 3MF-parse feilet, prøver Fusion-arkiv:", err3mf);
-      return this.fusionLoader.load(url);
+      return this.fusionLoader.parse(data);
     }
   }
 
@@ -241,7 +350,7 @@ export class ModelLoader {
 
     for (let i = 0; i < components.length; i++) {
       const name = names[i] || `component_${i + 1}`;
-      const col = this._colorFromString(name);
+      const col = this._componentColor(components[i], name);
 
       materials.push(
         new THREE.MeshStandardMaterial({
@@ -370,6 +479,20 @@ export class ModelLoader {
     return c;
   }
 
+  _componentColor(component, fallbackName) {
+    const preferred = component?.color;
+    if (preferred?.isColor) return preferred.clone();
+    if (Array.isArray(preferred) && preferred.length >= 3) {
+      const scale = preferred.some((value) => Number(value) > 1) ? 255 : 1;
+      return new THREE.Color(
+        (Number(preferred[0]) || 0) / scale,
+        (Number(preferred[1]) || 0) / scale,
+        (Number(preferred[2]) || 0) / scale
+      );
+    }
+    return this._colorFromString(fallbackName);
+  }
+
   // ------------------------------------------------------------
   // Volum + centroid
   // ------------------------------------------------------------
@@ -379,11 +502,30 @@ export class ModelLoader {
    * Samme logikk som før, men robust for index/no-index.
    */
   computeVolumeAndCentroid(geo) {
-    const pos = geo.attributes.position;
-    const idx = geo.index;
+    const props = this.computeGeometryMassProps(geo);
+    return {
+      volume: Number.isFinite(props?.volume) ? props.volume : 0,
+      centroid: this._vectorFromPlain(props?.centroidLocal) || new THREE.Vector3(0, 0, 0),
+    };
+  }
 
-    let V6 = 0; // 6*volum
-    const C = new THREE.Vector3(0, 0, 0);
+  computeGeometryMassProps(geo) {
+    const pos = geo?.attributes?.position;
+    const idx = geo?.index;
+    if (!pos) {
+      return {
+        volume: 0,
+        centroidLocal: { x: 0, y: 0, z: 0 },
+        secondMomentsOrigin: this._createSecondMomentObject(),
+        secondMomentsCentroid: this._createSecondMomentObject(),
+        inertiaOrigin: this._createSecondMomentObject(),
+        inertiaCentroid: this._createSecondMomentObject(),
+      };
+    }
+
+    let V6 = 0;
+    const firstMoment = new THREE.Vector3(0, 0, 0);
+    let xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
 
     const p0 = new THREE.Vector3();
     const p1 = new THREE.Vector3();
@@ -409,35 +551,169 @@ export class ModelLoader {
       p1.set(pos.getX(i1), pos.getY(i1), pos.getZ(i1));
       p2.set(pos.getX(i2), pos.getY(i2), pos.getZ(i2));
 
-      // signed volume contribution (6*V)
       cross.copy(p1).cross(p2);
       const v6 = p0.dot(cross);
       V6 += v6;
 
-      // centroid contribution
-      // tetra centroid = (0 + p0 + p1 + p2)/4
-      const Ct = p0.clone().add(p1).add(p2).multiplyScalar(0.25);
-      C.addScaledVector(Ct, v6);
+      const x0 = p0.x, y0 = p0.y, z0 = p0.z;
+      const x1 = p1.x, y1 = p1.y, z1 = p1.z;
+      const x2 = p2.x, y2 = p2.y, z2 = p2.z;
+
+      firstMoment.x += (x0 + x1 + x2) * v6 / 24;
+      firstMoment.y += (y0 + y1 + y2) * v6 / 24;
+      firstMoment.z += (z0 + z1 + z2) * v6 / 24;
+
+      xx += v6 * (x0 * x0 + x1 * x1 + x2 * x2 + x0 * x1 + x1 * x2 + x2 * x0) / 60;
+      yy += v6 * (y0 * y0 + y1 * y1 + y2 * y2 + y0 * y1 + y1 * y2 + y2 * y0) / 60;
+      zz += v6 * (z0 * z0 + z1 * z1 + z2 * z2 + z0 * z1 + z1 * z2 + z2 * z0) / 60;
+
+      xy += v6 * (
+        2 * (x0 * y0 + x1 * y1 + x2 * y2) +
+        x0 * y1 + y0 * x1 +
+        x1 * y2 + y1 * x2 +
+        x2 * y0 + y2 * x0
+      ) / 120;
+
+      xz += v6 * (
+        2 * (x0 * z0 + x1 * z1 + x2 * z2) +
+        x0 * z1 + z0 * x1 +
+        x1 * z2 + z1 * x2 +
+        x2 * z0 + z2 * x0
+      ) / 120;
+
+      yz += v6 * (
+        2 * (y0 * z0 + y1 * z1 + y2 * z2) +
+        y0 * z1 + z0 * y1 +
+        y1 * z2 + z1 * y2 +
+        y2 * z0 + z2 * y0
+      ) / 120;
     }
 
-    let volume = V6 / 6;
-
-    if (Math.abs(volume) < 1e-12) {
+    const signedVolume = V6 / 6;
+    if (Math.abs(signedVolume) < 1e-12) {
       return {
         volume: 0,
-        centroid: new THREE.Vector3(0, 0, 0),
+        centroidLocal: { x: 0, y: 0, z: 0 },
+        secondMomentsOrigin: this._createSecondMomentObject(),
+        secondMomentsCentroid: this._createSecondMomentObject(),
+        inertiaOrigin: this._createSecondMomentObject(),
+        inertiaCentroid: this._createSecondMomentObject(),
       };
     }
 
-    // normalisering av centroid
-    C.multiplyScalar(1 / V6);
-
-    // volum skal være positivt
-    if (volume < 0) volume = -volume;
+    const centroid = firstMoment.clone().multiplyScalar(1 / signedVolume);
+    const sign = signedVolume < 0 ? -1 : 1;
+    const volume = Math.abs(signedVolume);
+    const secondMomentsOrigin = {
+      xx: xx * sign,
+      xy: xy * sign,
+      xz: xz * sign,
+      yy: yy * sign,
+      yz: yz * sign,
+      zz: zz * sign,
+    };
+    const secondMomentsCentroid = this._shiftSecondMomentsToCentroid(secondMomentsOrigin, volume, centroid);
 
     return {
       volume,
-      centroid: C,
+      centroidLocal: this._vectorToPlain(centroid),
+      secondMomentsOrigin,
+      secondMomentsCentroid,
+      inertiaOrigin: this._inertiaFromSecondMoments(secondMomentsOrigin),
+      inertiaCentroid: this._inertiaFromSecondMoments(secondMomentsCentroid),
+    };
+  }
+
+  combineGeometryMassProps(componentProps = []) {
+    const valid = (componentProps || []).filter((item) => Number.isFinite(item?.volume) && item.volume > 1e-12);
+    if (!valid.length) {
+      return {
+        volume: 0,
+        centroidLocal: { x: 0, y: 0, z: 0 },
+        secondMomentsOrigin: this._createSecondMomentObject(),
+        secondMomentsCentroid: this._createSecondMomentObject(),
+        inertiaOrigin: this._createSecondMomentObject(),
+        inertiaCentroid: this._createSecondMomentObject(),
+      };
+    }
+
+    let totalVolume = 0;
+    const centroid = new THREE.Vector3();
+    const secondMomentsOrigin = this._createSecondMomentObject();
+
+    for (const item of valid) {
+      const volume = Number(item.volume) || 0;
+      const cg = this._vectorFromPlain(item.centroidLocal) || new THREE.Vector3();
+      totalVolume += volume;
+      centroid.addScaledVector(cg, volume);
+
+      secondMomentsOrigin.xx += Number(item.secondMomentsOrigin?.xx) || 0;
+      secondMomentsOrigin.xy += Number(item.secondMomentsOrigin?.xy) || 0;
+      secondMomentsOrigin.xz += Number(item.secondMomentsOrigin?.xz) || 0;
+      secondMomentsOrigin.yy += Number(item.secondMomentsOrigin?.yy) || 0;
+      secondMomentsOrigin.yz += Number(item.secondMomentsOrigin?.yz) || 0;
+      secondMomentsOrigin.zz += Number(item.secondMomentsOrigin?.zz) || 0;
+    }
+
+    centroid.divideScalar(totalVolume);
+    const secondMomentsCentroid = this._shiftSecondMomentsToCentroid(secondMomentsOrigin, totalVolume, centroid);
+
+    return {
+      volume: totalVolume,
+      centroidLocal: this._vectorToPlain(centroid),
+      secondMomentsOrigin,
+      secondMomentsCentroid,
+      inertiaOrigin: this._inertiaFromSecondMoments(secondMomentsOrigin),
+      inertiaCentroid: this._inertiaFromSecondMoments(secondMomentsCentroid),
+    };
+  }
+
+  _createSecondMomentObject() {
+    return { xx: 0, xy: 0, xz: 0, yy: 0, yz: 0, zz: 0 };
+  }
+
+  _vectorToPlain(vec) {
+    if (!vec || !Number.isFinite(vec.x) || !Number.isFinite(vec.y) || !Number.isFinite(vec.z)) {
+      return { x: 0, y: 0, z: 0 };
+    }
+    return { x: vec.x, y: vec.y, z: vec.z };
+  }
+
+  _vectorFromPlain(value) {
+    if (!value || !Number.isFinite(value.x) || !Number.isFinite(value.y) || !Number.isFinite(value.z)) return null;
+    return new THREE.Vector3(value.x, value.y, value.z);
+  }
+
+  _resolveDensityHint(hint) {
+    const direct = Number(hint?.densityKgM3);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const profile = Number(hint?.profile?.density);
+    return Number.isFinite(profile) && profile > 0 ? profile : null;
+  }
+
+  _shiftSecondMomentsToCentroid(secondMomentsOrigin, massOrVolume, centroid) {
+    const c = centroid?.isVector3 ? centroid : this._vectorFromPlain(centroid) || new THREE.Vector3();
+    const scalar = Number(massOrVolume) || 0;
+    if (!scalar) return this._createSecondMomentObject();
+    return {
+      xx: secondMomentsOrigin.xx - scalar * c.x * c.x,
+      xy: secondMomentsOrigin.xy - scalar * c.x * c.y,
+      xz: secondMomentsOrigin.xz - scalar * c.x * c.z,
+      yy: secondMomentsOrigin.yy - scalar * c.y * c.y,
+      yz: secondMomentsOrigin.yz - scalar * c.y * c.z,
+      zz: secondMomentsOrigin.zz - scalar * c.z * c.z,
+    };
+  }
+
+  _inertiaFromSecondMoments(secondMoments) {
+    if (!secondMoments) return this._createSecondMomentObject();
+    return {
+      xx: secondMoments.yy + secondMoments.zz,
+      xy: -secondMoments.xy,
+      xz: -secondMoments.xz,
+      yy: secondMoments.xx + secondMoments.zz,
+      yz: -secondMoments.yz,
+      zz: secondMoments.xx + secondMoments.yy,
     };
   }
 }

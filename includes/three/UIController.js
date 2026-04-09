@@ -71,6 +71,10 @@ export class UIController {
       btnZoomIn: "btnZoomIn",
       btnZoomOut: "btnZoomOut",
       btnDownload: "btnDownload",
+      rngExplode: "rngExplode",
+      txtExplode: "txtExplode",
+      txtExplodeMeta: "txtExplodeMeta",
+      btnExplodeReset: "btnExplodeReset",
 
       // Align
       btnAutoAlign: "btnAutoAlign",
@@ -228,9 +232,8 @@ export class UIController {
     this._updateCGUI(centroidLocal);
 
     // Hydro
-    this.hydro.setCGLocal(centroidLocal);
     this.hydro.setWaterlineVisible(false);
-    this.hydro.initDraftAtBottom();
+    this.hydro.initDraftAtWorldZero();
     this._updateDraftText(this.hydro.draftZWorld);
     this._updateHydroUI();
     this._updateGMUI();
@@ -257,9 +260,10 @@ export class UIController {
     this.core.setPresetView("iso");
     this.core.fitToModel();
     this.core.setAxesVisible(this.el.chkAxes?.checked);
+    this._updateExplodeUi();
 
     // HUD
-    this.setHud(`STL lastet ✅<br><small>Drag=roter, scroll=zoom, høyre=pan</small>`, 2500);
+    this.setHud(`3D-modell lastet ✅<br><small>Drag=roter, scroll=zoom, høyre=pan</small>`, 2500);
 
     // Last ned-knappen trenger URL
     this._modelUrl = modelUrl;
@@ -302,6 +306,43 @@ export class UIController {
     });
 
     el.chkAxes?.addEventListener("change", (e) => this.core.setAxesVisible(e.target.checked));
+
+    el.rngExplode?.addEventListener("input", (e) => {
+      const applied = this.core?.setExplodeFactor?.(parseFloat(e.target.value || "0")) || 0;
+      this._updateExplodeUi(applied);
+    });
+    el.rngExplode?.addEventListener("change", (e) => {
+      const applied = this.core?.setExplodeFactor?.(parseFloat(e.target.value || "0")) || 0;
+      this._updateExplodeUi(applied);
+      this.setHud(applied > 0 ? `Explode ${Math.round(applied * 100)}%` : "Explode nullstilt", 1100);
+    });
+    el.btnExplodeReset?.addEventListener("click", () => {
+      const applied = this.core?.resetExplode?.() || 0;
+      this._updateExplodeUi(applied);
+      this.setHud("Explode nullstilt", 1100);
+    });
+  }
+
+  _updateExplodeUi(forceAmount = null) {
+    const supported = !!this.core?.canExplode?.();
+    const count = this.core?.getExplodablePartCount?.() || 0;
+    const amount = forceAmount == null ? (this.core?.getExplodeFactor?.() || 0) : forceAmount;
+
+    if (this.el.rngExplode) {
+      this.el.rngExplode.disabled = !supported;
+      this.el.rngExplode.value = String(amount);
+    }
+    if (this.el.btnExplodeReset) {
+      this.el.btnExplodeReset.disabled = !supported && amount <= 0;
+    }
+    if (this.el.txtExplode) {
+      this.el.txtExplode.textContent = supported ? `${Math.round(amount * 100)}%` : "av";
+    }
+    if (this.el.txtExplodeMeta) {
+      this.el.txtExplodeMeta.textContent = supported
+        ? `${count} deler separeres visuelt`
+        : "Krever minst 2 separate deler";
+    }
   }
 
   _applyUserRotate(axis, deg) {
@@ -635,7 +676,7 @@ export class UIController {
     this._rebuildEdges(this.el.chkEdges?.checked);
     this._rebuildBBox(this.el.chkBBox?.checked);
     this._updateDimsUI();
-    this.hydro.initDraftAtBottom();
+    this.hydro.initDraftAtWorldZero();
     this.hydro.updateWaterPlane();
     this.hydro.scheduleRecalc();
     this.core.setPresetView("iso");
@@ -678,10 +719,7 @@ export class UIController {
 
     // Reset Colors
     el.btnResetColors?.addEventListener("click", () => {
-      if (this.core.mesh) {
-        this.core.mesh.material.color.set(0xffffff);
-        this.core.mesh.material.needsUpdate = true;
-      }
+      this.core.setModelColor("#ffffff");
     });
 
     // Component Selection

@@ -75,6 +75,17 @@
       padding:20px;
     }
 
+    .stage > .card{
+      width:min(1180px, calc(100vw - 32px));
+      min-height:calc(100vh - 32px);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--primary) 10%, transparent 90%) 0%, transparent 42%),
+        var(--bg-card);
+    }
+
     .card h2{
       margin:0 0 10px 0;
       font-size:26px;
@@ -238,11 +249,17 @@
     const previewFile = params.get("previewFile") || "";
     const sourceFile = params.get("sourceFile") || fileParam || "";
     const stlCandidate = params.get("stlCandidate") || "";
+    const hostMode = params.get("host") || "";
     const sourceExt = (params.get("sourceExt") || "").toLowerCase();
     const embedded = params.get("embedded") === "1";
     const stage = document.getElementById("stage");
     const hudText = document.getElementById("hudText");
-    const fileName = (sourceFile || "").split("/").pop();
+    const fileName = decodeDisplayText((sourceFile || "").split("/").pop());
+    let previewFrame = null;
+    const pendingComponentState = { chosen: [], muted: [] };
+    let pendingViewerCommand = { action: "set-explode", amount: 0 };
+    const existsCache = new Map();
+    const jsonCache = new Map();
 
     if (embedded) document.body.classList.add("is-embedded");
 
@@ -250,14 +267,25 @@
       return String(str || "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[ch]));
     }
 
+    function decodeDisplayText(value) {
+      const source = String(value || "").trim();
+      if (!source) return "";
+      try {
+        return decodeURIComponent(source);
+      } catch {
+        return source;
+      }
+    }
+
     async function exists(url) {
       if (!url) return false;
-      try {
-        const res = await fetch(url, { method: "HEAD", cache: "no-store" });
-        return res.ok;
-      } catch {
-        return false;
+      const key = String(url);
+      if (!existsCache.has(key)) {
+        existsCache.set(key, fetch(key, { method: "HEAD", cache: "default" })
+          .then((res) => res.ok)
+          .catch(() => false));
       }
+      return existsCache.get(key);
     }
 
     async function ensureJsZip() {
@@ -344,9 +372,14 @@
       const baseDir = cleanUrl.slice(0, slash + 1);
       const sourceStem = cleanUrl.split("/").pop().replace(/\.[^/.]+$/, "").toLowerCase();
       try {
-        const res = await fetch(`${baseDir}index.json?cb=${Date.now()}`, { cache: "no-store" });
-        if (!res.ok) return "";
-        const data = await res.json();
+        const indexUrl = `${baseDir}index.json`;
+        if (!jsonCache.has(indexUrl)) {
+          jsonCache.set(indexUrl, fetch(indexUrl, { cache: "default" })
+            .then(async (res) => res.ok ? res.json() : null)
+            .catch(() => null));
+        }
+        const data = await jsonCache.get(indexUrl);
+        if (!data) return "";
         const candidates = [];
         Object.entries(data || {}).forEach(([key, value]) => {
           if (key === "welcome") return;
@@ -375,7 +408,33 @@
       const fallbackFlag = ["f3z", "3fz", "f3d"].includes(sourceExt) && /\.(3mf|3fm|fm3)$/i.test(cleanUrl)
         ? "&fallback=1"
         : "";
-      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260408j${fallbackFlag}`;
+      const hostFlag = hostMode ? `&host=${encodeURIComponent(hostMode)}` : "";
+      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260409j${fallbackFlag}${hostFlag}`;
+    }
+
+    function isBrowserRenderablePreview(url) {
+      return /\.(stl|3mf|3fm|fm3|step|stp|iges|igs)(?:$|[?#])/i.test(String(url || ""));
+    }
+
+    function relayComponentStateToPreview() {
+      try {
+        if (!previewFrame?.contentWindow) return;
+        previewFrame.contentWindow.postMessage({
+          type: "viewer-component-state",
+          chosen: pendingComponentState.chosen,
+          muted: pendingComponentState.muted,
+        }, "*");
+      } catch {}
+    }
+
+    function relayViewerCommandToPreview() {
+      try {
+        if (!previewFrame?.contentWindow) return;
+        previewFrame.contentWindow.postMessage({
+          type: "viewer-command",
+          ...pendingViewerCommand,
+        }, "*");
+      } catch {}
     }
 
     function renderPreviewViewer(url) {
@@ -385,11 +444,17 @@
       const iframe = document.createElement("iframe");
       iframe.title = "CAD preview";
       iframe.src = previewViewerUrl(url);
+      iframe.addEventListener("load", () => {
+        relayComponentStateToPreview();
+        relayViewerCommandToPreview();
+      });
+      previewFrame = iframe;
       shell.appendChild(iframe);
       stage.replaceChildren(shell);
     }
 
     function renderFallback(reason, options = {}) {
+      previewFrame = null;
       const previewUrl = options.previewUrl || "";
       const previewName = previewUrl ? previewUrl.split("/").pop() : "";
       hudText.textContent = "Ingen lokal CAD-preview funnet";
@@ -408,6 +473,7 @@
     }
 
     function renderCandidateFallback(reason, previewUrl = "") {
+      previewFrame = null;
       const previewName = previewUrl ? previewUrl.split("/").pop() : "";
       hudText.textContent = previewName ? `Fant 3D-kandidat: ${previewName}` : "Ingen lokal CAD-preview funnet";
       stage.innerHTML = `
@@ -428,9 +494,10 @@
     }
 
     async function renderFusionOpener() {
+      previewFrame = null;
       const JSZip = await ensureJsZip();
       hudText.textContent = "Leser Fusion-container...";
-      const res = await fetch(sourceFile, { cache: "no-store" });
+      const res = await fetch(sourceFile, { cache: "default" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const outer = await JSZip.loadAsync(await res.arrayBuffer());
 
@@ -502,13 +569,73 @@
       `;
     }
 
+    window.addEventListener("message", (event) => {
+      const data = event?.data;
+      if (!data) return;
+
+      if (data.type === "viewer-component-state") {
+        pendingComponentState.chosen = Array.isArray(data.chosen) ? [...data.chosen] : [];
+        pendingComponentState.muted = Array.isArray(data.muted) ? [...data.muted] : [];
+        relayComponentStateToPreview();
+        return;
+      }
+
+      if (data.type === "viewer-command") {
+        pendingViewerCommand = { ...data };
+        if (data.action === "set-explode") {
+          pendingViewerCommand.amount = Math.max(0, Math.min(1, Number(data.amount) || 0));
+        }
+        relayViewerCommandToPreview();
+        return;
+      }
+
+      if (data.type === "viewer-components") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-analysis") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-hydro-report") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-explode-info") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+      }
+    });
+
     async function choosePreviewForFusion() {
-      const exact = sourceFile ? await resolveSameStemPreview(sourceFile) : "";
+      const [exact, explicitPreview, sibling, stl] = await Promise.all([
+        sourceFile ? resolveSameStemPreview(sourceFile) : Promise.resolve(""),
+        previewFile ? exists(previewFile).then((ok) => ok ? previewFile : "") : Promise.resolve(""),
+        sourceFile ? resolveSiblingPreviewCandidateFromIndex(sourceFile) : Promise.resolve(""),
+        stlCandidate ? exists(stlCandidate).then((ok) => ok ? stlCandidate : "") : Promise.resolve(""),
+      ]);
       if (exact) return exact;
-      if (previewFile && await exists(previewFile)) return previewFile;
-      const sibling = sourceFile ? await resolveSiblingPreviewCandidateFromIndex(sourceFile) : "";
+      if (explicitPreview) return explicitPreview;
       if (sibling) return sibling;
-      if (stlCandidate && await exists(stlCandidate)) return stlCandidate;
+      if (stl) return stl;
       return "";
     }
 
@@ -517,7 +644,7 @@
 
       if (["f3z", "3fz", "f3d"].includes(sourceExt)) {
         const preferredPreview = await choosePreviewForFusion();
-        if (preferredPreview && /\.(stl|3mf|3fm|fm3)(?:$|[?#])/i.test(preferredPreview)) {
+        if (preferredPreview && isBrowserRenderablePreview(preferredPreview)) {
           hudText.textContent = "Viser 3D-forhåndsvisning for Fusion-filen";
           renderPreviewViewer(preferredPreview);
           return;
@@ -532,7 +659,7 @@
 
       const preferredPreview =
         (previewFile && await exists(previewFile) ? previewFile : "") ||
-        (fileParam && /\.(stl|3mf|3fm|fm3)(?:$|[?#])/i.test(fileParam) ? fileParam : "") ||
+        (fileParam && isBrowserRenderablePreview(fileParam) ? fileParam : "") ||
         "";
 
       if (preferredPreview) {
@@ -548,7 +675,7 @@
 
       if (["f3z", "3fz", "f3d"].includes(sourceExt)) {
         const preferredPreview = await choosePreviewForFusion();
-        if (preferredPreview && /\.(stl|3mf|3fm|fm3)(?:$|[?#])/i.test(preferredPreview)) {
+        if (preferredPreview && isBrowserRenderablePreview(preferredPreview)) {
           hudText.textContent = "Viser 3D-forhåndsvisning for Fusion-filen";
           renderPreviewViewer(preferredPreview);
           return;
@@ -570,7 +697,7 @@
 
       const preferredPreview =
         (previewFile && await exists(previewFile) ? previewFile : "") ||
-        (fileParam && /\.(stl|3mf|3fm|fm3)(?:$|[?#])/i.test(fileParam) ? fileParam : "") ||
+        (fileParam && isBrowserRenderablePreview(fileParam) ? fileParam : "") ||
         "";
 
       if (preferredPreview) {

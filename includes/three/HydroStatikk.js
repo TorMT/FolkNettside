@@ -66,6 +66,9 @@ export class HydroStatikk {
 
     // Axes (for trim/heel setters)
     this.axis = { rollAxis: "x", pitchAxis: "y", upAxis: "z" };
+    this.materialDensity = null; // kg/m^3 (modell / last)
+    this.massProperties = null;
+    this._raycastProxy = null;
 
     // Physical params
     this.waterDensity = 1025; // kg/m^3 (sjøvann)
@@ -155,6 +158,12 @@ export class HydroStatikk {
     this.waterDensity = Math.max(900, Math.min(1100, Number(rho) || 1025));
   }
 
+  setMaterialDensity(rho) {
+    const value = Number(rho);
+    this.materialDensity = Number.isFinite(value) && value > 0 ? Math.min(50000, Math.max(1, value)) : null;
+    this._syncMassPropertiesFromMesh();
+  }
+
   // Call this if *other scripts* changes transforms (alignGroup, etc.)
   notifyTransformChanged() {
     this._invalidateCache();
@@ -168,11 +177,14 @@ export class HydroStatikk {
 
   setMesh(mesh) {
     this.mesh = mesh;
+    this._syncRaycastProxy();
     this._buildTriCache();
+    this._syncMassPropertiesFromMesh();
     this._invalidateCache();
     this.ensureWaterPlane();
     this.ensureMarkers();
     this.updateMarkerSizes();
+    this.updateMarkers();
     this._wlContourDirty = true;
     this.ensureWaterlineContour();
     this.updateWaterlineContour();
@@ -186,7 +198,8 @@ export class HydroStatikk {
   }
 
   _buildTriCache() {
-    if (!this.mesh || !this.mesh.geometry) {
+    const geometry = this.mesh?.geometry || this.mesh?.userData?.aggregateGeometry || null;
+    if (!this.mesh || !geometry) {
       if (this.wlContour) {
       this.wlContour.geometry.dispose();
       this.wlContour.material.dispose();
@@ -196,7 +209,7 @@ export class HydroStatikk {
     this._triCache = null;
       return;
     }
-    const g = this.mesh.geometry;
+    const g = geometry;
     const posAttr = g.getAttribute("position");
     if (!posAttr) {
       if (this.wlContour) {
@@ -213,6 +226,174 @@ export class HydroStatikk {
     const index = idxAttr ? idxAttr.array : null;
     const triCount = index ? (index.length / 3) : (pos.length / 9);
     this._triCache = { pos, index, triCount };
+  }
+
+  _syncRaycastProxy() {
+    this._raycastProxy = null;
+    if (!this.mesh) return;
+    const geometry = this.mesh.geometry || this.mesh.userData?.aggregateGeometry || null;
+    if (!geometry) return;
+    if (this.mesh.isMesh && this.mesh.geometry === geometry) return;
+    this._raycastProxy = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    this._raycastProxy.matrixAutoUpdate = false;
+    this._raycastProxy.visible = false;
+    this._raycastProxy.frustumCulled = false;
+  }
+
+  _getRaycastTarget() {
+    if (!this.mesh) return null;
+    if (!this._raycastProxy && !(this.mesh.isMesh && this.mesh.geometry)) {
+      this._syncRaycastProxy();
+    }
+    if (!this._raycastProxy) return this.mesh;
+    this.mesh.updateMatrixWorld(true);
+    this._raycastProxy.matrixWorld.copy(this.mesh.matrixWorld);
+    return this._raycastProxy;
+  }
+
+  _getModelMaterialDensity() {
+    if (Number.isFinite(this.materialDensity) && this.materialDensity > 0) return this.materialDensity;
+    const hint = this.mesh?.userData?.modelMeta?.materialHint || null;
+    const direct = Number(hint?.densityKgM3);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const profile = Number(hint?.profile?.density);
+    return Number.isFinite(profile) && profile > 0 ? profile : null;
+  }
+
+  _vectorFromPlain(value) {
+    if (!value || !Number.isFinite(value.x) || !Number.isFinite(value.y) || !Number.isFinite(value.z)) return null;
+    return new THREE.Vector3(value.x, value.y, value.z);
+  }
+
+  _vectorToPlain(value) {
+    if (!value || !Number.isFinite(value.x) || !Number.isFinite(value.y) || !Number.isFinite(value.z)) return null;
+    return { x: value.x, y: value.y, z: value.z };
+  }
+
+  _zeroMoments() {
+    return { xx: 0, xy: 0, xz: 0, yy: 0, yz: 0, zz: 0 };
+  }
+
+  _momentToInertia(secondMoments) {
+    if (!secondMoments) return null;
+    return {
+      xx: secondMoments.yy + secondMoments.zz,
+      xy: -secondMoments.xy,
+      xz: -secondMoments.xz,
+      yy: secondMoments.xx + secondMoments.zz,
+      yz: -secondMoments.yz,
+      zz: secondMoments.xx + secondMoments.yy,
+    };
+  }
+
+  _shiftSecondMoments(secondMomentsOrigin, scalar, centroidLocal) {
+    const c = this._vectorFromPlain(centroidLocal) || new THREE.Vector3();
+    const factor = Number(scalar) || 0;
+    if (!factor || !secondMomentsOrigin) return this._zeroMoments();
+    return {
+      xx: secondMomentsOrigin.xx - factor * c.x * c.x,
+      xy: secondMomentsOrigin.xy - factor * c.x * c.y,
+      xz: secondMomentsOrigin.xz - factor * c.x * c.z,
+      yy: secondMomentsOrigin.yy - factor * c.y * c.y,
+      yz: secondMomentsOrigin.yz - factor * c.y * c.z,
+      zz: secondMomentsOrigin.zz - factor * c.z * c.z,
+    };
+  }
+
+  _syncMassPropertiesFromMesh() {
+    const components = Array.isArray(this.mesh?.userData?.componentMassProps)
+      ? this.mesh.userData.componentMassProps
+      : [];
+    const fallbackGeometry = this.mesh?.userData?.geometryMassProps || null;
+
+    if (!components.length && !fallbackGeometry) {
+      this.massProperties = null;
+      this.cgLocal = null;
+      this.updateMarkers();
+      return;
+    }
+
+    const defaultDensity = this._getModelMaterialDensity();
+    const validComponents = components.length ? components : [fallbackGeometry];
+    const resolvedDensities = validComponents.map((entry) => {
+      const localDensity = Number(entry?.densityKgM3);
+      const hintDensity = Number(entry?.materialHint?.densityKgM3 || entry?.materialHint?.profile?.density);
+      if (Number.isFinite(localDensity) && localDensity > 0) return localDensity;
+      if (Number.isFinite(hintDensity) && hintDensity > 0) return hintDensity;
+      if (Number.isFinite(defaultDensity) && defaultDensity > 0) return defaultDensity;
+      return null;
+    });
+    const densityResolved = resolvedDensities.every((density) => Number.isFinite(density) && density > 0);
+
+    let totalVolume = 0;
+    let totalScalar = 0;
+    const centerAccumulator = new THREE.Vector3();
+    const secondMomentsOrigin = this._zeroMoments();
+
+    const componentSummaries = validComponents.map((entry, index) => {
+      const volume = Number(entry?.volume) || 0;
+      const centroidLocal = this._vectorFromPlain(entry?.centroidLocal) || new THREE.Vector3();
+      const density = resolvedDensities[index];
+      const scalar = densityResolved ? density : 1;
+      totalVolume += volume;
+      totalScalar += volume * scalar;
+      centerAccumulator.addScaledVector(centroidLocal, volume * scalar);
+
+      secondMomentsOrigin.xx += (Number(entry?.secondMomentsOrigin?.xx) || 0) * scalar;
+      secondMomentsOrigin.xy += (Number(entry?.secondMomentsOrigin?.xy) || 0) * scalar;
+      secondMomentsOrigin.xz += (Number(entry?.secondMomentsOrigin?.xz) || 0) * scalar;
+      secondMomentsOrigin.yy += (Number(entry?.secondMomentsOrigin?.yy) || 0) * scalar;
+      secondMomentsOrigin.yz += (Number(entry?.secondMomentsOrigin?.yz) || 0) * scalar;
+      secondMomentsOrigin.zz += (Number(entry?.secondMomentsOrigin?.zz) || 0) * scalar;
+
+      return {
+        key: entry?.key || `component-${index + 1}`,
+        name: entry?.name || `Komponent ${index + 1}`,
+        nodePath: entry?.nodePath || "",
+        sourceName: entry?.sourceName || "",
+        volumeM3: volume,
+        densityKgM3: Number.isFinite(density) && density > 0 ? density : null,
+        massKg: densityResolved && Number.isFinite(density) && density > 0 ? volume * density : null,
+        massTonnes: densityResolved && Number.isFinite(density) && density > 0 ? (volume * density) / 1000 : null,
+        centroidLocal: this._vectorToPlain(centroidLocal),
+      };
+    });
+
+    const centroid = totalScalar > 1e-12
+      ? centerAccumulator.divideScalar(totalScalar)
+      : this._vectorFromPlain(fallbackGeometry?.centroidLocal) || new THREE.Vector3();
+    const secondMomentsCentroid = this._shiftSecondMoments(secondMomentsOrigin, totalScalar, this._vectorToPlain(centroid));
+
+    this.massProperties = {
+      source: "mesh-components",
+      componentCount: componentSummaries.length,
+      densityKgM3: densityResolved && totalVolume > 1e-12 ? totalScalar / totalVolume : defaultDensity || null,
+      densityResolved,
+      totalVolumeM3: totalVolume,
+      totalMassKg: densityResolved ? totalScalar : null,
+      totalMassTonnes: densityResolved ? totalScalar / 1000 : null,
+      centerOfMassLocal: this._vectorToPlain(centroid),
+      centerMode: densityResolved ? "mass-weighted" : "volume-weighted",
+      secondMomentsOrigin: densityResolved ? secondMomentsOrigin : null,
+      secondMomentsCentroid: densityResolved ? secondMomentsCentroid : null,
+      inertiaOrigin: densityResolved ? this._momentToInertia(secondMomentsOrigin) : null,
+      inertiaCentroid: densityResolved ? this._momentToInertia(secondMomentsCentroid) : null,
+      components: componentSummaries,
+    };
+
+    this.cgLocal = centroid.clone();
+    this.updateMarkers();
+  }
+
+  getMassProperties() {
+    if (!this.massProperties) return null;
+    const centerLocal = this._vectorFromPlain(this.massProperties.centerOfMassLocal);
+    const centerWorld = centerLocal ? this.core.localToWorldPoint(centerLocal) : null;
+    return {
+      ...this.massProperties,
+      centerOfMassWorld: this._vectorToPlain(centerWorld),
+      kgWorld: Number.isFinite(centerWorld?.z) ? centerWorld.z : null,
+    };
   }
 
   _invalidateCache() {
@@ -263,7 +444,7 @@ export class HydroStatikk {
       return def;
     }
 
-    const geom = this.mesh.geometry;
+    const geom = this.mesh.geometry || this.mesh.userData?.aggregateGeometry;
     geom.computeBoundingBox();
     const bb = geom.boundingBox;
 
@@ -549,6 +730,14 @@ updateWaterlineContour() {
     return this.setDraftFromSlider(0);
   }
 
+  initDraftAtWorldZero() {
+    this.draftZWorld = 0;
+    this.updateWaterPlane();
+    this._invalidateCache();
+    this.scheduleRecalc(false);
+    return this.draftZWorld;
+  }
+
   // ============================================================
   // TRIM / HEEL
   // ============================================================
@@ -731,7 +920,9 @@ updateWaterlineContour() {
       this._rayOrigin.set(bounds.min.x - eps, y, draftZ);
       this.raycaster.set(this._rayOrigin, this._rayDir);
 
-      const hits = this.raycaster.intersectObject(this.mesh, false);
+      const rayTarget = this._getRaycastTarget();
+      if (!rayTarget) continue;
+      const hits = this.raycaster.intersectObject(rayTarget, false);
       const n = hits.length;
       if (n < 2) continue;
 
@@ -958,7 +1149,9 @@ updateWaterlineContour() {
         this._rayOrigin.set(wb.min.x - eps, y, z);
         this.raycaster.set(this._rayOrigin, this._rayDir);
 
-        const hits = this.raycaster.intersectObject(this.mesh, false);
+        const rayTarget = this._getRaycastTarget();
+        if (!rayTarget) continue;
+        const hits = this.raycaster.intersectObject(rayTarget, false);
         const n = hits.length;
         if (n < 2) continue;
 

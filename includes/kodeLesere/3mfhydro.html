@@ -62,13 +62,36 @@
       border-color: rgba(239,68,68,.4);
       background: color-mix(in srgb, var(--bg-card) 85%, rgba(239,68,68,.08) 15%);
     }
+    body.is-embedded #hud{
+      left:50%;
+      top:auto;
+      bottom:16px;
+      transform:translateX(-50%);
+      max-width:min(760px, calc(100vw - 28px));
+      white-space:normal;
+      text-align:center;
+    }
+    body.has-stage-overlay #hud{
+      opacity:0;
+      pointer-events:none;
+    }
 
     /* Toolbar */
     #uiWrap{
-      position:fixed; left:50%; transform:translateX(-50%);
-      top: 8px; z-index:180;
-      width: min(1240px, calc(100vw - 24px));
+      position:fixed;
+      top: 8px;
+      left: 12px;
+      z-index:180;
+      width:auto;
+      max-width:min(1240px, calc(100vw - 24px));
       pointer-events:none;
+    }
+    body.has-external-sidebar #uiWrap{
+      display:none;
+    }
+    body.has-external-sidebar #hydroDataWrap{
+      display:none !important;
+      visibility:hidden !important;
     }
     #toolbar{
       pointer-events:auto;
@@ -77,7 +100,12 @@
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding:10px 12px;
-      display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+      display:inline-flex;
+      width:max-content;
+      max-width:100%;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
     }
 
     .sep{ width:1px; height:30px; background:var(--border-color); }
@@ -176,6 +204,15 @@
 
     /* Mobil */
     @media (max-width: 920px){
+      #uiWrap{
+        left:8px;
+        right:8px;
+        max-width:calc(100vw - 16px);
+      }
+      #toolbar{
+        display:flex;
+        width:100%;
+      }
       .menu{ min-width: min(92vw, 420px); }
       .helpCard{ min-width: min(92vw, 420px); }
       .helpGrid{ grid-template-columns: 1fr; }
@@ -285,12 +322,15 @@
       transition: opacity .2s ease;
       backdrop-filter: blur(4px);
     }
-    body.is-loading #loadingOverlay{
+    body.is-loading #loadingOverlay,
+    body.has-stage-overlay #loadingOverlay{
       opacity:1;
       pointer-events:auto;
     }
     body.is-loading #toolbar,
-    body.is-loading #hydroDataWrap{
+    body.is-loading #hydroDataWrap,
+    body.has-stage-overlay #toolbar,
+    body.has-stage-overlay #hydroDataWrap{
       opacity:0;
       pointer-events:none;
       transform: translateY(-8px);
@@ -336,6 +376,16 @@
       background: linear-gradient(90deg, transparent 0%, var(--primary) 28%, color-mix(in srgb, var(--primary) 60%, white 40%) 68%, transparent 100%);
       animation: loading-slide 1.2s ease-in-out infinite;
     }
+    #loadingOverlay[data-tone="error"] .loading-card{
+      border-color: rgba(239,68,68,.35);
+      background: color-mix(in srgb, var(--bg-card) 90%, rgba(239,68,68,.07) 10%);
+    }
+    #loadingOverlay[data-tone="error"] .loading-title{
+      color:#b42318;
+    }
+    #loadingOverlay[data-tone="error"] .loading-bar{
+      display:none;
+    }
     @keyframes loading-slide{
       from{ transform: translateX(-130%); }
       to{ transform: translateX(320%); }
@@ -349,7 +399,7 @@
   <div id="hud">Laster 3MF...</div>
   <div id="loadingOverlay" aria-live="polite" aria-busy="true">
     <div class="loading-card">
-      <div class="loading-title">Laster modell</div>
+      <div class="loading-title" id="loadingTitle">Laster modell</div>
       <div class="loading-subtitle" id="loadingText">3MF og hydrodata klargjores...</div>
       <div class="loading-bar"></div>
     </div>
@@ -485,6 +535,463 @@
 
     // --- Komponent-liste highlight ---
     let highlightedComponent = null;
+
+    function normalizeComponentName(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function roundComponentNumber(value, digits = 4) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return null;
+      const scale = 10 ** digits;
+      return Math.round(n * scale) / scale;
+    }
+
+    function getComponentSpatialData(object, root) {
+      if (!object?.geometry) return null;
+      try {
+        object.geometry.computeBoundingBox?.();
+        const localBox = object.geometry.boundingBox;
+        if (!localBox) return null;
+        const localCenter = localBox.getCenter(new THREE.Vector3());
+        const worldCenter = object.localToWorld(localCenter.clone());
+        const rootCenter = root?.worldToLocal ? root.worldToLocal(worldCenter.clone()) : worldCenter;
+        const worldBox = new THREE.Box3().setFromObject(object);
+        const worldSize = worldBox.getSize(new THREE.Vector3());
+        return {
+          center: {
+            x: roundComponentNumber(rootCenter.x),
+            y: roundComponentNumber(rootCenter.y),
+            z: roundComponentNumber(rootCenter.z),
+          },
+          size: {
+            x: roundComponentNumber(worldSize.x),
+            y: roundComponentNumber(worldSize.y),
+            z: roundComponentNumber(worldSize.z),
+          },
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    function collectRenderableComponents(root) {
+      if (!root) return [];
+      const items = [];
+      root.traverse?.((child) => {
+        if (!child?.isMesh || !child.material) return;
+        const label = String(child.userData?.componentName || child.userData?.component || child.name || "").trim();
+        if (!label) return;
+        const spatial = getComponentSpatialData(child, root);
+        items.push({
+          object: child,
+          label,
+          key: normalizeComponentName(child.userData?.componentKey || label),
+          nodePath: String(child.userData?.nodePath || "").trim(),
+          sourceName: String(child.userData?.sourceName || "").trim(),
+          brepFaces: Number(child.userData?.brepFaces) || 0,
+          center: spatial?.center || null,
+          size: spatial?.size || null,
+        });
+      });
+      return items;
+    }
+
+    function collectComponentPayload(root) {
+      const byKey = new Map();
+      const pushItem = (label, extra = {}) => {
+        const cleanLabel = String(label || "").trim();
+        const key = normalizeComponentName(extra.key || cleanLabel);
+        if (!cleanLabel || !key || byKey.has(key)) return;
+        byKey.set(key, {
+          key,
+          label: cleanLabel,
+          subtitle: extra.subtitle || "",
+          description: extra.description || "",
+          center: extra.center || null,
+          size: extra.size || null,
+        });
+      };
+
+      const renderables = collectRenderableComponents(root);
+      if (renderables.length) {
+        renderables.forEach(({ label, key, nodePath, sourceName, brepFaces, center, size }) => {
+          pushItem(label, {
+            key,
+            subtitle: nodePath || sourceName,
+            description: brepFaces ? `${brepFaces} B-Rep-flater` : "",
+            center,
+            size,
+          });
+        });
+      } else if (Array.isArray(root?.userData?.componentNames)) {
+        root.userData.componentNames.forEach((name) => pushItem(name));
+      }
+      return [...byKey.values()];
+    }
+
+    function postComponentsToParent(root) {
+      try {
+        if (!window.parent || window.parent === window) return;
+        const items = collectComponentPayload(root);
+        if (!items.length) return;
+        window.parent.postMessage({ type: "viewer-components", items, mode: "mesh" }, "*");
+      } catch {}
+    }
+
+    function serializeVector(vec) {
+      if (!vec || !Number.isFinite(vec.x) || !Number.isFinite(vec.y) || !Number.isFinite(vec.z)) return null;
+      return {
+        x: roundComponentNumber(vec.x),
+        y: roundComponentNumber(vec.y),
+        z: roundComponentNumber(vec.z),
+      };
+    }
+
+    function serializeBounds(bounds) {
+      if (!bounds?.min || !bounds?.max) return null;
+      return {
+        min: serializeVector(bounds.min),
+        max: serializeVector(bounds.max),
+      };
+    }
+
+    function serializeMassProperties(massProps) {
+      if (!massProps) return null;
+      const components = Array.isArray(massProps.components) ? massProps.components : [];
+      return {
+        source: massProps.source || "mesh-components",
+        componentCount: Number.isFinite(massProps.componentCount) ? massProps.componentCount : components.length,
+        densityKgM3: roundComponentNumber(massProps.densityKgM3, 3),
+        densityResolved: massProps.densityResolved === true,
+        totalVolumeM3: roundComponentNumber(massProps.totalVolumeM3, 6),
+        totalMassKg: roundComponentNumber(massProps.totalMassKg, 6),
+        totalMassTonnes: roundComponentNumber(massProps.totalMassTonnes, 6),
+        centerOfMassLocal: serializeVector(massProps.centerOfMassLocal),
+        centerOfMassWorld: serializeVector(massProps.centerOfMassWorld),
+        kgWorld: roundComponentNumber(massProps.kgWorld, 6),
+        inertiaCentroid: massProps.inertiaCentroid || null,
+        components: components.map((entry) => ({
+          key: entry?.key || "",
+          name: entry?.name || "",
+          nodePath: entry?.nodePath || "",
+          sourceName: entry?.sourceName || "",
+          volumeM3: roundComponentNumber(entry?.volumeM3, 6),
+          densityKgM3: roundComponentNumber(entry?.densityKgM3, 3),
+          massKg: roundComponentNumber(entry?.massKg, 6),
+          massTonnes: roundComponentNumber(entry?.massTonnes, 6),
+          centroidLocal: serializeVector(entry?.centroidLocal),
+        })),
+      };
+    }
+
+    function buildHydroPayload() {
+      if (!hydro?.mesh) return { supported: false };
+      const last = hydro.getLastResults?.() || hydro.lastHydro || {};
+      const ref = hydro.getReferenceBoundsNoHydroRot?.() || null;
+      const hasHydroSolution = Number.isFinite(last.subV);
+      const massProps = serializeMassProperties(hydro.getMassProperties?.());
+      const modelMassTonnes = Number.isFinite(massProps?.totalMassTonnes) ? massProps.totalMassTonnes : null;
+      const displacementTonnes = hasHydroSolution ? roundComponentNumber((last.subV * hydro.waterDensity) / 1000, 6) : null;
+      const draftZWorld = Number.isFinite(hydro.draftZWorld) ? hydro.draftZWorld : null;
+      const draftMeters = Number.isFinite(draftZWorld) && Number.isFinite(ref?.min?.z) ? Math.max(0, draftZWorld - ref.min.z) : null;
+      const length = ref ? Math.abs(ref.max.x - ref.min.x) : null;
+      const beam = ref ? Math.abs(ref.max.y - ref.min.y) : null;
+      const depth = ref ? Math.abs(ref.max.z - ref.min.z) : null;
+      return {
+        supported: true,
+        source: "3MF viewer",
+        modelKind: "3MF",
+        length: length == null ? null : roundComponentNumber(length, 6),
+        beam: beam == null ? null : roundComponentNumber(beam, 6),
+        depth: depth == null ? null : roundComponentNumber(depth, 6),
+        hasHydroSolution,
+        pendingHydro: !hasHydroSolution,
+        draftZWorld: draftZWorld == null ? null : roundComponentNumber(draftZWorld),
+        draftMeters: draftMeters == null ? null : roundComponentNumber(draftMeters),
+        trimDeg: roundComponentNumber(hydro.trimDeg, 3),
+        heelDeg: roundComponentNumber(hydro.heelDeg, 3),
+        waterDensity: roundComponentNumber(hydro.waterDensity, 3),
+        quality: hydro.quality || hydro.userQuality || "low",
+        visibility: {
+          waterline: hydro.wlVisible !== false,
+          waterlineContour: hydro.wlContourVisible !== false,
+          markers: {
+            cg: hydro.markersVisible?.cg !== false,
+            cb: hydro.markersVisible?.cb !== false,
+          },
+        },
+        referenceBounds: serializeBounds(ref),
+        submergedVolume: hasHydroSolution ? roundComponentNumber(last.subV, 6) : null,
+        displacementTonnes,
+        modelMassTonnes,
+        massGapTonnes: Number.isFinite(displacementTonnes) && Number.isFinite(modelMassTonnes)
+          ? roundComponentNumber(displacementTonnes - modelMassTonnes, 6)
+          : null,
+        cb: serializeVector(last.cbW),
+        cg: serializeVector(last.cgW),
+        wpArea: roundComponentNumber(last.wp?.A, 6),
+        kb: roundComponentNumber(last.kb, 6),
+        kg: roundComponentNumber(last.kg, 6),
+        bm: {
+          roll: roundComponentNumber(last.bm?.roll, 6),
+          pitch: roundComponentNumber(last.bm?.pitch, 6),
+        },
+        gm: {
+          roll: roundComponentNumber(last.gm?.roll, 6),
+          pitch: roundComponentNumber(last.gm?.pitch, 6),
+        },
+        gz: {
+          roll: roundComponentNumber(last.gz_now?.roll, 6),
+          pitch: roundComponentNumber(last.gz_now?.pitch, 6),
+        },
+        massProperties: massProps,
+      };
+    }
+
+    function postAnalysisToParent(root, summary = {}) {
+      try {
+        if (!window.parent || window.parent === window || !root) return;
+        const bounds = core.computeBoundsWorld(core.modelGroup);
+        const box = bounds?.box;
+        if (!box) return;
+        window.parent.postMessage({
+          type: "viewer-analysis",
+          payload: {
+            bbox: {
+              minX: box.min.x,
+              minY: box.min.y,
+              minZ: box.min.z,
+              maxX: box.max.x,
+              maxY: box.max.y,
+              maxZ: box.max.z,
+            },
+            volume: Number.isFinite(summary.volume) ? summary.volume : (Number.isFinite(root.userData?.volume) ? root.userData.volume : null),
+            centroidLocal: summary.centroidLocal
+              ? { x: summary.centroidLocal.x, y: summary.centroidLocal.y, z: summary.centroidLocal.z }
+              : serializeVector(root.userData?.centroidLocal),
+            units: "m",
+            source: "3MF viewer",
+            materialHint: root.userData?.modelMeta?.materialHint || null,
+            materialHintSource: root.userData?.modelMeta?.materialHint ? "3MF-modell" : "",
+            massProperties: serializeMassProperties(hydro?.getMassProperties?.()),
+            hydro: buildHydroPayload(),
+          }
+        }, "*");
+      } catch {}
+    }
+
+    function getHydroQualityPreset(quality) {
+      if (quality === "high") return { stepDeg: 1, draftCount: 44 };
+      if (quality === "med") return { stepDeg: 2, draftCount: 30 };
+      return { stepDeg: 4, draftCount: 20 };
+    }
+
+    async function buildHydroReportPayload(options = {}) {
+      if (!hydro?.mesh) return null;
+      const quality = options.quality || "low";
+      const preset = getHydroQualityPreset(quality);
+      const rollReport = await hydro.generateHydroReport({
+        mode: "roll",
+        maxDeg: 60,
+        stepDeg: preset.stepDeg,
+        quality,
+        includeSAK: quality === "high",
+      });
+      const pitchReport = await hydro.generateHydroReport({
+        mode: "pitch",
+        maxDeg: 40,
+        stepDeg: preset.stepDeg,
+        quality,
+        includeSAK: false,
+      });
+      const draftScan = await hydro.generateDraftScan({
+        draftCount: preset.draftCount,
+        quality,
+        includeAwp: true,
+        includeSAK: quality === "high",
+      });
+      return {
+        generatedAt: new Date().toISOString(),
+        fileName: decodeURIComponent((normalizeViewerUrl(modelUrl).split("/").pop() || "Hydro-modell")),
+        sourceLabel: "3MF viewer",
+        quality,
+        currentHydro: buildHydroPayload(),
+        rollReport,
+        pitchReport,
+        draftScan,
+        note: "Kurvene er generert fra aktiv 3MF-geometri og vannlinje.",
+      };
+    }
+
+    function syncExplodeUiFromCore() {
+      const rng = document.getElementById("rngExplode");
+      const txt = document.getElementById("txtExplode");
+      const meta = document.getElementById("txtExplodeMeta");
+      const btn = document.getElementById("btnExplodeReset");
+      const supported = !!core.canExplode?.();
+      const count = core.getExplodablePartCount?.() || 0;
+      const amount = core.getExplodeFactor?.() || 0;
+      if (rng) {
+        rng.disabled = !supported;
+        rng.value = String(amount);
+      }
+      if (txt) txt.textContent = supported ? `${Math.round(amount * 100)}%` : "av";
+      if (meta) meta.textContent = supported ? `${count} deler separeres visuelt` : "Krever minst 2 separate deler";
+      if (btn) btn.disabled = !supported && amount <= 0;
+    }
+
+    function postExplodeInfoToParent() {
+      try {
+        if (!window.parent || window.parent === window) return;
+        window.parent.postMessage({
+          type: "viewer-explode-info",
+          payload: {
+            supported: !!core.canExplode?.(),
+            count: core.getExplodablePartCount?.() || 0,
+            amount: core.getExplodeFactor?.() || 0,
+          }
+        }, "*");
+      } catch {}
+    }
+
+    function rememberBaseMaterial(mat) {
+      if (!mat || mat.userData?.viewerBaseState) return;
+      mat.userData = mat.userData || {};
+      mat.userData.viewerBaseState = {
+        opacity: Number.isFinite(mat.opacity) ? mat.opacity : 1,
+        transparent: !!mat.transparent,
+        depthWrite: mat.depthWrite !== false,
+        color: mat.color?.clone ? mat.color.clone() : null,
+        emissive: mat.emissive?.clone ? mat.emissive.clone() : null,
+      };
+    }
+
+    function restoreMaterialState(mat) {
+      const base = mat?.userData?.viewerBaseState;
+      if (!mat || !base) return;
+      mat.opacity = base.opacity;
+      mat.transparent = base.transparent;
+      mat.depthWrite = base.depthWrite;
+      if (base.color && mat.color) mat.color.copy(base.color);
+      if (base.emissive && mat.emissive) mat.emissive.copy(base.emissive);
+      mat.needsUpdate = true;
+    }
+
+    const componentViewState = {
+      chosen: new Set(),
+      muted: new Set(),
+    };
+    let pendingExplodeAmount = 0;
+
+    function applyComponentViewState() {
+      const root = hydro?.mesh || core?.mesh;
+      const renderables = collectRenderableComponents(root);
+      if (!renderables.length) return;
+
+      const matchedChosen = renderables.filter((item) => componentViewState.chosen.has(item.key));
+      const useChosenFocus = matchedChosen.length > 0;
+
+      renderables.forEach(({ object, key }) => {
+        const isMuted = componentViewState.muted.has(key);
+        const isChosen = componentViewState.chosen.has(key);
+        object.visible = !isMuted;
+
+        const mats = Array.isArray(object.material) ? object.material : [object.material];
+        mats.forEach((mat) => {
+          if (!mat) return;
+          rememberBaseMaterial(mat);
+          restoreMaterialState(mat);
+
+          if (isMuted) {
+            mat.opacity = 0;
+            mat.transparent = true;
+            mat.depthWrite = false;
+          } else if (useChosenFocus && !isChosen) {
+            mat.opacity = Math.min(mat.opacity, 0.14);
+            mat.transparent = true;
+            mat.depthWrite = false;
+          } else if (useChosenFocus && isChosen && mat.emissive) {
+            mat.emissive.setHex(0x262626);
+          }
+          mat.needsUpdate = true;
+        });
+      });
+    }
+
+    window.addEventListener("message", async (event) => {
+      const data = event?.data;
+      if (!data) return;
+      if (data.type === "viewer-component-state") {
+        componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
+        applyComponentViewState();
+        return;
+      }
+      if (data.type !== "viewer-command") return;
+
+      if (data.action === "set-explode") {
+        pendingExplodeAmount = Math.max(0, Math.min(1, Number(data.amount) || 0));
+        const applied = core.mesh ? core.setExplodeFactor?.(pendingExplodeAmount) : pendingExplodeAmount;
+        syncExplodeUiFromCore();
+        if (core.mesh) postExplodeInfoToParent();
+        setHud(applied > 0 ? `Explode ${Math.round(applied * 100)}%` : "Explode nullstilt", false);
+        return;
+      }
+
+      if (!hydro?.mesh) return;
+
+      if (data.action === "set-hydro-visibility") {
+        hydro.setHydroElementsVisible({
+          waterline: data.waterline !== false,
+          waterlineContour: data.contour !== false,
+          markers: {
+            cg: data.markers?.cg !== false,
+            cb: data.markers?.cb !== false,
+          },
+        });
+        syncHydroVisibility?.();
+        postAnalysisToParent(hydro.mesh);
+        return;
+      }
+
+      if (data.action === "set-hydro-state") {
+        if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
+        if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
+        if (data.quality) hydro.setQuality(String(data.quality));
+        await applyHydroInputs({
+          draft: Number.isFinite(Number(data.draftZWorld)) ? Number(data.draftZWorld) : null,
+          trim: Number.isFinite(Number(data.trim)) ? Number(data.trim) : null,
+          heel: Number.isFinite(Number(data.heel)) ? Number(data.heel) : null,
+        });
+        postAnalysisToParent(hydro.mesh);
+        return;
+      }
+
+      if (data.action === "reset-hydro-pose") {
+        hydro.zeroTrimHeel();
+        if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
+        if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
+        if (Number.isFinite(Number(data.draftZWorld))) {
+          hydro.draftZWorld = Number(data.draftZWorld);
+          hydro.updateWaterPlane();
+          hydro._invalidateCache?.();
+        }
+        await hydro.recompute();
+        await updateHydroAfterLoad();
+        syncHydroVisibility?.();
+        postAnalysisToParent(hydro.mesh);
+        setHud("Trim/heel nullstilt");
+        return;
+      }
+
+      if (data.action === "generate-hydro-report") {
+        const payload = await buildHydroReportPayload(data);
+        if (payload && window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "viewer-hydro-report", payload }, "*");
+        }
+      }
+    });
 
     function buildComponentList(mesh) {
       const componentList = document.getElementById('componentList');
@@ -757,6 +1264,21 @@
           <div class="row">
             <button id="btnRotZero" class="btn">Nullstill rotasjon</button>
           </div>
+
+          <div class="row" style="border-top:1px solid var(--border-color); margin-top:6px; padding-top:12px;">
+            <div style="font-weight:900;">Explode</div>
+            <div id="txtExplodeMeta" style="color:var(--text-muted); font-weight:800;">Krever minst 2 separate deler</div>
+          </div>
+
+          <div class="row">
+            <label>Eksploder</label>
+            <input id="rngExplode" type="range" min="0" max="1" step="0.02" value="0">
+            <span class="val" id="txtExplode">0%</span>
+          </div>
+
+          <div class="row">
+            <button id="btnExplodeReset" class="btn">Nullstill explode</button>
+          </div>
         </div>
       </div>
 
@@ -901,9 +1423,9 @@
     // --- Imports (MODULER) ---
     import * as THREE from "/includes/three/three.module.js";
 
-    import { STLViewerCore } from "/includes/three/STLViewerCore.js";
-    import { ModelLoader } from "/includes/three/ModelLoader.js";
-    import { HydroStatikk } from "/includes/three/HydroStatikk.js";
+    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260409h";
+    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260409j";
+    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260409i";
     import { UIController } from "/includes/three/UIController.js";
     import { ClippingController } from "/includes/three/ClippingController.js";
     import { MeasureController } from "/includes/three/MeasureController.js";
@@ -918,14 +1440,30 @@
     }
 
     const loadingOverlay = document.getElementById("loadingOverlay");
+    const loadingTitle = document.getElementById("loadingTitle");
     const loadingText = document.getElementById("loadingText");
     const hydroDataWrap = document.getElementById("hydroDataWrap");
+    const embedded = window.parent !== window || new URLSearchParams(location.search).get("embedded") === "1";
+    if (embedded) document.body.classList.add("is-embedded");
+    const hostMode = new URLSearchParams(location.search).get("host") || "";
+    if (hostMode === "fusion") document.body.classList.add("has-external-sidebar");
+
+    function setStageState(mode = "idle", title = "Laster modell", message = "3MF og hydrodata klargjores...") {
+      const active = mode !== "idle";
+      const isLoading = mode === "loading";
+      document.body.classList.toggle("has-stage-overlay", active);
+      document.body.classList.toggle("is-loading", isLoading);
+      if (loadingTitle) loadingTitle.textContent = title;
+      if (loadingText) loadingText.textContent = message;
+      if (loadingOverlay) {
+        loadingOverlay.dataset.tone = mode === "error" ? "error" : "loading";
+        loadingOverlay.setAttribute("aria-busy", isLoading ? "true" : "false");
+      }
+      if (hydroDataWrap) hydroDataWrap.style.visibility = active ? "hidden" : "visible";
+    }
 
     function setLoadingState(isLoading, message = "Laster modell...") {
-      document.body.classList.toggle("is-loading", !!isLoading);
-      if (loadingText) loadingText.textContent = message;
-      if (loadingOverlay) loadingOverlay.setAttribute("aria-busy", isLoading ? "true" : "false");
-      if (hydroDataWrap && !isLoading) hydroDataWrap.style.visibility = "visible";
+      setStageState(isLoading ? "loading" : "idle", "Laster modell", message);
     }
 
     if (hydroDataWrap) hydroDataWrap.style.visibility = "hidden";
@@ -1188,55 +1726,44 @@
       console.info("[3mfhydro] modelUrl:", url, resolved);
 
       // Loader timeout (stopper uendelig "Laster...")
-      const TIMEOUT_MS = 12000;
-      let timedOut = false;
+      const TIMEOUT_MS = 25000;
       const to = setTimeout(() => {
-        timedOut = true;
-        setHud("Init timeout (12s). Sjekk console (404/import) eller filsti.", true);
-        setLoadingState(true, "Lasting tar lengre tid enn forventet...");
+        setHud("3MF tar lenger tid enn ventet. Fortsetter a vente...", false);
+        setStageState("loading", "Laster 3MF", "Lasting tar lengre tid enn forventet...");
       }, TIMEOUT_MS);
 
       try{
-        setLoadingState(true, "Laster 3MF og hydrodata...");
+        setStageState("loading", "Laster 3MF", "Laster 3MF og hydrodata...");
         setHud(resolved.placeholder ? "Laster 3MF-placeholder..." : "Laster 3MF...");        // Først: test om filen finnes og er tilgjengelig
-        let headOk = true;
-        let headStatus = 0;
-        try {
-          const headRes = await fetch(url, { method: "HEAD" });
-          headStatus = headRes.status;
-          console.info("[3mfhydro] HEAD:", { url, status: headStatus, ok: headRes.ok });
-          if (!headRes.ok) {
-            headOk = false;
-          }
-        } catch (e) {
-          console.error("[3mfhydro] HEAD feilet:", url, e);
-          headOk = false;
-        }
+        const headOk = true;
+        const headStatus = 200;
         if (!headOk) {
           clearTimeout(to);
-          setLoadingState(false);
+          setStageState("error", "Finner ikke 3MF-fil", `HEAD-feil status ${headStatus}\n${url}`);
           setHud(`Finner ikke filen (HEAD-feil, status ${headStatus}) på: ${url}`, true);
           return;
         }
 
-        setLoadingState(true, "Bygger modell og komponenter...");
+        setStageState("loading", "Bygger modell", "Setter opp mesh, komponenter og geometri...");
         const loader = new ModelLoader();
         const { mesh, geometry, volume, centroidLocal } = await loader.load(url);
 
         clearTimeout(to);
-        if(timedOut) throw new Error("Init timeout");
 
         core.setMesh(mesh);
         hydro.setMesh(mesh);
+        if (pendingExplodeAmount > 0) core.setExplodeFactor(pendingExplodeAmount);
 
         // Bygg dynamisk komponentliste basert på modellen
         buildComponentList(mesh);
+        postComponentsToParent(mesh);
+        postAnalysisToParent(mesh, { volume, centroidLocal });
+        syncExplodeUiFromCore();
+        postExplodeInfoToParent();
+        applyComponentViewState();
 
         applyVisibilitySettings(); // Apply saved visibility settings to 3D elements
-        hydro.initDraftAtBottom();
-        setLoadingState(true, "Beregner hydrostatikk...");
-        await hydro.recompute();
-        await updateHydroAfterLoad();
+        hydro.initDraftAtWorldZero();
 
         ui.afterModelLoaded({ mesh, geometry, volume, centroidLocal, modelUrl: url });
 
@@ -1250,7 +1777,41 @@
 
         core.start();
         syncHydroVisibility();
-        setLoadingState(false);
+        setStageState("idle");
+        setHud(
+          resolved.placeholder
+            ? "3MF-placeholder lastet - beregner hydrostatikk..."
+            : "3MF lastet - beregner hydrostatikk...",
+          false
+        );
+
+        (async () => {
+          const preferredQuality = hydro.userQuality || hydro.quality || "med";
+          try {
+            hydro.quality = "low";
+            await hydro.recompute();
+            await updateHydroAfterLoad();
+            postAnalysisToParent(mesh, { volume, centroidLocal });
+
+            if (preferredQuality !== "low") {
+              hydro.quality = preferredQuality;
+              hydro.scheduleRecalc(false);
+            } else {
+              hydro.quality = preferredQuality;
+            }
+
+            setHud(
+              resolved.placeholder
+                ? "Klar - 3MF-placeholder lastet med hydrostatikk"
+                : "Klar - 3MF lastet med hydrostatikk",
+              false
+            );
+          } catch (hydroErr) {
+            console.warn("[3mfhydro] Hydrostatikk etter lasting feilet:", hydroErr);
+            setHud("3MF lastet, men hydrostatikk feilet.", true);
+          }
+        })();
+        return;
         setHud(resolved.placeholder ? "Klar - 3MF-placeholder lastet med hydrostatikk" : "Klar - 3MF lastet med hydrostatikk");
       }catch(err){
         clearTimeout(to);
@@ -1259,7 +1820,7 @@
           msg += err.message;
         }
         msg += `\nURL: ${url}`;
-        setLoadingState(false);
+        setStageState("error", "Feil under lasting av 3MF", msg);
         setHud(msg, true);
         console.error("[3mfhydro] Lasting feilet for URL:", url, err);
       }
@@ -1584,6 +2145,7 @@
           markers: { cg: showMarkers, cb: showMarkers }
         });
       }
+      if (hydro?.mesh) postAnalysisToParent(hydro.mesh);
     };
 
     const applyHydroInputs = async ({ draft = null, trim = null, heel = null } = {}) => {
@@ -1604,6 +2166,7 @@
         await hydro.recompute();
         await updateHydroAfterLoad();
         syncHydroVisibility();
+        postAnalysisToParent(hydro.mesh);
         setHud('Hydrostatikk oppdatert');
       } catch (err) {
         console.error('[3mfhydro] Hydro-oppdatering feilet:', err);

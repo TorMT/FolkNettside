@@ -2,6 +2,35 @@ import {
   BufferAttribute, BufferGeometry, FileLoader, Loader, Vector3
 } from "/includes/three/three.module.js";
 
+let jsZipBootPromise = null;
+
+function ensureJsZip() {
+  if ( typeof JSZip !== 'undefined' ) {
+    return Promise.resolve( JSZip );
+  }
+  if ( jsZipBootPromise ) {
+    return jsZipBootPromise;
+  }
+  jsZipBootPromise = new Promise( ( resolve, reject ) => {
+    const existing = document.querySelector( 'script[data-jszip-loader="1"]' );
+    if ( existing ) {
+      existing.addEventListener( 'load', () => resolve( JSZip ), { once: true } );
+      existing.addEventListener( 'error', () => reject( new Error( 'Failed to load JSZip' ) ), { once: true } );
+      return;
+    }
+    const script = document.createElement( 'script' );
+    script.src = '/includes/three/jszip.min.js';
+    script.dataset.jszipLoader = '1';
+    script.onload = () => resolve( JSZip );
+    script.onerror = () => reject( new Error( 'Failed to load JSZip' ) );
+    document.head.appendChild( script );
+  } ).catch( ( error ) => {
+    jsZipBootPromise = null;
+    throw error;
+  } );
+  return jsZipBootPromise;
+}
+
 /**
  * Description: A THREE loader for 3MF (3D Manufacturing Format) files.
  *
@@ -57,17 +86,9 @@ class ThreeMFLoader extends Loader {
 
   parse( data ) {
     return new Promise( ( resolve, reject ) => {
-      // Check if JSZip is available
-      if ( typeof JSZip === 'undefined' ) {
-        // Try to load JSZip dynamically
-        const script = document.createElement( 'script' );
-        script.src = '/includes/three/jszip.min.js';
-        script.onload = () => this._parse3MF( data, resolve, reject );
-        script.onerror = () => reject( new Error( 'Failed to load JSZip' ) );
-        document.head.appendChild( script );
-      } else {
-        this._parse3MF( data, resolve, reject );
-      }
+      ensureJsZip()
+        .then( () => this._parse3MF( data, resolve, reject ) )
+        .catch( reject );
     } );
   }
 

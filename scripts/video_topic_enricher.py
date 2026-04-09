@@ -70,6 +70,13 @@ MOJIBAKE_MAP = {
     "kj??r": "kjor",
 }
 
+LOW_SIGNAL_THEME_WORDS = {
+    "bare", "han", "hun", "dere", "hvis", "kommer", "komme", "virker", "lik",
+    "over", "under", "inn", "ut", "andre", "indre", "then", "there", "here",
+    "vil", "fullt", "utviklet", "man", "seg", "litt", "retning", "volumet",
+    "fluid", "videoen", "align", "start", "position", "kind", "language",
+}
+
 
 def load_local_env() -> None:
     candidates = [
@@ -394,8 +401,11 @@ def transcribe_with_whisper_cli(url: str, out_dir: Path, cookies_file: str | Non
 
 def subtitle_to_text(raw: str) -> str:
     txt = raw
+    txt = re.sub(r"^\ufeff?WEBVTT.*$", "", txt, flags=re.M)
+    txt = re.sub(r"^(Kind|Language):.*$", "", txt, flags=re.M)
     txt = re.sub(r"^\d+\s*$", "", txt, flags=re.M)
     txt = re.sub(r"\d{2}:\d{2}:\d{2}[,.\d]*\s*-->\s*\d{2}:\d{2}:\d{2}[,.\d]*", "", txt)
+    txt = re.sub(r"\b(?:align|position|line|size):[^\s]+", " ", txt, flags=re.I)
     txt = re.sub(r"<[^>]+>", " ", txt)
     txt = re.sub(r"\[[^\]]+\]", " ", txt)
     txt = re.sub(r"\s+", " ", txt).strip()
@@ -429,6 +439,32 @@ def normalize_themes(themes: list[str], k: int = 6) -> list[str]:
     return out[:k]
 
 
+def load_existing_output(path: Path | None) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    if not path or not path.exists():
+        return {}, {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}, {}
+    videos = raw.get("videos") if isinstance(raw, dict) else None
+    if not isinstance(videos, list):
+        return {}, {}
+
+    by_url: dict[str, dict[str, Any]] = {}
+    group_descriptions: dict[str, str] = {}
+    for item in videos:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url", "")).strip()
+        if url:
+            by_url[url] = item
+        group_key = normalize_group_key(item.get("group", "") or item.get("title", ""))
+        group_desc = str(item.get("group_description", "") or "")
+        if group_key and group_desc and group_key not in group_descriptions:
+            group_descriptions[group_key] = group_desc
+    return by_url, group_descriptions
+
+
 def safe_run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, check=False, capture_output=True, text=True)
 
@@ -445,7 +481,8 @@ def retry_without_browser_cookies(proc: subprocess.CompletedProcess[str], url: s
 
 
 def looks_like_generic_description(description: str, title: str = "", group: str = "") -> bool:
-    desc = clean_group_label(description).lower()
+    desc_raw = clean_group_label(description)
+    desc = desc_raw.lower()
     if not desc:
         return True
     if len(desc) < 24:
@@ -455,8 +492,26 @@ def looks_like_generic_description(description: str, title: str = "", group: str
     normalized_group = normalize_group_key(group)
     if normalized_desc in {normalized_title, normalized_group}:
         return True
+    if normalized_group and normalized_group in normalized_desc and normalized_title and normalized_title in normalized_desc:
+        residue = normalized_desc.replace(normalized_group, " ").replace(normalized_title, " ")
+        if len(re.sub(r"\s+", " ", residue).strip().split()) <= 2:
+            return True
     generic_prefixes = ("forelesning", "vl", "exam", "eksamen")
     if normalized_desc.startswith(generic_prefixes) and len(normalized_desc.split()) <= 5:
+        return True
+    generic_patterns = [
+        r"^inneholder\s+\d+\s+deler\b",
+        r"^kap\.?\s*\d+(?:-\d+)?\s*forts?\.?$",
+        r"^kap\.?\s*\d+(?:-\d+)?\s*:?\s*[a-z0-9æøå' \-]{0,18}$",
+        r"^samlet opptak\b",
+        r"^bernoulli'?s?\s+likning,\s*forts?\.?$",
+        r"^massebevarelse,\s*kontinuitetslikning,\s*forts?\.?$",
+    ]
+    if any(re.search(pattern, desc, flags=re.I) for pattern in generic_patterns):
+        return True
+    if len(normalized_desc.split()) <= 4 and normalized_desc.endswith("forts"):
+        return True
+    if desc_raw.count(" - ") >= 2 and normalize_group_key(desc_raw).startswith(normalized_title):
         return True
     return False
 
@@ -464,6 +519,10 @@ def looks_like_generic_description(description: str, title: str = "", group: str
 def looks_like_low_signal_theme(theme: str) -> bool:
     t = clean_group_label(theme).lower()
     if not t:
+        return True
+    if t in STOPWORDS or t in LOW_SIGNAL_THEME_WORDS:
+        return True
+    if re.fullmatch(r"tema\d+", t):
         return True
     if re.fullmatch(r"\d{6,8}", t):
         return True
@@ -473,6 +532,8 @@ def looks_like_low_signal_theme(theme: str) -> bool:
         return True
     if t in {"ukjent", "unknown", "video", "forelesning"}:
         return True
+    if len(t.split()) == 1 and len(t) <= 3 and t not in {"ph"}:
+        return True
     return False
 
 
@@ -480,7 +541,193 @@ def themes_need_improvement(themes: list[str]) -> bool:
     if not themes:
         return True
     meaningful = [t for t in themes if not looks_like_low_signal_theme(t)]
-    return len(meaningful) < 2
+    if len(meaningful) < 3:
+        return True
+    return len(meaningful) < max(2, len(themes) // 2)
+
+
+def group_description_needs_improvement(description: str, group_title: str = "") -> bool:
+    desc = clean_group_label(description)
+    if not desc:
+        return True
+    if normalize_group_key(desc) == normalize_group_key(group_title):
+        return True
+    if looks_like_generic_description(desc, title=group_title, group=group_title):
+        return True
+    if len(normalize_group_key(desc).split()) < 6:
+        return True
+    if re.search(r"^inneholder\s+\d+\s+deler\b", desc, flags=re.I):
+        return True
+    return False
+
+
+def item_needs_metadata_refresh(
+    item: dict[str, Any],
+    existing_group_descriptions: dict[str, str] | None = None,
+    preserve_title_grouping: bool = False,
+) -> bool:
+    existing_group_descriptions = existing_group_descriptions or {}
+    title = str(item.get("title", "") or "")
+    description = str(item.get("description", "") or "")
+    themes = normalize_themes(list(item.get("themes") or []))
+    group = str(item.get("group", "") or item.get("group_title", "") or "")
+    group_key = normalize_group_key(group or title)
+    group_description = str(
+        item.get("group_description", "") or existing_group_descriptions.get(group_key, "") or ""
+    )
+
+    if not preserve_title_grouping and looks_like_placeholder_title(title):
+        return True
+    if looks_like_generic_description(description, title=title, group=group):
+        return True
+    if themes_need_improvement(themes):
+        return True
+    if group_description_needs_improvement(group_description, group or title):
+        return True
+    if not preserve_title_grouping and group_title_needs_refresh(group):
+        return True
+    return False
+
+
+def select_items_for_enrichment(
+    items: list[dict[str, Any]],
+    existing_by_url: dict[str, dict[str, Any]] | None = None,
+    existing_group_descriptions: dict[str, str] | None = None,
+    process_urls: list[str] | None = None,
+    max_items: int = 0,
+    only_refresh_weak_fields: bool = False,
+    preserve_title_grouping: bool = False,
+) -> list[dict[str, Any]]:
+    existing_by_url = existing_by_url or {}
+    requested_urls = {str(url).strip() for url in (process_urls or []) if str(url).strip()}
+
+    selected: list[dict[str, Any]] = []
+    for item in items:
+        url = str(item.get("url", "") or "").strip()
+        if not url:
+            continue
+        if requested_urls and url not in requested_urls:
+            continue
+        existing_item = existing_by_url.get(url, item)
+        if only_refresh_weak_fields and not item_needs_metadata_refresh(
+            existing_item,
+            existing_group_descriptions=existing_group_descriptions,
+            preserve_title_grouping=preserve_title_grouping,
+        ):
+            continue
+        selected.append(item)
+        if max_items and len(selected) >= max_items:
+            break
+    return selected
+
+
+def merge_enriched_subset(
+    all_items: list[dict[str, Any]],
+    enriched_items: list[dict[str, Any]],
+    existing_by_url: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    existing_by_url = existing_by_url or {}
+    enriched_by_url = {
+        str(item.get("url", "") or "").strip(): item
+        for item in enriched_items
+        if str(item.get("url", "") or "").strip()
+    }
+
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in all_items:
+        url = str(item.get("url", "") or "").strip()
+        if not url:
+            continue
+        if url in enriched_by_url:
+            merged.append(enriched_by_url[url])
+        elif url in existing_by_url:
+            merged.append(existing_by_url[url])
+        else:
+            title = clean_group_label(item.get("title", "") or url)
+            description = clean_group_label(item.get("description", "") or "")
+            themes = normalize_themes(list(item.get("themes") or []))
+            group, part = derive_group_and_part(title, description)
+            merged.append({
+                "title": title,
+                "url": url,
+                "description": description,
+                "themes": themes,
+                "group": clean_group_label(group),
+                "part": clean_group_label(part),
+            })
+        seen.add(url)
+
+    for url, item in existing_by_url.items():
+        if url not in seen:
+            merged.append(item)
+    return merged
+
+
+def group_title_needs_refresh(group_title: str) -> bool:
+    group_clean = clean_group_label(group_title)
+    if not group_clean:
+        return True
+    if re.search(r"\bukjent\b", group_clean, flags=re.I):
+        return True
+    if re.fullmatch(r"vl\s*\d+", group_clean, flags=re.I):
+        return True
+    return False
+
+
+def merge_group_title_with_prefix(existing_group: str, suggested_group: str) -> str:
+    existing_clean = clean_group_label(existing_group)
+    suggested_clean = clean_group_label(suggested_group)
+    if not suggested_clean:
+        return existing_clean
+    match = re.match(r"^(VL\s*\d+)(?:\s*-\s*.*)?$", existing_clean, flags=re.I)
+    if not match:
+        return suggested_clean or existing_clean
+    prefix = re.sub(r"\s+", "", match.group(1)).upper()
+    if re.match(rf"^{re.escape(prefix)}\s*-\s*", suggested_clean, flags=re.I):
+        return suggested_clean
+    if re.fullmatch(rf"{re.escape(prefix)}", suggested_clean, flags=re.I):
+        return existing_clean or suggested_clean
+    if re.match(r"^VL\s*\d+$", suggested_clean, flags=re.I):
+        return existing_clean or suggested_clean
+    return f"{prefix} - {suggested_clean}"
+
+
+def extract_topic_from_group_title(group_title: str) -> str:
+    group_clean = clean_group_label(group_title)
+    if not group_clean:
+        return ""
+    match = re.match(r"^(VL\s*\d+)\s*-\s*(.+)$", group_clean, flags=re.I)
+    if match:
+        topic = clean_group_label(match.group(2))
+        if topic and not re.search(r"\bukjent\b", topic, flags=re.I):
+            return topic
+    match = re.match(r"^(Forelesning\s*\d+)\s*-\s*(.+)$", group_clean, flags=re.I)
+    if match:
+        topic = clean_group_label(match.group(2))
+        if topic and not re.search(r"\b(?:\d{6,8}|[A-Z]{2,}\d{3,})\b", topic):
+            return topic
+    return ""
+
+
+def humanize_part_label(part: str) -> str:
+    raw = clean_group_label(part)
+    if not raw:
+        return ""
+    match = re.match(r"^part\s+(.+)$", raw, flags=re.I)
+    if match:
+        return f"Del {match.group(1)}"
+    return raw[0].upper() + raw[1:] if raw else ""
+
+
+def fallback_description_from_group(group_title: str, part: str = "") -> str:
+    topic = extract_topic_from_group_title(group_title)
+    nice_part = humanize_part_label(part)
+    if topic and nice_part:
+        return f"{nice_part} i forelesningen om {topic}."
+    if topic:
+        return f"Forelesning om {topic}."
+    return ""
 
 
 def ytdlp_id_from_url(url: str) -> str:
@@ -541,8 +788,9 @@ def build_ai_prompt(text: str, title: str = "", description: str = "", source_me
         "Du er en fagassistent for videomateriale. "
         "Svar KUN med gyldig JSON pa formatet "
         '{"title":"kort ryddig videotittel","description":"kort oppsummering (1-3 setninger)",'
-        '"themes":["tema1","tema2","tema3"],"group_title":"felles forelesningsnavn","part_label":"unik del eller suffix"}. '
+        '"themes":["termodynamikk","entropi","likevekt"],"group_title":"felles forelesningsnavn","part_label":"unik del eller suffix"}. '
         "Bruk bare informasjon som faktisk finnes i inputen. Ikke finn opp temaer eller titler. "
+        "Ikke bruk plassholdere som 'tema1', 'tema2', 'ukjent' eller lignende i themes. "
         "Hvis tittelen i input er ukjent eller svak, men kildetittel/metatekst er bedre, bruk den. "
         "Hvis flere videoer har nesten samme navn, f.eks. Del 1 og Del 2 eller A og B, skal group_title beholde fellesnavnet og part_label bare inneholde den unike delen.\n\n"
         "Velg 3-6 meningsfulle themes som beskriver faginnholdet. Unnga rene datoer, bare kurskoder, bare 'forelesning', eller tags som bare sier 'ukjent'.\n\n"
@@ -551,7 +799,7 @@ def build_ai_prompt(text: str, title: str = "", description: str = "", source_me
         f"Kildetittel fra videoplattform: {source_title}\n"
         f"Kildebeskrivelse fra videoplattform: {source_desc[:1200]}\n"
         f"Kildetagger fra videoplattform: {source_tags}\n\n"
-        f"Transkripsjon / tekstgrunnlag:\n{text[:9000]}"
+        f"Transkripsjon / tekstgrunnlag:\n{text[:14000]}"
     )
 
 
@@ -626,7 +874,7 @@ def ai_classify_with_openrouter(text: str, model: str, api_key: str, title: str 
         return None
 
 
-def chunk_text(text: str, chunk_words: int = 900, overlap_words: int = 120, max_chunks: int = 8) -> list[str]:
+def chunk_text(text: str, chunk_words: int = 1000, overlap_words: int = 160, max_chunks: int = 12) -> list[str]:
     words = text.split()
     if not words:
         return []
@@ -777,21 +1025,30 @@ def build_group_description(group_title: str, items: list[dict[str, Any]], provi
     top_themes = [t for t, _ in theme_counter.most_common(4)]
     if top_themes:
         return f"Forelesningsgruppe om {', '.join(top_themes[:-1]) + ' og ' + top_themes[-1] if len(top_themes) > 1 else top_themes[0]}."
+    topic_fallback = fallback_description_from_group(group_title)
+    if topic_fallback:
+        return topic_fallback
     if parts:
         return f"Inneholder {len(items)} deler: {', '.join(parts[:4])}{' ...' if len(parts) > 4 else ''}."
     return ""
 
 
-def apply_group_descriptions(videos: list[dict[str, Any]], provider: str, ollama_model: str, openrouter_model: str, openrouter_api_key: str) -> list[dict[str, Any]]:
+def apply_group_descriptions(videos: list[dict[str, Any]], provider: str, ollama_model: str, openrouter_model: str, openrouter_api_key: str, existing_group_descriptions: dict[str, str] | None = None, only_refresh_weak_fields: bool = False) -> list[dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for item in videos:
         key = normalize_group_key(item.get("group", "") or item.get("title", ""))
         grouped.setdefault(key, []).append(item)
 
+    existing_group_descriptions = existing_group_descriptions or {}
     descriptions: dict[str, str] = {}
     for key, items in grouped.items():
         group_title = clean_group_label(items[0].get("group", "") or items[0].get("title", ""))
-        descriptions[key] = build_group_description(group_title, items, provider, ollama_model, openrouter_model, openrouter_api_key)
+        preserved = str(existing_group_descriptions.get(key, "") or "")
+        if preserved and only_refresh_weak_fields and not group_description_needs_improvement(preserved, group_title):
+            descriptions[key] = preserved
+            continue
+        rebuilt = build_group_description(group_title, items, provider, ollama_model, openrouter_model, openrouter_api_key)
+        descriptions[key] = rebuilt or preserved
 
     out: list[dict[str, Any]] = []
     for item in videos:
@@ -802,21 +1059,53 @@ def apply_group_descriptions(videos: list[dict[str, Any]], provider: str, ollama
     return out
 
 
-def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_model: str = "llama3.1:8b", openrouter_model: str = "openrouter/free", openrouter_api_key: str = "", cookies_file: str | None = None, cookies_from_browser: str | None = None, transcribe_with_whisper: bool = False, whisper_model: str = "small") -> list[dict[str, Any]]:
+def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_model: str = "llama3.1:8b", openrouter_model: str = "openrouter/free", openrouter_api_key: str = "", cookies_file: str | None = None, cookies_from_browser: str | None = None, transcribe_with_whisper: bool = False, whisper_model: str = "small", existing_by_url: dict[str, dict[str, Any]] | None = None, existing_group_descriptions: dict[str, str] | None = None, preserve_title_grouping: bool = False, only_refresh_weak_fields: bool = False, strict_ai: bool = False) -> list[dict[str, Any]]:
     enriched: list[dict[str, Any]] = []
-    for item in items:
-        title = item.get("title") or item.get("url", "")
-        url = item.get("url", "")
-        description = item.get("description", "")
-        themes = normalize_themes(item.get("themes", []) or [])
-        existing_group = item.get("group", "") or item.get("group_title", "") or ""
-        existing_part = item.get("part", "") or item.get("part_label", "") or ""
+    existing_by_url = existing_by_url or {}
+    existing_group_descriptions = existing_group_descriptions or {}
 
-        source_meta = run_yt_dlp_metadata(url, cookies_file=cookies_file, cookies_from_browser=cookies_from_browser)
-        title, description, themes = merge_source_metadata(title, description, themes, source_meta)
+    for item in items:
+        url = item.get("url", "")
+        existing_item = existing_by_url.get(url, {})
+
+        raw_title = existing_item.get("title") or item.get("title") or item.get("url", "")
+        raw_description = existing_item.get("description") if "description" in existing_item else item.get("description", "")
+        raw_themes = list(existing_item.get("themes") or item.get("themes", []) or [])
+        raw_group = existing_item.get("group") or item.get("group", "") or item.get("group_title", "") or ""
+        raw_part = existing_item.get("part") or item.get("part", "") or item.get("part_label", "") or ""
+
+        title = raw_title
+        description = raw_description
+        themes = normalize_themes(raw_themes)
+        existing_group = raw_group
+        existing_part = raw_part
+
+        title_locked = preserve_title_grouping and bool(existing_item.get("title"))
+        group_locked = preserve_title_grouping and bool(existing_group) and not group_title_needs_refresh(existing_group)
+        part_locked = preserve_title_grouping and bool(existing_part)
+
+        title_needs_refresh = looks_like_placeholder_title(title) and not title_locked
+        description_needs_refresh = looks_like_generic_description(description, title=title, group=existing_group)
+        themes_needs_refresh = themes_need_improvement(themes)
+        title_needs_refresh_initial = title_needs_refresh
+        description_needs_refresh_initial = description_needs_refresh
+        themes_needs_refresh_initial = themes_needs_refresh
+        needs_better_text = title_needs_refresh or description_needs_refresh or themes_needs_refresh
+
+        source_meta: dict[str, Any] = {}
+        if needs_better_text or (not group_locked) or (not part_locked):
+            source_meta = run_yt_dlp_metadata(url, cookies_file=cookies_file, cookies_from_browser=cookies_from_browser)
+            merged_title, merged_description, merged_themes = merge_source_metadata(title, description, themes, source_meta)
+            if title_needs_refresh and merged_title and not title_locked:
+                title = merged_title
+            if description_needs_refresh and merged_description:
+                description = merged_description
+                description_needs_refresh = looks_like_generic_description(description, title=title, group=existing_group)
+            if themes_needs_refresh and merged_themes:
+                themes = merged_themes
+                themes_needs_refresh = themes_need_improvement(themes)
 
         txt = ""
-        needs_better_text = looks_like_placeholder_title(title) or looks_like_generic_description(description, title=title, group=existing_group) or themes_need_improvement(themes)
         if needs_better_text:
             with tempfile.TemporaryDirectory() as tmp:
                 raw_subs = run_yt_dlp_subtitles(url, Path(tmp), cookies_file=cookies_file, cookies_from_browser=cookies_from_browser)
@@ -827,7 +1116,13 @@ def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_m
 
         ai_out = None
         if ai_provider in {"ollama", "openrouter"}:
-            analysis_text = txt.strip() or " ".join(x for x in [source_meta.get("title", ""), source_meta.get("description", ""), " ".join(source_meta.get("tags", [])[:10])] if x).strip()
+            analysis_text = txt.strip() or " ".join(
+                x for x in [
+                    source_meta.get("title", ""),
+                    source_meta.get("description", ""),
+                    " ".join(source_meta.get("tags", [])[:10]),
+                ] if x
+            ).strip()
             if analysis_text:
                 ai_out = ai_classify_long_text(
                     analysis_text,
@@ -840,7 +1135,11 @@ def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_m
                     openrouter_api_key=openrouter_api_key,
                 )
                 if not ai_out:
+                    if strict_ai:
+                        raise RuntimeError(f"{ai_provider} klassifisering feilet for {url}")
                     print(f"[WARN] {ai_provider} klassifisering feilet for {url}. Faller tilbake til heuristikk.", file=sys.stderr)
+            elif strict_ai:
+                raise RuntimeError(f"Mangler tekstgrunnlag for AI-klassifisering for {url}")
 
         if ai_out:
             ai_title = clean_group_label(ai_out.get("title", ""))
@@ -848,41 +1147,83 @@ def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_m
             ai_themes = normalize_themes(ai_out.get("themes", []) or [])
             ai_group = clean_group_label(ai_out.get("group_title", ""))
             ai_part = clean_group_label(ai_out.get("part_label", ""))
-            if looks_like_placeholder_title(title) and ai_title:
+            if title_needs_refresh and ai_title and not title_locked:
                 title = ai_title
-            if looks_like_generic_description(description, title=title, group=existing_group) and ai_desc:
+            if description_needs_refresh and ai_desc:
                 description = ai_desc
-            if themes_need_improvement(themes) and ai_themes:
+                description_needs_refresh = looks_like_generic_description(description, title=title, group=existing_group)
+            if themes_needs_refresh and ai_themes:
                 themes = ai_themes
-            if not existing_group and ai_group:
-                existing_group = ai_group
-            if not existing_part and ai_part:
+                themes_needs_refresh = themes_need_improvement(themes)
+            if not group_locked and ai_group:
+                existing_group = merge_group_title_with_prefix(existing_group, ai_group)
+            if not part_locked and not existing_part and ai_part:
                 existing_part = ai_part
         elif txt:
-            if looks_like_generic_description(description, title=title, group=existing_group):
+            if description_needs_refresh:
                 description = make_description(txt)
-            if themes_need_improvement(themes):
+                description_needs_refresh = looks_like_generic_description(description, title=title, group=existing_group)
+            if themes_needs_refresh:
                 themes = extract_themes(txt)
+                themes_needs_refresh = themes_need_improvement(themes)
 
-        if themes_need_improvement(themes):
-            fallback_text = " ".join(x for x in [title, description, existing_group, existing_part, source_meta.get("title", ""), source_meta.get("description", ""), " ".join(source_meta.get("tags", [])[:8])] if x).strip()
+        if themes_needs_refresh:
+            fallback_text = " ".join(
+                x for x in [
+                    title,
+                    description,
+                    existing_group,
+                    existing_part,
+                    source_meta.get("title", ""),
+                    source_meta.get("description", ""),
+                    " ".join(source_meta.get("tags", [])[:8]),
+                ] if x
+            ).strip()
             if fallback_text:
                 themes = extract_themes(fallback_text, k=6)
-        if looks_like_generic_description(description, title=title, group=existing_group):
-            fallback_text = " ".join(x for x in [description, source_meta.get("description", ""), title, existing_group, existing_part] if x).strip()
+
+        if description_needs_refresh:
+            fallback_text = " ".join(
+                x for x in [
+                    description,
+                    source_meta.get("description", ""),
+                    title,
+                    existing_group,
+                    existing_part,
+                ] if x
+            ).strip()
             if fallback_text:
                 description = make_description(fallback_text)
 
         group, part = derive_group_and_part(title, description, existing_group, existing_part)
+        if looks_like_generic_description(description, title=title, group=existing_group or group):
+            topic_fallback = fallback_description_from_group(existing_group or group, existing_part or part)
+            if topic_fallback:
+                description = topic_fallback
+
+        final_title = raw_title if (existing_item and not title_needs_refresh_initial) else clean_group_label(title)
+        final_description = raw_description if (existing_item and not description_needs_refresh_initial) else clean_group_label(description)
+        final_themes = raw_themes if (existing_item and not themes_needs_refresh_initial) else normalize_themes(themes)
+        final_group = raw_group if (existing_item and group_locked) else clean_group_label(existing_group or group)
+        final_part = raw_part if (existing_item and part_locked) else clean_group_label(existing_part or part)
         enriched.append({
-            "title": clean_group_label(title),
+            "title": final_title,
             "url": url,
-            "description": clean_group_label(description),
-            "themes": normalize_themes(themes),
-            "group": clean_group_label(group),
-            "part": clean_group_label(part),
+            "description": final_description,
+            "themes": final_themes,
+            "group": final_group,
+            "part": final_part,
         })
-    return apply_group_descriptions(enriched, ai_provider, ollama_model, openrouter_model, openrouter_api_key)
+
+    return apply_group_descriptions(
+        enriched,
+        ai_provider,
+        ollama_model,
+        openrouter_model,
+        openrouter_api_key,
+        existing_group_descriptions=existing_group_descriptions,
+        only_refresh_weak_fields=only_refresh_weak_fields,
+    )
 
 
 def main() -> None:
@@ -913,6 +1254,29 @@ def main() -> None:
     )
     ap.add_argument("--cookies", default=None, help="Sti til cookies.txt for yt-dlp (valgfritt, nyttig for Panopto)")
     ap.add_argument("--cookies-from-browser", default=None, help="Les cookies direkte fra nettleser (f.eks. chrome)")
+    ap.add_argument("--existing-json", default=None, help="Eksisterende Forelesning.json som brukes som fasit for title/group/part")
+    ap.add_argument(
+        "--process-url",
+        action="append",
+        default=[],
+        help="Prosesser bare denne URL-en. Kan oppgis flere ganger for en liten batch.",
+    )
+    ap.add_argument(
+        "--max-items",
+        type=int,
+        default=0,
+        help="Maks antall videoer som skal prosesseres i denne kjøringen. 0 betyr alle valgte.",
+    )
+    ap.add_argument(
+        "--preserve-title-grouping",
+        action="store_true",
+        help="Bevar eksisterende title/group/part fra --existing-json og oppdater bare beskrivelser/tags",
+    )
+    ap.add_argument(
+        "--only-refresh-weak-fields",
+        action="store_true",
+        help="Oppdater bare felt som ser svake eller generiske ut",
+    )
     ap.add_argument(
         "--transcribe-with-whisper",
         action="store_true",
@@ -922,6 +1286,11 @@ def main() -> None:
         "--whisper-model",
         default="small",
         help="Whisper-modellnavn ved --transcribe-with-whisper (tiny/base/small/medium/large)",
+    )
+    ap.add_argument(
+        "--strict-ai",
+        action="store_true",
+        help="Avbryt kjoringen hvis AI ikke svarer, i stedet for a falle tilbake til heuristikk.",
     )
     args = ap.parse_args()
 
@@ -942,12 +1311,31 @@ def main() -> None:
         )
         args.ai_provider = "heuristic"
 
+    if (args.only_refresh_weak_fields or args.process_url or args.max_items) and not args.existing_json:
+        print(
+            "[FEIL] --existing-json kreves nar du bruker batch/weak-refresh, slik at uendrede videoer kan bevares i output.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     inp = Path(args.input)
     out = Path(args.output)
+    existing_by_url, existing_group_descriptions = load_existing_output(Path(args.existing_json)) if args.existing_json else ({}, {})
 
     items = parse_playlist(inp)
-    videos = enrich(
+    selected_items = select_items_for_enrichment(
         items,
+        existing_by_url=existing_by_url,
+        existing_group_descriptions=existing_group_descriptions,
+        process_urls=args.process_url,
+        max_items=args.max_items,
+        only_refresh_weak_fields=args.only_refresh_weak_fields,
+        preserve_title_grouping=args.preserve_title_grouping,
+    )
+    print(f"[INFO] Valgte {len(selected_items)} av {len(items)} videoer for denne kjoringen.", file=sys.stderr)
+
+    videos = enrich(
+        selected_items,
         ai_provider=args.ai_provider,
         ollama_model=args.ollama_model,
         openrouter_model=args.openrouter_model,
@@ -956,7 +1344,14 @@ def main() -> None:
         cookies_from_browser=args.cookies_from_browser,
         transcribe_with_whisper=args.transcribe_with_whisper,
         whisper_model=args.whisper_model,
+        existing_by_url=existing_by_url,
+        existing_group_descriptions=existing_group_descriptions,
+        preserve_title_grouping=args.preserve_title_grouping,
+        only_refresh_weak_fields=args.only_refresh_weak_fields,
+        strict_ai=args.strict_ai,
     )
+    if len(selected_items) != len(items):
+        videos = merge_enriched_subset(items, videos, existing_by_url=existing_by_url)
     out.write_text(json.dumps({"videos": videos}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Skrev {len(videos)} videoer til {out}")
 

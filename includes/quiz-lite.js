@@ -961,7 +961,7 @@ const header = el.make("div", { class: "quiz-header" },
   border-radius: var(--quiz-radius);
   box-shadow: var(--quiz-shadow-lg);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 .quiz-header::before {
   content: '';
@@ -969,7 +969,19 @@ const header = el.make("div", { class: "quiz-header" },
   background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="white" opacity="0.05"/></svg>');
   pointer-events: none;
 }
-.quiz-header h2 { margin: 0 0 0.5rem 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
+.quiz-header h2,
+.quiz-header p {
+  position: relative;
+  z-index: 1;
+}
+.quiz-header h2 {
+  margin: 0 0 0.5rem 0;
+  padding-inline-start: 0.08em;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
 .quiz-header p { margin: 0; font-size: 1.1rem; opacity: 0.95; font-weight: 400; }
 
 .quiz-profilebar, .quiz-modebar {
