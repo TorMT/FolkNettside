@@ -96,11 +96,11 @@
     title: "",
     text: "",
   };
-  const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410e";
+  const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410f";
   const headResultCache = new Map();
   const jsonResultCache = new Map();
   const arrayBufferResultCache = new Map();
-  const MATERIAL_DENSITY = { steel: 7850, aluminum: 2700, grfp: 1850, wood: 600 };
+  const MATERIAL_DENSITY = { steel: 7850, aluminum: 2700, pla: 1240, petg: 1270, abs: 1040, nylon: 1150, titanium: 4500, brass: 8500, grfp: 1850, wood: 600 };
   const MATERIAL_PROFILES = [
     { slug: "steel", label: "Stål", density: 7850, patterns: [/\bsteel\b/i, /\bstål\b/i, /\bstainless\b/i, /\binox\b/i] },
     { slug: "aluminum", label: "Aluminium", density: 2700, patterns: [/\balum(?:inium|inum)?\b/i, /\balu\b/i] },
@@ -108,6 +108,15 @@
     { slug: "wood", label: "Tre", density: 600, patterns: [/\bwood\b/i, /\btimber\b/i, /\btre\b/i] },
     { slug: "custom", label: "Plast / polymer", density: 1240, patterns: [/\bpla\b/i, /\bpetg\b/i, /\babs\b/i, /\bnylon\b/i, /\bplastic\b/i, /\bpolymer\b/i, /\bplast\b/i] },
   ];
+  MATERIAL_PROFILES[0]?.patterns?.push(/\baisi\b/i, /\bs355\b/i);
+  MATERIAL_PROFILES.splice(2, 0,
+    { slug: "pla", label: "PLA", density: 1240, patterns: [/\bpla\b/i, /\bpolylactic\b/i] },
+    { slug: "petg", label: "PETG", density: 1270, patterns: [/\bpetg\b/i, /\bpet-g\b/i] },
+    { slug: "abs", label: "ABS", density: 1040, patterns: [/\babs\b/i, /\bacrylonitrile\b/i] },
+    { slug: "nylon", label: "Nylon", density: 1150, patterns: [/\bnylon\b/i, /\bpa6\b/i, /\bpa12\b/i, /\bpolyamide\b/i] },
+    { slug: "titanium", label: "Titan", density: 4500, patterns: [/\btitan(?:ium)?\b/i, /\bti-?6al-?4v\b/i] },
+    { slug: "brass", label: "Messing", density: 8500, patterns: [/\bbrass\b/i, /\bmessing\b/i] },
+  );
   const CAD_EXT = new Set(["stl", "obj", "step", "stp", "iges", "igs", "3mf", "3fm", "f3d", "f3z", "fbm", "fm3", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm"]);
   const BAMBU_EXT = new Set(["stl", "3mf", "3fm", "obj"]);
   const inpRhoWater = document.getElementById("inpRhoWater");
@@ -1013,6 +1022,7 @@
             label: materialNames[0] || inferredProfile?.label || "",
             profile: inferredProfile || null,
             densityKgM3: densityCandidates[0] || inferredProfile?.density || null,
+            defaultedFromProfile: !densityCandidates[0] && !!inferredProfile,
             source: "STEP-fil",
           }
         : null,
@@ -1569,6 +1579,7 @@
         ["Geometri-kilde", currentHydro?.source || analysisState.geometrySource || analysisState.source || "Ukjent"],
         ["Vann-tetthet", Number.isFinite(currentHydro?.waterDensity) ? `${Math.round(currentHydro.waterDensity)} kg/m^3` : "–"],
         ["Materialhint", analysisState.materialHint ? describeMaterialHint(analysisState.materialHint) : "Ingen"],
+        ["Materialprofil", analysisState.materialHint?.defaultedFromProfile ? "Standardprofil fra materialnavn (kan overstyres)" : analysisState.materialHint ? "Eksplisitt hint eller brukerfelt" : "Manuell / N/A"],
         ["Massegrunnlag", massSummary.title],
         ["Tetthetmodus", massSummary.modeLabel],
         ["Tetthetskilder", massSummary.countsLabel],
@@ -1722,7 +1733,7 @@
     }
     if (hydroMaterialHint) {
       const materialText = analysisState.materialHint
-        ? `Materialhint: ${describeMaterialHint(analysisState.materialHint)}${analysisState.materialHintSource ? ` (${analysisState.materialHintSource})` : ""}.`
+        ? `Materialhint: ${describeMaterialHint(analysisState.materialHint)}${analysisState.materialHintSource ? ` (${analysisState.materialHintSource})` : ""}.${analysisState.materialHint.defaultedFromProfile ? " Standardprofil fra materialnavn brukes til du eventuelt overstyrer tettheten." : ""}`
         : "Materiale: bruker valgt tetthet i panelet.";
       hydroMaterialHint.textContent = `${materialText} Massegrunnlag: ${massSummary.detail}`;
     }
@@ -1828,6 +1839,9 @@
     const prefillSource = analysisState.materialHintSource
       ? ` Forhandsutfylt fra ${analysisState.materialHintSource}.`
       : "";
+    const profileDefaultText = analysisState.materialHint?.defaultedFromProfile
+      ? " Standardprofil fra materialnavn brukes til du eventuelt overstyrer tettheten."
+      : "";
     const countsLabel = summarizeDensitySourceCounts(massProps.densitySourceCounts);
     const methodLabel = massProps.massMethodLabel || "Komponentmesh kombinert med Steiner/parallellakseteorem";
 
@@ -1843,7 +1857,7 @@
     if (massProps.densityMode === "mixed") {
       return {
         title: "Blandet massegrunnlag",
-        detail: `${componentCount} komponenter kombineres fra mesh. Noen bruker egne materialdata, resten bruker felles tetthet ${densityLabel}.${prefillSource} ${methodLabel}. ${countsLabel}.`,
+        detail: `${componentCount} komponenter kombineres fra mesh. Noen bruker egne materialdata, resten bruker felles tetthet ${densityLabel}.${prefillSource}${profileDefaultText} ${methodLabel}. ${countsLabel}.`,
         modeLabel: "Blandet",
         countsLabel,
         methodLabel,
@@ -1852,7 +1866,7 @@
     if (massProps.densityMode === "uniform") {
       return {
         title: "Lik tetthet pa alle",
-        detail: `${componentCount} komponentmesh kombineres med samme tetthet ${densityLabel} for alle deler.${prefillSource} ${methodLabel}. ${countsLabel}.`,
+        detail: `${componentCount} komponentmesh kombineres med samme tetthet ${densityLabel} for alle deler.${prefillSource}${profileDefaultText} ${methodLabel}. ${countsLabel}.`,
         modeLabel: "Lik tetthet",
         countsLabel,
         methodLabel,
@@ -1865,6 +1879,44 @@
       countsLabel,
       methodLabel,
     };
+  }
+
+  function getHydroComponentCount(snapshot = getActiveHydroSnapshot()) {
+    const massProps = snapshot?.hydro?.massProperties || getViewerMassProperties();
+    const directCount = Number(massProps?.componentCount);
+    if (Number.isFinite(directCount) && directCount > 0) return directCount;
+    if (Array.isArray(massProps?.components) && massProps.components.length) return massProps.components.length;
+    if (Array.isArray(componentState?.items) && componentState.items.length) return componentState.items.length;
+    return 1;
+  }
+
+  function formatEtaRangeSeconds(minSeconds, maxSeconds) {
+    const safeMin = Math.max(1, Math.round(minSeconds || 1));
+    const safeMax = Math.max(safeMin, Math.round(maxSeconds || safeMin));
+    if (safeMax < 60) return `Est: ${safeMin}-${safeMax} s`;
+    const minMin = Math.max(1, Math.round(safeMin / 60));
+    const maxMin = Math.max(minMin, Math.round(safeMax / 60));
+    return `Est: ${minMin}-${maxMin} min`;
+  }
+
+  function getHydroEtaLabel(kind = "hydro", snapshot = getActiveHydroSnapshot()) {
+    const quality = selHydroQuality?.value || snapshot?.hydro?.quality || "low";
+    const componentCount = getHydroComponentCount(snapshot);
+    const baseSeconds = kind === "report"
+      ? { low: 25, med: 70, high: 210 }[quality] || 70
+      : { low: 6, med: 18, high: 45 }[quality] || 18;
+    const complexityFactor = componentCount <= 8
+      ? 1
+      : componentCount <= 24
+        ? 1.25
+        : componentCount <= 60
+          ? 1.7
+          : componentCount <= 120
+            ? 2.2
+            : 3;
+    const minSeconds = baseSeconds * Math.max(0.85, complexityFactor * 0.75);
+    const maxSeconds = baseSeconds * Math.max(1.2, complexityFactor * 1.2);
+    return formatEtaRangeSeconds(minSeconds, maxSeconds);
   }
 
   function setHydroTaskState(active, title = "", text = "") {
@@ -1896,7 +1948,7 @@
     hydroProgress.hidden = !active;
     if (active) {
       if (hydroProgressTitle) hydroProgressTitle.textContent = title;
-      if (hydroProgressText) hydroProgressText.textContent = text;
+      if (hydroProgressText) hydroProgressText.textContent = `${text} ${getHydroEtaLabel(reportState.isGenerating ? "report" : "hydro", snapshot)}.`;
     }
   }
 
