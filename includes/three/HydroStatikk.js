@@ -260,6 +260,18 @@ export class HydroStatikk {
     return Number.isFinite(profile) && profile > 0 ? profile : null;
   }
 
+  _getDefaultDensitySource() {
+    if (Number.isFinite(this.materialDensity) && this.materialDensity > 0) return "uniform-panel";
+    const hint = this.mesh?.userData?.modelMeta?.materialHint || null;
+    const direct = Number(hint?.densityKgM3);
+    const profile = Number(hint?.profile?.density);
+    if ((Number.isFinite(direct) && direct > 0) || (Number.isFinite(profile) && profile > 0)) {
+      return "uniform-model-hint";
+    }
+    const fallback = this._getModelMaterialDensity();
+    return Number.isFinite(fallback) && fallback > 0 ? "uniform-fallback" : "unresolved";
+  }
+
   _vectorFromPlain(value) {
     if (!value || !Number.isFinite(value.x) || !Number.isFinite(value.y) || !Number.isFinite(value.z)) return null;
     return new THREE.Vector3(value.x, value.y, value.z);
@@ -314,30 +326,41 @@ export class HydroStatikk {
     }
 
     const defaultDensity = this._getModelMaterialDensity();
+    const defaultDensitySource = this._getDefaultDensitySource();
     const validComponents = components.length ? components : [fallbackGeometry];
-    const resolvedDensities = validComponents.map((entry) => {
+    const resolvedDensityEntries = validComponents.map((entry) => {
       const localDensity = Number(entry?.densityKgM3);
       const hintDensity = Number(entry?.materialHint?.densityKgM3 || entry?.materialHint?.profile?.density);
-      if (Number.isFinite(localDensity) && localDensity > 0) return localDensity;
-      if (Number.isFinite(hintDensity) && hintDensity > 0) return hintDensity;
-      if (Number.isFinite(defaultDensity) && defaultDensity > 0) return defaultDensity;
-      return null;
+      if (Number.isFinite(localDensity) && localDensity > 0) {
+        return { density: localDensity, source: "component-density" };
+      }
+      if (Number.isFinite(hintDensity) && hintDensity > 0) {
+        return { density: hintDensity, source: "component-material-hint" };
+      }
+      if (Number.isFinite(defaultDensity) && defaultDensity > 0) {
+        return { density: defaultDensity, source: defaultDensitySource };
+      }
+      return { density: null, source: "unresolved" };
     });
-    const densityResolved = resolvedDensities.every((density) => Number.isFinite(density) && density > 0);
+    const densityResolved = resolvedDensityEntries.every((entry) => Number.isFinite(entry?.density) && entry.density > 0);
 
     let totalVolume = 0;
     let totalScalar = 0;
     const centerAccumulator = new THREE.Vector3();
     const secondMomentsOrigin = this._zeroMoments();
+    const densitySourceCounts = {};
 
     const componentSummaries = validComponents.map((entry, index) => {
       const volume = Number(entry?.volume) || 0;
       const centroidLocal = this._vectorFromPlain(entry?.centroidLocal) || new THREE.Vector3();
-      const density = resolvedDensities[index];
+      const densityEntry = resolvedDensityEntries[index] || { density: null, source: "unresolved" };
+      const density = densityEntry.density;
+      const densitySource = densityEntry.source || "unresolved";
       const scalar = densityResolved ? density : 1;
       totalVolume += volume;
       totalScalar += volume * scalar;
       centerAccumulator.addScaledVector(centroidLocal, volume * scalar);
+      densitySourceCounts[densitySource] = (densitySourceCounts[densitySource] || 0) + 1;
 
       secondMomentsOrigin.xx += (Number(entry?.secondMomentsOrigin?.xx) || 0) * scalar;
       secondMomentsOrigin.xy += (Number(entry?.secondMomentsOrigin?.xy) || 0) * scalar;
@@ -353,6 +376,7 @@ export class HydroStatikk {
         sourceName: entry?.sourceName || "",
         volumeM3: volume,
         densityKgM3: Number.isFinite(density) && density > 0 ? density : null,
+        densitySource,
         massKg: densityResolved && Number.isFinite(density) && density > 0 ? volume * density : null,
         massTonnes: densityResolved && Number.isFinite(density) && density > 0 ? (volume * density) / 1000 : null,
         centroidLocal: this._vectorToPlain(centroidLocal),
@@ -363,17 +387,41 @@ export class HydroStatikk {
       ? centerAccumulator.divideScalar(totalScalar)
       : this._vectorFromPlain(fallbackGeometry?.centroidLocal) || new THREE.Vector3();
     const secondMomentsCentroid = this._shiftSecondMoments(secondMomentsOrigin, totalScalar, this._vectorToPlain(centroid));
+    const componentDensitySources = [...new Set(componentSummaries.map((entry) => entry.densitySource).filter(Boolean))];
+    const densityMode = !densityResolved
+      ? "unresolved"
+      : componentDensitySources.every((source) => source === "component-density" || source === "component-material-hint")
+        ? "per-component"
+        : componentDensitySources.every((source) => source.startsWith("uniform-"))
+          ? "uniform"
+          : "mixed";
+    const densityNote = densityMode === "per-component"
+      ? "Tetthet er lest komponent for komponent der modellmateriale finnes."
+      : densityMode === "uniform"
+        ? "Lik tetthet er brukt p\u00e5 alle komponenter."
+        : densityMode === "mixed"
+          ? "Noen komponenter bruker egne materialdata, resten bruker felles tetthet."
+          : "Ikke alle komponenter har kjent tetthet; masse er ikke fullt bestemt.";
 
     this.massProperties = {
       source: "mesh-components",
       componentCount: componentSummaries.length,
       densityKgM3: densityResolved && totalVolume > 1e-12 ? totalScalar / totalVolume : defaultDensity || null,
       densityResolved,
+      densityMode,
+      densityNote,
+      densitySourceCounts,
+      defaultDensityKgM3: Number.isFinite(defaultDensity) && defaultDensity > 0 ? defaultDensity : null,
+      defaultDensitySource,
       totalVolumeM3: totalVolume,
       totalMassKg: densityResolved ? totalScalar : null,
       totalMassTonnes: densityResolved ? totalScalar / 1000 : null,
       centerOfMassLocal: this._vectorToPlain(centroid),
       centerMode: densityResolved ? "mass-weighted" : "volume-weighted",
+      massMethod: densityResolved ? "component-mesh-steiner" : "volume-centroid-fallback",
+      massMethodLabel: densityResolved
+        ? "Komponentmesh kombinert med Steiner/parallellakseteorem"
+        : "Volumveid centroid uten full masselosning",
       secondMomentsOrigin: densityResolved ? secondMomentsOrigin : null,
       secondMomentsCentroid: densityResolved ? secondMomentsCentroid : null,
       inertiaOrigin: densityResolved ? this._momentToInertia(secondMomentsOrigin) : null,

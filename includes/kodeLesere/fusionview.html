@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fusion fil-analyse</title>
-  <link rel="stylesheet" href="/assets/css/themes.css?v=20260410d">
-  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css?v=20260410d">
+  <link rel="stylesheet" href="/assets/css/themes.css?v=20260410e">
+  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css?v=20260410e">
 </head>
 <body>
   <div class="fusion-shell">
@@ -103,6 +103,16 @@
             <label class="hydro-toggle"><input id="chkHydroMarkers" type="checkbox" checked> Mark&#248;rer</label>
             <label class="hydro-toggle"><input id="chkHydroWaterline" type="checkbox" checked> Vannflate</label>
             <label class="hydro-toggle"><input id="chkHydroContour" type="checkbox" checked> Vannlinje-kontur</label>
+          </div>
+
+          <div id="hydroProgress" class="hydro-progress" hidden>
+            <div class="hydro-progress-copy">
+              <strong id="hydroProgressTitle">Regner hydrostatikk...</strong>
+              <span id="hydroProgressText" class="muted">Kj&#248;rer volum-, masse- og stabilitetsberegning fra modellen.</span>
+            </div>
+            <div class="hydro-progress-track" aria-hidden="true">
+              <span class="hydro-progress-bar"></span>
+            </div>
           </div>
 
           <div class="grid hydro-form-grid">
@@ -215,10 +225,29 @@
             <tbody id="hydroReportTable"></tbody>
           </table>
         </section>
+
+        <section id="hydroReportComponentsWrap" class="report-table-wrap" hidden>
+          <div class="report-section-head">
+            <h3>Komponentvis massegrunnlag</h3>
+            <p id="hydroReportComponentsNote" class="muted">Viser hvordan masse, volum og tetthet er hentet for komponentene.</p>
+          </div>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Komponent</th>
+                <th>Volum</th>
+                <th>Tetthet</th>
+                <th>Masse</th>
+                <th>Kilde</th>
+              </tr>
+            </thead>
+            <tbody id="hydroReportComponentsBody"></tbody>
+          </table>
+        </section>
       </article>
     </div>
   </div>
 
-  <script src="/assets/js/fusion-file-analyzer.js?v=20260410d" defer></script>
+  <script src="/assets/js/fusion-file-analyzer.js?v=20260410e" defer></script>
 </body>
 </html>

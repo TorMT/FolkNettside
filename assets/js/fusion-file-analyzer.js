@@ -91,7 +91,12 @@
     payload: null,
     isGenerating: false,
   };
-  const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410d";
+  const hydroTaskState = {
+    active: false,
+    title: "",
+    text: "",
+  };
+  const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410e";
   const headResultCache = new Map();
   const jsonResultCache = new Map();
   const arrayBufferResultCache = new Map();
@@ -122,6 +127,9 @@
   const chkHydroMarkers = document.getElementById("chkHydroMarkers");
   const chkHydroWaterline = document.getElementById("chkHydroWaterline");
   const chkHydroContour = document.getElementById("chkHydroContour");
+  const hydroProgress = document.getElementById("hydroProgress");
+  const hydroProgressTitle = document.getElementById("hydroProgressTitle");
+  const hydroProgressText = document.getElementById("hydroProgressText");
   const hydroLiveDraft = document.getElementById("hydroLiveDraft");
   const hydroLiveDraftSource = document.getElementById("hydroLiveDraftSource");
   const hydroLiveDisp = document.getElementById("hydroLiveDisp");
@@ -148,6 +156,9 @@
   const hydroReportCurve = document.getElementById("hydroReportCurve");
   const hydroReportDraftCurve = document.getElementById("hydroReportDraftCurve");
   const hydroReportTable = document.getElementById("hydroReportTable");
+  const hydroReportComponentsWrap = document.getElementById("hydroReportComponentsWrap");
+  const hydroReportComponentsBody = document.getElementById("hydroReportComponentsBody");
+  const hydroReportComponentsNote = document.getElementById("hydroReportComponentsNote");
   const hydroCurveCaption = document.getElementById("hydroCurveCaption");
   const hydroDraftCaption = document.getElementById("hydroDraftCaption");
   const hydroReportSheet = document.getElementById("hydroReportSheet");
@@ -284,6 +295,18 @@
       `${stem}.stl${suffix}`
     ];
   }
+  async function firstExistingCandidateByOrder(candidates) {
+    const unique = [...new Set((candidates || []).filter(Boolean))];
+    if (!unique.length) return "";
+    const results = await Promise.all(unique.map(async (candidate) => {
+      try {
+        return { candidate, ok: await headExists(candidate) };
+      } catch {
+        return { candidate, ok: false };
+      }
+    }));
+    return results.find((entry) => entry.ok)?.candidate || "";
+  }
   function getActiveStlCandidate() {
     return resolvedStlCandidate || "";
   }
@@ -349,13 +372,10 @@
 
   async function resolveSiblingStepCandidate() {
     const sameStem = sameStemCandidates(decodedFile).filter((candidate) => /\.(step|stp)(?:$|[?#])/i.test(candidate));
-    for (const candidate of sameStem) {
-      try {
-        if (await headExists(candidate)) {
-          resolvedStepCandidate = candidate;
-          return resolvedStepCandidate;
-        }
-      } catch {}
+    const existingSameStem = await firstExistingCandidateByOrder(sameStem);
+    if (existingSameStem) {
+      resolvedStepCandidate = existingSameStem;
+      return resolvedStepCandidate;
     }
 
     try {
@@ -387,14 +407,11 @@
     return getActiveStepCandidate();
   }
   async function resolveSiblingPreviewCandidate() {
-    for (const candidate of sameStemCandidates(decodedFile)) {
-      try {
-        if (await headExists(candidate)) {
-          resolvedPreviewCandidate = candidate;
-          if (/\.stl(?:$|[?#])/i.test(candidate)) resolvedStlCandidate = candidate;
-          return resolvedPreviewCandidate;
-        }
-      } catch {}
+    const existingSameStem = await firstExistingCandidateByOrder(sameStemCandidates(decodedFile));
+    if (existingSameStem) {
+      resolvedPreviewCandidate = existingSameStem;
+      if (/\.stl(?:$|[?#])/i.test(existingSameStem)) resolvedStlCandidate = existingSameStem;
+      return resolvedPreviewCandidate;
     }
     try {
       const basePath = clean.replace(/[^\/]+$/, "");
@@ -430,7 +447,7 @@
     const lowerExt = String(ext || "").toLowerCase();
     let targetUrl = decodedFile;
     let viewerPath = "/includes/kodeLesere/stlview.html";
-    const cacheBust = "20260410d";
+    const cacheBust = "20260410e";
     const previewCandidate = getActivePreviewCandidate();
     const previewExt = fileExtFromUrl(previewCandidate);
     const isFusionArchiveExt = FUSION_ARCHIVE_EXTS.has(lowerExt);
@@ -561,9 +578,12 @@
 
   function loadIntegratedViewer() {
     if (!viewerFrame) return;
+    setHydroTaskState(true, "Laster 3D-viewer...", "Starter viewer og henter geometri/kandidater.");
+    updateHydroProgressUi();
     if (viewerLoading) viewerLoading.classList.remove("is-hidden");
     viewerFrame.onload = () => {
       if (viewerLoading) viewerLoading.classList.add("is-hidden");
+      setHydroTaskState(true, "Regner hydrostatikk fra modellen...", "Modellen er lastet; volum, deplasement og stabilitet oppdateres i bakgrunnen.");
       postThemeToViewer();
       postComponentStateToViewer();
       postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode || 0 });
@@ -1121,6 +1141,7 @@
     const active = hydro || estimate;
     const bounds = active?.referenceBounds || estimate?.referenceBounds || null;
     const draftMeters = getDraftMetersFromHydro(active) ?? estimate?.draftMeters;
+    const massSummary = getMassSourceSummary(active?.massProperties || getViewerMassProperties());
     const cards = [
       {
         title: "Geometri",
@@ -1161,8 +1182,13 @@
           : estimate?.shellThicknessMm > 0
             ? `Skall ${Number(estimate.shellThicknessMm).toFixed(1)} mm | masseestimat ${fmtTonnes(estimate.materialMassTonnes, 2)}`
             : Number.isFinite(estimate?.materialMassTonnes)
-              ? `Solid-/volumestimat ${fmtTonnes(estimate.materialMassTonnes, 2)}`
+            ? `Solid-/volumestimat ${fmtTonnes(estimate.materialMassTonnes, 2)}`
               : "Massetall brukes primart i sidebar-estimatet",
+      },
+      {
+        title: "Massegrunnlag",
+        value: massSummary.title,
+        note: massSummary.detail,
       },
     ];
 
@@ -1183,6 +1209,7 @@
     const displacementTonnes = Number.isFinite(active?.displacementTonnes) ? active.displacementTonnes : (allowEstimateFallback ? estimate?.displacementTonnes : null);
     const submergedVolume = Number.isFinite(active?.submergedVolume) ? active.submergedVolume : (allowEstimateFallback ? estimate?.submergedVolume : null);
     const draftMeters = getDraftMetersFromHydro(active) ?? (allowEstimateFallback ? estimate?.draftMeters : null);
+    const massSummary = getMassSourceSummary(active?.massProperties || getViewerMassProperties());
     const summaryBlocks = [
       {
         title: "Kilde",
@@ -1200,6 +1227,11 @@
         note: reportState.payload?.generatedAt
           ? `Rapport oppdatert ${new Date(reportState.payload.generatedAt).toLocaleString("nb-NO")}`
           : "Bruk rapportknappen for kurver og PDF/JSON.",
+      },
+      {
+        title: "Massegrunnlag",
+        value: massSummary.title,
+        note: massSummary.detail,
       },
     ];
 
@@ -1227,12 +1259,13 @@
     renderHydroSummaryGrid(snapshot.hydro, snapshot.estimate);
     renderHydroTextReport(snapshot.hydro, snapshot.estimate);
     updateHydroSourceText();
+    updateHydroProgressUi(snapshot);
 
     if (hydroWarn) {
       const warnings = [];
       if (!analysisState.bbox) warnings.push("Hydrostatikk venter pa lesbar geometri/bbox.");
-    if (snapshot.mode === "estimate") warnings.push("Tallene er forelopig bbox-baserte til live hydro kommer fra vieweren.");
-    if (snapshot.mode === "viewer-pending") warnings.push("Draft er satt fra aktiv viewer, men deplasement og hydrodata regnes fortsatt fra modellgeometrien.");
+      if (snapshot.mode === "estimate") warnings.push("Tallene er forelopig bbox-baserte til live hydro kommer fra vieweren.");
+      if (snapshot.mode === "viewer-pending") warnings.push("Draft er satt fra aktiv viewer, men deplasement og hydrodata regnes fortsatt fra modellgeometrien.");
       if (reportState.payload?.note) warnings.push(reportState.payload.note);
       hydroWarn.textContent = warnings.join(" ");
     }
@@ -1500,6 +1533,7 @@
     const currentHydro = payload.currentHydro || payload.hydro || getViewerHydroData() || analysisState.latestHydroEstimate;
     const rollStability = payload.rollReport?.stability || null;
     const pitchStability = payload.pitchReport?.stability || null;
+    const massSummary = getMassSourceSummary(currentHydro?.massProperties || getViewerMassProperties());
 
     if (hydroReportTitle) hydroReportTitle.textContent = `${payload.fileName || displayFileName || fileName || "Modell"} - hydrostatikk`;
     if (hydroReportMeta) {
@@ -1516,6 +1550,7 @@
         { title: "Modellvekt", value: fmtTonnes(currentHydro?.modelMassTonnes, 2), note: Number.isFinite(currentHydro?.massGapTonnes) ? `Delta ${fmtTonnes(currentHydro.massGapTonnes, 2)}` : "Mesh + materialtetthet" },
         { title: "GM", value: `Roll ${fmtUnitValue(currentHydro?.gm?.roll, 3, "m")}`, note: `Pitch ${fmtUnitValue(currentHydro?.gm?.pitch, 3, "m")}` },
         { title: "Max GZ", value: `Roll ${fmtUnitValue(rollStability?.maxGZ, 3, "m")}`, note: `Pitch ${fmtUnitValue(pitchStability?.maxGZ, 3, "m")}` },
+        { title: "Massegrunnlag", value: massSummary.title, note: massSummary.modeLabel },
       ];
       hydroReportSummary.innerHTML = cards.map((card) => `
         <article class="report-summary-card">
@@ -1534,6 +1569,10 @@
         ["Geometri-kilde", currentHydro?.source || analysisState.geometrySource || analysisState.source || "Ukjent"],
         ["Vann-tetthet", Number.isFinite(currentHydro?.waterDensity) ? `${Math.round(currentHydro.waterDensity)} kg/m^3` : "–"],
         ["Materialhint", analysisState.materialHint ? describeMaterialHint(analysisState.materialHint) : "Ingen"],
+        ["Massegrunnlag", massSummary.title],
+        ["Tetthetmodus", massSummary.modeLabel],
+        ["Tetthetskilder", massSummary.countsLabel],
+        ["Massemetode", massSummary.methodLabel],
         ["Modellvekt", fmtTonnes(currentHydro?.modelMassTonnes, 2)],
         ["Delta deplasement-vekt", fmtTonnes(currentHydro?.massGapTonnes, 2)],
         ["CB", fmtVector(currentHydro?.cb, 3)],
@@ -1552,6 +1591,37 @@
           <td>${escapeHtml(value)}</td>
         </tr>
       `).join("");
+    }
+
+    const componentMassRows = Array.isArray(currentHydro?.massProperties?.components)
+      ? currentHydro.massProperties.components
+          .slice()
+          .sort((a, b) => (Number(b?.massKg) || Number(b?.volumeM3) || 0) - (Number(a?.massKg) || Number(a?.volumeM3) || 0))
+      : [];
+    if (hydroReportComponentsWrap && hydroReportComponentsBody) {
+      const hasRows = componentMassRows.length > 0;
+      hydroReportComponentsWrap.hidden = !hasRows;
+      if (hasRows) {
+        const previewRows = componentMassRows.slice(0, 18);
+        hydroReportComponentsBody.innerHTML = previewRows.map((entry) => `
+          <tr>
+            <th>${escapeHtml(entry.name || entry.key || "Komponent")}</th>
+            <td>${escapeHtml(fmtUnitValue(entry.volumeM3, 4, "m^3"))}</td>
+            <td>${escapeHtml(Number.isFinite(entry.densityKgM3) ? `${Math.round(entry.densityKgM3)} kg/m^3` : "N/A")}</td>
+            <td>${escapeHtml(fmtTonnes(entry.massTonnes, 3))}</td>
+            <td>${escapeHtml(describeDensitySource(entry.densitySource))}</td>
+          </tr>
+        `).join("");
+        if (hydroReportComponentsNote) {
+          const totalCount = componentMassRows.length;
+          const shownCount = previewRows.length;
+          const truncationText = totalCount > shownCount ? ` Viser ${shownCount} av ${totalCount} komponenter.` : "";
+          hydroReportComponentsNote.textContent = `${massSummary.detail}${truncationText}`;
+        }
+      } else {
+        hydroReportComponentsBody.innerHTML = "";
+        if (hydroReportComponentsNote) hydroReportComponentsNote.textContent = "";
+      }
     }
 
     drawHydroCurveChart(hydroReportCurve, payload);
@@ -1606,15 +1676,18 @@
   }
 
   function applyHydroControlsToViewer({ includeDraftPose = true, silentEstimate = false } = {}) {
+    setHydroTaskState(true, "Oppdaterer hydrostatikk...", "Bruker aktiv draft, trim og heel fra modellen.");
     postHydroVisibilityToViewer();
     postViewerCommandToViewer("set-hydro-state", collectHydroCommandPayload({ includeDraftPose }));
     if (!silentEstimate) buildHydroReport();
+    updateHydroProgressUi();
   }
 
   function requestHydroReport() {
     const viewerHydro = getViewerHydroData();
     if (viewerHydro?.supported) {
       reportState.isGenerating = true;
+      setHydroTaskState(true, "Genererer hydro-rapport...", "Kjører draftscan og stabilitetskurver i aktiv viewer.");
       if (btnHydroReport) {
         btnHydroReport.disabled = true;
         btnHydroReport.textContent = "Genererer rapport...";
@@ -1638,6 +1711,7 @@
   function updateHydroSourceText() {
     const snapshot = getActiveHydroSnapshot();
     const active = snapshot.hydro;
+    const massSummary = getMassSourceSummary(active?.massProperties || getViewerMassProperties());
     const geometrySource = active?.source || analysisState.geometrySource || analysisState.source || "Ingen geometri enda";
     const liveLabel = snapshot.mode === "viewer" ? "Live hydro fra aktiv viewer." : "Hydro bygger forelopig pa sidebar-estimat.";
     const waterlineLabel = snapshot.mode === "viewer"
@@ -1647,9 +1721,10 @@
       hydroSource.textContent = `Geometri: ${geometrySource}. Enheter: ${analysisState.units || "m"}. ${liveLabel} ${waterlineLabel}`;
     }
     if (hydroMaterialHint) {
-      hydroMaterialHint.textContent = analysisState.materialHint
-        ? `Materialhint: ${describeMaterialHint(analysisState.materialHint)}${analysisState.materialHintSource ? ` (${analysisState.materialHintSource})` : ""}. Tetthet i panelet brukes i viewer/mesh-masse der det er mulig.`
+      const materialText = analysisState.materialHint
+        ? `Materialhint: ${describeMaterialHint(analysisState.materialHint)}${analysisState.materialHintSource ? ` (${analysisState.materialHintSource})` : ""}.`
         : "Materiale: bruker valgt tetthet i panelet.";
+      hydroMaterialHint.textContent = `${materialText} Massegrunnlag: ${massSummary.detail}`;
     }
   }
 
@@ -1712,6 +1787,117 @@
     if (hydroMass?.source || Number.isFinite(hydroMass?.totalMassTonnes) || Number.isFinite(hydroMass?.totalVolumeM3)) return hydroMass;
     const nested = analysisState.viewerAnalysis?.massProperties;
     return nested?.source || Number.isFinite(nested?.totalMassTonnes) || Number.isFinite(nested?.totalVolumeM3) ? nested : null;
+  }
+
+  function describeDensitySource(source) {
+    if (source === "component-density") return "eksplisitt komponenttetthet";
+    if (source === "component-material-hint") return "komponenthint";
+    if (source === "uniform-panel") return "lik tetthet fra hydro-panelet";
+    if (source === "uniform-model-hint") return "lik tetthet fra modellhint";
+    if (source === "uniform-fallback") return "lik tetthet (fallback)";
+    return "ukjent";
+  }
+
+  function summarizeDensitySourceCounts(counts) {
+    if (!counts || typeof counts !== "object") return "N/A";
+    const parts = Object.entries(counts)
+      .filter(([, count]) => Number(count) > 0)
+      .sort((a, b) => Number(b[1]) - Number(a[1]) || String(a[0]).localeCompare(String(b[0]), "nb"))
+      .map(([source, count]) => `${count} x ${describeDensitySource(source)}`);
+    return parts.length ? parts.join(", ") : "N/A";
+  }
+
+  function getMassSourceSummary(massProps = getViewerMassProperties()) {
+    if (!massProps) {
+      return {
+        title: "N/A",
+        detail: "Ingen masseegenskaper mottatt fra viewer ennå.",
+        modeLabel: "N/A",
+        countsLabel: "N/A",
+        methodLabel: "N/A",
+      };
+    }
+    const componentCount = Number.isFinite(massProps.componentCount)
+      ? massProps.componentCount
+      : Array.isArray(massProps.components)
+        ? massProps.components.length
+        : 0;
+    const densityLabel = Number.isFinite(massProps.densityKgM3)
+      ? `${Math.round(massProps.densityKgM3)} kg/m^3`
+      : "N/A";
+    const prefillSource = analysisState.materialHintSource
+      ? ` Forhandsutfylt fra ${analysisState.materialHintSource}.`
+      : "";
+    const countsLabel = summarizeDensitySourceCounts(massProps.densitySourceCounts);
+    const methodLabel = massProps.massMethodLabel || "Komponentmesh kombinert med Steiner/parallellakseteorem";
+
+    if (massProps.densityMode === "per-component") {
+      return {
+        title: "Komponentvis masse",
+        detail: `${componentCount} komponenter bruker egne meshvolumer og individuelle tettheter/materialhint. ${methodLabel}. ${countsLabel}.`,
+        modeLabel: "Per komponent",
+        countsLabel,
+        methodLabel,
+      };
+    }
+    if (massProps.densityMode === "mixed") {
+      return {
+        title: "Blandet massegrunnlag",
+        detail: `${componentCount} komponenter kombineres fra mesh. Noen bruker egne materialdata, resten bruker felles tetthet ${densityLabel}.${prefillSource} ${methodLabel}. ${countsLabel}.`,
+        modeLabel: "Blandet",
+        countsLabel,
+        methodLabel,
+      };
+    }
+    if (massProps.densityMode === "uniform") {
+      return {
+        title: "Lik tetthet pa alle",
+        detail: `${componentCount} komponentmesh kombineres med samme tetthet ${densityLabel} for alle deler.${prefillSource} ${methodLabel}. ${countsLabel}.`,
+        modeLabel: "Lik tetthet",
+        countsLabel,
+        methodLabel,
+      };
+    }
+    return {
+      title: "Volumbasert fallback",
+      detail: `${componentCount} komponenter har volum/centroid, men ikke komplett tetthetsgrunnlag. Masse er derfor N/A eller delvis estimert.`,
+      modeLabel: "N/A",
+      countsLabel,
+      methodLabel,
+    };
+  }
+
+  function setHydroTaskState(active, title = "", text = "") {
+    hydroTaskState.active = !!active;
+    hydroTaskState.title = title || "";
+    hydroTaskState.text = text || "";
+  }
+
+  function updateHydroProgressUi(snapshot = getActiveHydroSnapshot()) {
+    if (!hydroProgress) return;
+    let active = false;
+    let title = "";
+    let text = "";
+
+    if (reportState.isGenerating) {
+      active = true;
+      title = "Genererer hydro-rapport...";
+      text = "Kjører draftscan og stabilitetskurver i aktiv viewer.";
+    } else if (snapshot.mode === "viewer-pending") {
+      active = true;
+      title = hydroTaskState.title || "Regner hydrostatikk fra modellen...";
+      text = hydroTaskState.text || "Volum, deplasement og GM oppdateres straks mesh-analysen er ferdig.";
+    } else if (hydroTaskState.active) {
+      active = true;
+      title = hydroTaskState.title || "Oppdaterer hydrostatikk...";
+      text = hydroTaskState.text || "Bruker aktiv draft, trim og heel fra modellen.";
+    }
+
+    hydroProgress.hidden = !active;
+    if (active) {
+      if (hydroProgressTitle) hydroProgressTitle.textContent = title;
+      if (hydroProgressText) hydroProgressText.textContent = text;
+    }
   }
 
   function hasResolvedViewerHydro(hydro) {
@@ -1941,7 +2127,8 @@
       .split(/\s+/)
       .map((token) => token.trim())
       .filter(Boolean)
-      .filter((token) => !/^(copy|part|delen?|component|mesh|solid)$/.test(token))
+      .filter((token) => !/^(copy|part|delen?|component|mesh|solid|group|gruppe|family|instance|inst|assy|assembly)$/.test(token))
+      .filter((token) => !/^(cw|ccw|lh|rh|port|starboard|left|right|ps|sb|bb|stb)$/.test(token))
       .filter((token) => !/^\d+$/.test(token));
   }
 
@@ -2211,6 +2398,187 @@
     return "Komponentnavn er hentet fra filstruktur eller STEP/IGES-data. Viewer-kobling avhenger av scenegrafen.";
   }
 
+  function buildComponentFamilies(items) {
+    const families = new Map();
+    items.forEach((item) => {
+      const familyKey = buildFamilySignature(item.label) || normalizeFamilyToken(item.label) || item.key;
+      if (!families.has(familyKey)) families.set(familyKey, []);
+      families.get(familyKey).push(item);
+    });
+
+    return [...families.entries()]
+      .map(([familyKey, familyItems]) => {
+        const familyLabel = familyLabelFromItems(familyItems);
+        const clusters = clusterFamilyByLocation(familyItems).map((cluster, clusterIndex) => ({
+          key: `${familyKey}::cluster-${clusterIndex + 1}`,
+          label: `Gruppe ${clusterIndex + 1}`,
+          longLabel: `${familyLabel} · gruppe ${clusterIndex + 1}`,
+          familyLabel,
+          center: cluster.center || null,
+          items: cluster.items.slice().sort((a, b) => a.label.localeCompare(b.label, "nb")),
+        }));
+        return {
+          key: familyKey,
+          label: familyLabel,
+          familyLabel,
+          items: familyItems.slice().sort((a, b) => a.label.localeCompare(b.label, "nb")),
+          groups: clusters,
+        };
+      })
+      .sort((a, b) => {
+        const sizeDiff = b.items.length - a.items.length;
+        if (sizeDiff) return sizeDiff;
+        return a.label.localeCompare(b.label, "nb");
+      });
+  }
+
+  function renderComponentRow(item) {
+    const state = getComponentState(item);
+    return `
+      <li class="comp-row" data-state="${state}">
+        <button data-comp="${escapeAttr(item.key)}" class="btn comp-main" type="button">
+          <span class="comp-title">${escapeHtml(item.label)}</span>
+          ${item.subtitle ? `<span class="comp-sub">${escapeHtml(item.subtitle)}</span>` : ""}
+          ${item.description ? `<span class="comp-sub">${escapeHtml(item.description)}</span>` : ""}
+        </button>
+        <span class="comp-state comp-state-${state}">${state === "chosen" ? "Valgt" : state === "muted" ? "Dempet" : "Vises"}</span>
+        <div class="comp-actions">
+          <button class="btn comp-toggle ${chosenSet.has(item.key) ? "is-active" : ""}" data-choose="${escapeAttr(item.key)}" type="button">${chosenSet.has(item.key) ? "Valgt" : "Velg"}</button>
+          <button class="btn comp-toggle ${mutedSet.has(item.key) ? "is-muted" : ""}" data-mute="${escapeAttr(item.key)}" type="button">${mutedSet.has(item.key) ? "Vis" : "Demp"}</button>
+        </div>
+      </li>
+    `;
+  }
+
+  function renderComponentGroup(group, filter, { nested = false } = {}) {
+    const keys = group.items.map((item) => item.key);
+    const chosenCount = keys.filter((key) => chosenSet.has(key)).length;
+    const mutedCount = keys.filter((key) => mutedSet.has(key)).length;
+    const visibleCount = group.items.length - mutedCount;
+    const groupState = getGroupState(keys);
+    const allChosen = chosenCount === group.items.length && group.items.length > 0;
+    const allMuted = mutedCount === group.items.length && group.items.length > 0;
+    const isExpanded = isGroupExpanded(group, filter);
+    const canCollapse = group.items.length > 1;
+    const expandLabel = !canCollapse
+      ? "En del"
+      : String(filter || "").trim()
+        ? "Detaljer vist"
+        : isExpanded
+          ? "Skjul deler"
+          : `Vis ${group.items.length} deler`;
+    const groupItems = group.items.map((item) => renderComponentRow(item)).join("");
+
+    return `
+      <section class="comp-group${nested ? " comp-subgroup" : ""}" data-group-state="${groupState}" data-expanded="${isExpanded ? "true" : "false"}">
+        <div class="comp-group-head">
+          ${canCollapse ? `
+            <button
+              class="btn comp-group-main ${isExpanded ? "is-open" : ""}"
+              data-toggle-group="${escapeAttr(group.key)}"
+              type="button"
+              ${String(filter || "").trim() ? "disabled" : ""}
+              aria-expanded="${isExpanded ? "true" : "false"}"
+            >
+              <span class="comp-group-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
+              <span class="comp-group-heading">
+                <span class="comp-group-title">${escapeHtml(group.label)}</span>
+                <span class="comp-group-meta">${group.items.length} deler | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+              </span>
+              <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
+            </button>
+          ` : `
+            <div class="comp-group-main is-static">
+              <span class="comp-group-chevron" aria-hidden="true">=</span>
+              <span class="comp-group-heading">
+                <span class="comp-group-title">${escapeHtml(group.label)}</span>
+                <span class="comp-group-meta">${group.items.length} deler | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+              </span>
+              <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
+            </div>
+          `}
+          <div class="comp-group-side">
+            <span class="comp-state comp-state-${groupState === "mixed" ? "mixed" : groupState}">${getGroupStateLabel(groupState)}</span>
+            <div class="comp-group-actions">
+              <button class="btn comp-group-toggle ${allChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(group.key)}" type="button">${allChosen ? "Fjern markering" : "Marker gruppe"}</button>
+              <button class="btn comp-group-toggle ${allMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(group.key)}" type="button">${allMuted ? "Vis gruppe" : "Demp gruppe"}</button>
+            </div>
+          </div>
+        </div>
+        ${isExpanded
+          ? `<ul class="comp-group-list">${groupItems}</ul>`
+          : `<div class="comp-group-collapsed-note">${group.items.length} detaljdeler er skjult. Åpne gruppen for å se enkeltdelene.</div>`}
+      </section>
+    `;
+  }
+
+  function renderComponentFamily(family, filter) {
+    const keys = family.items.map((item) => item.key);
+    const chosenCount = keys.filter((key) => chosenSet.has(key)).length;
+    const mutedCount = keys.filter((key) => mutedSet.has(key)).length;
+    const visibleCount = family.items.length - mutedCount;
+    const familyState = getGroupState(keys);
+    const allChosen = chosenCount === family.items.length && family.items.length > 0;
+    const allMuted = mutedCount === family.items.length && family.items.length > 0;
+    const isExpanded = isGroupExpanded(family, filter);
+    const canCollapse = family.items.length > 1;
+    const hasSubgroups = family.groups.length > 1;
+    const expandLabel = !canCollapse
+      ? "En del"
+      : String(filter || "").trim()
+        ? "Detaljer vist"
+        : isExpanded
+          ? "Skjul familie"
+          : hasSubgroups
+            ? `Vis ${family.groups.length} grupper`
+            : `Vis ${family.items.length} deler`;
+    const body = hasSubgroups
+      ? `<div class="comp-subgroup-stack">${family.groups.map((group) => renderComponentGroup(group, filter, { nested: true })).join("")}</div>`
+      : `<ul class="comp-group-list">${family.items.map((item) => renderComponentRow(item)).join("")}</ul>`;
+
+    return `
+      <section class="comp-family" data-group-state="${familyState}" data-expanded="${isExpanded ? "true" : "false"}">
+        <div class="comp-family-head">
+          ${canCollapse ? `
+            <button
+              class="btn comp-family-main ${isExpanded ? "is-open" : ""}"
+              data-toggle-group="${escapeAttr(family.key)}"
+              type="button"
+              ${String(filter || "").trim() ? "disabled" : ""}
+              aria-expanded="${isExpanded ? "true" : "false"}"
+            >
+              <span class="comp-group-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
+              <span class="comp-family-heading">
+                <span class="comp-family-title">${escapeHtml(family.label)}</span>
+                <span class="comp-family-meta">${family.items.length} deler | ${family.groups.length} grupper | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+              </span>
+              <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
+            </button>
+          ` : `
+            <div class="comp-family-main is-static">
+              <span class="comp-group-chevron" aria-hidden="true">=</span>
+              <span class="comp-family-heading">
+                <span class="comp-family-title">${escapeHtml(family.label)}</span>
+                <span class="comp-family-meta">${family.items.length} deler | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+              </span>
+              <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
+            </div>
+          `}
+          <div class="comp-family-side">
+            <span class="comp-state comp-state-${familyState === "mixed" ? "mixed" : familyState}">${getGroupStateLabel(familyState)}</span>
+            <div class="comp-family-actions">
+              <button class="btn comp-group-toggle ${allChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(family.key)}" type="button">${allChosen ? "Fjern markering" : "Marker familie"}</button>
+              <button class="btn comp-group-toggle ${allMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(family.key)}" type="button">${allMuted ? "Vis familie" : "Demp familie"}</button>
+            </div>
+          </div>
+        </div>
+        ${isExpanded
+          ? `<div class="comp-family-body">${body}</div>`
+          : `<div class="comp-group-collapsed-note">${family.items.length} deler er skjult i familien. Åpne familien for å se undergrupper og enkeltdeler.</div>`}
+      </section>
+    `;
+  }
+
   function groupComponentItems(items) {
     const families = new Map();
     items.forEach((item) => {
@@ -2256,6 +2624,78 @@
       renderChosenMuted();
       return;
     }
+
+    const familyGroups = buildComponentFamilies(filtered);
+    const groupLookup = new Map();
+    familyGroups.forEach((family) => {
+      groupLookup.set(family.key, family);
+      family.groups.forEach((group) => groupLookup.set(group.key, group));
+    });
+
+    components.innerHTML = `
+      <div class="muted muted-box" style="margin-bottom:8px;">
+        ${componentIntroText(componentState.mode)}
+      </div>
+      <div class="comp-list">${familyGroups.map((family) => renderComponentFamily(family, filter)).join("")}</div>
+    `;
+
+    components.querySelectorAll("button[data-comp]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-comp");
+        if (!key) return;
+        setChosenForKeys([key], !chosenSet.has(key));
+        renderFilteredComponents();
+      });
+    });
+    components.querySelectorAll("button[data-choose]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-choose");
+        if (!key) return;
+        setChosenForKeys([key], !chosenSet.has(key));
+        renderFilteredComponents();
+      });
+    });
+    components.querySelectorAll("button[data-mute]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-mute");
+        if (!key) return;
+        setMutedForKeys([key], !mutedSet.has(key));
+        renderFilteredComponents();
+      });
+    });
+    components.querySelectorAll("button[data-toggle-group]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        const token = btn.getAttribute("data-toggle-group");
+        if (!token) return;
+        toggleExpandedGroup(token);
+        renderFilteredComponents();
+      });
+    });
+    components.querySelectorAll("button[data-choose-group]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const token = btn.getAttribute("data-choose-group");
+        const group = groupLookup.get(token);
+        if (!group) return;
+        const keys = group.items.map((item) => item.key);
+        const allChosen = keys.length > 0 && keys.every((key) => chosenSet.has(key));
+        setChosenForKeys(keys, !allChosen);
+        renderFilteredComponents();
+      });
+    });
+    components.querySelectorAll("button[data-mute-group]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const token = btn.getAttribute("data-mute-group");
+        const group = groupLookup.get(token);
+        if (!group) return;
+        const keys = group.items.map((item) => item.key);
+        const allMuted = keys.length > 0 && keys.every((key) => mutedSet.has(key));
+        setMutedForKeys(keys, !allMuted);
+        renderFilteredComponents();
+      });
+    });
+    renderChosenMuted();
+    return;
 
     const groups = groupComponentItems(filtered);
     const lis = groups.map((group) => {
@@ -2612,8 +3052,14 @@
       if (payload.hydro?.supported) {
         analysisState.latestViewerHydro = payload.hydro;
         syncHydroControlsFromViewer(payload.hydro);
+        if (hasResolvedViewerHydro(payload.hydro)) {
+          setHydroTaskState(false);
+        } else {
+          setHydroTaskState(true, "Regner hydrostatikk fra modellen...", "Volum, deplasement og GM oppdateres straks mesh-analysen er ferdig.");
+        }
       } else {
         analysisState.latestViewerHydro = null;
+        setHydroTaskState(true, "Tolker geometri...", "Viewer laster modell og forbereder hydrodata.");
       }
       if (payload.source) {
         analysisState.source = payload.source;
@@ -2625,6 +3071,7 @@
     }
     if (data.type === "viewer-hydro-report" && data.payload) {
       reportState.isGenerating = false;
+      setHydroTaskState(false);
       reportState.payload = data.payload;
       analysisState.latestViewerReport = data.payload;
       analysisState.latestViewerMassProperties = data.payload.currentHydro?.massProperties || analysisState.latestViewerMassProperties;
@@ -2663,5 +3110,10 @@
   syncDrawerForViewport();
   updateHydroPanels();
   updateExplodeUi();
-  run().finally(() => loadIntegratedViewer());
+  Promise.all([
+    resolveSiblingPreviewCandidate(),
+    resolveSiblingStlCandidate(),
+    resolveSiblingStepCandidate(),
+  ]).finally(() => loadIntegratedViewer());
+  run();
 })();
