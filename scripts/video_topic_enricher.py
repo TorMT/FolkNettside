@@ -78,6 +78,10 @@ LOW_SIGNAL_THEME_WORDS = {
 }
 
 
+class OpenRouterRateLimitError(RuntimeError):
+    pass
+
+
 def load_local_env() -> None:
     candidates = [
         Path.cwd() / ".env.local",
@@ -299,7 +303,8 @@ def parse_playlist(path: Path) -> list[dict[str, Any]]:
 
 
 def _build_yt_dlp_base_cmd(url: str, cookies_file: str | None = None, cookies_from_browser: str | None = None) -> list[str]:
-    cmd = ["yt-dlp", "--no-warnings", "--no-playlist"]
+    yt_dlp_exe = os.getenv("YT_DLP_EXE", "").strip() or "yt-dlp"
+    cmd = [yt_dlp_exe, "--no-warnings", "--no-playlist"]
     if cookies_file:
         cmd.extend(["--cookies", cookies_file])
     if cookies_from_browser:
@@ -870,6 +875,19 @@ def ai_classify_with_openrouter(text: str, model: str, api_key: str, title: str 
             "group_title": clean_group_label(parsed.get("group_title", "")),
             "part_label": clean_group_label(parsed.get("part_label", "")),
         }
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", errors="ignore").strip()
+        except Exception:
+            detail = ""
+        print(f"[OPENROUTER] HTTP {exc.code} for {title or source_meta.get('title', '') or 'video'}: {detail}", file=sys.stderr)
+        if exc.code == 429:
+            raise OpenRouterRateLimitError(detail or f"HTTP 429 fra OpenRouter for {title or source_meta.get('title', '') or 'video'}")
+        return None
+    except urllib.error.URLError as exc:
+        print(f"[OPENROUTER] URL-feil for {title or source_meta.get('title', '') or 'video'}: {exc}", file=sys.stderr)
+        return None
     except Exception:
         return None
 
@@ -901,12 +919,15 @@ def ai_classify_long_text(text: str, provider: str, title: str = "", description
     clean_title = ""
 
     for ch in chunks:
-        if provider == "ollama":
-            out = ai_classify_with_ollama(ch, ollama_model, title=title, description=description, source_meta=source_meta)
-        elif provider == "openrouter":
-            out = ai_classify_with_openrouter(ch, openrouter_model, openrouter_api_key, title=title, description=description, source_meta=source_meta)
-        else:
-            out = None
+        try:
+            if provider == "ollama":
+                out = ai_classify_with_ollama(ch, ollama_model, title=title, description=description, source_meta=source_meta)
+            elif provider == "openrouter":
+                out = ai_classify_with_openrouter(ch, openrouter_model, openrouter_api_key, title=title, description=description, source_meta=source_meta)
+            else:
+                out = None
+        except OpenRouterRateLimitError:
+            raise
         if not out:
             continue
         if out.get("description"):
@@ -999,10 +1020,13 @@ def build_group_description(group_title: str, items: list[dict[str, Any]], provi
             + source_blob
         )
         ai_group = None
-        if provider == "ollama":
-            ai_group = ai_classify_with_ollama(source_blob, ollama_model, title=group_title, description="", source_meta={"title": group_title})
-        else:
-            ai_group = ai_classify_with_openrouter(source_blob, openrouter_model, openrouter_api_key, title=group_title, description="", source_meta={"title": group_title})
+        try:
+            if provider == "ollama":
+                ai_group = ai_classify_with_ollama(source_blob, ollama_model, title=group_title, description="", source_meta={"title": group_title})
+            else:
+                ai_group = ai_classify_with_openrouter(source_blob, openrouter_model, openrouter_api_key, title=group_title, description="", source_meta={"title": group_title})
+        except OpenRouterRateLimitError:
+            raise
         if ai_group:
             desc = clean_group_label(ai_group.get("description", ""))
             if desc:
@@ -1124,16 +1148,22 @@ def enrich(items: list[dict[str, Any]], ai_provider: str = "heuristic", ollama_m
                 ] if x
             ).strip()
             if analysis_text:
-                ai_out = ai_classify_long_text(
-                    analysis_text,
-                    provider=ai_provider,
-                    title=title,
-                    description=description,
-                    source_meta=source_meta,
-                    ollama_model=ollama_model,
-                    openrouter_model=openrouter_model,
-                    openrouter_api_key=openrouter_api_key,
-                )
+                try:
+                    ai_out = ai_classify_long_text(
+                        analysis_text,
+                        provider=ai_provider,
+                        title=title,
+                        description=description,
+                        source_meta=source_meta,
+                        ollama_model=ollama_model,
+                        openrouter_model=openrouter_model,
+                        openrouter_api_key=openrouter_api_key,
+                    )
+                except OpenRouterRateLimitError as exc:
+                    if strict_ai:
+                        raise RuntimeError(f"OpenRouter rate limit for {url}: {exc}") from exc
+                    print(f"[WARN] OpenRouter rate limit for {url}. Faller tilbake til heuristikk.", file=sys.stderr)
+                    ai_out = None
                 if not ai_out:
                     if strict_ai:
                         raise RuntimeError(f"{ai_provider} klassifisering feilet for {url}")

@@ -72,6 +72,9 @@
       white-space:normal;
       text-align:center;
     }
+    body.has-external-sidebar #hud{
+      display:none;
+    }
     body.has-stage-overlay #hud{
       opacity:0;
       pointer-events:none;
@@ -171,6 +174,8 @@
     body.has-external-sidebar #loadingOverlay{
       align-items:center;
       padding:24px 16px;
+      background:transparent;
+      backdrop-filter:none;
     }
     #toolbar{
       pointer-events:auto;
@@ -811,9 +816,9 @@
     // --- Imports (MODULER) ---
     import * as THREE from "/includes/three/three.module.js";
 
-    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260409h";
-    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260409j";
-    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260409i";
+    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260410a";
+    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260410a";
+    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260410a";
     import { UIController } from "/includes/three/UIController.js";
     import { ClippingController } from "/includes/three/ClippingController.js";
     import { MeasureController } from "/includes/three/MeasureController.js";
@@ -1469,8 +1474,6 @@
           setHud(`${modelKind} lastet, men hydrostatikk feilet.`, true);
         }
       })();
-      return;
-      setHud(`${modelKind} klar ✅`);
     }catch(err){
       clearTimeout(to);
       console.error("[stlview] Init-feil for URL:", modelUrl, err);

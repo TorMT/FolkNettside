@@ -268,7 +268,19 @@
 
     function extractFusionShareUrl(text) {
       const matches = String(text || "").match(/https?:\/\/[^\s"'<>]+/gi) || [];
-      return matches.find((url) => /(?:a360\.co|autode\.sk|autodesk|autodesk360|fusion)/i.test(url)) || "";
+      return matches.find((url) => {
+        try {
+          const parsed = new URL(url);
+          const host = String(parsed.hostname || "").toLowerCase();
+          const pathish = `${parsed.pathname || ""}${parsed.search || ""}${parsed.hash || ""}`.toLowerCase();
+          if (host === "a360.co" || host.endsWith(".a360.co")) return true;
+          if (host === "autode.sk" || host.endsWith(".autode.sk")) return true;
+          if (/(^|\.)(autodesk360\.com|autodesk\.com)$/.test(host)) {
+            return /(share|viewer|viewing|public|sharings?)/i.test(pathish);
+          }
+        } catch {}
+        return false;
+      }) || "";
     }
 
     async function resolveShareUrl() {

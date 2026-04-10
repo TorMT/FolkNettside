@@ -3503,7 +3503,7 @@
       return;
     }
     
-    console.log('🔥 Mobile Enhancer v3.39.0 initializing...');
+    console.log('🔥 Mobile Enhancer v3.39.1 initializing...');
     
     // Sjekk viewport meta tag
     const viewportMeta = document.querySelector('meta[name="viewport"]');
@@ -3545,14 +3545,23 @@
       setTimeout(() => clearInterval(checkQuiz), 10000);
       
       // Observer for dynamisk lasting av sidebar
-      const sidebarObserver = new MutationObserver(() => {
-        if (isMobile()) {
-          enhanceSidebar();
-        }
-      });
-      
       const sidebar = document.querySelector('.sidebar') || document.getElementById('sidebar');
-      if (sidebar) {
+      if (sidebar && sidebar.dataset.mobileEnhanced !== 'true') {
+        const sidebarObserver = new MutationObserver(() => {
+          if (!isMobile()) {
+            sidebarObserver.disconnect();
+            return;
+          }
+          if (!sidebar.isConnected || sidebar.dataset.mobileEnhanced === 'true') {
+            sidebarObserver.disconnect();
+            return;
+          }
+          enhanceSidebar();
+          if (sidebar.dataset.mobileEnhanced === 'true') {
+            sidebarObserver.disconnect();
+          }
+        });
+        
         sidebarObserver.observe(sidebar, {
           childList: true,
           subtree: true
@@ -3562,7 +3571,7 @@
       // Marker som initialisert
       window.MobileEnhancer = {
         initialized: true,
-        version: '3.39.0',
+        version: '3.39.1',
         config: CONFIG,
         isMobile,
         isNotebookPage,
@@ -3570,7 +3579,7 @@
         updateMobileTheme // Eksporter for ekstern bruk
       };
       
-      console.log('✅ Mobile Enhancer v3.39.0 initialized successfully');
+      console.log('✅ Mobile Enhancer v3.39.1 initialized successfully');
     } catch (error) {
       console.error('❌ Mobile Enhancer initialization failed:', error);
     }

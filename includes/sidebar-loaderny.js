@@ -3,7 +3,7 @@
    --------------------------------------------------------------------
    FIKSET: Fil ikoner og CSS/JS-blanding
    
-   Ã¢â‚¬Â¢ Riktig rekkefÃƒÂ¸lge: Ã˜vingXX Ã¢â€ â€™ PythonÃ˜vingÃ¢â‚¬Â¦ Ã¢â€ â€™ andre Ã¢â€ â€™ beskyttet
+   Ã¢â‚¬Â¢ Riktig rekkefÃƒÂ¸lge: ØvingXX Ã¢â€ â€™ PythonØvingÃ¢â‚¬Â¦ Ã¢â€ â€™ andre Ã¢â€ â€™ beskyttet
    Ã¢â‚¬Â¢ PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
    Ã¢â‚¬Â¢ pyview/nbview/codeview bruker ?file= Ã¢â‚¬Â¦
    Ã¢â‚¬Â¢ Skjuler beskyttet flyout/innhold til passord er godkjent
@@ -602,7 +602,18 @@ function isPotentialVideoListFile(url){
 
 function isFusionShareUrl(url){
   const s = String(url || '').trim();
-  return /^https?:\/\/[^\s]+$/i.test(s) && /(?:a360\.co|autode\.sk|autodesk|autodesk360|fusion)/i.test(s);
+  if (!/^https?:\/\/[^\s]+$/i.test(s)) return false;
+  try{
+    const parsed = new URL(s);
+    const host = String(parsed.hostname || '').toLowerCase();
+    const pathish = `${parsed.pathname || ''}${parsed.search || ''}${parsed.hash || ''}`.toLowerCase();
+    if (host === 'a360.co' || host.endsWith('.a360.co')) return true;
+    if (host === 'autode.sk' || host.endsWith('.autode.sk')) return true;
+    if (/(^|\.)(autodesk360\.com|autodesk\.com)$/.test(host)) {
+      return /(share|viewer|viewing|public|sharings?)/i.test(pathish);
+    }
+  }catch(e){}
+  return false;
 }
 
 function extractFusionShareUrl(text){
@@ -831,7 +842,7 @@ function openInViewer(url, kind){
   else if (kind === 'stl') target = `/includes/kodeLesere/stlview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fbm') target = `/includes/kodeLesere/fbmview.html?file=${encodeURIComponent(url)}`;
   else if (kind === '3mf') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
-  else if (kind === 'fusion3d') target = `/includes/kodeLesere/3mfhydro.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'fusion3d') target = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'f3d') target = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fusionshare') target = `/includes/kodeLesere/fusionshareview.html?share=${encodeURIComponent(url)}`;
   else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
@@ -929,9 +940,9 @@ function openFile(url){
     return openInViewer(url, 'html');
   }
   if (isFusionShareUrl(url)) return openInViewer(url, 'fusionshare');
-  if (isFusionArchive) return openInViewer(url, 'fusion3d');
-  if (clean.endsWith('.fbm') && fusionViewerEnabled) return openInViewer(url, 'fusion');
+  if (isFusionArchive && fusionViewerEnabled) return openInViewer(url, 'fusion');
   if (clean.endsWith('.fbm')) return openInViewer(url, 'fbm');
+  if (isFusionArchive) return openInViewer(url, 'f3d');
   if (clean.endsWith('.3mf') || clean.endsWith('.3fm') || clean.endsWith('.fm3')) return openInViewer(url, '3mf');
   if (fusionViewerEnabled && isFusionCad) return openInViewer(url, 'fusion');
   if (isRenderableCad) return openInViewer(url, 'f3d');
@@ -967,12 +978,12 @@ async function autoFindQuizRel(courseDir){
 /**************** 3) Navn + sort (UENDRET) *******************************/
 function repairMojibakeLabel(value){
   return String(value || '')
-    .replace(/ÃƒËœ/g, 'Ã˜')
-    .replace(/ÃƒÂ¸/g, 'Ã¸')
-    .replace(/Ãƒâ€¦/g, 'Ã…')
-    .replace(/ÃƒÂ¥/g, 'Ã¥')
-    .replace(/Ãƒâ€ /g, 'Ã†')
-    .replace(/ÃƒÂ¦/g, 'Ã¦')
+    .replace(/ÃƒËœ/g, 'Ø')
+    .replace(/ÃƒÂ¸/g, 'ø')
+    .replace(/Ãƒâ€¦/g, 'Å')
+    .replace(/ÃƒÂ¥/g, 'å')
+    .replace(/Ãƒâ€ /g, 'Æ')
+    .replace(/ÃƒÂ¦/g, 'æ')
     .replace(/Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
     .replace(/Ã‚/g, '')
     .replace(/\s+/g, ' ')
@@ -980,10 +991,10 @@ function repairMojibakeLabel(value){
 }
 function displayName(key){
   const fixed = repairMojibakeLabel(key);
-  const m = fixed.match(/^\s*[Ã˜Ã¸o]ving(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m)  return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m = fixed.match(/^\s*[Øøo]ving(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m)  return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = fixed.match(/^oving(\d{1,3})$/i);
-  if (m2) return `Ã˜ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
   return fixed.replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '').replace(/\.[^/.]+$/, '');
 }
 
@@ -992,10 +1003,10 @@ function sortSidebarKeys(data){
   const ovingNum = (k) => {
     const fixed = repairMojibakeLabel(k);
     if (/^oving\d{2}$/i.test(fixed)) return parseInt(fixed.slice(5), 10);
-    const m = fixed.match(/^\s*[Ã˜Ã¸o]ving(?:er)?\s*0*(\d{1,3})\b/i);
+    const m = fixed.match(/^\s*[Øøo]ving(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy   = k => /^pythonÃ¸ving/i.test(repairMojibakeLabel(k));
+  const isPy   = k => /^pythonøving/i.test(repairMojibakeLabel(k));
   const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(k));
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
   const py    = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
@@ -1006,12 +1017,12 @@ function sortSidebarKeys(data){
 
 repairMojibakeLabel = function(value){
   return String(value || '')
-    .replace(/ÃƒÆ’Ã‹Å“|ÃƒËœ/g, 'Ã˜')
-    .replace(/ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, 'Ã¸')
-    .replace(/ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, 'Ã…')
-    .replace(/ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, 'Ã¥')
-    .replace(/ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, 'Ã†')
-    .replace(/ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, 'Ã¦')
+    .replace(/ÃƒÆ’Ã‹Å“|ÃƒËœ/g, 'Ø')
+    .replace(/ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, 'ø')
+    .replace(/ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, 'Å')
+    .replace(/ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, 'å')
+    .replace(/ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, 'Æ')
+    .replace(/ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, 'æ')
     .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|â€“|â€”/g, ' - ')
     .replace(/Ãƒâ€š/g, '')
     .replace(/Ã°Å¸[^ ]*/g, '')
@@ -1027,12 +1038,12 @@ displayName = function(key){
     .replace(/Ã°Å¸[^ ]*/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-  const m = cleaned.match(/^\s*(?:Ã¸ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m) return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m = cleaned.match(/^\s*(?:øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = cleaned.match(/^oving(\d{1,3})$/i);
-  if (m2) return `Ã˜ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
-  const py = cleaned.match(/^python(?:Ã¸|o)ving\s*0*(\d{1,3})$/i);
-  if (py) return `PythonÃ˜ving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
+  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  const py = cleaned.match(/^python(?:ø|o)ving\s*0*(\d{1,3})$/i);
+  if (py) return `PythonØving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
   return cleaned
     .replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '')
     .replace(/\.[^/.]+$/, '');
@@ -1040,16 +1051,16 @@ displayName = function(key){
 
 repairMojibakeLabel = function(value){
   return String(value || '')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹Ãƒâ€¦Ã¢â‚¬Å“|ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ/g, 'Ã˜')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, 'Ã¸')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, 'Ã…')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, 'Ã¥')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â |ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, 'Ã†')
-    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, 'Ã¦')
-    .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
+    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹Ãƒâ€¦Ã¢â‚¬Å“|ÃƒÆ’Æâ€™Ãƒâ€¹Åâ€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ/g, 'Ø')
+    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸|ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, 'ø')
+    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÆ’Æâ€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, 'Å')
+    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥|ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, 'å')
+    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â |ÃƒÆ’Æâ€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, 'Æ')
+    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, 'æ')
+    .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Åâ€œ|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
     .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦/g, '...')
     .replace(/ÃƒÆ’Ã¢â‚¬Å¡/g, '')
-    .replace(/Ã°Å¸[^A-Za-zÃ†Ã˜Ã…Ã¦Ã¸Ã¥0-9]*/g, '')
+    .replace(/Ã°Å¸[^A-Za-zÆØÅæøå0-9]*/g, '')
     .replace(/[â– â–¡â–ªâ–«â—†â—‡â—¼â—»â¬›â¬œï¿½]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -1062,12 +1073,12 @@ displayName = function(key){
     .replace(/\.[^/.]+$/, '')
     .replace(/\s+/g, ' ')
     .trim();
-  let m = cleaned.match(/^\s*(?:Ã˜ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m) return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  let m = cleaned.match(/^\s*(?:Øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   m = cleaned.match(/^oving(\d{1,3})$/i);
-  if (m) return `Ã˜ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
-  const py = cleaned.match(/^python(?:Ã¸|o)ving\s*0*(\d{1,3})$/i);
-  if (py) return `PythonÃ˜ving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
+  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const py = cleaned.match(/^python(?:ø|o)ving\s*0*(\d{1,3})$/i);
+  if (py) return `PythonØving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
   return cleaned;
 };
 
@@ -1076,10 +1087,10 @@ sortSidebarKeys = function(data){
   const ovingNum = (k) => {
     const fixed = repairMojibakeLabel(k);
     if (/^oving\d{2,3}$/i.test(fixed)) return parseInt(fixed.slice(5), 10);
-    const m = fixed.match(/^\s*(?:Ã¸ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+    const m = fixed.match(/^\s*(?:øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy = k => /^python(?:Ã¸|o)ving/i.test(repairMojibakeLabel(k));
+  const isPy = k => /^python(?:ø|o)ving/i.test(repairMojibakeLabel(k));
   const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(k));
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
   const py = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
@@ -1434,7 +1445,7 @@ buildNestedFlyoutHTML = function(files, makeHrefFunc, isPyGroup) {
     }).filter(Boolean);
     if (playlistItems.length) {
       const payload = encodeURIComponent(JSON.stringify({ title: repairMojibakeLabel(folderName), items: playlistItems }));
-      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="\\u00C5pne alle videoer i innebygd modus">`;
+      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Åpne alle videoer i innebygd modus">`;
       html += `<span class="file-icon" style="background:#D32F2F">ALL</span>`;
       html += `<span class="file-label">Se alle videoer (embedded)</span>`;
       html += `</a>`;
@@ -1521,7 +1532,7 @@ async function initSidebar(){
     return new URL(encoded, location.origin + courseDir).href;
   }
 
-  let html = '<h3>\\u00D8vinger</h3>';
+  let html = '<h3>Øvinger</h3>';
   html += keys.map(key=>{
     const obj = data[key];
     const locked = !!(obj && obj.beskyttet);
@@ -1535,7 +1546,7 @@ async function initSidebar(){
     }
 
     if (files && files.length){
-      const isPyGroup = /^pythonÃ¸ving/i.test(String(key));
+      const isPyGroup = /^pythonøving/i.test(String(key));
       const contentHTML = buildNestedFlyoutHTML(files, (f) => makeHref(key, obj, f), isPyGroup);
       
       return `<div class="dropdown-oving">
@@ -2061,12 +2072,12 @@ document.readyState==='loading'
 
   function cleanSidebarText(value){
     return String(value || '')
-      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ/g, '\u00D8')
-      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, '\u00F8')
-      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, '\u00C5')
-      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, '\u00E5')
-      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, '\u00C6')
-      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, '\u00E6')
+      .replace(/ÃƒÆ’Æâ€™Ãƒâ€¹Åâ€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ/g, '\u00D8')
+      .replace(/ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, '\u00F8')
+      .replace(/ÃƒÆ’Æâ€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, '\u00C5')
+      .replace(/ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, '\u00E5')
+      .replace(/ÃƒÆ’Æâ€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, '\u00C6')
+      .replace(/ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, '\u00E6')
       .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
       .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|Ã¢â‚¬Â¦/g, '...')
       .replace(/Ãƒâ€š/g, '')
@@ -2221,6 +2232,8 @@ document.readyState==='loading'
   b.textContent=txt;
 })();
 /* -------------------------------------------------------------------- */
+
+
 
 
 

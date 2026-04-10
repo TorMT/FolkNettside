@@ -1,0 +1,965 @@
+﻿<!DOCTYPE html>
+<html lang="no"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fusion fil-analyse</title>
+  <link rel="stylesheet" href="/assets/css/themes.css?v=20260410c">
+  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css?v=20260410c">
+<script src="/jszip.min.js" async=""></script></head>
+<body>
+  <div class="fusion-shell">
+    <section class="viewer-shell card">
+      <div class="viewer-topbar">
+        <div class="viewer-copy">
+          <p class="viewer-kicker">3D Modell</p>
+          <h1 id="viewerTitle">NJ26_MUN_HULL_ASM_MASTER.f3z</h1>
+          <div id="headline" class="muted">Fil: NJ26_MUN_HULL_ASM_MASTER.f3z (.f3z)</div>
+        </div>
+        <div class="buttons compact-buttons">
+          <button id="btnToggleDrawer" class="primary" type="button">Skjul filbehandler ☰</button>
+        </div>
+      </div>
+
+      <div class="viewer-stage">
+        <div id="viewerLoading" class="viewer-loading is-hidden">
+          <div class="spinner" aria-hidden="true"></div>
+          <strong id="viewerLoadingTitle">Laster 3D-visning...</strong>
+          <p id="viewerLoadingText" class="muted">Velger riktig viewer og henter modell.</p>
+        </div>
+        <iframe id="viewerFrame" title="3D-modellvisning" loading="eager" src="/includes/kodeLesere/f3dview.html?file=https%3A%2F%2Ftormt.folk.ntnu.no%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNJ26_MUN_HULL_ASM_MASTER.step&amp;embedded=1&amp;v=20260410c&amp;host=fusion&amp;sourceFile=https%3A%2F%2Ftormt.folk.ntnu.no%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNJ26_MUN_HULL_ASM_MASTER.f3z&amp;stlCandidate=https%3A%2F%2Ftormt.folk.ntnu.no%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNjord26KatamaranMuninAssemblyV1.stl&amp;stepCandidate=https%3A%2F%2Ftormt.folk.ntnu.no%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNJ26_MUN_HULL_ASM_MASTER.step&amp;previewFile=https%3A%2F%2Ftormt.folk.ntnu.no%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNJ26_MUN_HULL_ASM_MASTER.step&amp;sourceExt=f3z"></iframe>
+      </div>
+    </section>
+
+    <div id="drawerBackdrop" class="drawer-backdrop" hidden=""></div>
+
+    <aside id="drawer" class="inspector-drawer is-open">
+      <div class="drawer-inner">
+        <div class="card">
+          <div class="drawer-brand">
+            <div class="fusion-brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 16" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                <path d="M6 11V5l5-2 5 2v6l-5 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>
+                <path d="M11 3v10M6 5l5 3 5-3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path>
+              </svg>
+            </div>
+            <div class="drawer-brand-copy">
+              <p class="drawer-brand-kicker">Autodesk Fusion</p>
+              <h2>Filbehandler</h2>
+              <p class="muted drawer-brand-note">Fusion online-viewer med analyse, komponentliste og hurtigknapper.</p>
+            </div>
+          </div>
+          <div class="buttons action-buttons">
+            <a id="btnRaw" class="btn" target="_blank" rel="noopener" href="https://tormt.folk.ntnu.no/diverse/Njord/filer/MuninTing/NJ26_MUN_HULL_ASM_MASTER.f3z">Åpne råfil</a>
+            <button id="btnFusion" class="primary" type="button">Åpne i Fusion</button>
+            <button id="btnBambu" type="button" disabled="" title="Bambu støtter primært STL/3MF/OBJ.">Åpne i Bambu Studio</button>
+            <button id="btnStl" type="button">Åpne i 3D-viewer</button>
+            <button id="btnTabOverview" class="tab active" type="button">Tab: Oversikt</button>
+            <button id="btnTabHydro" class="tab" type="button">Tab: Hydrostatikk</button>
+            <button id="btnToggleTools" type="button">Skjul/vis verktøy ☰</button>
+            <button id="btnToggleInfo" type="button">Skjul/vis info ℹ</button>
+            <a class="btn" href="/includes/kodeLesere/FUSION_FORMAT_CAPABILITIES.md" target="_blank" rel="noopener">Format-matrise</a>
+          </div>
+        </div>
+
+        <div class="card" id="infoCard">
+          <h2>Fil-metadata / timeline</h2>
+          <div class="grid" id="metaGrid"><div class="kv"><span class="muted">Filnavn</span><span>NJ26_MUN_HULL_ASM_MASTER.f3z</span></div><div class="kv"><span class="muted">Filtype</span><span>f3z</span></div><div class="kv"><span class="muted">3D-kandidat</span><span>NJ26_MUN_HULL_ASM_MASTER.step</span></div><div class="kv"><span class="muted">STL-kandidat</span><span>Njord26KatamaranMuninAssemblyV1.stl</span></div><div class="kv"><span class="muted">STEP-kandidat</span><span>NJ26_MUN_HULL_ASM_MASTER.step</span></div><div class="kv"><span class="muted">Størrelse</span><span>26.2 MB</span></div><div class="kv"><span class="muted">Content-Type</span><span>application/x-zip</span></div><div class="kv"><span class="muted">Sist endret</span><span>8.4.2026, 22:32:56</span></div><div class="kv"><span class="muted">Bytes lastet</span><span>26.2 MB</span></div></div>
+          <div id="timeline" class="muted" style="margin-top:10px;">Timeline: siste registrerte endring 8.4.2026, 22:32:56 (fra HTTP Last-Modified).</div>
+        </div>
+
+        <div class="card" id="toolsCard">
+          <h2>Komponent- og geometri-sjekk</h2>
+          <div id="checks"><ul><li><li>Formatstøtte: <span class="ok">Forventet CAD/mesh-format</span></li></li><li><li>Container entries: 22</li></li><li><li>Intern container-timestamp (eksempel): 8.4.2026, 20:31:18</li></li><li><li>Fusion-komponenter fra metadata: 20</li></li><li><li>Rotdesign: <b>NJ26_MUN_HULL_ASM_MASTER</b></li></li></ul></div>
+          <div id="details" class="muted" style="margin-top:10px;">Filer i container (første 22): 150016fe-59de-4d00-965b-e373fbf9d8e7.f3d (2.0 MB) | 25d62d46-cfcc-4541-9e67-e705b25b961d.zip.f3d (4.3 MB) | 26bc6618-0ce2-4948-bd7a-566d38a4eb8f.f3d (2.4 MB) | 2dd1bb51-30c4-4914-9b02-f22e10c4a772.zip.f3d (133.9 KB) | 4a764946-409d-458e-a780-7d4d94fd4093.f3d (929.8 KB) | 4b903568-ab5b-44e4-a40f-80a6e4d629fc.f3d (207.0 KB) | 6333e20e-fcba-475f-8e33-c84f965fcffa.zip.f3d (1.5 MB) | 6f02b2c6-9645-415d-aec2-e0acbc5fb3d9.f3d (1.1 MB) | 762ea8b0-2499-4664-8365-2bfb8ba4cb07.f3d (357.6 KB) | 7c557044-2245-41df-a1fc-4088f924a84c.zip.f3d (529.1 KB) | 831b72f9-5e2f-4159-821c-0fdaaec39ada.zip.f3d (242.2 KB) | 94a8fafc-1352-40dd-9742-a336b0742a69.f3d (197.3 KB) | Manifest.json (51 B) | a0f9e0cb-798f-4943-8c50-778ab4dc50bc.f3d (417.2 KB) | b40ac6a5-1648-4dc9-b938-a9b6b2fee603.f3d (792.0 KB) | b7b88733-e63d-40ee-aca9-165e4b1df508.f3d (619.2 KB) | bcbb8a5c-da51-415d-8ea0-ba317ebefbfa.zip.f3d (4.3 MB) | bd8a801f-ce20-4fbc-ac53-b538889da096.f3d (916.1 KB) | d2fb63bc-6f62-4957-87b8-082fcb337950.f3d (2.6 MB) | f43d42a6-da4f-4b26-8082-cdf173be12b0.f3d (1.1 MB) | fc892ab2-ab1f-4f20-8610-3db0e743b292.zip.f3d (1.9 MB) | DesignDescription.json (21.9 KB)</div>
+        </div>
+
+        <div class="card" id="hydroCard" style="display: none;">
+          <h2>Hydrostatikk / vannlinje</h2>
+          <div id="hydroQuickGrid" class="hydro-quick-grid">
+            <div class="hydro-pill-card">
+              <span class="muted">Draft brukt</span>
+              <strong id="hydroLiveDraft">–</strong>
+              <span id="hydroLiveDraftSource" class="muted">Aktiv viewer</span>
+            </div>
+            <div class="hydro-pill-card">
+              <span class="muted">Deplasement</span>
+              <strong id="hydroLiveDisp">–</strong>
+              <span id="hydroLiveVolume" class="muted">Submerged volum: –</span>
+            </div>
+            <div class="hydro-pill-card">
+              <span class="muted">Stabilitet</span>
+              <strong id="hydroLiveGM">GM roll –</strong>
+              <span id="hydroLiveBM" class="muted">BM: –</span>
+            </div>
+            <div class="hydro-pill-card">
+              <span class="muted">Vannlinje / markører</span>
+              <strong id="hydroLiveWaterline">skjult</strong>
+              <span id="hydroLiveAttitude" class="muted">Trim: – | Heel: –</span>
+            </div>
+          </div>
+
+          <div class="hydro-visual-controls">
+            <label class="hydro-toggle"><input id="chkHydroMarkers" type="checkbox" checked=""> Markører</label>
+            <label class="hydro-toggle"><input id="chkHydroWaterline" type="checkbox" checked=""> Vannflate</label>
+            <label class="hydro-toggle"><input id="chkHydroContour" type="checkbox" checked=""> Vannlinje-kontur</label>
+          </div>
+
+          <div class="grid hydro-form-grid">
+            <div class="kv"><span class="muted">Vann-tetthet (kg/m³)</span><input id="inpRhoWater" type="number" value="1025" step="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Materiale</span>
+              <select id="selMaterial" style="width:150px;">
+                <option value="steel">Stål</option>
+                <option value="aluminum">Aluminium</option>
+                <option value="grfp">GRP</option>
+                <option value="wood">Tre</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="kv"><span class="muted">Material-tetthet (kg/m³)</span><input id="inpRhoMat" type="number" value="7850" step="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">KG-fraksjon av dypgang</span><input id="inpKgFrac" type="number" value="0.55" step="0.01" min="0" max="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Blokk-koeffisient (fallback)</span><input id="inpCb" type="number" value="0.60" step="0.01" min="0.1" max="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Skall-tykkelse (mm, valgfri)</span><input id="inpThicknessMm" type="number" value="0" step="0.1" min="0" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Draft i viewer (world Z)</span><input id="inpHydroDraft" type="number" step="0.01" value="0" placeholder="Fra viewer" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Trim i viewer (deg)</span><input id="inpHydroTrim" type="number" step="0.1" value="0" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Heel i viewer (deg)</span><input id="inpHydroHeel" type="number" step="0.1" value="0" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Rapport-kvalitet</span>
+              <select id="selHydroQuality" style="width:150px;">
+                <option value="low" selected="">Rask</option>
+                <option value="med">Balansert</option>
+                <option value="high">Mer nøyaktig</option>
+              </select>
+            </div>
+          </div>
+          <div class="buttons" style="margin-top:10px;">
+            <button id="btnHydroCalc" class="primary" type="button">Beregn hydrostatikk</button>
+            <button id="btnHydroApply" type="button">Oppdater vannlinje</button>
+            <button id="btnHydroResetPose" type="button">Nullstill trim/heel</button>
+            <button id="btnHydroReport" type="button">Vis rapport</button>
+          </div>
+          <div id="hydroSource" class="muted" style="margin-top:10px;">Geometri: none. Enheter: m. Hydro bygger forelopig pa sidebar-estimat. Vannlinje i sidebaren trenger en viewer med hydrostotte for live oppdatering.</div>
+          <div id="hydroMaterialHint" class="muted" style="margin-top:6px;">Materiale: bruker valgt tetthet i panelet.</div>
+          <div id="hydroWarn" class="warn" style="margin-top:8px;">Hydrostatikk venter pa lesbar geometri/bbox. Tallene er forelopig bbox-baserte til live hydro kommer fra vieweren.</div>
+          <div id="hydroQuickSummary" class="hydro-summary-grid">
+      <article class="hydro-stat-card">
+        <div class="hydro-stat-title">Geometri</div>
+        <div class="hydro-stat-value">Live bbox i viewer</div>
+        <div class="muted">Ingen referansebbox</div>
+      </article>
+    
+      <article class="hydro-stat-card">
+        <div class="hydro-stat-title">Draft brukt</div>
+        <div class="hydro-stat-value">–</div>
+        <div class="muted">Viewer world Z ikke rapportert</div>
+      </article>
+    
+      <article class="hydro-stat-card">
+        <div class="hydro-stat-title">Sentre</div>
+        <div class="hydro-stat-value">CB –</div>
+        <div class="muted">CG –</div>
+      </article>
+    
+      <article class="hydro-stat-card">
+        <div class="hydro-stat-title">Stabilitet</div>
+        <div class="hydro-stat-value">KB – | KG –</div>
+        <div class="muted">GM roll – | pitch –</div>
+      </article>
+    
+      <article class="hydro-stat-card">
+        <div class="hydro-stat-title">Vannlinje</div>
+        <div class="hydro-stat-value">Awp –</div>
+        <div class="muted">Rho vann –</div>
+      </article>
+    
+      <article class="hydro-stat-card">
+        <div class="hydro-stat-title">Materiale</div>
+        <div class="hydro-stat-value">7850 kg/m^3</div>
+        <div class="muted">Massetall brukes primart i sidebar-estimatet</div>
+      </article>
+    </div>
+          <div id="hydroReport" class="hydro-report-shell">
+      <div class="report-summary-grid">
+        
+          <article class="report-summary-card">
+            <span class="muted">Kilde</span>
+            <strong>Live viewer-data</strong>
+            <span class="muted">none</span>
+          </article>
+        
+          <article class="report-summary-card">
+            <span class="muted">Deplasement</span>
+            <strong>–</strong>
+            <span class="muted">Volum –</span>
+          </article>
+        
+          <article class="report-summary-card">
+            <span class="muted">Draft</span>
+            <strong>–</strong>
+            <span class="muted">Bruk rapportknappen for kurver og PDF/JSON.</span>
+          </article>
+        
+      </div>
+    </div>
+        </div>
+
+        <div class="card" id="componentsCard">
+          <h2>Komponentliste</h2>
+          <div class="component-toolbar">
+            <div class="explode-toolbar">
+              <span class="muted">Explode</span>
+              <input id="inpExplode" type="range" min="0" max="1" step="0.02" value="0" disabled="">
+              <span id="txtExplodePct" class="explode-readout">av</span>
+              <button id="btnExplodeReset" type="button" disabled="">Nullstill</button>
+            </div>
+            <div id="txtExplodeHint" class="muted">Explode krever minst 2 separate deler i modellen.</div>
+            <input id="componentFilter" type="text" placeholder="Filtrer komponentnavn...">
+          </div>
+          <div class="muted" id="chosenMuted" style="margin-bottom:8px;">
+      <div class="component-summary">
+        <span class="status-chip visible"><strong>20</strong> synlige</span>
+        <span class="status-chip chosen"><strong>0</strong> valgt</span>
+        <span class="status-chip muted"><strong>0</strong> dempet</span>
+        <span class="muted chosen-muted-detail">Valgt: ingen valgt. Dempet: ingen dempet.</span>
+      </div>
+    </div>
+          <div id="components" class="muted">
+      <div class="muted muted-box" style="margin-bottom:8px;">
+        Komponentnavn er hentet fra Fusion-metadata og vises gruppert etter familier, kopier og nærliggende deler. Åpne en gruppe for detaljdeler.
+      </div>
+      <div class="comp-list">
+        <section class="comp-group" data-group-state="visible" data-expanded="false">
+          <div class="comp-group-head">
+            
+              <button class="btn comp-group-main " data-toggle-group="nj26 mun str brkt thruster mount" type="button" aria-expanded="false">
+                <span class="comp-group-chevron" aria-hidden="true">+</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">NJ26 Mun Str Brkt Thruster Mount</span>
+                  <span class="comp-group-meta">2 deler | 2 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">Vis 2 deler</span>
+              </button>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="nj26 mun str brkt thruster mount" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="nj26 mun str brkt thruster mount" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <div class="comp-group-collapsed-note">2 detaljdeler er skjult. Åpne gruppen for å se enkeltdelene.</div>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">320-102985-08-BASEPLATEOSX Universal</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="320-102985-08-baseplateosx universal" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="320-102985-08-baseplateosx universal" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="2dd1bb51-30c4-4914-9b02-f22e10c4a772.zip.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">320-102985-08-BaseplateOSX Universal</span>
+              
+              <span class="comp-sub">Imported from 320-102985-08-BaseplateOSX_Universal.STEP</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="2dd1bb51-30c4-4914-9b02-f22e10c4a772.zip.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="2dd1bb51-30c4-4914-9b02-f22e10c4a772.zip.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">320-103537-B-TOPCAPADDON Radialfins Ultra</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="320-103537-b-topcapaddon radialfins ultra" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="320-103537-b-topcapaddon radialfins ultra" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="831b72f9-5e2f-4159-821c-0fdaaec39ada.zip.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">320-103537-B-TopCapAddOn RadialFins Ultra</span>
+              
+              <span class="comp-sub">Imported from 320-103537-B-TopCapAddOn_RadialFins_Ultra.STEP</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="831b72f9-5e2f-4159-821c-0fdaaec39ada.zip.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="831b72f9-5e2f-4159-821c-0fdaaec39ada.zip.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">840-102511-D OS01CLAMSHELLASSEMBLY</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="840-102511-d os01clamshellassembly" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="840-102511-d os01clamshellassembly" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="fc892ab2-ab1f-4f20-8610-3db0e743b292.zip.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">840-102511-D OS01ClamShellAssembly</span>
+              
+              <span class="comp-sub">Imported from 840-102511-D OS01ClamShellAssembly.STEP</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="fc892ab2-ab1f-4f20-8610-3db0e743b292.zip.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="fc892ab2-ab1f-4f20-8610-3db0e743b292.zip.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">Camera Mount Prototype</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="camera mount prototype" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="camera mount prototype" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="4b903568-ab5b-44e4-a40f-80a6e4d629fc.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">Camera mount prototype 1</span>
+              
+              <span class="comp-sub">User Saved</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="4b903568-ab5b-44e4-a40f-80a6e4d629fc.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="4b903568-ab5b-44e4-a40f-80a6e4d629fc.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">Gopro</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="gopro" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="gopro" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="b7b88733-e63d-40ee-aca9-165e4b1df508.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">Gopro 10</span>
+              
+              <span class="comp-sub">gjorde mesh bedre</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="b7b88733-e63d-40ee-aca9-165e4b1df508.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="b7b88733-e63d-40ee-aca9-165e4b1df508.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">Gopro Mount F3-M2 Buildingblock V1</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="gopro mount f3-m2 buildingblock v1" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="gopro mount f3-m2 buildingblock v1" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="762ea8b0-2499-4664-8365-2bfb8ba4cb07.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">GoPro Mount F3-M2 BuildingBlock v1</span>
+              
+              <span class="comp-sub">Imported from GoPro_Mount_F3-M2_BuildingBlock_v1.f3d</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="762ea8b0-2499-4664-8365-2bfb8ba4cb07.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="762ea8b0-2499-4664-8365-2bfb8ba4cb07.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">NJ26 Mun Elec Box Battery</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="nj26 mun elec box battery" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="nj26 mun elec box battery" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="4a764946-409d-458e-a780-7d4d94fd4093.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">NJ26 MUN ELEC BOX BATTERY</span>
+              
+              <span class="comp-sub">justerete ene siden ned til 0.25 for å få plass på master</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="4a764946-409d-458e-a780-7d4d94fd4093.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="4a764946-409d-458e-a780-7d4d94fd4093.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">NJ26 Mun Hull Asm Master</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="nj26 mun hull asm master" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="nj26 mun hull asm master" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="f43d42a6-da4f-4b26-8082-cdf173be12b0.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">NJ26 MUN HULL ASM MASTER</span>
+              
+              <span class="comp-sub">User Saved</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="f43d42a6-da4f-4b26-8082-cdf173be12b0.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="f43d42a6-da4f-4b26-8082-cdf173be12b0.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">NJ26 Mun Hull Export Submission</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="nj26 mun hull export submission" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="nj26 mun hull export submission" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="d2fb63bc-6f62-4957-87b8-082fcb337950.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">NJ26 MUN HULL EXPORT SUBMISSION</span>
+              
+              <span class="comp-sub">exstrude gikk ikke helt gjennom</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="d2fb63bc-6f62-4957-87b8-082fcb337950.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="d2fb63bc-6f62-4957-87b8-082fcb337950.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">NJ26 Mun Sns Frame Sensorpack V27</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="nj26 mun sns frame sensorpack v27" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="nj26 mun sns frame sensorpack v27" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="26bc6618-0ce2-4948-bd7a-566d38a4eb8f.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">NJ26 MUN SNS FRAME SENSORPACK v27</span>
+              
+              <span class="comp-sub">fikset en lite bug som gjorde at øverste antenne feste på høyre side forsvant</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="26bc6618-0ce2-4948-bd7a-566d38a4eb8f.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="26bc6618-0ce2-4948-bd7a-566d38a4eb8f.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">NJ26 Mun Str Asm Plateset</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="nj26 mun str asm plateset" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="nj26 mun str asm plateset" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="b40ac6a5-1648-4dc9-b938-a9b6b2fee603.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">NJ26 MUN STR ASM PLATESET</span>
+              
+              <span class="comp-sub">User Saved</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="b40ac6a5-1648-4dc9-b938-a9b6b2fee603.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="b40ac6a5-1648-4dc9-b938-a9b6b2fee603.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">NJ26 Mun Str Plate Fast Top</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="nj26 mun str plate fast top" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="nj26 mun str plate fast top" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="6f02b2c6-9645-415d-aec2-e0acbc5fb3d9.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">NJ26 MUN STR PLATE FAST TOP</span>
+              
+              <span class="comp-sub">User Saved</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="6f02b2c6-9645-415d-aec2-e0acbc5fb3d9.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="6f02b2c6-9645-415d-aec2-e0acbc5fb3d9.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">NJ26 Mun Thrust Brkt</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="nj26 mun thrust brkt" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="nj26 mun thrust brkt" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="150016fe-59de-4d00-965b-e373fbf9d8e7.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">NJ26 MUN THRUST BRKT</span>
+              
+              <span class="comp-sub">User Saved</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="150016fe-59de-4d00-965b-e373fbf9d8e7.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="150016fe-59de-4d00-965b-e373fbf9d8e7.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">Novatel GPS-702-GG</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="novatel gps-702-gg" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="novatel gps-702-gg" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="6333e20e-fcba-475f-8e33-c84f965fcffa.zip.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">Антенна Novatel GPS-702-GG</span>
+              
+              <span class="comp-sub">Imported from Антенна Novatel GPS-702-GG.step</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="6333e20e-fcba-475f-8e33-c84f965fcffa.zip.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="6333e20e-fcba-475f-8e33-c84f965fcffa.zip.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">OS01ASSEMBLY</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="os01assembly" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="os01assembly" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="bd8a801f-ce20-4fbc-ac53-b538889da096.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">OS01Assembly</span>
+              
+              <span class="comp-sub">Item created</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="bd8a801f-ce20-4fbc-ac53-b538889da096.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="bd8a801f-ce20-4fbc-ac53-b538889da096.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">T200-ASM-CCW-THRUSTER-R1</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="t200-asm-ccw-thruster-r1" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="t200-asm-ccw-thruster-r1" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="25d62d46-cfcc-4541-9e67-e705b25b961d.zip.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">T200-ASM-CCW-THRUSTER-R1</span>
+              
+              <span class="comp-sub">Imported from T200-ASM-CCW-THRUSTER-R1.STEP</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="25d62d46-cfcc-4541-9e67-e705b25b961d.zip.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="25d62d46-cfcc-4541-9e67-e705b25b961d.zip.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">T200-ASM-CW-THRUSTER-R1</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="t200-asm-cw-thruster-r1" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="t200-asm-cw-thruster-r1" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="bcbb8a5c-da51-415d-8ea0-ba317ebefbfa.zip.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">T200-ASM-CW-THRUSTER-R1</span>
+              
+              <span class="comp-sub">Imported from T200-ASM-CW-THRUSTER-R1.STEP</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="bcbb8a5c-da51-415d-8ea0-ba317ebefbfa.zip.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="bcbb8a5c-da51-415d-8ea0-ba317ebefbfa.zip.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      
+        <section class="comp-group" data-group-state="visible" data-expanded="true">
+          <div class="comp-group-head">
+            
+              <div class="comp-group-main is-static">
+                <span class="comp-group-chevron" aria-hidden="true">=</span>
+                <span class="comp-group-heading">
+                  <span class="comp-group-title">ZED2I</span>
+                  <span class="comp-group-meta">1 deler | 1 synlige | 0 valgt | 0 dempet</span>
+                </span>
+                <span class="comp-group-expand-label">En del</span>
+              </div>
+            
+            <div class="comp-group-side">
+              <span class="comp-state comp-state-visible">Vises</span>
+              <div class="comp-group-actions">
+                <button class="btn comp-group-toggle " data-choose-group="zed2i" type="button">Marker gruppe</button>
+                <button class="btn comp-group-toggle " data-mute-group="zed2i" type="button">Demp gruppe</button>
+              </div>
+            </div>
+          </div>
+          <ul class="comp-group-list">
+          <li class="comp-row" data-state="visible">
+            <button data-comp="7c557044-2245-41df-a1fc-4088f924a84c.zip.f3d" class="btn comp-main" type="button">
+              <span class="comp-title">ZED2i</span>
+              
+              <span class="comp-sub">Imported from ZED2i.step</span>
+            </button>
+            <span class="comp-state comp-state-visible">Vises</span>
+            <div class="comp-actions">
+              <button class="btn comp-toggle " data-choose="7c557044-2245-41df-a1fc-4088f924a84c.zip.f3d" type="button">Velg</button>
+              <button class="btn comp-toggle " data-mute="7c557044-2245-41df-a1fc-4088f924a84c.zip.f3d" type="button">Demp</button>
+            </div>
+          </li>
+        </ul>
+        </section>
+      </div>
+    </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="hydroReportModal" class="report-modal" hidden="">
+    <div class="report-backdrop" data-close-report="1"></div>
+    <div class="report-dialog card">
+      <div class="report-toolbar">
+        <div>
+          <p class="viewer-kicker">Hydro Report</p>
+          <h2 id="hydroReportTitle">Hydrostatikk-rapport</h2>
+          <p id="hydroReportMeta" class="muted">Ingen rapport generert ennå.</p>
+        </div>
+        <div class="buttons">
+          <button id="btnHydroReportPrint" type="button">Skriv ut / PDF</button>
+          <button id="btnHydroReportJson" type="button">JSON</button>
+          <button id="btnHydroReportClose" type="button">Lukk</button>
+        </div>
+      </div>
+      <article id="hydroReportSheet" class="report-sheet">
+        <header class="report-sheet-head">
+          <div>
+            <p class="viewer-kicker">Hydrostatikk</p>
+            <h2 id="hydroSheetTitle">Rapport</h2>
+            <p id="hydroSheetSubtitle" class="muted">Kurver og sammendrag fra aktiv viewer.</p>
+          </div>
+          <div class="report-badge">
+            <span>Fusion Marine</span>
+            <strong id="hydroSheetSource">Viewer-data</strong>
+          </div>
+        </header>
+
+        <section id="hydroReportSummary" class="report-summary-grid"></section>
+
+        <section class="report-chart-card">
+          <div class="report-section-head">
+            <h3>Stabilitetskurve</h3>
+            <p id="hydroCurveCaption" class="muted">GZ-kurve for valgt tilstand.</p>
+          </div>
+          <canvas id="hydroReportCurve" width="920" height="360"></canvas>
+        </section>
+
+        <section class="report-chart-card">
+          <div class="report-section-head">
+            <h3>Draft / Deplasement</h3>
+            <p id="hydroDraftCaption" class="muted">Skan av dypgang mot deplasement.</p>
+          </div>
+          <canvas id="hydroReportDraftCurve" width="920" height="280"></canvas>
+        </section>
+
+        <section class="report-table-wrap">
+          <h3>Oppsummering</h3>
+          <table class="report-table">
+            <tbody id="hydroReportTable"></tbody>
+          </table>
+        </section>
+      </article>
+    </div>
+  </div>
+
+  <script src="/assets/js/fusion-file-analyzer.js?v=20260410c" defer=""></script>
+
+
+</body></html>

@@ -91,6 +91,7 @@
     payload: null,
     isGenerating: false,
   };
+  const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410d";
   const headResultCache = new Map();
   const jsonResultCache = new Map();
   const arrayBufferResultCache = new Map();
@@ -429,7 +430,7 @@
     const lowerExt = String(ext || "").toLowerCase();
     let targetUrl = decodedFile;
     let viewerPath = "/includes/kodeLesere/stlview.html";
-    const cacheBust = "20260409j";
+    const cacheBust = "20260410d";
     const previewCandidate = getActivePreviewCandidate();
     const previewExt = fileExtFromUrl(previewCandidate);
     const isFusionArchiveExt = FUSION_ARCHIVE_EXTS.has(lowerExt);
@@ -463,7 +464,22 @@
   }
 
   function isCompactViewport() {
-    return window.matchMedia("(max-width: 1180px)").matches;
+    return window.matchMedia("(max-width: 980px)").matches;
+  }
+
+  function getStoredDrawerPreference() {
+    try {
+      const raw = window.localStorage?.getItem(DRAWER_PREF_KEY);
+      if (raw === "open") return true;
+      if (raw === "closed") return false;
+    } catch {}
+    return null;
+  }
+
+  function storeDrawerPreference(open) {
+    try {
+      window.localStorage?.setItem(DRAWER_PREF_KEY, open ? "open" : "closed");
+    } catch {}
   }
 
   function postThemeToViewer() {
@@ -526,11 +542,21 @@
     } catch {}
   }
 
-  function setDrawerOpen(open) {
+  function setDrawerOpen(open, { persist = true } = {}) {
     if (!drawer || !btnToggleDrawer) return;
     drawer.classList.toggle("is-open", !!open);
     if (drawerBackdrop) drawerBackdrop.hidden = !(!!open && isCompactViewport());
+    if (persist) storeDrawerPreference(!!open);
     btnToggleDrawer.textContent = open ? "Skjul filbehandler ☰" : "Vis filbehandler ☰";
+  }
+
+  function syncDrawerForViewport() {
+    if (!drawer || !btnToggleDrawer) return;
+    if (isCompactViewport()) {
+      setDrawerOpen(getStoredDrawerPreference() === true, { persist: false });
+      return;
+    }
+    setDrawerOpen(true, { persist: false });
   }
 
   function loadIntegratedViewer() {
@@ -562,44 +588,43 @@
   setDisabled(btnBambu, !BAMBU_EXT.has(ext), "Bambu-knapp støttes best for STL/3MF/OBJ.");
   setDisabled(btnStl, !CAD_EXT.has(ext), "3D-viewer er kun relevant for CAD-relaterte filer.");
 
-  btnStl.onclick = () => loadIntegratedViewer();
+  btnStl && (btnStl.onclick = () => loadIntegratedViewer());
   btnToggleDrawer && (btnToggleDrawer.onclick = () => setDrawerOpen(!drawer?.classList.contains("is-open")));
   drawerBackdrop && drawerBackdrop.addEventListener("click", () => setDrawerOpen(false));
-  window.addEventListener("resize", () => {
-    if (!isCompactViewport()) setDrawerOpen(true);
-    else if (drawerBackdrop) drawerBackdrop.hidden = !drawer?.classList.contains("is-open");
-  });
+  window.addEventListener("resize", () => syncDrawerForViewport());
 
   function setTab(tabName) {
     const showOverview = tabName !== "hydro";
-    infoCard.style.display = showOverview ? "" : "none";
-    toolsCard.style.display = showOverview ? "" : "none";
-    componentsCard.style.display = showOverview ? "" : "none";
-    hydroCard.style.display = showOverview ? "none" : "";
-    btnTabOverview.classList.toggle("active", showOverview);
-    btnTabHydro.classList.toggle("active", !showOverview);
+    if (infoCard) infoCard.style.display = showOverview ? "" : "none";
+    if (toolsCard) toolsCard.style.display = showOverview ? "" : "none";
+    if (componentsCard) componentsCard.style.display = showOverview ? "" : "none";
+    if (hydroCard) hydroCard.style.display = showOverview ? "none" : "";
+    btnTabOverview?.classList.toggle("active", showOverview);
+    btnTabHydro?.classList.toggle("active", !showOverview);
   }
-  btnTabOverview.onclick = () => setTab("overview");
-  btnTabHydro.onclick = () => setTab("hydro");
+  btnTabOverview && (btnTabOverview.onclick = () => setTab("overview"));
+  btnTabHydro && (btnTabHydro.onclick = () => setTab("hydro"));
   setTab("overview");
 
-  btnFusion.onclick = () => window.open("https://myhub.autodesk360.com/", "_blank", "noopener");
+  btnFusion && (btnFusion.onclick = () => window.open("https://myhub.autodesk360.com/", "_blank", "noopener"));
 
-  btnBambu.onclick = () => {
+  btnBambu && (btnBambu.onclick = () => {
     const url = decodedFile;
     const schemeUrl = `bambustudio://open?url=${encodeURIComponent(url)}`;
     const win = window.open(schemeUrl, "_self");
     setTimeout(() => {
       if (!win) window.open("https://bambulab.com/en/download/studio", "_blank", "noopener");
     }, 350);
-  };
+  });
 
-  btnToggleInfo.onclick = () => {
+  btnToggleInfo && (btnToggleInfo.onclick = () => {
+    if (!infoCard) return;
     infoCard.style.display = infoCard.style.display === "none" ? "" : "none";
-  };
-  btnToggleTools.onclick = () => {
+  });
+  btnToggleTools && (btnToggleTools.onclick = () => {
+    if (!toolsCard) return;
     toolsCard.style.display = toolsCard.style.display === "none" ? "" : "none";
-  };
+  });
   inpExplode?.addEventListener("input", () => {
     viewerVisualState.explode = Math.max(0, Math.min(1, Number(inpExplode.value) || 0));
     updateExplodeUi();
@@ -610,10 +635,10 @@
     updateExplodeUi();
     postViewerCommandToViewer("set-explode", { amount: 0 });
   });
-  selMaterial.onchange = () => {
+  selMaterial && (selMaterial.onchange = () => {
     if (selMaterial.value !== "custom") inpRhoMat.value = String(MATERIAL_DENSITY[selMaterial.value] || 7850);
     applyHydroControlsToViewer({ includeDraftPose: false });
-  };
+  });
   [inpRhoMat, inpKgFrac, inpCb, inpThicknessMm].forEach((input) => {
     input?.addEventListener("input", () => buildHydroReport());
   });
@@ -2566,7 +2591,7 @@
   }
 
   componentFilter?.addEventListener("input", renderFilteredComponents);
-  btnHydroCalc.onclick = () => applyHydroControlsToViewer({ includeDraftPose: true });
+  btnHydroCalc && (btnHydroCalc.onclick = () => applyHydroControlsToViewer({ includeDraftPose: true }));
   window.addEventListener("message", (ev) => {
     const data = ev?.data;
     if (!data) return;
@@ -2635,13 +2660,7 @@
     syncFromParentTheme();
     postThemeToViewer();
   }, 1000);
-  setDrawerOpen = function(open) {
-    if (!drawer || !btnToggleDrawer) return;
-    drawer.classList.toggle("is-open", !!open);
-    if (drawerBackdrop) drawerBackdrop.hidden = !(!!open && isCompactViewport());
-    btnToggleDrawer.textContent = open ? "Skjul filbehandler \u2630" : "Vis filbehandler \u2630";
-  };
-  setDrawerOpen(!isCompactViewport());
+  syncDrawerForViewport();
   updateHydroPanels();
   updateExplodeUi();
   run().finally(() => loadIntegratedViewer());

@@ -9,9 +9,9 @@
 
 import * as THREE from "./three.module.js";
 import { STLLoader } from "./STLLoader.js";
-import { ThreeMFLoader } from "./ThreeMFLoader.js?v=20260409j";
-import { FusionArchiveLoader } from "./FusionArchiveLoader.js?v=20260409j";
-import { StepLoader } from "./StepLoader.js?v=20260409i";
+import { ThreeMFLoader } from "./ThreeMFLoader.js?v=20260410a";
+import { FusionArchiveLoader } from "./FusionArchiveLoader.js?v=20260410a";
+import { StepLoader } from "./StepLoader.js?v=20260410a";
 
 const ARRAY_BUFFER_CACHE = new Map();
 

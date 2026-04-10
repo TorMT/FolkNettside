@@ -71,6 +71,9 @@
       white-space:normal;
       text-align:center;
     }
+    body.has-external-sidebar #hud{
+      display:none;
+    }
     body.has-stage-overlay #hud{
       opacity:0;
       pointer-events:none;
@@ -326,6 +329,12 @@
     body.has-stage-overlay #loadingOverlay{
       opacity:1;
       pointer-events:auto;
+    }
+    body.has-external-sidebar #loadingOverlay{
+      align-items:center;
+      padding:24px 16px;
+      background:transparent;
+      backdrop-filter:none;
     }
     body.is-loading #toolbar,
     body.is-loading #hydroDataWrap,
@@ -926,7 +935,6 @@
         componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
         componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
         applyComponentViewState();
-        return;
       }
       if (data.type !== "viewer-command") return;
 
@@ -1423,9 +1431,9 @@
     // --- Imports (MODULER) ---
     import * as THREE from "/includes/three/three.module.js";
 
-    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260409h";
-    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260409j";
-    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260409i";
+    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260410a";
+    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260410a";
+    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260410a";
     import { UIController } from "/includes/three/UIController.js";
     import { ClippingController } from "/includes/three/ClippingController.js";
     import { MeasureController } from "/includes/three/MeasureController.js";
@@ -1811,8 +1819,6 @@
             setHud("3MF lastet, men hydrostatikk feilet.", true);
           }
         })();
-        return;
-        setHud(resolved.placeholder ? "Klar - 3MF-placeholder lastet med hydrostatikk" : "Klar - 3MF lastet med hydrostatikk");
       }catch(err){
         clearTimeout(to);
         let msg = "Feil under lasting av 3MF. ";

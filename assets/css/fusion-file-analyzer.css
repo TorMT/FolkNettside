@@ -25,11 +25,11 @@ html, body {
 
 .fusion-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 400px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) clamp(350px, 22vw, 390px);
+  gap: 14px;
   min-height: 100vh;
-  padding: 18px;
-  max-width: 1680px;
+  padding: 14px;
+  max-width: 1880px;
   margin: 0 auto;
   box-sizing: border-box;
   align-items: start;
@@ -47,8 +47,8 @@ html, body {
 .viewer-shell {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: calc(100vh - 36px);
-  height: calc(100vh - 36px);
+  min-height: calc(100vh - 28px);
+  height: calc(100vh - 28px);
 }
 
 .viewer-topbar {
@@ -56,7 +56,7 @@ html, body {
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .viewer-copy h1,
@@ -97,7 +97,7 @@ h2 {
   height: 100%;
   border-radius: 18px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--ffa-bg-soft) 72%, #000 28%);
+  background: var(--ffa-bg-elevated);
   border: 1px solid var(--ffa-border);
 }
 
@@ -106,7 +106,7 @@ h2 {
   height: 100%;
   min-height: 0;
   border: 0;
-  background: transparent;
+  background: var(--ffa-bg-elevated);
   display: block;
 }
 
@@ -699,7 +699,7 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
 }
 #componentFilter { width: min(420px, 100%); }
 
-@media (max-width: 1180px) {
+@media (max-width: 980px) {
   .fusion-shell {
     grid-template-columns: 1fr;
   }

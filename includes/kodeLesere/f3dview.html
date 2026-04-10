@@ -47,6 +47,9 @@
     body.is-embedded #hud{
       display:none;
     }
+    body.has-external-sidebar #hud{
+      display:none;
+    }
 
     .stage{
       position:fixed;
@@ -137,6 +140,28 @@
 
     .preview-shell iframe{
       height:clamp(360px, 56vh, 700px);
+    }
+
+    body.has-external-sidebar .stage{
+      display:block;
+      background:transparent;
+    }
+    body.has-external-sidebar .preview-shell{
+      width:100%;
+      height:100%;
+      min-height:100%;
+      border:none;
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
+    }
+    body.has-external-sidebar .preview-shell iframe{
+      height:100%;
+      min-height:100%;
+    }
+    body.has-external-sidebar .stage > iframe{
+      width:100%;
+      height:100%;
     }
 
     .buttons{
@@ -252,6 +277,7 @@
     const hostMode = params.get("host") || "";
     const sourceExt = (params.get("sourceExt") || "").toLowerCase();
     const embedded = params.get("embedded") === "1";
+    const useBarePreview = embedded && hostMode === "fusion";
     const stage = document.getElementById("stage");
     const hudText = document.getElementById("hudText");
     const fileName = decodeDisplayText((sourceFile || "").split("/").pop());
@@ -262,6 +288,7 @@
     const jsonCache = new Map();
 
     if (embedded) document.body.classList.add("is-embedded");
+    if (hostMode === "fusion") document.body.classList.add("has-external-sidebar");
 
     function escapeHtml(str) {
       return String(str || "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[ch]));
@@ -409,7 +436,7 @@
         ? "&fallback=1"
         : "";
       const hostFlag = hostMode ? `&host=${encodeURIComponent(hostMode)}` : "";
-      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260409j${fallbackFlag}${hostFlag}`;
+      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260410d${fallbackFlag}${hostFlag}`;
     }
 
     function isBrowserRenderablePreview(url) {
@@ -439,8 +466,6 @@
 
     function renderPreviewViewer(url) {
       hudText.textContent = `Viser 3D-forhåndsvisning for .${sourceExt || "cad"}`;
-      const shell = document.createElement("div");
-      shell.className = "preview-shell";
       const iframe = document.createElement("iframe");
       iframe.title = "CAD preview";
       iframe.src = previewViewerUrl(url);
@@ -449,6 +474,12 @@
         relayViewerCommandToPreview();
       });
       previewFrame = iframe;
+      if (useBarePreview) {
+        stage.replaceChildren(iframe);
+        return;
+      }
+      const shell = document.createElement("div");
+      shell.className = "preview-shell";
       shell.appendChild(iframe);
       stage.replaceChildren(shell);
     }
