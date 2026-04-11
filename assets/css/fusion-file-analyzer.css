@@ -448,6 +448,34 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   border:1px solid rgba(21, 32, 51, 0.08);
   background: rgba(255,255,255,0.88);
 }
+.report-note-card {
+  margin-top:12px;
+  padding:14px;
+  border-radius:16px;
+  border:1px dashed rgba(21, 32, 51, 0.16);
+  background: color-mix(in srgb, var(--ffa-bg-soft) 62%, #ffffff 38%);
+}
+.report-note-card h3 {
+  margin:0 0 8px;
+  font-size:1rem;
+}
+.report-note-card p {
+  margin:0;
+  line-height:1.55;
+}
+.report-note-card p + p {
+  margin-top:8px;
+}
+.report-note-list {
+  margin:10px 0 0 18px;
+  padding:0;
+  display:grid;
+  gap:6px;
+}
+.report-note-list li {
+  line-height:1.5;
+  color:#526178;
+}
 .report-section-head {
   display:flex;
   justify-content:space-between;
@@ -786,6 +814,73 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   gap:8px;
   justify-content:flex-end;
 }
+.comp-row-editor,
+.comp-group-material,
+.comp-family-material {
+  grid-column:1 / -1;
+  display:grid;
+  gap:8px;
+}
+.comp-material-status {
+  font-size:.82rem;
+  color: var(--ffa-muted);
+}
+.comp-material-editor {
+  border:1px solid color-mix(in srgb, var(--ffa-border) 88%, var(--ffa-accent) 12%);
+  border-radius:12px;
+  background: color-mix(in srgb, var(--ffa-bg-soft) 82%, #ffffff 18%);
+  overflow:hidden;
+}
+.comp-material-editor summary {
+  list-style:none;
+  cursor:pointer;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px 12px;
+  padding:10px 12px;
+  font-weight:800;
+}
+.comp-material-editor summary::-webkit-details-marker {
+  display:none;
+}
+.comp-material-summary {
+  font-size:.84rem;
+  font-weight:700;
+  color: var(--ffa-muted);
+}
+.comp-material-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  gap:10px;
+  padding:0 12px 12px;
+}
+.comp-material-field {
+  display:grid;
+  gap:6px;
+}
+.comp-material-field span {
+  font-size:.82rem;
+  font-weight:800;
+  color: var(--ffa-muted);
+}
+.comp-material-field select,
+.comp-material-field input {
+  width:100%;
+}
+.comp-material-field input[disabled] {
+  opacity:.68;
+}
+.comp-material-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:end;
+}
+.comp-material-actions .btn {
+  min-width:110px;
+}
 .comp-toggle.is-active,
 .comp-group-toggle.is-active {
   background: var(--ffa-accent);
@@ -990,6 +1085,9 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   body {
     background:#ffffff;
   }
+  body.printing-hydro-report .fusion-shell {
+    display:none !important;
+  }
   .report-modal {
     position:static;
     inset:auto;
@@ -1011,5 +1109,14 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   .report-sheet {
     border:none;
     box-shadow:none;
+  }
+  #hydroReportComponentsWrap {
+    display:none !important;
+  }
+  .report-chart-card,
+  .report-table-wrap,
+  .report-note-card,
+  .report-summary-card {
+    break-inside: avoid;
   }
 }

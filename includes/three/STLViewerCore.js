@@ -219,6 +219,151 @@ export class STLViewerCore {
     return { box, size, center, maxDim };
   }
 
+  _normalizeExplodeToken(value) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  _tokenizeExplodeLabel(value) {
+    return String(value || "")
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/[_/\\|]+/g, " ")
+      .replace(/[^a-zA-Z0-9.+-]+/g, " ")
+      .toLowerCase()
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean)
+      .filter((token) => !/^(copy|part|delen?|component|mesh|solid|group|gruppe|family|instance|inst|assy|assembly)$/.test(token))
+      .filter((token) => !/^(cw|ccw|lh|rh|port|starboard|left|right|ps|sb|bb|stb)$/.test(token))
+      .filter((token) => !/^\d+$/.test(token));
+  }
+
+  _resolveExplodeFamilyKey(target) {
+    const direct = this._normalizeExplodeToken(target?.userData?.componentFamilyKey);
+    if (direct) return direct;
+    const sources = [
+      target?.userData?.componentName,
+      target?.name,
+      target?.userData?.sourceName,
+      target?.userData?.nodePath,
+    ];
+    for (const source of sources) {
+      const tokens = this._tokenizeExplodeLabel(source);
+      if (tokens.length) return tokens.slice(0, Math.min(6, tokens.length)).join(" ");
+      const normalized = this._normalizeExplodeToken(source);
+      if (normalized) return normalized;
+    }
+    return "component";
+  }
+
+  _createDeterministicDirection(index = 0, total = 1) {
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    const t = (index + 0.5) / Math.max(1, total);
+    const z = 1 - 2 * t;
+    const r = Math.sqrt(Math.max(0, 1 - z * z));
+    return new THREE.Vector3(
+      Math.cos(phi * index) * r,
+      Math.sin(phi * index) * r,
+      z || 0.25
+    ).normalize();
+  }
+
+  _buildOrthogonalVector(direction, index = 0) {
+    const dir = direction?.clone?.().normalize?.() || new THREE.Vector3(1, 0, 0);
+    const up = Math.abs(dir.z) < 0.85 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
+    const tangent = new THREE.Vector3().crossVectors(dir, up).normalize();
+    if (tangent.lengthSq() < 1e-9) {
+      return this._createDeterministicDirection(index + 1, 8);
+    }
+    const bitangent = new THREE.Vector3().crossVectors(dir, tangent).normalize();
+    const angle = ((index % 12) / 12) * Math.PI * 2;
+    return tangent.multiplyScalar(Math.cos(angle)).add(bitangent.multiplyScalar(Math.sin(angle))).normalize();
+  }
+
+  _clusterExplodeEntries(entries = []) {
+    if (!entries.length) return [];
+
+    const families = new Map();
+    entries.forEach((entry) => {
+      const familyKey = entry.familyKey || "component";
+      if (!families.has(familyKey)) families.set(familyKey, []);
+      families.get(familyKey).push(entry);
+    });
+
+    const clusters = [];
+    families.forEach((familyEntries) => {
+      if (familyEntries.length <= 1) {
+        familyEntries.forEach((entry) => {
+          clusters.push({ familyKey: entry.familyKey, entries: [entry], center: entry.centerMesh.clone() });
+        });
+        return;
+      }
+
+      const sizeValues = familyEntries.map((entry) => entry.sizeMax).filter((value) => value > 0).sort((a, b) => a - b);
+      const medianSize = sizeValues.length ? sizeValues[Math.floor(sizeValues.length / 2)] : 0;
+      const nearestDistances = familyEntries
+        .map((entry, index) => {
+          let best = Infinity;
+          for (let i = 0; i < familyEntries.length; i++) {
+            if (i === index) continue;
+            best = Math.min(best, entry.centerMesh.distanceTo(familyEntries[i].centerMesh));
+          }
+          return Number.isFinite(best) ? best : 0;
+        })
+        .filter((value) => value > 0)
+        .sort((a, b) => a - b);
+      const medianNearest = nearestDistances.length ? nearestDistances[Math.floor(nearestDistances.length / 2)] : 0;
+      const familyBox = new THREE.Box3();
+      familyEntries.forEach((entry) => familyBox.expandByPoint(entry.centerMesh));
+      const familySize = familyBox.getSize(new THREE.Vector3());
+      const familyMaxDim = Math.max(familySize.x, familySize.y, familySize.z, 0);
+      const threshold = Math.max(
+        medianSize * 3.2,
+        medianNearest > 0 ? medianNearest * 1.7 : 0,
+        Math.min(familyMaxDim * 0.08, familyMaxDim > 0 ? familyMaxDim * 0.25 : 0),
+        0.06
+      );
+
+      const visited = new Set();
+      for (let i = 0; i < familyEntries.length; i++) {
+        if (visited.has(i)) continue;
+        const queue = [i];
+        visited.add(i);
+        const members = [];
+
+        while (queue.length) {
+          const idx = queue.shift();
+          const current = familyEntries[idx];
+          members.push(current);
+
+          for (let j = 0; j < familyEntries.length; j++) {
+            if (visited.has(j)) continue;
+            const candidate = familyEntries[j];
+            const distance = current.centerMesh.distanceTo(candidate.centerMesh);
+            const pairThreshold = Math.max(
+              threshold,
+              Math.max(current.sizeMax, candidate.sizeMax) * 3.4
+            );
+            if (distance <= pairThreshold) {
+              visited.add(j);
+              queue.push(j);
+            }
+          }
+        }
+
+        const center = members.reduce((acc, member) => acc.add(member.centerMesh), new THREE.Vector3())
+          .divideScalar(Math.max(1, members.length));
+        clusters.push({ familyKey: members[0]?.familyKey || "component", entries: members, center });
+      }
+    });
+
+    return clusters.sort((a, b) => {
+      return b.center.x - a.center.x || b.center.y - a.center.y || b.center.z - a.center.z;
+    });
+  }
+
   _ensureExplodeItems() {
     if (!this.mesh) {
       this._explodeItems = [];
@@ -238,32 +383,73 @@ export class STLViewerCore {
     this._explodeBaseMaxDim = this.computeBoundsWorld(this.mesh).maxDim || 1;
 
     const meshCenterBox = new THREE.Box3();
-    const meshCenters = targets.map((target) => {
+    const entries = targets.map((target) => {
       if (target.geometry?.computeBoundingBox) target.geometry.computeBoundingBox();
-      const localCenter = target.geometry?.boundingBox?.getCenter(new THREE.Vector3()) || new THREE.Vector3();
+      const localBox = target.geometry?.boundingBox || null;
+      const localCenter = localBox?.getCenter(new THREE.Vector3()) || new THREE.Vector3();
       const worldCenter = target.localToWorld(localCenter.clone());
       const meshCenter = this.mesh.worldToLocal(worldCenter.clone());
       meshCenterBox.expandByPoint(meshCenter);
-      return meshCenter;
+      const boxSize = localBox?.getSize(new THREE.Vector3()) || new THREE.Vector3();
+      return {
+        target,
+        basePosition: target.position.clone(),
+        centerMesh: meshCenter,
+        familyKey: this._resolveExplodeFamilyKey(target),
+        sizeMax: Math.max(boxSize.x, boxSize.y, boxSize.z, 0),
+      };
     });
 
     const modelCenter = meshCenterBox.isEmpty()
       ? new THREE.Vector3()
       : meshCenterBox.getCenter(new THREE.Vector3());
+    const clusters = this._clusterExplodeEntries(entries);
+    const maxClusterRadius = Math.max(
+      1e-6,
+      ...clusters.map((cluster) => cluster.center.distanceTo(modelCenter))
+    );
 
-    this._explodeItems = targets.map((target, index) => {
-      const dirMesh = meshCenters[index].clone().sub(modelCenter);
-      if (dirMesh.lengthSq() < 1e-9) {
-        const angle = (index / Math.max(1, targets.length)) * Math.PI * 2;
-        dirMesh.set(Math.cos(angle), Math.sin(angle), ((index % 3) - 1) * 0.24);
+    this._explodeItems = [];
+    clusters.forEach((cluster, clusterIndex) => {
+      let clusterDir = cluster.center.clone().sub(modelCenter);
+      const clusterDistance = clusterDir.length();
+      if (clusterDistance < 1e-9) {
+        clusterDir = this._createDeterministicDirection(clusterIndex, clusters.length);
+      } else {
+        clusterDir.normalize();
       }
-      dirMesh.normalize();
-      return {
-        target,
-        basePosition: target.position.clone(),
-        centerMesh: meshCenters[index].clone(),
-        dirMesh,
-      };
+
+      const localMaxDistance = Math.max(
+        1e-6,
+        ...cluster.entries.map((entry) => entry.centerMesh.distanceTo(cluster.center))
+      );
+
+      cluster.entries.forEach((entry, entryIndex) => {
+        let localDir = entry.centerMesh.clone().sub(cluster.center);
+        const localDistance = localDir.length();
+        if (localDistance < 1e-9) {
+          localDir = this._buildOrthogonalVector(clusterDir, entryIndex);
+        } else {
+          localDir.normalize();
+        }
+
+        const dirMesh = cluster.entries.length > 1
+          ? clusterDir.clone().multiplyScalar(0.9).add(localDir.multiplyScalar(0.38)).normalize()
+          : clusterDir.clone();
+
+        const clusterWeight = 0.8 + 0.42 * Math.min(1, clusterDistance / maxClusterRadius);
+        const localWeight = cluster.entries.length > 1
+          ? 0.1 + 0.18 * Math.min(1, localDistance / localMaxDistance)
+          : 0;
+
+        this._explodeItems.push({
+          target: entry.target,
+          basePosition: entry.basePosition,
+          centerMesh: entry.centerMesh.clone(),
+          dirMesh,
+          radialWeight: Math.min(1.6, clusterWeight + localWeight),
+        });
+      });
     });
 
     return this._explodeItems;
@@ -291,15 +477,17 @@ export class STLViewerCore {
     this.modelGroup.updateMatrixWorld(true);
     this.mesh.updateMatrixWorld(true);
 
-    const spreadDistance = (this._explodeBaseMaxDim || 1) * 0.42 * this._explodeFactor;
+    const spreadMultiplier = 0.78 + Math.min(0.26, items.length * 0.01);
+    const spreadDistance = (this._explodeBaseMaxDim || 1) * spreadMultiplier * this._explodeFactor;
 
     items.forEach((item) => {
       const parent = item.target.parent;
       if (!parent) return;
 
       const fromWorld = this.mesh.localToWorld(item.centerMesh.clone());
+      const itemDistance = spreadDistance * (item.radialWeight || 1);
       const toWorld = this.mesh.localToWorld(
-        item.centerMesh.clone().addScaledVector(item.dirMesh, spreadDistance)
+        item.centerMesh.clone().addScaledVector(item.dirMesh, itemDistance)
       );
 
       const fromParent = parent.worldToLocal(fromWorld.clone());

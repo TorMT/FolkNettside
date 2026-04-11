@@ -90,6 +90,9 @@
   const reportState = {
     payload: null,
     isGenerating: false,
+    cacheKey: "",
+    requestKey: "",
+    detailSignature: "",
   };
   const hydroTaskState = {
     active: false,
@@ -97,10 +100,25 @@
     text: "",
   };
   const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410f";
+  const REPORT_CACHE_VERSION = "20260411f";
+  const REPORT_SESSION_PREFIX = `fusionHydroReport.${REPORT_CACHE_VERSION}`;
   const headResultCache = new Map();
   const jsonResultCache = new Map();
   const arrayBufferResultCache = new Map();
   const MATERIAL_DENSITY = { steel: 7850, aluminum: 2700, pla: 1240, petg: 1270, abs: 1040, nylon: 1150, titanium: 4500, brass: 8500, grfp: 1850, wood: 600 };
+  const MATERIAL_LIBRARY = {
+    steel: { slug: "steel", label: "Stål", density: 7850, supportsInfill: false },
+    aluminum: { slug: "aluminum", label: "Aluminium", density: 2700, supportsInfill: false },
+    titanium: { slug: "titanium", label: "Titan", density: 4500, supportsInfill: false },
+    brass: { slug: "brass", label: "Messing", density: 8500, supportsInfill: false },
+    grfp: { slug: "grfp", label: "GRP", density: 1850, supportsInfill: false },
+    wood: { slug: "wood", label: "Tre", density: 600, supportsInfill: false },
+    pla: { slug: "pla", label: "PLA", density: 1240, supportsInfill: true },
+    petg: { slug: "petg", label: "PETG", density: 1270, supportsInfill: true },
+    abs: { slug: "abs", label: "ABS", density: 1040, supportsInfill: true },
+    nylon: { slug: "nylon", label: "Nylon", density: 1150, supportsInfill: true },
+    custom: { slug: "custom", label: "Custom", density: 1240, supportsInfill: true },
+  };
   const MATERIAL_PROFILES = [
     { slug: "steel", label: "Stål", density: 7850, patterns: [/\bsteel\b/i, /\bstål\b/i, /\bstainless\b/i, /\binox\b/i] },
     { slug: "aluminum", label: "Aluminium", density: 2700, patterns: [/\balum(?:inium|inum)?\b/i, /\balu\b/i] },
@@ -164,12 +182,20 @@
   const hydroReportSummary = document.getElementById("hydroReportSummary");
   const hydroReportCurve = document.getElementById("hydroReportCurve");
   const hydroReportDraftCurve = document.getElementById("hydroReportDraftCurve");
+  const hydroReportSakCurve = document.getElementById("hydroReportSakCurve");
+  const hydroReportAwpCurve = document.getElementById("hydroReportAwpCurve");
   const hydroReportTable = document.getElementById("hydroReportTable");
   const hydroReportComponentsWrap = document.getElementById("hydroReportComponentsWrap");
   const hydroReportComponentsBody = document.getElementById("hydroReportComponentsBody");
   const hydroReportComponentsNote = document.getElementById("hydroReportComponentsNote");
   const hydroCurveCaption = document.getElementById("hydroCurveCaption");
   const hydroDraftCaption = document.getElementById("hydroDraftCaption");
+  const hydroSakCaption = document.getElementById("hydroSakCaption");
+  const hydroAwpCaption = document.getElementById("hydroAwpCaption");
+  const hydroReportPointNote = document.getElementById("hydroReportPointNote");
+  const hydroReportEquilibrium = document.getElementById("hydroReportEquilibrium");
+  const hydroReportEquilibriumNote = document.getElementById("hydroReportEquilibriumNote");
+  const hydroReportMethodNote = document.getElementById("hydroReportMethodNote");
   const hydroReportSheet = document.getElementById("hydroReportSheet");
 
   if (!file) {
@@ -456,7 +482,7 @@
     const lowerExt = String(ext || "").toLowerCase();
     let targetUrl = decodedFile;
     let viewerPath = "/includes/kodeLesere/stlview.html";
-    const cacheBust = "20260410e";
+    const cacheBust = REPORT_CACHE_VERSION;
     const previewCandidate = getActivePreviewCandidate();
     const previewExt = fileExtFromUrl(previewCandidate);
     const isFusionArchiveExt = FUSION_ARCHIVE_EXTS.has(lowerExt);
@@ -698,9 +724,11 @@
   hydroReportModal?.querySelector("[data-close-report='1']")?.addEventListener("click", () => closeHydroReportModal());
   btnHydroReportPrint?.addEventListener("click", () => {
     openHydroReportModal();
-    window.print();
+    document.body.classList.add("printing-hydro-report");
+    requestAnimationFrame(() => window.print());
   });
   btnHydroReportJson?.addEventListener("click", () => downloadHydroReportJson());
+  window.addEventListener("afterprint", () => document.body.classList.remove("printing-hydro-report"));
 
   function addMeta(label, value) {
     const el = document.createElement("div");
@@ -1316,6 +1344,9 @@
       fileName: displayFileName || fileName || "Hydro-modell",
       sourceLabel: "Sidebar-estimat",
       quality: "estimate",
+      units: "m",
+      sourceUnits: analysisState.units || "m",
+      unitNote: "Sidebar-estimat bruker tilgjengelig geometrihint og rapporterer i meter.",
       currentHydro: estimate,
       rollReport: {
         meta: { mode: "roll", draftZWorld: estimate.draftZWorld, qualityUsed: "estimate", includeSAK: false },
@@ -1359,6 +1390,7 @@
         meta: { draftCount: drafts.length, qualityUsed: "estimate", rho: estimate.waterDensity, includeAwp: true, includeSAK: false },
         data: { drafts, volumes, displacements, kbs, awps, saks },
       },
+      equilibriumState: null,
       note: "Kurver og draft-scan er beregnet som teoretisk fallback fra bbox/geometrihint.",
     };
   }
@@ -1538,6 +1570,145 @@
     });
   }
 
+  function drawSakCurveChart(canvas, payload) {
+    const rollReport = payload?.rollReport;
+    const draftScan = payload?.draftScan;
+    const currentHydro = payload?.currentHydro || payload?.hydro || null;
+    const draftData = draftScan?.data || {};
+    const refMinZ = safeNumber(currentHydro?.referenceBounds?.min?.z) || 0;
+    const draftXs = (draftData.drafts || []).map((draft) => Number.isFinite(draft) ? draft - refMinZ : null);
+    const rollSak = Array.isArray(rollReport?.curve?.sak)
+      ? rollReport.curve.sak.some((value) => Number.isFinite(value))
+      : false;
+    drawLineChart(canvas, {
+      title: "SAK / vat flate",
+      xLabel: rollSak ? "Vinkel (deg)" : "Draft fra referanse-bunn (m)",
+      yLabel: "SAK (m^2)",
+      activePoint: {
+        x: rollSak ? (safeNumber(currentHydro?.heelDeg) ?? 0) : getDraftMetersFromHydro(currentHydro),
+        y: rollSak ? safeNumber(rollReport?.now?.sak) : safeNumber(draftData?.saks?.find((value) => Number.isFinite(value))),
+      },
+      series: rollSak ? [
+        {
+          label: "SAK roll",
+          color: "#7c3aed",
+          x: rollReport?.curve?.anglesDeg || [],
+          y: rollReport?.curve?.sak || [],
+        },
+      ] : [
+        {
+          label: "SAK draft",
+          color: "#0891b2",
+          x: draftXs,
+          y: draftData.saks || [],
+        },
+      ],
+    });
+  }
+
+  function drawAwpDraftChart(canvas, payload) {
+    const scan = payload?.draftScan;
+    const data = scan?.data || {};
+    const currentHydro = payload?.currentHydro || payload?.hydro || null;
+    const refMinZ = safeNumber(currentHydro?.referenceBounds?.min?.z) || 0;
+    const draftXs = (data.drafts || []).map((draft) => Number.isFinite(draft) ? draft - refMinZ : null);
+    drawLineChart(canvas, {
+      title: "Vannlinjeareal / draft",
+      xLabel: "Draft fra referanse-bunn (m)",
+      yLabel: "Awp (m^2)",
+      activePoint: {
+        x: getDraftMetersFromHydro(currentHydro),
+        y: safeNumber(currentHydro?.wpArea ?? payload?.rollReport?.now?.wp?.A),
+      },
+      series: [
+        {
+          label: "Awp",
+          color: "#d97706",
+          x: draftXs,
+          y: data.awps || [],
+        },
+      ],
+    });
+  }
+
+  function buildHydroMethodNoteHtml(currentHydro, massSummary, componentMassRows = []) {
+    const massProps = currentHydro?.massProperties || getViewerMassProperties() || null;
+    const kb = safeNumber(currentHydro?.kb);
+    const kg = safeNumber(currentHydro?.kg);
+    const bmRoll = safeNumber(currentHydro?.bm?.roll);
+    const bmPitch = safeNumber(currentHydro?.bm?.pitch);
+    const gmRoll = safeNumber(currentHydro?.gm?.roll);
+    const gmPitch = safeNumber(currentHydro?.gm?.pitch);
+    const totalMassTonnes = safeNumber(currentHydro?.modelMassTonnes ?? massProps?.totalMassTonnes);
+    const totalVolume = safeNumber(massProps?.totalVolumeM3);
+    const perComponentCount = Array.isArray(componentMassRows) ? componentMassRows.length : 0;
+    const directMassCount = Array.isArray(componentMassRows)
+      ? componentMassRows.filter((entry) => entry?.massMode === "direct" && Number.isFinite(entry?.massKg)).length
+      : 0;
+    const densityMode = String(massProps?.densityMode || "unresolved");
+    const usesUniformDensity = densityMode === "uniform";
+    const usesMixedDensity = densityMode === "mixed";
+    const usesPerComponentDensity = densityMode === "per-component";
+    const hasResolvedMass = Number.isFinite(totalMassTonnes) && totalMassTonnes > 0;
+
+    let kgMethodText = "KG kunne ikke bestemmes sikkert fordi massegrunnlaget fortsatt er ufullstendig.";
+    if (hasResolvedMass) {
+      if (directMassCount > 0) {
+        kgMethodText = `KG beregnes som masseveid tyngdepunkt for ${perComponentCount || "modellens"} komponenter. Deler med direkte oppgitt masse bruker den massen direkte, mens volum brukes til a plassere massen i komponentens centroid. Dersom en hel gruppe/familie har felles totalmasse, fordeles den internt proporsjonalt med komponentvolum nar volum finnes, ellers likt per del.`;
+      } else if (usesPerComponentDensity) {
+        kgMethodText = `KG beregnes numerisk fra komponentmeshene: hvert komponentvolum multipliseres med egen tetthet/materialdata, og samlet tyngdepunkt blir det masseveide gjennomsnittet av alle komponentcentroider.`;
+      } else if (usesMixedDensity) {
+        kgMethodText = `KG beregnes numerisk fra komponentmeshene med blandet massegrunnlag: noen komponenter bruker egne materialdata eller manuelle overstyringer, mens resterende deler bruker felles tetthet.`;
+      } else if (usesUniformDensity) {
+        kgMethodText = `KG beregnes numerisk fra komponentmeshene, men alle deler antas a ha samme tetthet. Da blir massefordelingen i praksis styrt av volum og plassering til hver komponent.`;
+      } else {
+        kgMethodText = "KG beregnes fra tilgjengelig komponentgeometri, men deler av massegrunnlaget er fortsatt estimert eller mangler.";
+      }
+    }
+
+    const assumptionItems = [
+      `BM beregnes numerisk fra aktiv vannlinjeflate som BM = Iwp / nabla. For roll brukes vannlinjens andre arealmoment om lengdeaksen, og for pitch brukes momentet om tverraksen.`,
+      `GM rapporteres som smaavinkel-GM rundt aktiv draft/trim/heel: GM_roll = KB + BM_roll - KG og GM_pitch = KB + BM_pitch - KG.`,
+      `KB hentes numerisk fra oppdriftssenteret til det neddykkede volumet, mens KG/GK i rapporten er avstanden fra referanseplanet opp til tyngdepunktet G. Dersom du leser dette som GK er det samme maal som vanligvis skrives KG.`,
+      `Volum, centroid og andre masseegenskaper kommer fra triangulert viewer-geometri importert fra STEP/3MF/STL, ikke fra eksakte NURBS- eller klassegodkjente hydroflater. Resultatene er derfor best egnet som ingeniorestimat og iterasjon.`,
+    ];
+    if (directMassCount > 0) {
+      assumptionItems.push(`Rapporten bruker ${directMassCount} direkte masseoverstyringer. Der bare total masse er kjent for en gruppe, estimeres intern massefordeling fra komponentvolum dersom det finnes, ellers med lik fordeling per del.`);
+    } else if (usesUniformDensity) {
+      assumptionItems.push("Alle komponenter bruker felles tetthet i denne beregningen. Det er raskt og konsistent, men mindre presist hvis modellen faktisk bestar av ulike materialer eller ulik infill.");
+    } else if (usesMixedDensity || usesPerComponentDensity) {
+      assumptionItems.push("Der STEP/Fusion-materialinfo finnes brukes den komponentvis. Resten kan bruke standardprofil, manuell tetthet eller infill-overstyring fra sidebaren.");
+    } else {
+      assumptionItems.push("Nar tetthet eller masse mangler settes rapportverdier til N/A eller behandles som estimat til bedre massegrunnlag er gitt.");
+    }
+
+    const formulaRows = [
+      `KB = ${fmtUnitValue(kb, 3, "m")} fra oppdriftssenteret til det neddykkede volumet.`,
+      `KG/GK = ${fmtUnitValue(kg, 3, "m")} fra modellens massegrunnlag (${massSummary.modeLabel || "N/A"}).`,
+      `BM roll = ${fmtUnitValue(bmRoll, 3, "m")} og BM pitch = ${fmtUnitValue(bmPitch, 3, "m")} fra vannlinjens arealmomenter.`,
+      `GM roll = ${fmtUnitValue(gmRoll, 3, "m")} og GM pitch = ${fmtUnitValue(gmPitch, 3, "m")} etter smaavinkel-formelen over.`,
+    ];
+    if (Number.isFinite(totalMassTonnes) || Number.isFinite(totalVolume)) {
+      formulaRows.push(`Massegrunnlaget bygger pa ${fmtTonnes(totalMassTonnes, 2)} og volum ${fmtUnitValue(totalVolume, 3, "m^3")} fordelt over ${perComponentCount || "modellens"} komponenter.`);
+    }
+
+    return `
+      <h3>Hvordan GM, KG/GK og BM er beregnet</h3>
+      <p class="muted">
+        Hydrostatikken i denne rapporten er hovedsakelig numerisk. Viewer-en skjarer den triangulerte modellen med aktiv vannlinje, finner neddykket volum og vannlinjeflate, og bygger derfra KB, BM, GM og stabilitetskurver.
+      </p>
+      <p class="muted"><strong>KG/GK:</strong> ${escapeHtml(kgMethodText)}</p>
+      <p class="muted"><strong>BM:</strong> BM kommer fra vannlinjens andre arealmoment dividert pa fortrengt volum. Derfor endrer BM seg nar draft, trim eller heel endres.</p>
+      <p class="muted"><strong>GM:</strong> GM er her rapportert som smaavinkelstabilitet rundt aktiv tilstand, ikke som en separat handregnet tabellverdi.</p>
+      <ul class="report-note-list">
+        ${formulaRows.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+      </ul>
+      <ul class="report-note-list">
+        ${assumptionItems.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+      </ul>
+    `;
+  }
+
   function renderHydroReportModal(payload) {
     if (!payload) return;
     const currentHydro = payload.currentHydro || payload.hydro || getViewerHydroData() || analysisState.latestHydroEstimate;
@@ -1547,13 +1718,14 @@
 
     if (hydroReportTitle) hydroReportTitle.textContent = `${payload.fileName || displayFileName || fileName || "Modell"} - hydrostatikk`;
     if (hydroReportMeta) {
-      hydroReportMeta.textContent = `${payload.sourceLabel || "Viewer-data"} | generert ${new Date(payload.generatedAt || Date.now()).toLocaleString("nb-NO")} | kvalitet ${getHydroQualityLabel(payload.quality || payload.rollReport?.meta?.qualityUsed)}`;
+      hydroReportMeta.textContent = `${payload.sourceLabel || "Viewer-data"} | generert ${new Date(payload.generatedAt || Date.now()).toLocaleString("nb-NO")} | kvalitet ${getHydroQualityLabel(payload.quality || payload.rollReport?.meta?.qualityUsed)}${payload.cached ? " | gjenbrukt rapport" : ""}`;
     }
     if (hydroSheetTitle) hydroSheetTitle.textContent = payload.fileName || displayFileName || fileName || "Hydrostatikk-rapport";
     if (hydroSheetSubtitle) hydroSheetSubtitle.textContent = payload.note || "Kurver og sammendrag fra aktiv hydrostatikktilstand.";
     if (hydroSheetSource) hydroSheetSource.textContent = payload.sourceLabel || "Viewer-data";
 
     if (hydroReportSummary) {
+      const eqDraft = payload?.equilibriumState?.draftMeters;
       const cards = [
         { title: "Draft", value: fmtUnitValue(getDraftMetersFromHydro(currentHydro), 3, "m"), note: Number.isFinite(currentHydro?.draftZWorld) ? `World Z ${Number(currentHydro.draftZWorld).toFixed(3)}` : "Ingen world-Z oppgitt" },
         { title: "Deplasement", value: fmtTonnes(currentHydro?.displacementTonnes, 2), note: `Volum ${fmtUnitValue(currentHydro?.submergedVolume, 3, "m^3")}` },
@@ -1561,6 +1733,7 @@
         { title: "GM", value: `Roll ${fmtUnitValue(currentHydro?.gm?.roll, 3, "m")}`, note: `Pitch ${fmtUnitValue(currentHydro?.gm?.pitch, 3, "m")}` },
         { title: "Max GZ", value: `Roll ${fmtUnitValue(rollStability?.maxGZ, 3, "m")}`, note: `Pitch ${fmtUnitValue(pitchStability?.maxGZ, 3, "m")}` },
         { title: "Massegrunnlag", value: massSummary.title, note: massSummary.modeLabel },
+        { title: "Likevektsdraft", value: fmtUnitValue(eqDraft, 3, "m"), note: describeDraftDirection(payload?.equilibriumState?.draftDirection) },
       ];
       hydroReportSummary.innerHTML = cards.map((card) => `
         <article class="report-summary-card">
@@ -1571,12 +1744,15 @@
       `).join("");
     }
 
-    if (hydroCurveCaption) hydroCurveCaption.textContent = `Roll og pitch for gjeldende draft ${fmtUnitValue(getDraftMetersFromHydro(currentHydro), 3, "m")}.`;
-    if (hydroDraftCaption) hydroDraftCaption.textContent = "Deplasement som funksjon av draft fra referansebunn.";
+    if (hydroCurveCaption) hydroCurveCaption.textContent = `Roll og pitch for gjeldende draft ${fmtUnitValue(getDraftMetersFromHydro(currentHydro), 3, "m")}. Mork prikk viser aktiv tilstand.`;
+    if (hydroDraftCaption) hydroDraftCaption.textContent = "Mork prikk viser aktiv draft og deplasement i modellen.";
+    if (hydroSakCaption) hydroSakCaption.textContent = "SAK viser vat flate. Dersom vinkelkurve mangler brukes draftscan.";
+    if (hydroAwpCaption) hydroAwpCaption.textContent = "Bonjean-lignende oversikt over totalt vannlinjeareal mot draft. Dette er ikke en full stasjonsvis Bonjean-tabell, men en rask hydro-oversikt fra aktiv geometri.";
 
     if (hydroReportTable) {
       const rows = [
         ["Geometri-kilde", currentHydro?.source || analysisState.geometrySource || analysisState.source || "Ukjent"],
+        ["Skala / enheter", describeReportScale(payload, currentHydro)],
         ["Vann-tetthet", Number.isFinite(currentHydro?.waterDensity) ? `${Math.round(currentHydro.waterDensity)} kg/m^3` : "–"],
         ["Materialhint", analysisState.materialHint ? describeMaterialHint(analysisState.materialHint) : "Ingen"],
         ["Materialprofil", analysisState.materialHint?.defaultedFromProfile ? "Standardprofil fra materialnavn (kan overstyres)" : analysisState.materialHint ? "Eksplisitt hint eller brukerfelt" : "Manuell / N/A"],
@@ -1613,21 +1789,36 @@
       const hasRows = componentMassRows.length > 0;
       hydroReportComponentsWrap.hidden = !hasRows;
       if (hasRows) {
-        const previewRows = componentMassRows.slice(0, 18);
+        const previewRows = componentMassRows;
+        const materialProfiles = [...new Set(componentMassRows
+          .map((entry) => {
+            const materialLabel = String(entry?.materialLabel || "").trim();
+            const densityLabel = Number.isFinite(entry?.densityKgM3) ? `${Math.round(entry.densityKgM3)} kg/m^3` : "";
+            return materialLabel ? `${materialLabel}${densityLabel ? ` (${densityLabel})` : ""}` : "";
+          })
+          .filter(Boolean))];
         hydroReportComponentsBody.innerHTML = previewRows.map((entry) => `
           <tr>
             <th>${escapeHtml(entry.name || entry.key || "Komponent")}</th>
             <td>${escapeHtml(fmtUnitValue(entry.volumeM3, 4, "m^3"))}</td>
+            <td>${escapeHtml([
+              entry.materialLabel || "N/A",
+              Number.isFinite(entry.infillPercent) && Number(entry.infillPercent) < 100 ? `${Math.round(entry.infillPercent)}% infill` : "",
+            ].filter(Boolean).join(" · "))}</td>
+            <td>${escapeHtml(Number.isFinite(entry.baseDensityKgM3) ? `${Math.round(entry.baseDensityKgM3)} kg/m^3` : "N/A")}</td>
             <td>${escapeHtml(Number.isFinite(entry.densityKgM3) ? `${Math.round(entry.densityKgM3)} kg/m^3` : "N/A")}</td>
-            <td>${escapeHtml(fmtTonnes(entry.massTonnes, 3))}</td>
-            <td>${escapeHtml(describeDensitySource(entry.densitySource))}</td>
+            <td>${escapeHtml(Number.isFinite(entry.massKg) ? `${Number(entry.massKg).toFixed(entry.massKg >= 10 ? 2 : 3)} kg` : "N/A")}</td>
+            <td>${escapeHtml(entry.sourceLabel || describeDensitySource(entry.densitySource))}</td>
           </tr>
         `).join("");
         if (hydroReportComponentsNote) {
           const totalCount = componentMassRows.length;
           const shownCount = previewRows.length;
           const truncationText = totalCount > shownCount ? ` Viser ${shownCount} av ${totalCount} komponenter.` : "";
-          hydroReportComponentsNote.textContent = `${massSummary.detail}${truncationText}`;
+          const profileText = materialProfiles.length
+            ? ` Materialprofiler i rapporten: ${materialProfiles.slice(0, 8).join(", ")}${materialProfiles.length > 8 ? ` +${materialProfiles.length - 8} flere` : ""}.`
+            : "";
+          hydroReportComponentsNote.textContent = `${massSummary.detail}${profileText}${truncationText}`;
         }
       } else {
         hydroReportComponentsBody.innerHTML = "";
@@ -1635,8 +1826,50 @@
       }
     }
 
+    if (hydroReportPointNote) {
+      hydroReportPointNote.innerHTML = `
+        <h3>Hva markerer punktene?</h3>
+        <p class="muted">
+          Morke punkter viser aktiv tilstand i modellen akkurat na.
+          Stabilitetskurven markerer aktiv heel og GZ, mens draftkurvene markerer aktiv draft og deplasement.
+          Resten av linjene er beregnede scenarier fra samme geometri og massegrunnlag.
+        </p>
+      `;
+    }
+
+    if (hydroReportEquilibrium) {
+      const eq = payload?.equilibriumState || {};
+      const eqRows = [
+        ["Masse brukt i estimatet", fmtTonnes(eq.assumedMassTonnes, 2)],
+        ["Likevektsdraft", fmtUnitValue(eq.draftMeters, 3, "m")],
+        ["Likevekts world Z", fmtUnitValue(eq.draftZWorld, 3, "m")],
+        ["Deplasement ved likevekt", fmtTonnes(eq.displacementTonnes, 2)],
+        ["Massefeil ved likevekt", fmtTonnes(eq.errorTonnes, 3)],
+        ["Forskjell mot innsatt draft", fmtUnitValue(eq.deltaDraftMeters, 3, "m")],
+        ["Vurdering", describeDraftDirection(eq.draftDirection)],
+        ["Estimert trim", Number.isFinite(eq.trimDeg) ? fmtUnitValue(eq.trimDeg, 2, "deg") : "N/A"],
+        ["Estimert heel", Number.isFinite(eq.heelDeg) ? fmtUnitValue(eq.heelDeg, 2, "deg") : "N/A"],
+        ["Estimat-notat", eq.note || "N/A"],
+      ];
+      hydroReportEquilibrium.innerHTML = eqRows.map(([label, value]) => `
+        <tr>
+          <th>${escapeHtml(label)}</th>
+          <td>${escapeHtml(value)}</td>
+        </tr>
+      `).join("");
+    }
+    if (hydroReportEquilibriumNote) {
+      hydroReportEquilibriumNote.textContent = payload?.equilibriumState?.note || "N/A - likevektsdraft kunne ikke bestemmes for denne rapporten.";
+    }
+
+    if (hydroReportMethodNote) {
+      hydroReportMethodNote.innerHTML = buildHydroMethodNoteHtml(currentHydro, massSummary, componentMassRows);
+    }
+
     drawHydroCurveChart(hydroReportCurve, payload);
     drawDraftScanChart(hydroReportDraftCurve, payload);
+    drawSakCurveChart(hydroReportSakCurve, payload);
+    drawAwpDraftChart(hydroReportAwpCurve, payload);
     renderHydroTextReport(currentHydro, analysisState.latestHydroEstimate);
   }
 
@@ -1648,6 +1881,47 @@
   function closeHydroReportModal() {
     if (!hydroReportModal) return;
     hydroReportModal.hidden = true;
+  }
+
+  function buildHydroDetailSignature() {
+    return JSON.stringify({
+      v: REPORT_CACHE_VERSION,
+      file: cleanUrlPath(decodedFile),
+      command: collectHydroCommandPayload({ includeDraftPose: true }),
+    });
+  }
+
+  function getHydroReportSessionKey() {
+    return `${REPORT_SESSION_PREFIX}:${cleanUrlPath(decodedFile)}`;
+  }
+
+  function saveHydroReportCache(payload, detailSignature = buildHydroDetailSignature()) {
+    if (!payload) return;
+    reportState.payload = payload;
+    reportState.detailSignature = detailSignature;
+    try {
+      sessionStorage.setItem(getHydroReportSessionKey(), JSON.stringify({
+        detailSignature,
+        payload,
+      }));
+    } catch {}
+  }
+
+  function loadHydroReportCache(detailSignature = buildHydroDetailSignature()) {
+    if (reportState.payload && reportState.detailSignature === detailSignature) {
+      return reportState.payload;
+    }
+    try {
+      const raw = sessionStorage.getItem(getHydroReportSessionKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.detailSignature !== detailSignature || !parsed?.payload) return null;
+      reportState.payload = parsed.payload;
+      reportState.detailSignature = detailSignature;
+      return parsed.payload;
+    } catch {
+      return null;
+    }
   }
 
   function downloadHydroReportJson() {
@@ -1666,6 +1940,7 @@
       waterDensity: clampNumber(inpRhoWater?.value, 900, 1100, 1025),
       materialDensity: clampNumber(inpRhoMat?.value, 100, 50000, 7850),
       quality: selHydroQuality?.value || "low",
+      componentDensityOverrides: buildComponentDensityOverridePayload(),
     };
     if (includeDraftPose) {
       const draftZWorld = safeNumber(inpHydroDraft?.value);
@@ -1676,6 +1951,48 @@
       if (Number.isFinite(heel)) payload.heel = heel;
     }
     return payload;
+  }
+
+  function buildHydroReportRequestKey() {
+    const command = collectHydroCommandPayload({ includeDraftPose: true });
+    const viewerHydro = getViewerHydroData();
+    const viewerMass = getViewerMassProperties();
+    return JSON.stringify({
+      v: REPORT_CACHE_VERSION,
+      file: cleanUrlPath(decodedFile),
+      command,
+      hydro: viewerHydro ? {
+        source: viewerHydro.source || "",
+        draftZWorld: safeNumber(viewerHydro.draftZWorld),
+        trimDeg: safeNumber(viewerHydro.trimDeg),
+        heelDeg: safeNumber(viewerHydro.heelDeg),
+        waterDensity: safeNumber(viewerHydro.waterDensity),
+        units: viewerHydro.units || "m",
+        sourceUnits: viewerHydro.sourceUnits || "",
+      } : null,
+      mass: viewerMass ? {
+        totalMassTonnes: safeNumber(viewerMass.totalMassTonnes),
+        densityKgM3: safeNumber(viewerMass.densityKgM3),
+        componentCount: Number(viewerMass.componentCount) || 0,
+      } : null,
+    });
+  }
+
+  function describeDraftDirection(direction) {
+    if (direction === "down") return "Maa synke dypere enn innsatt draft.";
+    if (direction === "up") return "Maa ligge grunnere enn innsatt draft.";
+    if (direction === "same") return "Ligger omtrent pa innsatt draft.";
+    return "N/A";
+  }
+
+  function describeReportScale(payload, currentHydro) {
+    const viewerUnits = payload?.units || currentHydro?.units || "m";
+    const sourceUnits = payload?.sourceUnits || currentHydro?.sourceUnits || analysisState.units || viewerUnits;
+    const note = payload?.unitNote || currentHydro?.unitNote || "";
+    if (viewerUnits === sourceUnits || !sourceUnits) {
+      return note || `Viewer beregner i ${viewerUnits}.`;
+    }
+    return `${note || ""} Kildeenhet: ${sourceUnits}. Viewer-enhet: ${viewerUnits}.`.trim();
   }
 
   function postHydroVisibilityToViewer() {
@@ -1695,10 +2012,26 @@
   }
 
   function requestHydroReport() {
+    const requestKey = buildHydroReportRequestKey();
+    const detailSignature = buildHydroDetailSignature();
+    const cachedPayload = loadHydroReportCache(detailSignature);
+    if (cachedPayload && reportState.cacheKey === requestKey) {
+      renderHydroReportModal({ ...cachedPayload, cached: true });
+      openHydroReportModal();
+      return;
+    }
+    if (cachedPayload && !reportState.isGenerating) {
+      reportState.cacheKey = requestKey;
+      renderHydroReportModal({ ...cachedPayload, cached: true });
+      openHydroReportModal();
+      return;
+    }
+
     const viewerHydro = getViewerHydroData();
     if (viewerHydro?.supported) {
       reportState.isGenerating = true;
-      setHydroTaskState(true, "Genererer hydro-rapport...", "Kjører draftscan og stabilitetskurver i aktiv viewer.");
+      reportState.requestKey = requestKey;
+      setHydroTaskState(true, "Genererer hydro-rapport...", "Kjører draftscan og stabilitetskurver i aktiv viewer. Spinneren vises mens beregningen deles opp i mindre pass for å holde UI-et responsivt.");
       if (btnHydroReport) {
         btnHydroReport.disabled = true;
         btnHydroReport.textContent = "Genererer rapport...";
@@ -1714,7 +2047,8 @@
     const estimate = analysisState.latestHydroEstimate || buildHydroEstimateFromBbox();
     const payload = buildEstimatedReportPayload(estimate);
     if (!payload) return;
-    reportState.payload = payload;
+    saveHydroReportCache(payload, detailSignature);
+    reportState.cacheKey = requestKey;
     renderHydroReportModal(payload);
     openHydroReportModal();
   }
@@ -1724,12 +2058,13 @@
     const active = snapshot.hydro;
     const massSummary = getMassSourceSummary(active?.massProperties || getViewerMassProperties());
     const geometrySource = active?.source || analysisState.geometrySource || analysisState.source || "Ingen geometri enda";
+    const viewerScaleNote = active?.unitNote || snapshot.hydro?.unitNote || "";
     const liveLabel = snapshot.mode === "viewer" ? "Live hydro fra aktiv viewer." : "Hydro bygger forelopig pa sidebar-estimat.";
     const waterlineLabel = snapshot.mode === "viewer"
       ? `Vannlinje/markorer styres i ${geometrySource}.`
       : "Vannlinje i sidebaren trenger en viewer med hydrostotte for live oppdatering.";
     if (hydroSource) {
-      hydroSource.textContent = `Geometri: ${geometrySource}. Enheter: ${analysisState.units || "m"}. ${liveLabel} ${waterlineLabel}`;
+      hydroSource.textContent = `Geometri: ${geometrySource}. Enheter: ${active?.units || analysisState.units || "m"}. ${viewerScaleNote ? `${viewerScaleNote} ` : ""}${liveLabel} ${waterlineLabel}`;
     }
     if (hydroMaterialHint) {
       const materialText = analysisState.materialHint
@@ -1739,7 +2074,12 @@
     }
   }
 
-  let componentState = { items: [], mode: "cad" };
+  let componentState = { items: [], mode: "cad", source: "metadata" };
+  const componentCatalog = {
+    viewerItems: [],
+    metadataItems: [],
+  };
+  const componentMaterialOverrides = new Map();
 
   function escapeHtml(str) {
     return String(str || "").replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
@@ -1801,6 +2141,9 @@
   }
 
   function describeDensitySource(source) {
+    if (source === "override-item") return "manuell komponentoverstyring";
+    if (source === "override-group") return "manuell gruppeoverstyring";
+    if (source === "override-family") return "manuell familieoverstyring";
     if (source === "component-density") return "eksplisitt komponenttetthet";
     if (source === "component-material-hint") return "komponenthint";
     if (source === "uniform-panel") return "lik tetthet fra hydro-panelet";
@@ -1844,11 +2187,17 @@
       : "";
     const countsLabel = summarizeDensitySourceCounts(massProps.densitySourceCounts);
     const methodLabel = massProps.massMethodLabel || "Komponentmesh kombinert med Steiner/parallellakseteorem";
+    const manualOverrideCount = Object.entries(massProps.densitySourceCounts || {})
+      .filter(([source, count]) => String(source || "").startsWith("override-") && Number(count) > 0)
+      .reduce((sum, [, count]) => sum + Number(count), 0);
+    const manualOverrideText = manualOverrideCount
+      ? ` ${manualOverrideCount} komponenter bruker manuell materiale/infill-overstyring fra sidebaren.`
+      : "";
 
     if (massProps.densityMode === "per-component") {
       return {
         title: "Komponentvis masse",
-        detail: `${componentCount} komponenter bruker egne meshvolumer og individuelle tettheter/materialhint. ${methodLabel}. ${countsLabel}.`,
+        detail: `${componentCount} komponenter bruker egne meshvolumer og individuelle tettheter/materialhint.${manualOverrideText} ${methodLabel}. ${countsLabel}.`,
         modeLabel: "Per komponent",
         countsLabel,
         methodLabel,
@@ -1857,7 +2206,7 @@
     if (massProps.densityMode === "mixed") {
       return {
         title: "Blandet massegrunnlag",
-        detail: `${componentCount} komponenter kombineres fra mesh. Noen bruker egne materialdata, resten bruker felles tetthet ${densityLabel}.${prefillSource}${profileDefaultText} ${methodLabel}. ${countsLabel}.`,
+        detail: `${componentCount} komponenter kombineres fra mesh. Noen bruker egne materialdata eller manuelle overstyringer, resten bruker felles tetthet ${densityLabel}.${prefillSource}${profileDefaultText}${manualOverrideText} ${methodLabel}. ${countsLabel}.`,
         modeLabel: "Blandet",
         countsLabel,
         methodLabel,
@@ -1903,7 +2252,7 @@
     const quality = selHydroQuality?.value || snapshot?.hydro?.quality || "low";
     const componentCount = getHydroComponentCount(snapshot);
     const baseSeconds = kind === "report"
-      ? { low: 25, med: 70, high: 210 }[quality] || 70
+      ? { low: 35, med: 95, high: 260 }[quality] || 95
       : { low: 6, med: 18, high: 45 }[quality] || 18;
     const complexityFactor = componentCount <= 8
       ? 1
@@ -1934,11 +2283,11 @@
     if (reportState.isGenerating) {
       active = true;
       title = "Genererer hydro-rapport...";
-      text = "Kjører draftscan og stabilitetskurver i aktiv viewer.";
+      text = "Kjører draftscan og stabilitetskurver i aktiv viewer. Spinneren vises mens beregningen deles opp i mindre pass for å holde UI-et responsivt.";
     } else if (snapshot.mode === "viewer-pending") {
       active = true;
       title = hydroTaskState.title || "Regner hydrostatikk fra modellen...";
-      text = hydroTaskState.text || "Volum, deplasement og GM oppdateres straks mesh-analysen er ferdig.";
+      text = hydroTaskState.text || "Volum, deplasement og GM oppdateres straks mesh-analysen er ferdig. Spinneren betyr bare at beregningen fortsatt går.";
     } else if (hydroTaskState.active) {
       active = true;
       title = hydroTaskState.title || "Oppdaterer hydrostatikk...";
@@ -2159,6 +2508,313 @@
 
   function normalizeComponentToken(value) {
     return String(value || "").trim().toLowerCase();
+  }
+
+  function getMaterialLibraryEntry(slug) {
+    return MATERIAL_LIBRARY[String(slug || "").trim().toLowerCase()] || MATERIAL_LIBRARY.custom;
+  }
+
+  function clampInfillPercent(value, fallback = 100) {
+    const num = safeNumber(value);
+    if (!Number.isFinite(num)) return fallback;
+    return Math.min(100, Math.max(1, Math.round(num)));
+  }
+
+  function formatMaterialOverrideLabel(entry) {
+    if (!entry) return "Ingen overstyring";
+    const profile = getMaterialLibraryEntry(entry.materialSlug);
+    const baseLabel = entry.materialLabel || profile.label || "Custom";
+    const directMassValue = entry.massKg;
+    const directMassPart = entry.massMode === "direct" && Number.isFinite(directMassValue)
+      ? ` | ${Number(directMassValue).toFixed(directMassValue >= 10 ? 2 : 3)} kg direkte${entry.massDistribution === "volume" ? " (volumfordelt)" : ""}`
+      : "";
+    const infillPart = entry.supportsInfill && Number.isFinite(entry.infillPercent) && Number(entry.infillPercent) < 100
+      ? ` ${Math.round(entry.infillPercent)}% infill`
+      : "";
+    const densityPart = Number.isFinite(entry.densityKgM3)
+      ? ` · ${Math.round(entry.densityKgM3)} kg/m^3`
+      : "";
+    return `${baseLabel}${infillPart}${directMassPart}${densityPart}`;
+  }
+
+  function buildMaterialSelectOptions(selectedSlug = "custom") {
+    return Object.values(MATERIAL_LIBRARY).map((entry) => `
+      <option value="${escapeAttr(entry.slug)}" ${entry.slug === selectedSlug ? "selected" : ""}>${escapeHtml(entry.label)}</option>
+    `).join("");
+  }
+
+  function createMaterialOverrideFromInput({ materialSlug, densityKgM3, infillPercent, scope = "item" } = {}) {
+    const profile = getMaterialLibraryEntry(materialSlug);
+    const baseDensity = clampNumber(densityKgM3, 50, 50000, profile.density);
+    const supportsInfill = profile.supportsInfill !== false;
+    const resolvedInfill = supportsInfill ? clampInfillPercent(infillPercent, 100) : 100;
+    const effectiveDensity = supportsInfill
+      ? Math.max(1, Math.round(baseDensity * (resolvedInfill / 100)))
+      : Math.round(baseDensity);
+    const scopeLabel = scope === "family" ? "familieoverstyring" : scope === "group" ? "gruppeoverstyring" : "komponentoverstyring";
+    return {
+      materialSlug: profile.slug,
+      materialLabel: profile.label,
+      baseDensityKgM3: Math.round(baseDensity),
+      infillPercent: resolvedInfill,
+      supportsInfill,
+      densityKgM3: effectiveDensity,
+      source: `override-${scope}`,
+      sourceLabel: `Manuell ${scopeLabel}`,
+      note: supportsInfill
+        ? `${profile.label} med ${resolvedInfill}% infill, beregnet effektiv tetthet ${effectiveDensity} kg/m^3.`
+        : `${profile.label} med massiv tetthet ${effectiveDensity} kg/m^3.`,
+    };
+  }
+
+  function buildScopedMaterialOverrides(keys, { materialSlug, densityKgM3, infillPercent, directMassKg, scope = "item" } = {}) {
+    const resolvedKeys = [...new Set((keys || []).map((key) => String(key || "").trim()).filter(Boolean))];
+    if (!resolvedKeys.length) return [];
+    const baseOverride = createMaterialOverrideFromInput({ materialSlug, densityKgM3, infillPercent, scope });
+    const directMass = safeNumber(directMassKg);
+    if (!Number.isFinite(directMass) || directMass <= 0) {
+      return resolvedKeys.map((key) => ({
+        key,
+        override: {
+          ...baseOverride,
+          massMode: "density",
+          massKg: null,
+          groupMassKg: null,
+          massDistribution: null,
+        },
+      }));
+    }
+
+    const volumeEntries = resolvedKeys.map((key) => {
+      const massInfo = getMassComponentInfo({ key }) || {};
+      return {
+        key,
+        volumeM3: safeNumber(massInfo.volumeM3),
+      };
+    });
+    const totalVolume = volumeEntries.reduce((sum, entry) => sum + (Number.isFinite(entry.volumeM3) && entry.volumeM3 > 0 ? entry.volumeM3 : 0), 0);
+    const useVolumeDistribution = totalVolume > 1e-9 && volumeEntries.every((entry) => Number.isFinite(entry.volumeM3) && entry.volumeM3 > 0);
+    const perPartFallback = directMass / resolvedKeys.length;
+    const scopeLabel = scope === "family" ? "familie" : scope === "group" ? "gruppe" : "komponent";
+    return volumeEntries.map((entry) => {
+      const allocatedMass = useVolumeDistribution
+        ? directMass * (entry.volumeM3 / totalVolume)
+        : perPartFallback;
+      const derivedDensity = Number.isFinite(entry.volumeM3) && entry.volumeM3 > 1e-9
+        ? allocatedMass / entry.volumeM3
+        : baseOverride.densityKgM3;
+      return {
+        key: entry.key,
+        override: {
+          ...baseOverride,
+          massMode: "direct",
+          massKg: allocatedMass,
+          groupMassKg: directMass,
+          massDistribution: useVolumeDistribution ? "volume" : "equal",
+          densityKgM3: Number.isFinite(derivedDensity) && derivedDensity > 0 ? derivedDensity : baseOverride.densityKgM3,
+          sourceLabel: `Manuell ${scopeLabel} (direkte masse)`,
+          note: scope === "item"
+            ? `${baseOverride.materialLabel} med direkte masse ${allocatedMass.toFixed(allocatedMass >= 10 ? 2 : 3)} kg. Volum brukes til massesenter og treghetsmomenter.`
+            : `${baseOverride.materialLabel} med total masse ${directMass.toFixed(directMass >= 10 ? 2 : 3)} kg fordelt ${useVolumeDistribution ? "etter komponentvolum" : "likt mellom delene"} i ${scopeLabel}.`,
+        },
+      };
+    });
+  }
+
+  function getComponentMaterialOverride(key) {
+    return componentMaterialOverrides.get(normalizeComponentToken(key)) || null;
+  }
+
+  function setComponentMaterialOverride(key, override) {
+    const token = normalizeComponentToken(key);
+    if (!token) return;
+    if (override) componentMaterialOverrides.set(token, override);
+    else componentMaterialOverrides.delete(token);
+  }
+
+  function setComponentMaterialOverrides(keys, override) {
+    (keys || []).forEach((key) => setComponentMaterialOverride(key, override));
+  }
+
+  function buildComponentDensityOverridePayload() {
+    const payload = {};
+    componentMaterialOverrides.forEach((entry, key) => {
+      if (!entry || !Number.isFinite(entry.densityKgM3)) return;
+      payload[key] = {
+        densityKgM3: Number(entry.densityKgM3),
+        materialSlug: entry.materialSlug || "custom",
+        materialLabel: entry.materialLabel || getMaterialLibraryEntry(entry.materialSlug).label,
+        baseDensityKgM3: Number.isFinite(entry.baseDensityKgM3) ? Number(entry.baseDensityKgM3) : Number(entry.densityKgM3),
+        infillPercent: Number.isFinite(entry.infillPercent) ? Number(entry.infillPercent) : 100,
+        supportsInfill: entry.supportsInfill !== false,
+        massMode: entry.massMode || "density",
+        massKg: Number.isFinite(entry.massKg) ? Number(entry.massKg) : null,
+        groupMassKg: Number.isFinite(entry.groupMassKg) ? Number(entry.groupMassKg) : null,
+        massDistribution: entry.massDistribution || null,
+        source: entry.source || "override-item",
+        sourceLabel: entry.sourceLabel || "Manuell overstyring",
+        note: entry.note || "",
+      };
+    });
+    return payload;
+  }
+
+  function getMassComponentInfo(item) {
+    const components = getViewerMassProperties()?.components || [];
+    const aliases = [
+      item?.key,
+      item?.label,
+      item?.subtitle,
+    ].map(normalizeComponentToken).filter(Boolean);
+    for (const entry of components) {
+      const candidateAliases = [
+        entry?.key,
+        entry?.name,
+        entry?.nodePath,
+        entry?.sourceName,
+      ].map(normalizeComponentToken).filter(Boolean);
+      if (candidateAliases.some((alias) => aliases.includes(alias))) return entry;
+    }
+    return null;
+  }
+
+  function getMaterialEditorSnapshot(keys = []) {
+    const normalizedKeys = [...new Set((keys || []).map(normalizeComponentToken).filter(Boolean))];
+    if (!normalizedKeys.length) {
+      const fallbackProfile = getMaterialLibraryEntry(selMaterial?.value || "steel");
+      return {
+        state: "default",
+        override: createMaterialOverrideFromInput({
+          materialSlug: fallbackProfile.slug,
+          densityKgM3: clampNumber(inpRhoMat?.value, 50, 50000, fallbackProfile.density),
+          infillPercent: 100,
+          scope: "item",
+        }),
+      };
+    }
+    const overrides = normalizedKeys.map((key) => getComponentMaterialOverride(key)).filter(Boolean);
+    if (!overrides.length) {
+      const fallbackProfile = getMaterialLibraryEntry(selMaterial?.value || "steel");
+      return {
+        state: "default",
+        override: createMaterialOverrideFromInput({
+          materialSlug: fallbackProfile.slug,
+          densityKgM3: clampNumber(inpRhoMat?.value, 50, 50000, fallbackProfile.density),
+          infillPercent: fallbackProfile.supportsInfill ? 100 : 100,
+          scope: "item",
+        }),
+      };
+    }
+    const signature = JSON.stringify({
+      materialSlug: overrides[0].materialSlug,
+      baseDensityKgM3: overrides[0].baseDensityKgM3,
+      infillPercent: overrides[0].infillPercent,
+      densityKgM3: overrides[0].densityKgM3,
+      supportsInfill: overrides[0].supportsInfill !== false,
+      massMode: overrides[0].massMode || "density",
+      groupMassKg: Number.isFinite(overrides[0].groupMassKg) ? overrides[0].groupMassKg : null,
+      massDistribution: overrides[0].massDistribution || null,
+    });
+    const allSame = overrides.length === normalizedKeys.length && overrides.every((entry) => JSON.stringify({
+      materialSlug: entry.materialSlug,
+      baseDensityKgM3: entry.baseDensityKgM3,
+      infillPercent: entry.infillPercent,
+      densityKgM3: entry.densityKgM3,
+      supportsInfill: entry.supportsInfill !== false,
+      massMode: entry.massMode || "density",
+      groupMassKg: Number.isFinite(entry.groupMassKg) ? entry.groupMassKg : null,
+      massDistribution: entry.massDistribution || null,
+    }) === signature);
+    return {
+      state: allSame ? "uniform" : "mixed",
+      override: overrides[0],
+    };
+  }
+
+  function renderMaterialEditor(scope, token, keys) {
+    const snapshot = getMaterialEditorSnapshot(keys);
+    const override = snapshot.override;
+    const editorToken = escapeAttr(token);
+    const title = scope === "family" ? "Materiale / vekt for familie" : scope === "group" ? "Materiale / vekt for gruppe" : "Materiale / vekt for del";
+    const summaryOverride = snapshot.state === "uniform" && override?.massMode === "direct" && keys.length > 1 && Number.isFinite(override?.groupMassKg)
+      ? { ...override, massKg: override.groupMassKg }
+      : override;
+    const summaryText = snapshot.state === "mixed"
+      ? "Varierende overstyringer i denne samlingen"
+      : snapshot.state === "uniform"
+        ? formatMaterialOverrideLabel(summaryOverride)
+        : "Ingen manuell overstyring. Bruker modellhint eller global tetthet.";
+    return `
+      <details class="comp-material-editor" data-editor-scope="${escapeAttr(scope)}" data-editor-token="${editorToken}">
+        <summary>${escapeHtml(title)}<span class="comp-material-summary">${escapeHtml(summaryText)}</span></summary>
+        <div class="comp-material-grid">
+          <label class="comp-material-field">
+            <span>Materiale</span>
+            <select data-material-select="1">
+              ${buildMaterialSelectOptions(override?.materialSlug || "custom")}
+            </select>
+          </label>
+          <label class="comp-material-field">
+            <span>Basis-tetthet</span>
+            <input data-density-input="1" type="number" min="50" max="50000" step="1" value="${escapeAttr(String(Math.round(override?.baseDensityKgM3 || override?.densityKgM3 || clampNumber(inpRhoMat?.value, 50, 50000, 7850) || 7850)))}">
+          </label>
+          <label class="comp-material-field">
+            <span>Infill %</span>
+            <input data-infill-input="1" type="number" min="1" max="100" step="1" value="${escapeAttr(String(clampInfillPercent(override?.infillPercent, 100)))}" ${override?.supportsInfill === false ? "disabled" : ""}>
+          </label>
+          <label class="comp-material-field">
+            <span>Direkte vekt (kg, valgfri)</span>
+            <input data-mass-input="1" type="number" min="0" max="50000" step="0.01" placeholder="Tom = bruk tetthet/infill" value="${escapeAttr(Number.isFinite(override?.groupMassKg) ? String(override.groupMassKg) : Number.isFinite(override?.massKg) && override?.massMode === "direct" ? String(override.massKg) : "")}">
+          </label>
+          <div class="comp-material-actions">
+            <button class="btn" data-apply-material="${editorToken}" data-apply-scope="${escapeAttr(scope)}" type="button">Bruk</button>
+            <button class="btn" data-clear-material="${editorToken}" data-clear-scope="${escapeAttr(scope)}" type="button">Nullstill</button>
+          </div>
+        </div>
+      </details>
+    `;
+  }
+
+  function mergeComponentText(left, right) {
+    const a = String(left || "").trim();
+    const b = String(right || "").trim();
+    if (!a) return b;
+    if (!b) return a;
+    return normalizeComponentToken(a) === normalizeComponentToken(b) ? a : `${a} | ${b}`;
+  }
+
+  function findMetadataMatchForViewerItem(item, metadataItems = []) {
+    const wantedKey = normalizeComponentToken(item?.key);
+    const wantedLabel = normalizeComponentToken(item?.label);
+    const wantedFamily = buildFamilySignature(item?.label);
+    return metadataItems.find((candidate) => {
+      const candidateKey = normalizeComponentToken(candidate?.key);
+      const candidateLabel = normalizeComponentToken(candidate?.label);
+      if (wantedKey && candidateKey === wantedKey) return true;
+      if (wantedLabel && candidateLabel === wantedLabel) return true;
+      return wantedFamily && buildFamilySignature(candidate?.label) === wantedFamily;
+    }) || null;
+  }
+
+  function buildEffectiveComponentItems() {
+    if (!componentCatalog.viewerItems.length) return componentCatalog.metadataItems.slice();
+    return componentCatalog.viewerItems.map((item) => {
+      const meta = findMetadataMatchForViewerItem(item, componentCatalog.metadataItems);
+      if (!meta) return item;
+      const subtitle = mergeComponentText(item.subtitle, meta.subtitle);
+      const description = item.description || meta.description || "";
+      return {
+        ...item,
+        subtitle,
+        description,
+        search: [
+          item.search,
+          meta.search,
+          subtitle,
+          description,
+        ].filter(Boolean).join(" ").toLowerCase(),
+      };
+    });
   }
 
   function normalizeFamilyToken(value) {
@@ -2407,6 +3063,47 @@
     return "Vises";
   }
 
+  function getMaterialStatusTextForKeys(keys = [], fallbackItem = null) {
+    const snapshot = getMaterialEditorSnapshot(keys);
+    if (snapshot.state === "uniform") {
+      const override = snapshot.override;
+      const labelOverride = override?.massMode === "direct" && keys.length > 1 && Number.isFinite(override?.groupMassKg)
+        ? { ...override, massKg: override.groupMassKg }
+        : override;
+      return override?.sourceLabel
+        ? `${formatMaterialOverrideLabel(override)} · ${override.sourceLabel}`
+        : formatMaterialOverrideLabel(labelOverride);
+    }
+    if (snapshot.state === "mixed") {
+      return "Varierende materiale/infill-overstyringer";
+    }
+    const massInfo = fallbackItem ? getMassComponentInfo(fallbackItem) : null;
+    if (massInfo?.materialLabel) {
+      const infillPart = Number.isFinite(massInfo.infillPercent) && Number(massInfo.infillPercent) < 100
+        ? ` ${Math.round(massInfo.infillPercent)}% infill`
+        : "";
+      const directMassValue = keys.length > 1 && Number.isFinite(massInfo.groupMassKg) ? massInfo.groupMassKg : massInfo.massKg;
+      const directMassPart = massInfo.massMode === "direct" && Number.isFinite(directMassValue)
+        ? ` · ${Number(directMassValue).toFixed(directMassValue >= 10 ? 2 : 3)} kg direkte`
+        : "";
+      const densityPart = Number.isFinite(massInfo.densityKgM3) ? ` · ${Math.round(massInfo.densityKgM3)} kg/m^3` : "";
+      return `${massInfo.materialLabel}${infillPart}${directMassPart}${densityPart} · ${describeDensitySource(massInfo.densitySource)}`;
+    }
+    return "Bruker modellhint eller felles tetthet";
+  }
+
+  function getCollectionMaterialStatusText(keys = []) {
+    const snapshot = getMaterialEditorSnapshot(keys);
+    if (snapshot.state !== "uniform") return getMaterialStatusTextForKeys(keys);
+    const override = snapshot.override;
+    const labelOverride = override?.massMode === "direct" && Number.isFinite(override?.groupMassKg)
+      ? { ...override, massKg: override.groupMassKg }
+      : override;
+    return override?.sourceLabel
+      ? `${formatMaterialOverrideLabel(labelOverride)} · ${override.sourceLabel}`
+      : formatMaterialOverrideLabel(labelOverride);
+  }
+
   function setChosenForKeys(keys, shouldChoose) {
     (keys || []).forEach((key) => {
       if (!key) return;
@@ -2486,17 +3183,22 @@
 
   function renderComponentRow(item) {
     const state = getComponentState(item);
+    const materialStatus = getMaterialStatusTextForKeys([item.key], item);
     return `
       <li class="comp-row" data-state="${state}">
         <button data-comp="${escapeAttr(item.key)}" class="btn comp-main" type="button">
           <span class="comp-title">${escapeHtml(item.label)}</span>
           ${item.subtitle ? `<span class="comp-sub">${escapeHtml(item.subtitle)}</span>` : ""}
           ${item.description ? `<span class="comp-sub">${escapeHtml(item.description)}</span>` : ""}
+          <span class="comp-sub comp-material-status">${escapeHtml(materialStatus)}</span>
         </button>
         <span class="comp-state comp-state-${state}">${state === "chosen" ? "Valgt" : state === "muted" ? "Dempet" : "Vises"}</span>
         <div class="comp-actions">
           <button class="btn comp-toggle ${chosenSet.has(item.key) ? "is-active" : ""}" data-choose="${escapeAttr(item.key)}" type="button">${chosenSet.has(item.key) ? "Valgt" : "Velg"}</button>
           <button class="btn comp-toggle ${mutedSet.has(item.key) ? "is-muted" : ""}" data-mute="${escapeAttr(item.key)}" type="button">${mutedSet.has(item.key) ? "Vis" : "Demp"}</button>
+        </div>
+        <div class="comp-row-editor">
+          ${renderMaterialEditor("item", item.key, [item.key])}
         </div>
       </li>
     `;
@@ -2508,6 +3210,7 @@
     const mutedCount = keys.filter((key) => mutedSet.has(key)).length;
     const visibleCount = group.items.length - mutedCount;
     const groupState = getGroupState(keys);
+    const materialStatus = getCollectionMaterialStatusText(keys);
     const allChosen = chosenCount === group.items.length && group.items.length > 0;
     const allMuted = mutedCount === group.items.length && group.items.length > 0;
     const isExpanded = isGroupExpanded(group, filter);
@@ -2557,6 +3260,10 @@
             </div>
           </div>
         </div>
+        <div class="comp-group-material">
+          <span class="comp-sub comp-material-status">${escapeHtml(materialStatus)}</span>
+          ${renderMaterialEditor("group", group.key, keys)}
+        </div>
         ${isExpanded
           ? `<ul class="comp-group-list">${groupItems}</ul>`
           : `<div class="comp-group-collapsed-note">${group.items.length} detaljdeler er skjult. Åpne gruppen for å se enkeltdelene.</div>`}
@@ -2570,6 +3277,7 @@
     const mutedCount = keys.filter((key) => mutedSet.has(key)).length;
     const visibleCount = family.items.length - mutedCount;
     const familyState = getGroupState(keys);
+    const materialStatus = getCollectionMaterialStatusText(keys);
     const allChosen = chosenCount === family.items.length && family.items.length > 0;
     const allMuted = mutedCount === family.items.length && family.items.length > 0;
     const isExpanded = isGroupExpanded(family, filter);
@@ -2624,6 +3332,10 @@
             </div>
           </div>
         </div>
+        <div class="comp-family-material">
+          <span class="comp-sub comp-material-status">${escapeHtml(materialStatus)}</span>
+          ${renderMaterialEditor("family", family.key, keys)}
+        </div>
         ${isExpanded
           ? `<div class="comp-family-body">${body}</div>`
           : `<div class="comp-group-collapsed-note">${family.items.length} deler er skjult i familien. Åpne familien for å se undergrupper og enkeltdeler.</div>`}
@@ -2658,10 +3370,17 @@
       });
   }
 
-  function renderComponentList(items, mode) {
+  function renderComponentList(items, mode, { source = "metadata" } = {}) {
+    const normalizedItems = (items || []).slice(0, 200).map((item, idx) => normalizeComponentItem(item, idx));
+    if (source === "viewer") {
+      componentCatalog.viewerItems = normalizedItems;
+    } else {
+      componentCatalog.metadataItems = normalizedItems;
+    }
     componentState = {
-      items: (items || []).slice(0, 200).map((item, idx) => normalizeComponentItem(item, idx)),
-      mode
+      items: buildEffectiveComponentItems(),
+      mode: componentCatalog.viewerItems.length ? "mesh" : mode,
+      source,
     };
     syncSelectionSetToCurrentItems(chosenSet);
     syncSelectionSetToCurrentItems(mutedSet);
@@ -2683,6 +3402,16 @@
       groupLookup.set(family.key, family);
       family.groups.forEach((group) => groupLookup.set(group.key, group));
     });
+
+    function resolveMaterialEditorKeys(scope, token) {
+      if (!token) return [];
+      if (scope === "item") return [token];
+      const group = groupLookup.get(token);
+      if (group?.items?.length) return group.items.map((item) => item.key).filter(Boolean);
+      return componentState.items
+        .filter((item) => item.key === token)
+        .map((item) => item.key);
+    }
 
     components.innerHTML = `
       <div class="muted muted-box" style="margin-bottom:8px;">
@@ -2743,6 +3472,62 @@
         const keys = group.items.map((item) => item.key);
         const allMuted = keys.length > 0 && keys.every((key) => mutedSet.has(key));
         setMutedForKeys(keys, !allMuted);
+        renderFilteredComponents();
+      });
+    });
+    components.querySelectorAll("select[data-material-select]").forEach((select) => {
+      select.addEventListener("change", () => {
+        const editor = select.closest(".comp-material-editor");
+        if (!editor) return;
+        const densityInput = editor.querySelector("input[data-density-input]");
+        const infillInput = editor.querySelector("input[data-infill-input]");
+        const profile = getMaterialLibraryEntry(select.value);
+        if (densityInput) densityInput.value = String(Math.round(profile.density || 7850));
+        if (infillInput) {
+          const supportsInfill = profile.supportsInfill !== false;
+          infillInput.disabled = !supportsInfill;
+          infillInput.value = supportsInfill ? String(clampInfillPercent(infillInput.value, 100)) : "100";
+        }
+      });
+    });
+    components.querySelectorAll("button[data-apply-material]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const editor = btn.closest(".comp-material-editor");
+        if (!editor) return;
+        const scope = editor.getAttribute("data-editor-scope") || btn.getAttribute("data-apply-scope") || "item";
+        const token = editor.getAttribute("data-editor-token") || btn.getAttribute("data-apply-material") || "";
+        const keys = resolveMaterialEditorKeys(scope, token);
+        if (!keys.length) return;
+        const materialSlug = editor.querySelector("select[data-material-select]")?.value || "custom";
+        const densityValue = editor.querySelector("input[data-density-input]")?.value;
+        const infillValue = editor.querySelector("input[data-infill-input]")?.value;
+        const massValue = editor.querySelector("input[data-mass-input]")?.value;
+        const overrides = buildScopedMaterialOverrides(keys, {
+          materialSlug,
+          densityKgM3: densityValue,
+          infillPercent: infillValue,
+          directMassKg: massValue,
+          scope,
+        });
+        overrides.forEach(({ key, override }) => setComponentMaterialOverride(key, override));
+        reportState.payload = null;
+        reportState.detailSignature = "";
+        applyHydroControlsToViewer({ includeDraftPose: false, silentEstimate: true });
+        renderFilteredComponents();
+      });
+    });
+    components.querySelectorAll("button[data-clear-material]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const editor = btn.closest(".comp-material-editor");
+        if (!editor) return;
+        const scope = editor.getAttribute("data-editor-scope") || btn.getAttribute("data-clear-scope") || "item";
+        const token = editor.getAttribute("data-editor-token") || btn.getAttribute("data-clear-material") || "";
+        const keys = resolveMaterialEditorKeys(scope, token);
+        if (!keys.length) return;
+        setComponentMaterialOverrides(keys, null);
+        reportState.payload = null;
+        reportState.detailSignature = "";
+        applyHydroControlsToViewer({ includeDraftPose: false, silentEstimate: true });
         renderFilteredComponents();
       });
     });
@@ -2979,6 +3764,9 @@
         applyMaterialHint(step.materialHint, "STEP-fil");
         items.push(`<li>Materialhint: ${escapeHtml(describeMaterialHint(step.materialHint))}</li>`);
       }
+      if (step.lengthUnit) {
+        items.push(`<li>Skalahint fra STEP: ${escapeHtml(step.lengthUnit)} (viewer regner videre i meter).</li>`);
+      }
       renderComponentList(step.productNames, "cad");
     } else if (ext === "iges" || ext === "igs") {
       const iges = parseIges(decodeText(ab));
@@ -3027,7 +3815,10 @@
       if (stepHint?.materialHint) {
         items.push(`<li>Materialhint fra STEP-kandidat: ${escapeHtml(describeMaterialHint(stepHint.materialHint))}</li>`);
       }
-      if (stepHint?.lengthUnit && !["mm", "cm", "dm"].includes(analysisState.units)) {
+      if (stepHint?.lengthUnit) {
+        items.push(`<li>Skalahint fra STEP-kandidat: ${escapeHtml(stepHint.lengthUnit)} (viewer regner videre i meter).</li>`);
+      }
+      if (stepHint?.lengthUnit && !analysisState.viewerAnalysis && !analysisState.latestViewerHydro) {
         analysisState.units = stepHint.lengthUnit;
       }
     }
@@ -3090,7 +3881,7 @@
     if (data.type === "viewer-components") {
       const items = Array.isArray(data.items) ? data.items.filter(Boolean) : [];
       if (!items.length) return;
-      renderComponentList(items, data.mode || "mesh");
+      renderComponentList(items, data.mode || "mesh", { source: "viewer" });
       return;
     }
     if (data.type === "viewer-analysis" && data.payload) {
@@ -3124,7 +3915,9 @@
     if (data.type === "viewer-hydro-report" && data.payload) {
       reportState.isGenerating = false;
       setHydroTaskState(false);
-      reportState.payload = data.payload;
+      saveHydroReportCache(data.payload, buildHydroDetailSignature());
+      reportState.cacheKey = data.payload.reportCacheKey || reportState.requestKey || buildHydroReportRequestKey();
+      reportState.requestKey = "";
       analysisState.latestViewerReport = data.payload;
       analysisState.latestViewerMassProperties = data.payload.currentHydro?.massProperties || analysisState.latestViewerMassProperties;
       if (data.payload.currentHydro?.supported) {

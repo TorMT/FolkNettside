@@ -126,14 +126,20 @@ try {
                 $consecutiveFailures++
                 $message = $_.Exception.Message
                 Write-Log ("HOPPER OVER: " + $label + " :: " + $message)
-                if ($message -match "HTTP 429|Rate limit|free-models-per-day") {
+                $hardRateLimit = (
+                    $message -match "free-models-per-day" -or
+                    $message -match "free-models-per-min" -or
+                    $message -match "X-RateLimit-Remaining.:.0" -or
+                    $message -match "Rate limit exceeded"
+                )
+                if ($hardRateLimit) {
                     Write-Log "Stopper videre kjoring pa grunn av rate limit."
                     $stopRequested = $true
                     $stoppedByRateLimit = $true
                     break
                 }
-                if ($consecutiveFailures -ge 3) {
-                    Write-Log "Stopper videre kjoring etter 3 feil pa rad."
+                if ($consecutiveFailures -ge 6) {
+                    Write-Log "Stopper videre kjoring etter 6 feil pa rad."
                     $stopRequested = $true
                     break
                 }

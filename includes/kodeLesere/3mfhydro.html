@@ -549,6 +549,21 @@
       return String(value || "").trim().toLowerCase();
     }
 
+    function buildComponentAliasList(...values) {
+      return [...new Set(values
+        .flat()
+        .map((value) => normalizeComponentName(value))
+        .filter(Boolean))];
+    }
+
+    function componentMatchesState(item, tokenSet) {
+      if (!item || !tokenSet?.size) return false;
+      const aliases = Array.isArray(item.aliases) && item.aliases.length
+        ? item.aliases
+        : buildComponentAliasList(item.key, item.label, item.nodePath, item.sourceName);
+      return aliases.some((alias) => tokenSet.has(alias));
+    }
+
     function roundComponentNumber(value, digits = 4) {
       const n = Number(value);
       if (!Number.isFinite(n)) return null;
@@ -601,6 +616,12 @@
           brepFaces: Number(child.userData?.brepFaces) || 0,
           center: spatial?.center || null,
           size: spatial?.size || null,
+          aliases: buildComponentAliasList(
+            child.userData?.componentKey,
+            label,
+            child.userData?.nodePath,
+            child.userData?.sourceName
+          ),
         });
       });
       return items;
@@ -693,8 +714,18 @@
           nodePath: entry?.nodePath || "",
           sourceName: entry?.sourceName || "",
           volumeM3: roundComponentNumber(entry?.volumeM3, 6),
+          baseDensityKgM3: roundComponentNumber(entry?.baseDensityKgM3, 3),
           densityKgM3: roundComponentNumber(entry?.densityKgM3, 3),
           densitySource: entry?.densitySource || "",
+          sourceLabel: entry?.sourceLabel || "",
+          materialSlug: entry?.materialSlug || "",
+          materialLabel: entry?.materialLabel || "",
+          infillPercent: roundComponentNumber(entry?.infillPercent, 3),
+          supportsInfill: entry?.supportsInfill !== false,
+          massMode: entry?.massMode || "",
+          groupMassKg: roundComponentNumber(entry?.groupMassKg, 6),
+          massDistribution: entry?.massDistribution || "",
+          note: entry?.note || "",
           massKg: roundComponentNumber(entry?.massKg, 6),
           massTonnes: roundComponentNumber(entry?.massTonnes, 6),
           centroidLocal: serializeVector(entry?.centroidLocal),
@@ -706,6 +737,7 @@
       if (!hydro?.mesh) return { supported: false };
       const last = hydro.getLastResults?.() || hydro.lastHydro || {};
       const ref = hydro.getReferenceBoundsNoHydroRot?.() || null;
+      const unitMeta = getViewerUnitMeta();
       const hasHydroSolution = Number.isFinite(last.subV);
       const massProps = serializeMassProperties(hydro.getMassProperties?.());
       const modelMassTonnes = Number.isFinite(massProps?.totalMassTonnes) ? massProps.totalMassTonnes : null;
@@ -729,6 +761,9 @@
         trimDeg: roundComponentNumber(hydro.trimDeg, 3),
         heelDeg: roundComponentNumber(hydro.heelDeg, 3),
         waterDensity: roundComponentNumber(hydro.waterDensity, 3),
+        units: unitMeta.units,
+        sourceUnits: unitMeta.sourceUnits,
+        unitNote: unitMeta.unitNote,
         quality: hydro.quality || hydro.userQuality || "low",
         visibility: {
           waterline: hydro.wlVisible !== false,
@@ -771,6 +806,7 @@
         if (!window.parent || window.parent === window || !root) return;
         const bounds = core.computeBoundsWorld(core.modelGroup);
         const box = bounds?.box;
+        const unitMeta = getViewerUnitMeta();
         if (!box) return;
         window.parent.postMessage({
           type: "viewer-analysis",
@@ -787,7 +823,9 @@
             centroidLocal: summary.centroidLocal
               ? { x: summary.centroidLocal.x, y: summary.centroidLocal.y, z: summary.centroidLocal.z }
               : serializeVector(root.userData?.centroidLocal),
-            units: "m",
+            units: unitMeta.units,
+            sourceUnits: unitMeta.sourceUnits,
+            unitNote: unitMeta.unitNote,
             source: "3MF viewer",
             materialHint: root.userData?.modelMeta?.materialHint || null,
             materialHintSource: root.userData?.modelMeta?.materialHint ? "3MF-modell" : "",
@@ -806,39 +844,92 @@
 
     async function buildHydroReportPayload(options = {}) {
       if (!hydro?.mesh) return null;
-      const quality = options.quality || "low";
-      const preset = getHydroQualityPreset(quality);
-      const rollReport = await hydro.generateHydroReport({
-        mode: "roll",
-        maxDeg: 60,
-        stepDeg: preset.stepDeg,
-        quality,
-        includeSAK: quality === "high",
+      if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
+      if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
+      hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
+      const quality = options.quality || hydro.quality || "low";
+      if (quality) hydro.setQuality(String(quality));
+      if (Number.isFinite(Number(options.draftZWorld))) {
+        hydro.draftZWorld = Number(options.draftZWorld);
+        hydro.updateWaterPlane();
+        hydro._invalidateCache?.();
+      }
+      if (Number.isFinite(Number(options.trim))) hydro.setTrim(Number(options.trim));
+      if (Number.isFinite(Number(options.heel))) hydro.setHeel(Number(options.heel));
+
+      await withHydroGeometryState(async () => {
+        await hydro.recompute();
       });
-      const pitchReport = await hydro.generateHydroReport({
-        mode: "pitch",
-        maxDeg: 40,
-        stepDeg: preset.stepDeg,
-        quality,
-        includeSAK: false,
+
+      const cacheKey = buildHydroReportCacheKey({ quality });
+      if (hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
+        return {
+          ...hydroReportCachePayload,
+          cached: true,
+          reportCacheKey: cacheKey,
+        };
+      }
+      if (hydroReportCachePromise && hydroReportCacheKey === cacheKey) {
+        return hydroReportCachePromise;
+      }
+
+      hydroReportCacheKey = cacheKey;
+      hydroReportCachePromise = withHydroGeometryState(async () => {
+        const preset = getHydroQualityPreset(quality);
+        const rollReport = await hydro.generateHydroReport({
+          mode: "roll",
+          maxDeg: 60,
+          stepDeg: preset.stepDeg,
+          quality,
+          includeSAK: true,
+        });
+        const pitchReport = await hydro.generateHydroReport({
+          mode: "pitch",
+          maxDeg: 40,
+          stepDeg: preset.stepDeg,
+          quality,
+          includeSAK: false,
+        });
+        const draftScan = await hydro.generateDraftScan({
+          draftCount: preset.draftCount,
+          quality,
+          includeAwp: true,
+          includeSAK: true,
+        });
+        const equilibriumState = await hydro.estimateEquilibriumState({
+          solveTrimHeel: true,
+          toleranceTonnes: 0.02,
+          maxIterations: 26,
+          maxHeelDeg: 14,
+          maxTrimDeg: 10,
+        });
+        const unitMeta = getViewerUnitMeta();
+        const payload = {
+          generatedAt: new Date().toISOString(),
+          fileName: decodeURIComponent((normalizeViewerUrl(modelUrl).split("/").pop() || "Hydro-modell")),
+          sourceLabel: "3MF viewer",
+          quality,
+          units: unitMeta.units,
+          sourceUnits: unitMeta.sourceUnits,
+          unitNote: unitMeta.unitNote,
+          currentHydro: buildHydroPayload(),
+          rollReport,
+          pitchReport,
+          draftScan,
+          equilibriumState,
+          reportCacheKey: cacheKey,
+          cached: false,
+          note: "Kurvene er generert fra aktiv 3MF-geometri. Hydro og rapport bruker full, ueksplodert og udempet geometri i bakgrunnen.",
+        };
+        hydroReportCachePayload = payload;
+        return payload;
       });
-      const draftScan = await hydro.generateDraftScan({
-        draftCount: preset.draftCount,
-        quality,
-        includeAwp: true,
-        includeSAK: quality === "high",
-      });
-      return {
-        generatedAt: new Date().toISOString(),
-        fileName: decodeURIComponent((normalizeViewerUrl(modelUrl).split("/").pop() || "Hydro-modell")),
-        sourceLabel: "3MF viewer",
-        quality,
-        currentHydro: buildHydroPayload(),
-        rollReport,
-        pitchReport,
-        draftScan,
-        note: "Kurvene er generert fra aktiv 3MF-geometri og vannlinje.",
-      };
+
+      try {
+        return await hydroReportCachePromise;
+      } finally {
+        hydroReportCachePromise = null;
+      }
     }
 
     function syncExplodeUiFromCore() {
@@ -900,18 +991,96 @@
       muted: new Set(),
     };
     let pendingExplodeAmount = 0;
+    const HYDRO_REPORT_CACHE_VERSION = "20260411c";
+    let hydroReportCacheKey = "";
+    let hydroReportCachePayload = null;
+    let hydroReportCachePromise = null;
+
+    function invalidateHydroReportCache() {
+      hydroReportCacheKey = "";
+      hydroReportCachePayload = null;
+    }
+
+    function getViewerUnitMeta() {
+      const meta = core?.mesh?.userData?.modelMeta || {};
+      return {
+        units: "m",
+        sourceUnits: meta.sourceLengthUnit || meta.lengthUnit || "m",
+        unitNote: meta.unitNote || "Viewer beregner videre i meter.",
+      };
+    }
+
+    function roundCacheNumber(value, digits = 6) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return null;
+      return Number(num.toFixed(digits));
+    }
+
+    function buildHydroReportCacheKey(options = {}) {
+      const massProps = hydro?.getMassProperties?.() || null;
+      const ref = hydro?.getReferenceBoundsNoHydroRot?.() || null;
+      const unitMeta = getViewerUnitMeta();
+      return JSON.stringify({
+        v: HYDRO_REPORT_CACHE_VERSION,
+        file: normalizeViewerUrl(modelUrl),
+        modelKind: "3MF",
+        quality: String(options.quality || hydro?.quality || "low"),
+        waterDensity: roundCacheNumber(hydro?.waterDensity, 3),
+        materialDensity: roundCacheNumber(hydro?.materialDensity, 3),
+        draftZWorld: roundCacheNumber(hydro?.draftZWorld, 6),
+        trimDeg: roundCacheNumber(hydro?.trimDeg, 4),
+        heelDeg: roundCacheNumber(hydro?.heelDeg, 4),
+        modelMassTonnes: roundCacheNumber(massProps?.totalMassTonnes, 6),
+        totalVolumeM3: roundCacheNumber(massProps?.totalVolumeM3, 6),
+        componentCount: Number(massProps?.componentCount) || 0,
+        refMinZ: roundCacheNumber(ref?.min?.z, 6),
+        refMaxZ: roundCacheNumber(ref?.max?.z, 6),
+        units: unitMeta.units,
+        sourceUnits: unitMeta.sourceUnits,
+      });
+    }
+
+    async function withHydroGeometryState(task) {
+      const previousExplode = core.getExplodeFactor?.() || 0;
+      const visibilitySnapshot = [];
+      const renderables = collectRenderableComponents(hydro?.mesh || core?.mesh);
+      renderables.forEach(({ object }) => {
+        if (!object) return;
+        visibilitySnapshot.push({ object, visible: object.visible !== false });
+        object.visible = true;
+      });
+      if (previousExplode > 0) {
+        core.setExplodeFactor?.(0);
+        syncExplodeUiFromCore();
+        postExplodeInfoToParent();
+      }
+      try {
+        return await task();
+      } finally {
+        visibilitySnapshot.forEach(({ object, visible }) => {
+          if (!object) return;
+          object.visible = visible;
+        });
+        if (previousExplode > 0) {
+          core.setExplodeFactor?.(previousExplode);
+          syncExplodeUiFromCore();
+          postExplodeInfoToParent();
+        }
+      }
+    }
 
     function applyComponentViewState() {
       const root = hydro?.mesh || core?.mesh;
       const renderables = collectRenderableComponents(root);
       if (!renderables.length) return;
 
-      const matchedChosen = renderables.filter((item) => componentViewState.chosen.has(item.key));
+      const matchedChosen = renderables.filter((item) => componentMatchesState(item, componentViewState.chosen));
       const useChosenFocus = matchedChosen.length > 0;
 
-      renderables.forEach(({ object, key }) => {
-        const isMuted = componentViewState.muted.has(key);
-        const isChosen = componentViewState.chosen.has(key);
+      renderables.forEach((item) => {
+        const { object, key } = item;
+        const isMuted = componentMatchesState(item, componentViewState.muted);
+        const isChosen = componentMatchesState(item, componentViewState.chosen);
         object.visible = !isMuted;
 
         const mats = Array.isArray(object.material) ? object.material : [object.material];
@@ -972,28 +1141,36 @@
       }
 
       if (data.action === "set-hydro-state") {
+        invalidateHydroReportCache();
         if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
         if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
+        hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
         if (data.quality) hydro.setQuality(String(data.quality));
-        await applyHydroInputs({
-          draft: Number.isFinite(Number(data.draftZWorld)) ? Number(data.draftZWorld) : null,
-          trim: Number.isFinite(Number(data.trim)) ? Number(data.trim) : null,
-          heel: Number.isFinite(Number(data.heel)) ? Number(data.heel) : null,
+        await withHydroGeometryState(async () => {
+          await applyHydroInputs({
+            draft: Number.isFinite(Number(data.draftZWorld)) ? Number(data.draftZWorld) : null,
+            trim: Number.isFinite(Number(data.trim)) ? Number(data.trim) : null,
+            heel: Number.isFinite(Number(data.heel)) ? Number(data.heel) : null,
+          });
         });
         postAnalysisToParent(hydro.mesh);
         return;
       }
 
       if (data.action === "reset-hydro-pose") {
+        invalidateHydroReportCache();
         hydro.zeroTrimHeel();
         if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
         if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
+        hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
         if (Number.isFinite(Number(data.draftZWorld))) {
           hydro.draftZWorld = Number(data.draftZWorld);
           hydro.updateWaterPlane();
           hydro._invalidateCache?.();
         }
-        await hydro.recompute();
+        await withHydroGeometryState(async () => {
+          await hydro.recompute();
+        });
         await updateHydroAfterLoad();
         syncHydroVisibility?.();
         postAnalysisToParent(hydro.mesh);
@@ -1439,9 +1616,9 @@
     // --- Imports (MODULER) ---
     import * as THREE from "/includes/three/three.module.js";
 
-    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260410a";
-    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260410a";
-    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260410a";
+    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260411f";
+    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260411f";
+    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260411d";
     import { UIController } from "/includes/three/UIController.js";
     import { ClippingController } from "/includes/three/ClippingController.js";
     import { MeasureController } from "/includes/three/MeasureController.js";
@@ -1767,8 +1944,9 @@
         clearTimeout(to);
 
         core.setMesh(mesh);
+        core.setUnitsScale?.(Number(mesh?.userData?.modelMeta?.metersPerUnit) || 1);
         hydro.setMesh(mesh);
-        if (pendingExplodeAmount > 0) core.setExplodeFactor(pendingExplodeAmount);
+        invalidateHydroReportCache();
 
         // Bygg dynamisk komponentliste basert på modellen
         buildComponentList(mesh);
@@ -1814,6 +1992,12 @@
               hydro.scheduleRecalc(false);
             } else {
               hydro.quality = preferredQuality;
+            }
+
+            if (pendingExplodeAmount > 0) {
+              core.setExplodeFactor(pendingExplodeAmount);
+              syncExplodeUiFromCore();
+              postExplodeInfoToParent();
             }
 
             setHud(

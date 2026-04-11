@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fusion fil-analyse</title>
-  <link rel="stylesheet" href="/assets/css/themes.css?v=20260410f">
-  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css?v=20260410f">
+  <link rel="stylesheet" href="/assets/css/themes.css?v=20260411f">
+  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css?v=20260411f">
 </head>
 <body>
   <div class="fusion-shell">
@@ -225,6 +225,37 @@
           <canvas id="hydroReportDraftCurve" width="920" height="280"></canvas>
         </section>
 
+        <section class="report-chart-card">
+          <div class="report-section-head">
+            <h3>SAK / Vat flate</h3>
+            <p id="hydroSakCaption" class="muted">Kurve for vat overflate over vinkel og/eller draft.</p>
+          </div>
+          <canvas id="hydroReportSakCurve" width="920" height="280"></canvas>
+        </section>
+
+        <section class="report-chart-card">
+          <div class="report-section-head">
+            <h3>Vannlinjeareal over draft</h3>
+            <p id="hydroAwpCaption" class="muted">Bonjean-lignende oversikt fra draftscan.</p>
+          </div>
+          <canvas id="hydroReportAwpCurve" width="920" height="280"></canvas>
+        </section>
+
+        <section id="hydroReportPointNote" class="report-note-card">
+          <h3>Hva markerer punktene?</h3>
+          <p class="muted">Morke punkt viser aktiv tilstand i modellen akkurat na. Kurvene rundt punktet er beregnede scenarier for andre vinkler eller draft-niva.</p>
+        </section>
+
+        <section id="hydroReportEquilibriumWrap" class="report-table-wrap">
+          <div class="report-section-head">
+            <h3>Beregnet likevektsdraft</h3>
+            <p id="hydroReportEquilibriumNote" class="muted">Estimat basert pa modellvekt og Archimedes.</p>
+          </div>
+          <table class="report-table">
+            <tbody id="hydroReportEquilibrium"></tbody>
+          </table>
+        </section>
+
         <section class="report-table-wrap">
           <h3>Oppsummering</h3>
           <table class="report-table">
@@ -235,25 +266,32 @@
         <section id="hydroReportComponentsWrap" class="report-table-wrap" hidden>
           <div class="report-section-head">
             <h3>Komponentvis massegrunnlag</h3>
-            <p id="hydroReportComponentsNote" class="muted">Viser hvordan masse, volum og tetthet er hentet for komponentene.</p>
+            <p id="hydroReportComponentsNote" class="muted">Viser materiale, volum, tetthet og total vekt per komponent.</p>
           </div>
           <table class="report-table">
             <thead>
               <tr>
                 <th>Komponent</th>
                 <th>Volum</th>
-                <th>Tetthet</th>
-                <th>Masse</th>
+                <th>Materiale</th>
+                <th>Basis-tetthet</th>
+                <th>Effektiv tetthet</th>
+                <th>Total vekt</th>
                 <th>Kilde</th>
               </tr>
             </thead>
             <tbody id="hydroReportComponentsBody"></tbody>
           </table>
         </section>
+
+        <section id="hydroReportMethodNote" class="report-note-card">
+          <h3>Hvordan GM, KG og BM er beregnet</h3>
+          <p class="muted">Forklaring legges inn nar rapporten genereres.</p>
+        </section>
       </article>
     </div>
   </div>
 
-  <script src="/assets/js/fusion-file-analyzer.js?v=20260410f" defer></script>
+  <script src="/assets/js/fusion-file-analyzer.js?v=20260411f" defer></script>
 </body>
 </html>

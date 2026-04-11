@@ -49,6 +49,109 @@ export class ModelLoader {
     this.stepLoader = new StepLoader();
   }
 
+  _decodeTextBuffer(buffer, limitBytes = 2_500_000) {
+    if (!(buffer instanceof ArrayBuffer)) return "";
+    const slice = buffer.byteLength > limitBytes ? buffer.slice(0, limitBytes) : buffer;
+    try {
+      return new TextDecoder("utf-8", { fatal: false }).decode(slice);
+    } catch {
+      try {
+        return new TextDecoder().decode(slice);
+      } catch {
+        return "";
+      }
+    }
+  }
+
+  _detectCadLengthUnit(text) {
+    const source = String(text || "");
+    if (!source) return null;
+    if (/\.MILLI\.\s*,\s*\.METRE\./i.test(source)) return "mm";
+    if (/\.CENTI\.\s*,\s*\.METRE\./i.test(source)) return "cm";
+    if (/\.DECI\.\s*,\s*\.METRE\./i.test(source)) return "dm";
+    if (/\.METRE\./i.test(source)) return "m";
+    return null;
+  }
+
+  _buildUnitMeta({ fileType = "model", sourceLengthUnit = null } = {}) {
+    const sourceUnit = sourceLengthUnit || "m";
+    const unitNote = sourceLengthUnit && sourceLengthUnit !== "m"
+      ? `${fileType.toUpperCase()}-kilden oppgir ${sourceLengthUnit}; viewer beregner videre i meter.`
+      : "Viewer beregner videre i meter.";
+    return {
+      lengthUnit: "m",
+      metersPerUnit: 1,
+      sourceLengthUnit: sourceUnit,
+      unitNote,
+    };
+  }
+
+  _normalizeComponentToken(value) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  _tokenizeComponentLabel(value) {
+    return String(value || "")
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/[_/\\|]+/g, " ")
+      .replace(/[^a-zA-Z0-9.+-]+/g, " ")
+      .toLowerCase()
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean)
+      .filter((token) => !/^(copy|part|delen?|component|mesh|solid|group|gruppe|family|instance|inst|assy|assembly)$/.test(token))
+      .filter((token) => !/^(cw|ccw|lh|rh|port|starboard|left|right|ps|sb|bb|stb)$/.test(token))
+      .filter((token) => !/^\d+$/.test(token));
+  }
+
+  _buildComponentFamilyKey(component, fallbackName) {
+    const sources = [
+      component?.userData?.componentFamilyKey,
+      component?.name,
+      fallbackName,
+      component?.userData?.componentName,
+      component?.userData?.sourceName,
+      component?.userData?.nodePath,
+    ];
+    for (const source of sources) {
+      const tokens = this._tokenizeComponentLabel(source);
+      if (tokens.length) return tokens.slice(0, Math.min(6, tokens.length)).join(" ");
+      const normalized = this._normalizeComponentToken(source);
+      if (normalized) return normalized;
+    }
+    return "component";
+  }
+
+  _semanticColorFromFamilyKey(familyKey) {
+    const key = this._normalizeComponentToken(familyKey);
+    if (!key) return null;
+    const color = new THREE.Color();
+    if (/(^|\s)thruster(s)?(\s|$)/i.test(key)) {
+      color.setHSL(0.34, 0.58, 0.44);
+      return color;
+    }
+    if (/(^|\s)(skrog|hull)(\s|$)/i.test(key)) {
+      color.setHSL(0.56, 0.42, 0.46);
+      return color;
+    }
+    if (/(^|\s)(frame|mount|bracket|plate|base)(\s|$)/i.test(key)) {
+      color.setHSL(0.60, 0.50, 0.50);
+      return color;
+    }
+    if (/(^|\s)(sensor|gps|camera|sonar|antenna|novatel)(\s|$)/i.test(key)) {
+      color.setHSL(0.09, 0.68, 0.56);
+      return color;
+    }
+    if (/(^|\s)(mast|boom|arm|support)(\s|$)/i.test(key)) {
+      color.setHSL(0.78, 0.40, 0.54);
+      return color;
+    }
+    return null;
+  }
+
   /**
    * Last STL eller 3MF via fetch() og returner:
    * { mesh, geometry, volume, centroidLocal }
@@ -70,6 +173,8 @@ export class ModelLoader {
     const warmupOcct = (isStep || isIges) ? this.stepLoader.prewarm().catch(() => null) : null;
 
     const buf = await fetchArrayBufferCached(url);
+    const cadText = (isStep || isIges) ? this._decodeTextBuffer(buf) : "";
+    const cadSourceLengthUnit = (isStep || isIges) ? this._detectCadLengthUnit(cadText) : null;
     console.info("[ModelLoader] Bytes mottatt:", buf.byteLength);
 
     const isZip = buf.byteLength >= 4 && new DataView(buf).getUint32(0, true) === 0x04034b50;
@@ -134,8 +239,10 @@ export class ModelLoader {
         );
         const compMesh = new THREE.Mesh(geometry, null); // Material set below
         compMesh.name = compName;
+        const componentFamilyKey = this._buildComponentFamilyKey(comp, compName);
         compMesh.userData.componentName = compName;
         compMesh.userData.componentKey = compKey;
+        compMesh.userData.componentFamilyKey = componentFamilyKey;
         compMesh.userData.nodePath = String(comp?.userData?.nodePath || "");
         compMesh.userData.brepFaces = Array.isArray(comp?.userData?.brepFaces)
           ? comp.userData.brepFaces.length
@@ -153,6 +260,7 @@ export class ModelLoader {
         const componentMassEntry = {
           key: compKey,
           name: compName,
+          familyKey: componentFamilyKey,
           nodePath: String(comp?.userData?.nodePath || ""),
           sourceName: String(comp?.userData?.sourceName || ""),
           materialHint: comp?.userData?.materialHint || null,
@@ -174,6 +282,7 @@ export class ModelLoader {
             ...(comp?.userData || {}),
             componentKey: compKey,
             componentName: compName,
+            componentFamilyKey,
           },
         });
       }
@@ -213,6 +322,15 @@ export class ModelLoader {
 
       mesh.userData.modelMeta = {
         ...meta,
+        ...this._buildUnitMeta({
+          fileType:
+            isFusionArchive ? 'fusion-archive' :
+            is3MF ? '3mf' :
+            isStep ? 'step' :
+            isIges ? 'iges' :
+            'zip-auto',
+          sourceLengthUnit: cadSourceLengthUnit,
+        }),
         fileType:
           isFusionArchive ? 'fusion-archive' :
           is3MF ? '3mf' :
@@ -266,6 +384,15 @@ export class ModelLoader {
       // Litt metadata kan være nyttig for debugging/GUI senere
       mesh.userData.modelMeta = {
         ...meta,
+        ...this._buildUnitMeta({
+          fileType:
+            is3MF ? '3mf' :
+            isFusionArchive ? 'fusion-archive' :
+            isStep ? 'step' :
+            isIges ? 'iges' :
+            'stl',
+          sourceLengthUnit: cadSourceLengthUnit,
+        }),
         fileType:
           is3MF ? '3mf' :
           isFusionArchive ? 'fusion-archive' :
@@ -480,8 +607,11 @@ export class ModelLoader {
   }
 
   _componentColor(component, fallbackName) {
+    const familyKey = this._buildComponentFamilyKey(component, fallbackName);
+    const semanticColor = this._semanticColorFromFamilyKey(familyKey);
+    if (semanticColor) return semanticColor;
     const preferred = component?.color;
-    if (preferred?.isColor) return preferred.clone();
+    if (preferred?.isColor && !familyKey) return preferred.clone();
     if (Array.isArray(preferred) && preferred.length >= 3) {
       const scale = preferred.some((value) => Number(value) > 1) ? 255 : 1;
       return new THREE.Color(
@@ -490,7 +620,7 @@ export class ModelLoader {
         (Number(preferred[2]) || 0) / scale
       );
     }
-    return this._colorFromString(fallbackName);
+    return this._colorFromString(familyKey || fallbackName);
   }
 
   // ------------------------------------------------------------

@@ -68,6 +68,7 @@ export class HydroStatikk {
     this.axis = { rollAxis: "x", pitchAxis: "y", upAxis: "z" };
     this.materialDensity = null; // kg/m^3 (modell / last)
     this.massProperties = null;
+    this.componentDensityOverrides = new Map();
     this._raycastProxy = null;
 
     // Physical params
@@ -161,6 +162,38 @@ export class HydroStatikk {
   setMaterialDensity(rho) {
     const value = Number(rho);
     this.materialDensity = Number.isFinite(value) && value > 0 ? Math.min(50000, Math.max(1, value)) : null;
+    this._syncMassPropertiesFromMesh();
+  }
+
+  setComponentDensityOverrides(overrides = {}) {
+    const next = new Map();
+    if (overrides && typeof overrides === "object") {
+      Object.entries(overrides).forEach(([key, entry]) => {
+        const token = this._normalizeComponentToken(key);
+        const density = Number(entry?.densityKgM3);
+        const massKg = Number(entry?.massKg);
+        if (!token || !Number.isFinite(density) || density <= 0) return;
+        const baseDensity = Number(entry?.baseDensityKgM3);
+        const infillPercent = Number(entry?.infillPercent);
+        next.set(token, {
+          ...entry,
+          densityKgM3: Math.min(50000, Math.max(1, density)),
+          baseDensityKgM3: Number.isFinite(baseDensity) && baseDensity > 0 ? Math.min(50000, Math.max(1, baseDensity)) : Math.min(50000, Math.max(1, density)),
+          infillPercent: Number.isFinite(infillPercent) ? Math.min(100, Math.max(1, infillPercent)) : 100,
+          supportsInfill: entry?.supportsInfill !== false,
+          massMode: entry?.massMode === "direct" && Number.isFinite(massKg) && massKg > 0 ? "direct" : "density",
+          massKg: Number.isFinite(massKg) && massKg > 0 ? massKg : null,
+          groupMassKg: Number.isFinite(entry?.groupMassKg) && entry.groupMassKg > 0 ? Number(entry.groupMassKg) : null,
+          massDistribution: entry?.massDistribution || null,
+          source: entry?.source || "override-item",
+          sourceLabel: entry?.sourceLabel || "Manuell komponentoverstyring",
+          materialSlug: entry?.materialSlug || "custom",
+          materialLabel: entry?.materialLabel || "Custom",
+          note: entry?.note || "",
+        });
+      });
+    }
+    this.componentDensityOverrides = next;
     this._syncMassPropertiesFromMesh();
   }
 
@@ -282,6 +315,26 @@ export class HydroStatikk {
     return { x: value.x, y: value.y, z: value.z };
   }
 
+  _normalizeComponentToken(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  _findComponentDensityOverride(entry) {
+    if (!this.componentDensityOverrides?.size) return null;
+    const aliases = [
+      entry?.key,
+      entry?.name,
+      entry?.nodePath,
+      entry?.sourceName,
+    ].map((value) => this._normalizeComponentToken(value)).filter(Boolean);
+    for (const alias of aliases) {
+      if (this.componentDensityOverrides.has(alias)) {
+        return this.componentDensityOverrides.get(alias);
+      }
+    }
+    return null;
+  }
+
   _zeroMoments() {
     return { xx: 0, xy: 0, xz: 0, yy: 0, yz: 0, zz: 0 };
   }
@@ -329,8 +382,22 @@ export class HydroStatikk {
     const defaultDensitySource = this._getDefaultDensitySource();
     const validComponents = components.length ? components : [fallbackGeometry];
     const resolvedDensityEntries = validComponents.map((entry) => {
+      const override = this._findComponentDensityOverride(entry);
       const localDensity = Number(entry?.densityKgM3);
       const hintDensity = Number(entry?.materialHint?.densityKgM3 || entry?.materialHint?.profile?.density);
+      const overrideMass = Number(override?.massKg);
+      const volume = Number(entry?.volume) || 0;
+      if (override?.massMode === "direct" && Number.isFinite(overrideMass) && overrideMass > 0 && volume > 1e-9) {
+        return {
+          density: overrideMass / volume,
+          source: override.source || "override-item",
+          override,
+          derivedFromMass: true,
+        };
+      }
+      if (override && Number.isFinite(override.densityKgM3) && override.densityKgM3 > 0) {
+        return { density: override.densityKgM3, source: override.source || "override-item", override };
+      }
       if (Number.isFinite(localDensity) && localDensity > 0) {
         return { density: localDensity, source: "component-density" };
       }
@@ -356,10 +423,34 @@ export class HydroStatikk {
       const densityEntry = resolvedDensityEntries[index] || { density: null, source: "unresolved" };
       const density = densityEntry.density;
       const densitySource = densityEntry.source || "unresolved";
+      const override = densityEntry.override || null;
+      const directMassKg = override?.massMode === "direct" && Number.isFinite(override?.massKg) && override.massKg > 0
+        ? override.massKg
+        : null;
+      const materialHint = entry?.materialHint || null;
+      const materialProfile = materialHint?.profile || null;
+      const resolvedMaterialLabel = override?.materialLabel
+        || String(materialHint?.materialName || materialProfile?.label || materialProfile?.name || "").trim()
+        || null;
+      const resolvedBaseDensity = Number.isFinite(override?.baseDensityKgM3) && override.baseDensityKgM3 > 0
+        ? override.baseDensityKgM3
+        : Number.isFinite(entry?.densityKgM3) && entry.densityKgM3 > 0
+          ? entry.densityKgM3
+          : Number.isFinite(materialHint?.densityKgM3)
+            ? Number(materialHint.densityKgM3)
+            : Number.isFinite(materialProfile?.density)
+              ? Number(materialProfile.density)
+              : Number.isFinite(defaultDensity)
+                ? defaultDensity
+                : null;
       const scalar = densityResolved ? density : 1;
+      const resolvedMassKg = densityResolved
+        ? (Number.isFinite(directMassKg) ? directMassKg : (Number.isFinite(density) && density > 0 ? volume * density : null))
+        : null;
+      const massWeight = Number.isFinite(resolvedMassKg) ? resolvedMassKg : volume * scalar;
       totalVolume += volume;
-      totalScalar += volume * scalar;
-      centerAccumulator.addScaledVector(centroidLocal, volume * scalar);
+      totalScalar += massWeight;
+      centerAccumulator.addScaledVector(centroidLocal, massWeight);
       densitySourceCounts[densitySource] = (densitySourceCounts[densitySource] || 0) + 1;
 
       secondMomentsOrigin.xx += (Number(entry?.secondMomentsOrigin?.xx) || 0) * scalar;
@@ -377,8 +468,18 @@ export class HydroStatikk {
         volumeM3: volume,
         densityKgM3: Number.isFinite(density) && density > 0 ? density : null,
         densitySource,
-        massKg: densityResolved && Number.isFinite(density) && density > 0 ? volume * density : null,
-        massTonnes: densityResolved && Number.isFinite(density) && density > 0 ? (volume * density) / 1000 : null,
+        sourceLabel: override?.sourceLabel || null,
+        materialSlug: override?.materialSlug || String(materialProfile?.slug || "").trim() || null,
+        materialLabel: resolvedMaterialLabel,
+        baseDensityKgM3: Number.isFinite(resolvedBaseDensity) && resolvedBaseDensity > 0 ? resolvedBaseDensity : null,
+        infillPercent: Number.isFinite(override?.infillPercent) ? override.infillPercent : null,
+        supportsInfill: override ? override.supportsInfill !== false : false,
+        massMode: override?.massMode || "density",
+        massDistribution: override?.massDistribution || null,
+        groupMassKg: Number.isFinite(override?.groupMassKg) ? override.groupMassKg : null,
+        note: override?.note || materialHint?.note || "",
+        massKg: Number.isFinite(resolvedMassKg) ? resolvedMassKg : null,
+        massTonnes: Number.isFinite(resolvedMassKg) ? resolvedMassKg / 1000 : null,
         centroidLocal: this._vectorToPlain(centroidLocal),
       };
     });
@@ -390,7 +491,7 @@ export class HydroStatikk {
     const componentDensitySources = [...new Set(componentSummaries.map((entry) => entry.densitySource).filter(Boolean))];
     const densityMode = !densityResolved
       ? "unresolved"
-      : componentDensitySources.every((source) => source === "component-density" || source === "component-material-hint")
+      : componentDensitySources.every((source) => source === "component-density" || source === "component-material-hint" || String(source || "").startsWith("override-"))
         ? "per-component"
         : componentDensitySources.every((source) => source.startsWith("uniform-"))
           ? "uniform"
@@ -1395,6 +1496,132 @@ updateWaterlineContour() {
       targetTonnes: tgtT,
       errorTonnes: Math.abs(((bestVol * this.waterDensity) / 1000) - tgtT)
     };
+  }
+
+  async estimateEquilibriumState({
+    targetTonnes = null,
+    toleranceTonnes = 0.05,
+    maxIterations = 22,
+    solveTrimHeel = false,
+    maxHeelDeg = 18,
+    maxTrimDeg = 12,
+  } = {}) {
+    if (!this.mesh) {
+      return {
+        supported: false,
+        reason: "missing-mesh",
+        note: "N/A - ingen mesh lastet i hydrostatikk.",
+      };
+    }
+
+    const massProps = this.getMassProperties();
+    const assumedMassTonnes = Number.isFinite(targetTonnes)
+      ? Number(targetTonnes)
+      : Number(massProps?.totalMassTonnes);
+    const ref = this.getReferenceBoundsNoHydroRot();
+    const refMinZ = Number.isFinite(ref?.min?.z) ? ref.min.z : null;
+    const currentDraftZWorld = Number.isFinite(this.draftZWorld) ? this.draftZWorld : null;
+    const currentDraftMeters = Number.isFinite(currentDraftZWorld) && Number.isFinite(refMinZ)
+      ? Math.max(0, currentDraftZWorld - refMinZ)
+      : null;
+
+    if (!Number.isFinite(assumedMassTonnes) || assumedMassTonnes <= 0) {
+      return {
+        supported: false,
+        reason: "missing-mass",
+        assumedMassTonnes: Number.isFinite(assumedMassTonnes) ? assumedMassTonnes : null,
+        currentDraftZWorld,
+        currentDraftMeters,
+        draftZWorld: null,
+        draftMeters: null,
+        deltaDraftMeters: null,
+        draftDirection: null,
+        heelDeg: null,
+        trimDeg: null,
+        note: "N/A - modellvekten kan ikke bestemmes fra geometri og tetthet.",
+      };
+    }
+
+    const origRot = this.hydroRotGroup.rotation.clone();
+    const origDraft = this.draftZWorld;
+    const origTrim = this.trimDeg;
+    const origHeel = this.heelDeg;
+    const origQuality = this.quality;
+
+    let draftResult = null;
+    let heelResult = null;
+    let trimResult = null;
+
+    try {
+      this.zeroTrimHeel();
+      await this.recompute();
+
+      draftResult = await this.findDraftForDisplacement(assumedMassTonnes, {
+        toleranceTonnes,
+        maxIterations,
+      });
+
+      if (solveTrimHeel && draftResult) {
+        trimResult = await this.solveEquilibrium("pitch", {
+          maxDeg: maxTrimDeg,
+          scanStepDeg: 2,
+          toleranceGZ: 1e-3,
+          maxBisectionIters: 18,
+        });
+        heelResult = await this.solveEquilibrium("roll", {
+          maxDeg: maxHeelDeg,
+          scanStepDeg: 2,
+          toleranceGZ: 1e-3,
+          maxBisectionIters: 18,
+        });
+      }
+
+      const eqDraftZWorld = Number.isFinite(this.draftZWorld)
+        ? this.draftZWorld
+        : Number(draftResult?.draft);
+      const eqDraftMeters = Number.isFinite(eqDraftZWorld) && Number.isFinite(refMinZ)
+        ? Math.max(0, eqDraftZWorld - refMinZ)
+        : null;
+      const deltaDraftMeters = Number.isFinite(eqDraftMeters) && Number.isFinite(currentDraftMeters)
+        ? eqDraftMeters - currentDraftMeters
+        : null;
+      const draftDirection = !Number.isFinite(deltaDraftMeters)
+        ? null
+        : Math.abs(deltaDraftMeters) < 1e-6
+          ? "same"
+          : deltaDraftMeters > 0
+            ? "down"
+            : "up";
+
+      return {
+        supported: true,
+        reason: "",
+        assumedMassTonnes,
+        currentDraftZWorld,
+        currentDraftMeters,
+        draftZWorld: Number.isFinite(eqDraftZWorld) ? eqDraftZWorld : null,
+        draftMeters: eqDraftMeters,
+        displacementTonnes: Number.isFinite(draftResult?.displacementTonnes) ? draftResult.displacementTonnes : null,
+        submergedVolume: Number.isFinite(draftResult?.volume) ? draftResult.volume : null,
+        errorTonnes: Number.isFinite(draftResult?.errorTonnes) ? draftResult.errorTonnes : null,
+        deltaDraftMeters,
+        draftDirection,
+        heelDeg: Number.isFinite(heelResult?.angleDeg) ? heelResult.angleDeg : null,
+        trimDeg: Number.isFinite(trimResult?.angleDeg) ? trimResult.angleDeg : null,
+        note: solveTrimHeel
+          ? "Estimert likevekt bruker Archimedes for draft og enkel akse-likevekt for trim/heel."
+          : "Estimert likevekt bruker Archimedes for draft. Trim og heel er ikke loset i denne passeringen.",
+      };
+    } finally {
+      this.hydroRotGroup.rotation.copy(origRot);
+      this.draftZWorld = origDraft;
+      this.trimDeg = origTrim;
+      this.heelDeg = origHeel;
+      this.quality = origQuality;
+      this.updateWaterPlane();
+      this._invalidateCache();
+      await this.recompute();
+    }
   }
 
   // ============================================================
