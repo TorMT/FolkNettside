@@ -403,6 +403,12 @@ export class STLViewerCore {
     const modelCenter = meshCenterBox.isEmpty()
       ? new THREE.Vector3()
       : meshCenterBox.getCenter(new THREE.Vector3());
+    const meshSpan = meshCenterBox.getSize(new THREE.Vector3());
+    const xyCenterThreshold = Math.max(
+      Math.max(meshSpan.x, meshSpan.y, 0) * 0.12,
+      (this._explodeBaseMaxDim || 1) * 0.05,
+      0.04
+    );
     const clusters = this._clusterExplodeEntries(entries);
     const maxClusterRadius = Math.max(
       1e-6,
@@ -411,9 +417,17 @@ export class STLViewerCore {
 
     this._explodeItems = [];
     clusters.forEach((cluster, clusterIndex) => {
-      let clusterDir = cluster.center.clone().sub(modelCenter);
+      const clusterOffset = cluster.center.clone().sub(modelCenter);
+      const clusterXYDistance = Math.hypot(clusterOffset.x, clusterOffset.y);
+      const preferVerticalExplode = clusterXYDistance <= xyCenterThreshold;
+      let clusterDir = clusterOffset.clone();
       const clusterDistance = clusterDir.length();
-      if (clusterDistance < 1e-9) {
+      if (preferVerticalExplode) {
+        const verticalSign = Math.abs(clusterOffset.z) > 1e-6
+          ? Math.sign(clusterOffset.z)
+          : (clusterIndex % 2 === 0 ? 1 : -1);
+        clusterDir = new THREE.Vector3(0, 0, verticalSign || 1);
+      } else if (clusterDistance < 1e-9) {
         clusterDir = this._createDeterministicDirection(clusterIndex, clusters.length);
       } else {
         clusterDir.normalize();

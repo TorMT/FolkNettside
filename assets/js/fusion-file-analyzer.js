@@ -100,7 +100,7 @@
     text: "",
   };
   const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410f";
-  const REPORT_CACHE_VERSION = "20260411f";
+  const REPORT_CACHE_VERSION = "20260411g";
   const REPORT_SESSION_PREFIX = `fusionHydroReport.${REPORT_CACHE_VERSION}`;
   const headResultCache = new Map();
   const jsonResultCache = new Map();
@@ -350,6 +350,26 @@
   }
   function getActivePreviewCandidate() {
     return resolvedPreviewCandidate || "";
+  }
+  function getActiveBambuCandidate() {
+    const previewCandidate = getActivePreviewCandidate();
+    if (BAMBU_EXT.has(fileExtFromUrl(previewCandidate))) return previewCandidate;
+    if (BAMBU_EXT.has(ext)) return decodedFile;
+    const stl = getActiveStlCandidate();
+    if (BAMBU_EXT.has(fileExtFromUrl(stl))) return stl;
+    return "";
+  }
+  function updateBambuButtonState({ canRead = true } = {}) {
+    if (!btnBambu) return;
+    const target = getActiveBambuCandidate();
+    setDisabled(
+      btnBambu,
+      !canRead || !target,
+      !canRead
+        ? "Filen kunne ikke leses fra nettleseren."
+        : "Fant ingen STL/3MF/OBJ-kandidat for Bambu Studio."
+    );
+    if (target) btnBambu.title = `Apner ${basenameFromUrl(target)} i Bambu Studio.`;
   }
   function candidateScore(name, sourceStem) {
     const stem = String(name).replace(/\.[^.]+$/i, "").toLowerCase();
@@ -640,7 +660,7 @@
   }
 
   setDisabled(btnFusion, !CAD_EXT.has(ext), "Aktiveres for CAD/Fusion-relaterte filer.");
-  setDisabled(btnBambu, !BAMBU_EXT.has(ext), "Bambu-knapp støttes best for STL/3MF/OBJ.");
+  updateBambuButtonState();
   setDisabled(btnStl, !CAD_EXT.has(ext), "3D-viewer er kun relevant for CAD-relaterte filer.");
 
   btnStl && (btnStl.onclick = () => loadIntegratedViewer());
@@ -664,12 +684,27 @@
   btnFusion && (btnFusion.onclick = () => window.open("https://myhub.autodesk360.com/", "_blank", "noopener"));
 
   btnBambu && (btnBambu.onclick = () => {
-    const url = decodedFile;
+    const url = getActiveBambuCandidate();
+    if (!url) {
+      window.open("https://bambulab.com/en/download/studio", "_blank", "noopener");
+      return;
+    }
     const schemeUrl = `bambustudio://open?url=${encodeURIComponent(url)}`;
-    const win = window.open(schemeUrl, "_self");
+    const startedAt = Date.now();
+    let lostFocus = false;
+    const onBlur = () => {
+      lostFocus = true;
+    };
+    window.addEventListener("blur", onBlur, { once: true });
+    try {
+      window.location.href = schemeUrl;
+    } catch {}
     setTimeout(() => {
-      if (!win) window.open("https://bambulab.com/en/download/studio", "_blank", "noopener");
-    }, 350);
+      window.removeEventListener("blur", onBlur);
+      if (!lostFocus && document.visibilityState === "visible" && Date.now() - startedAt >= 800) {
+        window.open("https://bambulab.com/en/download/studio", "_blank", "noopener");
+      }
+    }, 900);
   });
 
   btnToggleInfo && (btnToggleInfo.onclick = () => {
@@ -1022,10 +1057,15 @@
     const productMatches = text.match(/PRODUCT\s*\(/gi) || [];
     const advancedFaceMatches = text.match(/ADVANCED_FACE\s*\(/gi) || [];
     const productNameMatches = [...text.matchAll(/PRODUCT\s*\(\s*'([^']*)'/gi)].map(m => m[1]).filter(Boolean);
+    const materialRepresentationIds = [...text.matchAll(/REPRESENTATION\s*\(\s*'material name'\s*,\s*\(#(\d+)\)\s*,/gi)].map((m) => m[1]);
+    const descriptiveMaterialNames = materialRepresentationIds.flatMap((id) =>
+      [...text.matchAll(new RegExp(`#${id}\\s*=\\s*DESCRIPTIVE_REPRESENTATION_ITEM\\s*\\(\\s*'([^']+)'`, "gi"))].map((m) => m[1])
+    );
     const materialNames = uniqueTextValues([
+      ...descriptiveMaterialNames,
       ...[...text.matchAll(/MATERIAL[A-Z_]*\s*\(\s*'([^']+)'/gi)].map((m) => m[1]),
       ...[...text.matchAll(/PROPERTY_DEFINITION\s*\(\s*'([^']*material[^']*)'/gi)].map((m) => m[1]),
-    ]);
+    ]).filter((value) => !/^material property$/i.test(String(value || "").trim()));
     const densityCandidates = uniqueTextValues([
       ...[...text.matchAll(/(?:MASS_DENSITY_MEASURE|DENSITY_MEASURE)\s*\(\s*([+\-]?\d+(?:\.\d+)?(?:E[+\-]?\d+)?)\s*\)/gi)].map((m) => m[1]),
       ...[...text.matchAll(/density[^;#]{0,160}?([+\-]?\d+(?:\.\d+)?(?:E[+\-]?\d+)?)/gi)].map((m) => m[1]),
@@ -3847,9 +3887,11 @@
       resolveSiblingStlCandidate(),
       resolveSiblingStepCandidate(),
     ]);
+    updateBambuButtonState();
     addMeta("3D-kandidat", basenameFromUrl(getActivePreviewCandidate()) || "Ingen kandidat funnet");
     if (getActiveStlCandidate()) addMeta("STL-kandidat", basenameFromUrl(getActiveStlCandidate()));
     if (getActiveStepCandidate()) addMeta("STEP-kandidat", basenameFromUrl(getActiveStepCandidate()));
+    if (getActiveBambuCandidate()) addMeta("Bambu-kandidat", basenameFromUrl(getActiveBambuCandidate()));
 
     const headRes = await fetchHeadCached(decodedFile);
     if (headRes && headRes.ok) {
@@ -3869,7 +3911,7 @@
 
     const canRead = !!(headRes && headRes.ok);
     setDisabled(btnStl, !canRead || !CAD_EXT.has(ext), !canRead ? "Filen kunne ikke hentes (HEAD feilet)." : "Ikke relevant for denne filtypen.");
-    setDisabled(btnBambu, !canRead || !BAMBU_EXT.has(ext), !canRead ? "Filen kunne ikke hentes (HEAD feilet)." : "Bambu støtter primært STL/3MF/OBJ.");
+    updateBambuButtonState({ canRead });
     await runGeometryChecks();
   }
 
