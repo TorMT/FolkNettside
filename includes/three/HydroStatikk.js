@@ -1225,6 +1225,95 @@ updateWaterlineContour() {
     return sak;
   }
 
+  async computeSectionAreaCurve({
+    stationCount = 28,
+    draftZ = null,
+    quality = "med",
+    timeSliceMs = 10
+  } = {}) {
+    if (!this.mesh) return { xStations: [], sectionAreas: [], activeX: null, activeArea: null };
+
+    const bounds = this.getWorldBounds();
+    const xMin = bounds.min.x;
+    const xMax = bounds.max.x;
+    const zMin = bounds.min.z;
+    const zMax = Math.min(
+      Number.isFinite(draftZ) ? Number(draftZ) : this.draftZWorld,
+      bounds.max.z
+    );
+
+    if (!(xMax > xMin + 1e-9) || !(zMax > zMin + 1e-9)) {
+      return { xStations: [], sectionAreas: [], activeX: null, activeArea: null };
+    }
+
+    const stationTotal = Math.max(8, Math.min(96, Number(stationCount) || 28));
+    const { nz } = this.qualityToGrid(quality);
+    const zSlices = Math.max(18, Math.round(nz * 0.9));
+    const dz = (zMax - zMin) / zSlices;
+    const eps = (bounds.max.y - bounds.min.y) * 0.02 + 1e-6;
+    const rayTarget = this._getRaycastTarget();
+    if (!rayTarget) return { xStations: [], sectionAreas: [], activeX: null, activeArea: null };
+
+    const xStations = [];
+    const sectionAreas = [];
+    let t0 = performance.now();
+
+    for (let ix = 0; ix < stationTotal; ix++) {
+      const tx = stationTotal <= 1 ? 0 : ix / (stationTotal - 1);
+      const x = xMin + tx * (xMax - xMin);
+      let area = 0;
+
+      for (let iz = 0; iz < zSlices; iz++) {
+        const z = zMin + (iz + 0.5) * dz;
+        this._rayOrigin.set(x, bounds.min.y - eps, z);
+        this.raycaster.set(this._rayOrigin, new THREE.Vector3(0, 1, 0));
+
+        const hits = this.raycaster.intersectObject(rayTarget, false);
+        const hitCount = hits.length;
+        if (hitCount < 2) continue;
+
+        for (let k = 0; k + 1 < hitCount; k += 2) {
+          const y0 = hits[k].point.y;
+          const y1 = hits[k + 1].point.y;
+          const width = y1 - y0;
+          if (width > 0) area += width * dz;
+        }
+
+        if (performance.now() - t0 > timeSliceMs) {
+          await new Promise(requestAnimationFrame);
+          t0 = performance.now();
+        }
+      }
+
+      xStations.push(x);
+      sectionAreas.push(area);
+    }
+
+    const activeX = Number.isFinite(this.lastHydro?.cbW?.x) ? this.lastHydro.cbW.x : null;
+    let activeArea = null;
+    if (Number.isFinite(activeX) && xStations.length > 1) {
+      for (let i = 0; i < xStations.length; i++) {
+        const x = xStations[i];
+        const area = sectionAreas[i];
+        if (!Number.isFinite(x) || !Number.isFinite(area)) continue;
+        if (x >= activeX) {
+          const prevX = xStations[Math.max(0, i - 1)];
+          const prevArea = sectionAreas[Math.max(0, i - 1)];
+          if (i === 0 || !Number.isFinite(prevX) || !Number.isFinite(prevArea) || Math.abs(x - prevX) < 1e-9) {
+            activeArea = area;
+          } else {
+            const t = (activeX - prevX) / (x - prevX);
+            activeArea = prevArea + (area - prevArea) * t;
+          }
+          break;
+        }
+      }
+      if (!Number.isFinite(activeArea)) activeArea = sectionAreas[sectionAreas.length - 1] ?? null;
+    }
+
+    return { xStations, sectionAreas, activeX, activeArea };
+  }
+
   // ============================================================
   // CORE HYDRO COMPUTE (volume + CB + derived)
   // ============================================================

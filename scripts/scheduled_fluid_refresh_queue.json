@@ -1,29 +1,21 @@
 {
   "course": "Fluid",
-  "notes": "Kjor fra toppen og stopp ved første AI-feil eller rate limit. Bevar title/group/part.",
+  "daily_success_limit": 6,
+  "per_key_daily_success_limit": 2,
+  "notes": "Kjor bare videre pa gjenstaende svake videoer. Stopp etter 2 faktiske oppdateringer per nokkel per dag. Bevar title/group/part.",
   "batches": [
     {
       "enabled": true,
-      "label": "Forelesning 23 A/B",
-      "reason": "Sterk metadata og tydelige undertekster om Navier-Stokes og Couette-stromning.",
+      "label": "Forelesning 24A",
+      "reason": "Enkeltrest fra forelesning 24.",
       "urls": [
-        "https://www.youtube.com/watch?v=oiBwqhmknPQ",
-        "https://www.youtube.com/watch?v=CaFDPnZy_XE"
-      ]
-    },
-    {
-      "enabled": true,
-      "label": "Forelesning 24 A/B",
-      "reason": "God kandidat med tydelig fagtema om deformasjon og massebevarelse.",
-      "urls": [
-        "https://www.youtube.com/watch?v=gctzEpXFxoc",
-        "https://www.youtube.com/watch?v=njboJT9aAuQ"
+        "https://www.youtube.com/watch?v=gctzEpXFxoc"
       ]
     },
     {
       "enabled": true,
       "label": "Forelesning 25 A/B",
-      "reason": "Klart emne i metadata om massebevarelse og stromfunksjon.",
+      "reason": "Naturlig forelesningspar.",
       "urls": [
         "https://www.youtube.com/watch?v=Lqq5mlp0Iy0",
         "https://www.youtube.com/watch?v=WOq8l-254EA"
@@ -32,7 +24,7 @@
     {
       "enabled": true,
       "label": "Forelesning 20 A/B",
-      "reason": "Sterke undertekster og god sannsynlighet for presise beskrivelser.",
+      "reason": "Sterk kandidatgruppe med god metadata.",
       "urls": [
         "https://www.youtube.com/watch?v=hDK8MBZFGTw",
         "https://www.youtube.com/watch?v=GyVkqmDy6Vo"
@@ -41,7 +33,7 @@
     {
       "enabled": true,
       "label": "Forelesning 2 A/B",
-      "reason": "Tydelig metadata om trykkraft pa krumme flater.",
+      "reason": "Trykkraft pa krumme flater.",
       "urls": [
         "https://www.youtube.com/watch?v=hLRocFwis00",
         "https://www.youtube.com/watch?v=v0Ic0IPWsl8"
@@ -50,7 +42,7 @@
     {
       "enabled": true,
       "label": "Forelesning 21 A/B",
-      "reason": "Grunnleggende begreper med lange undertekster og moderat risiko.",
+      "reason": "Grunnleggende begreper med lange undertekster.",
       "urls": [
         "https://www.youtube.com/watch?v=7-CvPW--hIE",
         "https://www.youtube.com/watch?v=7k4UeRI-6eI"
@@ -58,8 +50,8 @@
     },
     {
       "enabled": true,
-      "label": "Forelesning 12 B + 10 A",
-      "reason": "To enkeltvideoer med tydelige kursbeskrivelser i metadata.",
+      "label": "Forelesning 12B + 10A",
+      "reason": "To enkeltvideoer med gode metabeskrivelser.",
       "urls": [
         "https://www.youtube.com/watch?v=qm0-UkV_fjs",
         "https://www.youtube.com/watch?v=phK8km_drkE"
@@ -67,8 +59,8 @@
     },
     {
       "enabled": true,
-      "label": "Forelesning 16 A + 15 B",
-      "reason": "Mulig gevinst, men litt svakere signal enn batchene over.",
+      "label": "Forelesning 16A + 15B",
+      "reason": "To enkeltvideoer med brukbare undertekster.",
       "urls": [
         "https://www.youtube.com/watch?v=xoUpr-mnXcU",
         "https://www.youtube.com/watch?v=1ImliYi33Fg"
@@ -77,7 +69,7 @@
     {
       "enabled": true,
       "label": "Forelesning 22 A/B",
-      "reason": "Intro- og demo-innhold, nyttig men lavere prioritet enn kjerneforelesningene.",
+      "reason": "Intro- og demo-innhold.",
       "urls": [
         "https://www.youtube.com/watch?v=SlY0qj9SPB0",
         "https://www.youtube.com/watch?v=s3RgvpeQJF4"
@@ -85,10 +77,83 @@
     },
     {
       "enabled": true,
-      "label": "Forelesning 13 B",
-      "reason": "Laveste prioritet fordi dagens metadata allerede er delvis brukbar.",
+      "label": "Forelesning 13B + 26B",
+      "reason": "Neste to enkeltrester i lista.",
       "urls": [
-        "https://www.youtube.com/watch?v=OpuyE6ke_q0"
+        "https://www.youtube.com/watch?v=OpuyE6ke_q0",
+        "https://www.youtube.com/watch?v=w6_u_wd_j9s"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "Forelesning 27B + 28A",
+      "reason": "Neste to rester i lista.",
+      "urls": [
+        "https://www.youtube.com/watch?v=HUo-A4cuRWc",
+        "https://www.youtube.com/watch?v=MDGzCaweXsc"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "Forelesning 28B + 29A",
+      "reason": "Neste to rester i lista.",
+      "urls": [
+        "https://www.youtube.com/watch?v=FMmQGnDJ3C8",
+        "https://www.youtube.com/watch?v=jSqNjqc2XQ4"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "Forelesning 29B + 3",
+      "reason": "Neste to rester i lista.",
+      "urls": [
+        "https://www.youtube.com/watch?v=lvoSSKqYifM",
+        "https://www.youtube.com/watch?v=8CnGOpLlO6M"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "Forelesning 4A + 5A",
+      "reason": "Neste to rester i lista.",
+      "urls": [
+        "https://www.youtube.com/watch?v=R29r2JYjgFk",
+        "https://www.youtube.com/watch?v=cManJVu1Nho"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "Forelesning 5B + 6A",
+      "reason": "Neste to rester i lista.",
+      "urls": [
+        "https://www.youtube.com/watch?v=nGObVKUQmhQ",
+        "https://www.youtube.com/watch?v=Ea1kJR6jguM"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "Forelesning 6B + 7A",
+      "reason": "Neste to rester i lista.",
+      "urls": [
+        "https://www.youtube.com/watch?v=OvlPfaWI3xE",
+        "https://www.youtube.com/watch?v=KFXRoVsg2os"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "Forelesning 8A + 8B",
+      "reason": "Samlet forelesningspar.",
+      "urls": [
+        "https://www.youtube.com/watch?v=mx45S6k-h_A",
+        "https://www.youtube.com/watch?v=OY_MGtn6P9I"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "Forelesning 9A + 9B",
+      "reason": "Siste samlede forelesningspar i nåværende liste.",
+      "urls": [
+        "https://www.youtube.com/watch?v=p1y0SkqpMgw",
+        "https://www.youtube.com/watch?v=zyyJWUJEazU"
       ]
     }
   ]

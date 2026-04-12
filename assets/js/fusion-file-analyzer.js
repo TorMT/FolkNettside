@@ -93,15 +93,54 @@
     cacheKey: "",
     requestKey: "",
     detailSignature: "",
+    startedAt: 0,
+    lastDurationMs: null,
   };
   const hydroTaskState = {
     active: false,
     title: "",
     text: "",
+    kind: "hydro",
+    progress: null,
+    etaMs: null,
+    startedAt: 0,
+    etaUpdatedAt: 0,
+    progressUpdatedAt: 0,
   };
+  let currentSidebarTab = "overview";
   const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410f";
-  const REPORT_CACHE_VERSION = "20260411g";
+  const REPORT_CACHE_VERSION = "20260412d";
+  const MATERIAL_OVERRIDE_STORAGE_VERSION = "20260412d";
+
+  function invalidateHydroReportState() {
+    reportState.payload = null;
+    reportState.cacheKey = "";
+    reportState.requestKey = "";
+    reportState.detailSignature = "";
+  }
+
+  function describeBlockCoefficientUsage(active, estimate = analysisState.latestHydroEstimate) {
+    const cbValue = Number.isFinite(active?.blockCoefficient)
+      ? active.blockCoefficient
+      : Number.isFinite(estimate?.blockCoefficient)
+        ? estimate.blockCoefficient
+        : clampNumber(inpCb?.value, 0.1, 1, 0.6);
+    const valueLabel = Number.isFinite(cbValue) ? Number(cbValue).toFixed(2) : "N/A";
+    if (active?.isEstimate) {
+      return {
+        value: valueLabel,
+        note: "Cb brukes aktivt i sidebar-estimatet for deplasement, vannlinjeareal og seksjonsareal-fallback.",
+        isUsed: true,
+      };
+    }
+    return {
+      value: valueLabel,
+      note: "Cb-feltet er kun fallback her. Live viewer-hydro bygger pa modellgeometri sa lenge viewerdata finnes.",
+      isUsed: false,
+    };
+  }
   const REPORT_SESSION_PREFIX = `fusionHydroReport.${REPORT_CACHE_VERSION}`;
+  const MATERIAL_OVERRIDE_STORAGE_PREFIX = `fusionMaterialOverrides.${MATERIAL_OVERRIDE_STORAGE_VERSION}`;
   const headResultCache = new Map();
   const jsonResultCache = new Map();
   const arrayBufferResultCache = new Map();
@@ -140,23 +179,25 @@
   const inpRhoWater = document.getElementById("inpRhoWater");
   const selMaterial = document.getElementById("selMaterial");
   const inpRhoMat = document.getElementById("inpRhoMat");
-  const inpKgFrac = document.getElementById("inpKgFrac");
   const inpCb = document.getElementById("inpCb");
   const inpThicknessMm = document.getElementById("inpThicknessMm");
   const btnHydroCalc = document.getElementById("btnHydroCalc");
   const btnHydroApply = document.getElementById("btnHydroApply");
   const btnHydroResetPose = document.getElementById("btnHydroResetPose");
   const btnHydroReport = document.getElementById("btnHydroReport");
+  const btnHydroRecalc = document.getElementById("btnHydroRecalc");
   const inpHydroDraft = document.getElementById("inpHydroDraft");
   const inpHydroTrim = document.getElementById("inpHydroTrim");
   const inpHydroHeel = document.getElementById("inpHydroHeel");
   const selHydroQuality = document.getElementById("selHydroQuality");
+  const chkHydroPerfMode = document.getElementById("chkHydroPerfMode");
   const chkHydroMarkers = document.getElementById("chkHydroMarkers");
   const chkHydroWaterline = document.getElementById("chkHydroWaterline");
   const chkHydroContour = document.getElementById("chkHydroContour");
   const hydroProgress = document.getElementById("hydroProgress");
   const hydroProgressTitle = document.getElementById("hydroProgressTitle");
   const hydroProgressText = document.getElementById("hydroProgressText");
+  const hydroProgressBar = hydroProgress?.querySelector(".hydro-progress-bar");
   const hydroLiveDraft = document.getElementById("hydroLiveDraft");
   const hydroLiveDraftSource = document.getElementById("hydroLiveDraftSource");
   const hydroLiveDisp = document.getElementById("hydroLiveDisp");
@@ -197,6 +238,7 @@
   const hydroReportEquilibriumNote = document.getElementById("hydroReportEquilibriumNote");
   const hydroReportMethodNote = document.getElementById("hydroReportMethodNote");
   const hydroReportSheet = document.getElementById("hydroReportSheet");
+  const txtKgMode = document.getElementById("txtKgMode");
 
   if (!file) {
     headline.textContent = "Mangler ?file= parameter.";
@@ -668,8 +710,12 @@
   drawerBackdrop && drawerBackdrop.addEventListener("click", () => setDrawerOpen(false));
   window.addEventListener("resize", () => syncDrawerForViewport());
 
-  function setTab(tabName) {
-    const showOverview = tabName !== "hydro";
+  function setTab(tabName, { toggle = false } = {}) {
+    const requested = tabName === "hydro" ? "hydro" : "overview";
+    currentSidebarTab = toggle && currentSidebarTab === requested
+      ? (requested === "hydro" ? "overview" : "hydro")
+      : requested;
+    const showOverview = currentSidebarTab !== "hydro";
     if (infoCard) infoCard.style.display = showOverview ? "" : "none";
     if (toolsCard) toolsCard.style.display = showOverview ? "" : "none";
     if (componentsCard) componentsCard.style.display = showOverview ? "" : "none";
@@ -677,8 +723,8 @@
     btnTabOverview?.classList.toggle("active", showOverview);
     btnTabHydro?.classList.toggle("active", !showOverview);
   }
-  btnTabOverview && (btnTabOverview.onclick = () => setTab("overview"));
-  btnTabHydro && (btnTabHydro.onclick = () => setTab("hydro"));
+  btnTabOverview && (btnTabOverview.onclick = () => setTab("overview", { toggle: true }));
+  btnTabHydro && (btnTabHydro.onclick = () => setTab("hydro", { toggle: true }));
   setTab("overview");
 
   btnFusion && (btnFusion.onclick = () => window.open("https://myhub.autodesk360.com/", "_blank", "noopener"));
@@ -729,7 +775,7 @@
     if (selMaterial.value !== "custom") inpRhoMat.value = String(MATERIAL_DENSITY[selMaterial.value] || 7850);
     applyHydroControlsToViewer({ includeDraftPose: false });
   });
-  [inpRhoMat, inpKgFrac, inpCb, inpThicknessMm].forEach((input) => {
+  [inpRhoMat, inpCb, inpThicknessMm].forEach((input) => {
     input?.addEventListener("input", () => buildHydroReport());
   });
   inpRhoMat?.addEventListener("change", () => {
@@ -755,6 +801,12 @@
     buildHydroReport();
   });
   btnHydroReport?.addEventListener("click", () => requestHydroReport());
+  btnHydroRecalc?.addEventListener("click", () => requestHydroReport({ force: true }));
+  chkHydroPerfMode?.addEventListener("change", () => {
+    invalidateHydroReportState();
+    buildHydroReport();
+    updateHydroProgressUi();
+  });
   btnHydroReportClose?.addEventListener("click", () => closeHydroReportModal());
   hydroReportModal?.querySelector("[data-close-report='1']")?.addEventListener("click", () => closeHydroReportModal());
   btnHydroReportPrint?.addEventListener("click", () => {
@@ -1009,7 +1061,7 @@
     return `${label}${density}`;
   }
 
-  function updateHydroSourceText() {
+  function updateHydroSourceTextLegacy_DoNotUse() {
     if (hydroSource) {
       const geometrySource = analysisState.geometrySource || analysisState.source || "Ingen geometri ennå";
       hydroSource.textContent = `Geometri: ${geometrySource}. Enheter: ${analysisState.units || "m"}.`;
@@ -1220,6 +1272,7 @@
     const bounds = active?.referenceBounds || estimate?.referenceBounds || null;
     const draftMeters = getDraftMetersFromHydro(active) ?? estimate?.draftMeters;
     const massSummary = getMassSourceSummary(active?.massProperties || getViewerMassProperties());
+    const cbUsage = describeBlockCoefficientUsage(active, estimate);
     const cards = [
       {
         title: "Geometri",
@@ -1268,6 +1321,11 @@
         value: massSummary.title,
         note: massSummary.detail,
       },
+      {
+        title: "Blokk-koeff.",
+        value: `Cb ${cbUsage.value}`,
+        note: cbUsage.note,
+      },
     ];
 
     hydroQuickSummary.innerHTML = cards.map((card) => `
@@ -1288,6 +1346,7 @@
     const submergedVolume = Number.isFinite(active?.submergedVolume) ? active.submergedVolume : (allowEstimateFallback ? estimate?.submergedVolume : null);
     const draftMeters = getDraftMetersFromHydro(active) ?? (allowEstimateFallback ? estimate?.draftMeters : null);
     const massSummary = getMassSourceSummary(active?.massProperties || getViewerMassProperties());
+    const cbUsage = describeBlockCoefficientUsage(active, estimate);
     const summaryBlocks = [
       {
         title: "Kilde",
@@ -1310,6 +1369,11 @@
         title: "Massegrunnlag",
         value: massSummary.title,
         note: massSummary.detail,
+      },
+      {
+        title: "Blokk-koeff.",
+        value: `Cb ${cbUsage.value}`,
+        note: cbUsage.note,
       },
     ];
 
@@ -1344,6 +1408,7 @@
       if (!analysisState.bbox) warnings.push("Hydrostatikk venter pa lesbar geometri/bbox.");
       if (snapshot.mode === "estimate") warnings.push("Tallene er forelopig bbox-baserte til live hydro kommer fra vieweren.");
       if (snapshot.mode === "viewer-pending") warnings.push("Draft er satt fra aktiv viewer, men deplasement og hydrodata regnes fortsatt fra modellgeometrien.");
+      if (snapshot.estimate?.isEstimate) warnings.push(`Blokk-koeffisient ${describeBlockCoefficientUsage(snapshot.estimate, snapshot.estimate).value} brukes i sidebar-estimatet.`);
       if (reportState.payload?.note) warnings.push(reportState.payload.note);
       hydroWarn.textContent = warnings.join(" ");
     }
@@ -1368,7 +1433,11 @@
     const kbs = [];
     const awps = [];
     const saks = [];
+    const sectionXs = [];
+    const sectionAreas = [];
     const zMin = estimate.referenceBounds?.min?.z ?? 0;
+    const xMin = estimate.referenceBounds?.min?.x ?? 0;
+    const xMax = estimate.referenceBounds?.max?.x ?? (xMin + (estimate.length || 0));
     for (let i = 0; i < steps; i++) {
       const immersion = estimate.depth * (i / (steps - 1));
       drafts.push(zMin + immersion);
@@ -1377,6 +1446,14 @@
       kbs.push(immersion * 0.53);
       awps.push(estimate.length * estimate.beam * Math.max(0.58, Math.min(0.98, estimate.blockCoefficient + 0.18)));
       saks.push(null);
+    }
+    const sectionSteps = 28;
+    const maxSectionArea = Math.max(0, (estimate.beam || 0) * (estimate.draftMeters || 0) * Math.max(0.22, Math.min(1, (estimate.blockCoefficient || 0.6) * 0.95)));
+    for (let i = 0; i < sectionSteps; i++) {
+      const t = i / Math.max(1, sectionSteps - 1);
+      const bell = Math.pow(Math.max(0, Math.sin(Math.PI * t)), 1.2);
+      sectionXs.push(xMin + (xMax - xMin) * t);
+      sectionAreas.push(maxSectionArea * bell);
     }
 
     return {
@@ -1430,8 +1507,21 @@
         meta: { draftCount: drafts.length, qualityUsed: "estimate", rho: estimate.waterDensity, includeAwp: true, includeSAK: false },
         data: { drafts, volumes, displacements, kbs, awps, saks },
       },
+      sectionCurve: {
+        meta: {
+          stationCount: sectionXs.length,
+          qualityUsed: "estimate",
+          draftZWorld: estimate.draftZWorld,
+          note: "For estimate brukes en forenklet seksjonsfordeling fra bbox og blokkkoeffisient.",
+        },
+        data: {
+          xStations: sectionXs,
+          sectionAreas,
+          activeX: Number.isFinite(estimate.cb?.x) ? estimate.cb.x : (xMin + xMax) * 0.5,
+        },
+      },
       equilibriumState: null,
-      note: "Kurver og draft-scan er beregnet som teoretisk fallback fra bbox/geometrihint.",
+      note: "Kurver, draft-scan og seksjonsareal er beregnet som teoretisk fallback fra bbox/geometrihint.",
     };
   }
 
@@ -1556,6 +1646,26 @@
     });
   }
 
+  function interpolateSeriesValue(xs = [], ys = [], targetX = null) {
+    if (!Number.isFinite(targetX)) return null;
+    let previous = null;
+    for (let i = 0; i < xs.length; i++) {
+      const x = Number(xs[i]);
+      const y = Number(ys[i]);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      if (x === targetX) return y;
+      if (x > targetX) {
+        if (!previous) return y;
+        const dx = x - previous.x;
+        if (!Number.isFinite(dx) || Math.abs(dx) < 1e-9) return y;
+        const t = (targetX - previous.x) / dx;
+        return previous.y + (y - previous.y) * t;
+      }
+      previous = { x, y };
+    }
+    return previous?.y ?? null;
+  }
+
   function drawHydroCurveChart(canvas, payload) {
     const rollReport = payload?.rollReport;
     const pitchReport = payload?.pitchReport;
@@ -1611,36 +1721,33 @@
   }
 
   function drawSakCurveChart(canvas, payload) {
-    const rollReport = payload?.rollReport;
-    const draftScan = payload?.draftScan;
     const currentHydro = payload?.currentHydro || payload?.hydro || null;
-    const draftData = draftScan?.data || {};
-    const refMinZ = safeNumber(currentHydro?.referenceBounds?.min?.z) || 0;
-    const draftXs = (draftData.drafts || []).map((draft) => Number.isFinite(draft) ? draft - refMinZ : null);
-    const rollSak = Array.isArray(rollReport?.curve?.sak)
-      ? rollReport.curve.sak.some((value) => Number.isFinite(value))
-      : false;
+    const sectionData = payload?.sectionCurve?.data || {};
+    const xStations = Array.isArray(sectionData?.xStations) ? sectionData.xStations : [];
+    const sectionAreas = Array.isArray(sectionData?.sectionAreas) ? sectionData.sectionAreas : [];
+    const refMinX = safeNumber(currentHydro?.referenceBounds?.min?.x)
+      ?? safeNumber(Math.min(...xStations.filter((value) => Number.isFinite(value))))
+      ?? 0;
+    const xs = xStations.map((x) => Number.isFinite(x) ? x - refMinX : null);
+    const activeX = Number.isFinite(sectionData?.activeX)
+      ? sectionData.activeX - refMinX
+      : Number.isFinite(currentHydro?.cb?.x)
+        ? currentHydro.cb.x - refMinX
+        : null;
     drawLineChart(canvas, {
-      title: "SAK / vat flate",
-      xLabel: rollSak ? "Vinkel (deg)" : "Draft fra referanse-bunn (m)",
-      yLabel: "SAK (m^2)",
+      title: "Seksjonsareal langs lengden",
+      xLabel: "Lengde fra akterreferanse (m)",
+      yLabel: "Undervanns seksjonsareal (m^2)",
       activePoint: {
-        x: rollSak ? (safeNumber(currentHydro?.heelDeg) ?? 0) : getDraftMetersFromHydro(currentHydro),
-        y: rollSak ? safeNumber(rollReport?.now?.sak) : safeNumber(draftData?.saks?.find((value) => Number.isFinite(value))),
+        x: activeX,
+        y: interpolateSeriesValue(xs, sectionAreas, activeX),
       },
-      series: rollSak ? [
+      series: [
         {
-          label: "SAK roll",
+          label: "Seksjonsareal",
           color: "#7c3aed",
-          x: rollReport?.curve?.anglesDeg || [],
-          y: rollReport?.curve?.sak || [],
-        },
-      ] : [
-        {
-          label: "SAK draft",
-          color: "#0891b2",
-          x: draftXs,
-          y: draftData.saks || [],
+          x: xs,
+          y: sectionAreas,
         },
       ],
     });
@@ -1673,6 +1780,7 @@
 
   function buildHydroMethodNoteHtml(currentHydro, massSummary, componentMassRows = []) {
     const massProps = currentHydro?.massProperties || getViewerMassProperties() || null;
+    const cbUsage = describeBlockCoefficientUsage(currentHydro, analysisState.latestHydroEstimate);
     const kb = safeNumber(currentHydro?.kb);
     const kg = safeNumber(currentHydro?.kg);
     const bmRoll = safeNumber(currentHydro?.bm?.roll);
@@ -1711,6 +1819,9 @@
       `GM rapporteres som smaavinkel-GM rundt aktiv draft/trim/heel: GM_roll = KB + BM_roll - KG og GM_pitch = KB + BM_pitch - KG.`,
       `KB hentes numerisk fra oppdriftssenteret til det neddykkede volumet, mens KG/GK i rapporten er avstanden fra referanseplanet opp til tyngdepunktet G. Dersom du leser dette som GK er det samme maal som vanligvis skrives KG.`,
       `Volum, centroid og andre masseegenskaper kommer fra triangulert viewer-geometri importert fra STEP/3MF/STL, ikke fra eksakte NURBS- eller klassegodkjente hydroflater. Resultatene er derfor best egnet som ingeniorestimat og iterasjon.`,
+      cbUsage.isUsed
+        ? `Blokk-koeffisienten Cb = ${cbUsage.value} brukes i denne fallback-beregningen fordi live hydrogrunnlag fra viewer ikke er fullt tilgjengelig.`
+        : `Blokk-koeffisienten Cb = ${cbUsage.value} er ikke styrende i denne live-beregningen; den beholdes bare som fallback hvis viewer-hydroen mangler.`,
     ];
     if (directMassCount > 0) {
       assumptionItems.push(`Rapporten bruker ${directMassCount} direkte masseoverstyringer. Der bare total masse er kjent for en gruppe, estimeres intern massefordeling fra komponentvolum dersom det finnes, ellers med lik fordeling per del.`);
@@ -1755,6 +1866,7 @@
     const rollStability = payload.rollReport?.stability || null;
     const pitchStability = payload.pitchReport?.stability || null;
     const massSummary = getMassSourceSummary(currentHydro?.massProperties || getViewerMassProperties());
+    const cbUsage = describeBlockCoefficientUsage(currentHydro, analysisState.latestHydroEstimate);
 
     if (hydroReportTitle) hydroReportTitle.textContent = `${payload.fileName || displayFileName || fileName || "Modell"} - hydrostatikk`;
     if (hydroReportMeta) {
@@ -1786,8 +1898,8 @@
 
     if (hydroCurveCaption) hydroCurveCaption.textContent = `Roll og pitch for gjeldende draft ${fmtUnitValue(getDraftMetersFromHydro(currentHydro), 3, "m")}. Mork prikk viser aktiv tilstand.`;
     if (hydroDraftCaption) hydroDraftCaption.textContent = "Mork prikk viser aktiv draft og deplasement i modellen.";
-    if (hydroSakCaption) hydroSakCaption.textContent = "SAK viser vat flate. Dersom vinkelkurve mangler brukes draftscan.";
-    if (hydroAwpCaption) hydroAwpCaption.textContent = "Bonjean-lignende oversikt over totalt vannlinjeareal mot draft. Dette er ikke en full stasjonsvis Bonjean-tabell, men en rask hydro-oversikt fra aktiv geometri.";
+    if (hydroSakCaption) hydroSakCaption.textContent = "Seksjonsarealkurven viser hvor mye undervannsareal modellen har langs lengdeaksen ved aktiv draft.";
+    if (hydroAwpCaption) hydroAwpCaption.textContent = "Awp-kurven viser totalt vannlinjeareal mot draft. Dette er en rask hydro-oversikt fra aktiv geometri, ikke en full stasjonsvis Bonjean-tabell.";
 
     if (hydroReportTable) {
       const rows = [
@@ -1796,6 +1908,8 @@
         ["Vann-tetthet", Number.isFinite(currentHydro?.waterDensity) ? `${Math.round(currentHydro.waterDensity)} kg/m^3` : "–"],
         ["Materialhint", analysisState.materialHint ? describeMaterialHint(analysisState.materialHint) : "Ingen"],
         ["Materialprofil", analysisState.materialHint?.defaultedFromProfile ? "Standardprofil fra materialnavn (kan overstyres)" : analysisState.materialHint ? "Eksplisitt hint eller brukerfelt" : "Manuell / N/A"],
+        ["Blokk-koeffisient", `Cb ${cbUsage.value}`],
+        ["Cb brukt i beregningen", cbUsage.note],
         ["Massegrunnlag", massSummary.title],
         ["Tetthetmodus", massSummary.modeLabel],
         ["Tetthetskilder", massSummary.countsLabel],
@@ -1871,7 +1985,7 @@
         <h3>Hva markerer punktene?</h3>
         <p class="muted">
           Morke punkter viser aktiv tilstand i modellen akkurat na.
-          Stabilitetskurven markerer aktiv heel og GZ, mens draftkurvene markerer aktiv draft og deplasement.
+          Stabilitetskurven markerer aktiv heel og GZ, draftkurven markerer aktiv draft og deplasement, og seksjonsarealkurven markerer stasjonen ved aktivt oppdriftssenter langs lengden.
           Resten av linjene er beregnede scenarier fra samme geometri og massegrunnlag.
         </p>
       `;
@@ -1935,29 +2049,47 @@
     return `${REPORT_SESSION_PREFIX}:${cleanUrlPath(decodedFile)}`;
   }
 
-  function saveHydroReportCache(payload, detailSignature = buildHydroDetailSignature()) {
+  function saveHydroReportCache(
+    payload,
+    detailSignature = buildHydroDetailSignature(),
+    requestKey = buildHydroReportRequestKey()
+  ) {
     if (!payload) return;
     reportState.payload = payload;
     reportState.detailSignature = detailSignature;
+    reportState.cacheKey = requestKey;
     try {
       sessionStorage.setItem(getHydroReportSessionKey(), JSON.stringify({
         detailSignature,
+        requestKey,
         payload,
       }));
     } catch {}
   }
 
-  function loadHydroReportCache(detailSignature = buildHydroDetailSignature()) {
-    if (reportState.payload && reportState.detailSignature === detailSignature) {
+  function loadHydroReportCache(
+    detailSignature = buildHydroDetailSignature(),
+    requestKey = buildHydroReportRequestKey()
+  ) {
+    if (
+      reportState.payload &&
+      reportState.detailSignature === detailSignature &&
+      reportState.cacheKey === requestKey
+    ) {
       return reportState.payload;
     }
     try {
       const raw = sessionStorage.getItem(getHydroReportSessionKey());
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (parsed?.detailSignature !== detailSignature || !parsed?.payload) return null;
+      if (
+        parsed?.detailSignature !== detailSignature ||
+        parsed?.requestKey !== requestKey ||
+        !parsed?.payload
+      ) return null;
       reportState.payload = parsed.payload;
       reportState.detailSignature = detailSignature;
+      reportState.cacheKey = requestKey;
       return parsed.payload;
     } catch {
       return null;
@@ -1980,6 +2112,7 @@
       waterDensity: clampNumber(inpRhoWater?.value, 900, 1100, 1025),
       materialDensity: clampNumber(inpRhoMat?.value, 100, 50000, 7850),
       quality: selHydroQuality?.value || "low",
+      performanceMode: chkHydroPerfMode?.checked === true,
       componentDensityOverrides: buildComponentDensityOverridePayload(),
     };
     if (includeDraftPose) {
@@ -1995,26 +2128,10 @@
 
   function buildHydroReportRequestKey() {
     const command = collectHydroCommandPayload({ includeDraftPose: true });
-    const viewerHydro = getViewerHydroData();
-    const viewerMass = getViewerMassProperties();
     return JSON.stringify({
       v: REPORT_CACHE_VERSION,
       file: cleanUrlPath(decodedFile),
       command,
-      hydro: viewerHydro ? {
-        source: viewerHydro.source || "",
-        draftZWorld: safeNumber(viewerHydro.draftZWorld),
-        trimDeg: safeNumber(viewerHydro.trimDeg),
-        heelDeg: safeNumber(viewerHydro.heelDeg),
-        waterDensity: safeNumber(viewerHydro.waterDensity),
-        units: viewerHydro.units || "m",
-        sourceUnits: viewerHydro.sourceUnits || "",
-      } : null,
-      mass: viewerMass ? {
-        totalMassTonnes: safeNumber(viewerMass.totalMassTonnes),
-        densityKgM3: safeNumber(viewerMass.densityKgM3),
-        componentCount: Number(viewerMass.componentCount) || 0,
-      } : null,
     });
   }
 
@@ -2051,17 +2168,19 @@
     updateHydroProgressUi();
   }
 
-  function requestHydroReport() {
+  function requestHydroReport({ force = false } = {}) {
     const requestKey = buildHydroReportRequestKey();
     const detailSignature = buildHydroDetailSignature();
-    const cachedPayload = loadHydroReportCache(detailSignature);
-    if (cachedPayload && reportState.cacheKey === requestKey) {
-      renderHydroReportModal({ ...cachedPayload, cached: true });
-      openHydroReportModal();
-      return;
-    }
-    if (cachedPayload && !reportState.isGenerating) {
-      reportState.cacheKey = requestKey;
+    const cachedPayload = force ? null : loadHydroReportCache(detailSignature, requestKey);
+    if (!force && cachedPayload && !reportState.isGenerating) {
+      if (btnHydroReport) {
+        btnHydroReport.disabled = false;
+        btnHydroReport.textContent = "Vis rapport";
+      }
+      if (btnHydroRecalc) {
+        btnHydroRecalc.disabled = false;
+        btnHydroRecalc.textContent = "Recalc rapport";
+      }
       renderHydroReportModal({ ...cachedPayload, cached: true });
       openHydroReportModal();
       return;
@@ -2071,14 +2190,23 @@
     if (viewerHydro?.supported) {
       reportState.isGenerating = true;
       reportState.requestKey = requestKey;
-      setHydroTaskState(true, "Genererer hydro-rapport...", "Kjører draftscan og stabilitetskurver i aktiv viewer. Spinneren vises mens beregningen deles opp i mindre pass for å holde UI-et responsivt.");
+      reportState.startedAt = Date.now();
+      setHydroTaskState(true, "Genererer hydro-rapport...", "Kjører draftscan, seksjonsareal og stabilitetskurver i aktiv viewer.", {
+        kind: "report",
+        progress: 0.02,
+      });
       if (btnHydroReport) {
         btnHydroReport.disabled = true;
         btnHydroReport.textContent = "Genererer rapport...";
       }
+      if (btnHydroRecalc) {
+        btnHydroRecalc.disabled = true;
+        btnHydroRecalc.textContent = "Regner pa nytt...";
+      }
       updateHydroPanels();
       postViewerCommandToViewer("generate-hydro-report", {
         ...collectHydroCommandPayload({ includeDraftPose: true }),
+        forceRecalc: !!force,
         fileName: displayFileName || fileName || "Hydro-modell",
       });
       return;
@@ -2087,8 +2215,7 @@
     const estimate = analysisState.latestHydroEstimate || buildHydroEstimateFromBbox();
     const payload = buildEstimatedReportPayload(estimate);
     if (!payload) return;
-    saveHydroReportCache(payload, detailSignature);
-    reportState.cacheKey = requestKey;
+    saveHydroReportCache(payload, detailSignature, requestKey);
     renderHydroReportModal(payload);
     openHydroReportModal();
   }
@@ -2111,6 +2238,11 @@
         ? `Materialhint: ${describeMaterialHint(analysisState.materialHint)}${analysisState.materialHintSource ? ` (${analysisState.materialHintSource})` : ""}.${analysisState.materialHint.defaultedFromProfile ? " Standardprofil fra materialnavn brukes til du eventuelt overstyrer tettheten." : ""}`
         : "Materiale: bruker valgt tetthet i panelet.";
       hydroMaterialHint.textContent = `${materialText} Massegrunnlag: ${massSummary.detail}`;
+    }
+    if (txtKgMode) {
+      txtKgMode.textContent = massSummary.title === "Masse ikke fullt bestemt"
+        ? "Fallback fra geometriens centroid brukes til mer masse er kjent."
+        : "KG hentes automatisk fra komponentgeometri og massegrunnlag.";
     }
   }
 
@@ -2288,12 +2420,44 @@
     return `Est: ${minMin}-${maxMin} min`;
   }
 
+  function formatEtaMs(ms) {
+    const seconds = Math.max(1, Math.round((Number(ms) || 0) / 1000));
+    if (seconds < 60) return `Est: ${seconds} s`;
+    const minutes = Math.floor(seconds / 60);
+    const remain = seconds % 60;
+    return remain > 0 ? `Est: ${minutes}m ${remain}s` : `Est: ${minutes} min`;
+  }
+
+  function getLiveEtaMs() {
+    if (!Number.isFinite(hydroTaskState.etaMs)) return null;
+    const updatedAt = Number(hydroTaskState.etaUpdatedAt) || Date.now();
+    return Math.max(0, hydroTaskState.etaMs - (Date.now() - updatedAt));
+  }
+
+  function getAnimatedHydroProgress() {
+    if (!Number.isFinite(hydroTaskState.progress)) return null;
+    const baseProgress = Math.max(0, Math.min(1, Number(hydroTaskState.progress)));
+    const liveEta = getLiveEtaMs();
+    if (!Number.isFinite(liveEta) || liveEta <= 0 || !Number.isFinite(hydroTaskState.etaMs) || hydroTaskState.etaMs <= 0) {
+      return baseProgress;
+    }
+    const elapsed = Math.max(0, Date.now() - (Number(hydroTaskState.progressUpdatedAt) || Date.now()));
+    const progressWindow = Math.min(0.08, (1 - baseProgress) * 0.35);
+    const fraction = Math.max(0, Math.min(1, elapsed / hydroTaskState.etaMs));
+    return Math.min(0.985, baseProgress + progressWindow * fraction);
+  }
+
   function getHydroEtaLabel(kind = "hydro", snapshot = getActiveHydroSnapshot()) {
     const quality = selHydroQuality?.value || snapshot?.hydro?.quality || "low";
+    const performanceMode = chkHydroPerfMode?.checked === true;
     const componentCount = getHydroComponentCount(snapshot);
+    const measuredSeconds = kind === "report" && Number.isFinite(reportState.lastDurationMs) && reportState.lastDurationMs > 500
+      ? reportState.lastDurationMs / 1000
+      : null;
     const baseSeconds = kind === "report"
-      ? { low: 35, med: 95, high: 260 }[quality] || 95
+      ? measuredSeconds || ({ low: 35, med: 95, high: 260 }[quality] || 95)
       : { low: 6, med: 18, high: 45 }[quality] || 18;
+    const performanceFactor = performanceMode ? 0.58 : 1;
     const complexityFactor = componentCount <= 8
       ? 1
       : componentCount <= 24
@@ -2301,17 +2465,42 @@
         : componentCount <= 60
           ? 1.7
           : componentCount <= 120
-            ? 2.2
+          ? 2.2
             : 3;
-    const minSeconds = baseSeconds * Math.max(0.85, complexityFactor * 0.75);
-    const maxSeconds = baseSeconds * Math.max(1.2, complexityFactor * 1.2);
+    const minSeconds = baseSeconds * performanceFactor * Math.max(0.85, complexityFactor * 0.75);
+    const maxSeconds = baseSeconds * performanceFactor * Math.max(1.2, complexityFactor * 1.2);
     return formatEtaRangeSeconds(minSeconds, maxSeconds);
   }
 
-  function setHydroTaskState(active, title = "", text = "") {
+  function setHydroTaskState(active, title = "", text = "", options = {}) {
+    const wasActive = hydroTaskState.active;
     hydroTaskState.active = !!active;
     hydroTaskState.title = title || "";
     hydroTaskState.text = text || "";
+    hydroTaskState.kind = options.kind || hydroTaskState.kind || "hydro";
+    if (Number.isFinite(options.progress)) {
+      hydroTaskState.progress = Math.max(0, Math.min(1, Number(options.progress)));
+      hydroTaskState.progressUpdatedAt = Date.now();
+    } else if (!active) {
+      hydroTaskState.progress = null;
+      hydroTaskState.progressUpdatedAt = 0;
+    }
+    if (Number.isFinite(options.etaMs)) {
+      hydroTaskState.etaMs = Math.max(0, Number(options.etaMs));
+      hydroTaskState.etaUpdatedAt = Date.now();
+    } else if (!active) {
+      hydroTaskState.etaMs = null;
+      hydroTaskState.etaUpdatedAt = 0;
+    }
+    if (active && !wasActive) hydroTaskState.startedAt = Date.now();
+    if (!active) {
+      hydroTaskState.progress = null;
+      hydroTaskState.etaMs = null;
+      hydroTaskState.startedAt = 0;
+      hydroTaskState.etaUpdatedAt = 0;
+      hydroTaskState.progressUpdatedAt = 0;
+      hydroTaskState.kind = "hydro";
+    }
   }
 
   function updateHydroProgressUi(snapshot = getActiveHydroSnapshot()) {
@@ -2337,7 +2526,33 @@
     hydroProgress.hidden = !active;
     if (active) {
       if (hydroProgressTitle) hydroProgressTitle.textContent = title;
-      if (hydroProgressText) hydroProgressText.textContent = `${text} ${getHydroEtaLabel(reportState.isGenerating ? "report" : "hydro", snapshot)}.`;
+      const liveProgress = getAnimatedHydroProgress();
+      const liveEtaMs = getLiveEtaMs();
+      const progressLabel = Number.isFinite(liveProgress)
+        ? ` ${Math.round(liveProgress * 100)}% ferdig.`
+        : "";
+      const etaLabel = Number.isFinite(liveEtaMs)
+        ? formatEtaMs(liveEtaMs)
+        : getHydroEtaLabel(reportState.isGenerating ? "report" : hydroTaskState.kind || "hydro", snapshot);
+      if (hydroProgressText) hydroProgressText.textContent = `${text}${progressLabel} ${etaLabel}.`.trim();
+      if (hydroProgressBar) {
+        if (Number.isFinite(liveProgress)) {
+          hydroProgressBar.style.animation = "none";
+          hydroProgressBar.style.inset = "0 auto 0 0";
+          hydroProgressBar.style.width = `${Math.max(8, Math.min(100, liveProgress * 100))}%`;
+          hydroProgressBar.style.transform = "none";
+        } else {
+          hydroProgressBar.style.removeProperty("width");
+          hydroProgressBar.style.removeProperty("inset");
+          hydroProgressBar.style.removeProperty("transform");
+          hydroProgressBar.style.removeProperty("animation");
+        }
+      }
+    } else if (hydroProgressBar) {
+      hydroProgressBar.style.removeProperty("width");
+      hydroProgressBar.style.removeProperty("inset");
+      hydroProgressBar.style.removeProperty("transform");
+      hydroProgressBar.style.removeProperty("animation");
     }
   }
 
@@ -2423,7 +2638,6 @@
 
     const rhoWater = clampNumber(inpRhoWater?.value, 900, 1100, 1025);
     const rhoMat = clampNumber(inpRhoMat?.value, 100, 50000, 7850);
-    const kgFrac = clampNumber(inpKgFrac?.value, 0, 1, 0.55);
     const cb = clampNumber(inpCb?.value, 0.1, 1, 0.6);
     const thicknessMm = Math.max(0, safeNumber(inpThicknessMm?.value) || 0);
     const thicknessM = thicknessMm / 1000;
@@ -2460,13 +2674,19 @@
       ? viewerMass.totalMassTonnes
       : fallbackMaterialMassTonnes;
     const viewerCg = viewerMass?.centerOfMassWorld || viewerMass?.centerOfMassLocal || null;
+    const bboxCenterZ = Number.isFinite(bbox?.minZ) && Number.isFinite(bbox?.maxZ)
+      ? ((bbox.minZ + bbox.maxZ) * 0.5) * scale
+      : null;
+    const centroidFallbackZ = centroidLocal && Number.isFinite(centroidLocal.z)
+      ? centroidLocal.z * scale
+      : null;
     const kg = Number.isFinite(viewerMass?.kgWorld)
       ? viewerMass.kgWorld
       : viewerCg && Number.isFinite(viewerCg.z)
         ? viewerCg.z
-        : draftMeters > 0
-          ? minZ + draftMeters * kgFrac
-          : null;
+        : Number.isFinite(centroidFallbackZ)
+          ? centroidFallbackZ
+          : bboxCenterZ;
     const gmRoll = Number.isFinite(kb) && Number.isFinite(kg) && Number.isFinite(bmRoll) ? kb + bmRoll - kg : null;
     const gmPitch = Number.isFinite(kb) && Number.isFinite(kg) && Number.isFinite(bmPitch) ? kb + bmPitch - kg : null;
     const cg = viewerCg && Number.isFinite(viewerCg.x) && Number.isFinite(viewerCg.y) && Number.isFinite(viewerCg.z)
@@ -3550,8 +3770,7 @@
           scope,
         });
         overrides.forEach(({ key, override }) => setComponentMaterialOverride(key, override));
-        reportState.payload = null;
-        reportState.detailSignature = "";
+        invalidateHydroReportState();
         applyHydroControlsToViewer({ includeDraftPose: false, silentEstimate: true });
         renderFilteredComponents();
       });
@@ -3565,8 +3784,7 @@
         const keys = resolveMaterialEditorKeys(scope, token);
         if (!keys.length) return;
         setComponentMaterialOverrides(keys, null);
-        reportState.payload = null;
-        reportState.detailSignature = "";
+        invalidateHydroReportState();
         applyHydroControlsToViewer({ includeDraftPose: false, silentEstimate: true });
         renderFilteredComponents();
       });
@@ -3956,9 +4174,15 @@
     }
     if (data.type === "viewer-hydro-report" && data.payload) {
       reportState.isGenerating = false;
+      reportState.lastDurationMs = reportState.startedAt ? (Date.now() - reportState.startedAt) : reportState.lastDurationMs;
+      reportState.startedAt = 0;
       setHydroTaskState(false);
-      saveHydroReportCache(data.payload, buildHydroDetailSignature());
-      reportState.cacheKey = data.payload.reportCacheKey || reportState.requestKey || buildHydroReportRequestKey();
+      saveHydroReportCache(
+        data.payload,
+        buildHydroDetailSignature(),
+        reportState.requestKey || buildHydroReportRequestKey()
+      );
+      reportState.cacheKey = reportState.requestKey || buildHydroReportRequestKey();
       reportState.requestKey = "";
       analysisState.latestViewerReport = data.payload;
       analysisState.latestViewerMassProperties = data.payload.currentHydro?.massProperties || analysisState.latestViewerMassProperties;
@@ -3970,9 +4194,23 @@
         btnHydroReport.disabled = false;
         btnHydroReport.textContent = "Vis rapport";
       }
+      if (btnHydroRecalc) {
+        btnHydroRecalc.disabled = false;
+        btnHydroRecalc.textContent = "Recalc rapport";
+      }
       renderHydroReportModal(data.payload);
       openHydroReportModal();
       updateHydroPanels();
+      return;
+    }
+    if (data.type === "viewer-hydro-progress" && data.payload) {
+      const payload = data.payload || {};
+      setHydroTaskState(true, payload.title || "Genererer hydro-rapport...", payload.text || "Kjører hydroberegninger i aktiv viewer.", {
+        kind: payload.kind || "report",
+        progress: safeNumber(payload.progress),
+        etaMs: safeNumber(payload.etaMs),
+      });
+      updateHydroProgressUi();
       return;
     }
     if (data.type === "viewer-explode-info" && data.payload) {
@@ -3993,6 +4231,11 @@
   setInterval(() => {
     syncFromParentTheme();
     postThemeToViewer();
+  }, 1000);
+  setInterval(() => {
+    if (reportState.isGenerating || hydroTaskState.active) {
+      updateHydroProgressUi();
+    }
   }, 1000);
   syncDrawerForViewport();
   updateHydroPanels();

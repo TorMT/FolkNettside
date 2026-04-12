@@ -844,8 +844,7 @@ def ai_classify_with_openrouter(text: str, model: str, api_key: str, title: str 
     payload = json.dumps({
         "model": model,
         "messages": [
-            {"role": "system", "content": "Svar kun med JSON. Ikke bruk markdown."},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": "Svar kun med JSON. Ikke bruk markdown.\n\n" + prompt},
         ],
         "temperature": 0.2,
     }).encode("utf-8")
@@ -1000,38 +999,6 @@ def build_group_description(group_title: str, items: list[dict[str, Any]], provi
         if part:
             parts.append(part)
 
-    if provider in {"ollama", "openrouter"}:
-        source_blob = "\n".join(
-            filter(
-                None,
-                [
-                    f"Gruppe: {group_title}",
-                    "Deler: " + ", ".join(parts[:8]) if parts else "",
-                    "Temaer: " + ", ".join([t for t, _ in theme_counter.most_common(8)]) if theme_counter else "",
-                    "Beskrivelser: " + " | ".join(meaningful_descriptions[:6]) if meaningful_descriptions else "",
-                ],
-            )
-        )
-        prompt = (
-            "Svar kun med JSON pa formatet "
-            '{"group_description":"kort norsk gruppebeskrivelse (1-2 setninger)","themes":["tema1","tema2","tema3"]}. '
-            "Bruk bare det som finnes i inputen. Ikke finn opp detaljer. "
-            "Velg konkrete faglige temaer, ikke datoer eller generiske ord.\n\n"
-            + source_blob
-        )
-        ai_group = None
-        try:
-            if provider == "ollama":
-                ai_group = ai_classify_with_ollama(source_blob, ollama_model, title=group_title, description="", source_meta={"title": group_title})
-            else:
-                ai_group = ai_classify_with_openrouter(source_blob, openrouter_model, openrouter_api_key, title=group_title, description="", source_meta={"title": group_title})
-        except OpenRouterRateLimitError:
-            raise
-        if ai_group:
-            desc = clean_group_label(ai_group.get("description", ""))
-            if desc:
-                return desc
-
     if meaningful_descriptions:
         unique_descriptions = []
         seen_desc = set()
@@ -1046,6 +1013,30 @@ def build_group_description(group_title: str, items: list[dict[str, Any]], provi
             extra = unique_descriptions[1].rstrip(". ")
             return f"{lead}. Dekker ogsa {extra.lower()}."
         return unique_descriptions[0]
+
+    if provider in {"ollama", "openrouter"}:
+        source_blob = "\n".join(
+            filter(
+                None,
+                [
+                    f"Gruppe: {group_title}",
+                    "Deler: " + ", ".join(parts[:8]) if parts else "",
+                    "Temaer: " + ", ".join([t for t, _ in theme_counter.most_common(8)]) if theme_counter else "",
+                ],
+            )
+        )
+        ai_group = None
+        try:
+            if provider == "ollama":
+                ai_group = ai_classify_with_ollama(source_blob, ollama_model, title=group_title, description="", source_meta={"title": group_title})
+            else:
+                ai_group = ai_classify_with_openrouter(source_blob, openrouter_model, openrouter_api_key, title=group_title, description="", source_meta={"title": group_title})
+        except OpenRouterRateLimitError:
+            raise
+        if ai_group:
+            desc = clean_group_label(ai_group.get("description", ""))
+            if desc:
+                return desc
     top_themes = [t for t, _ in theme_counter.most_common(4)]
     if top_themes:
         return f"Forelesningsgruppe om {', '.join(top_themes[:-1]) + ' og ' + top_themes[-1] if len(top_themes) > 1 else top_themes[0]}."

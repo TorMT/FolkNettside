@@ -836,18 +836,41 @@
       } catch {}
     }
 
-    function getHydroQualityPreset(quality) {
-      if (quality === "high") return { stepDeg: 1, draftCount: 44 };
-      if (quality === "med") return { stepDeg: 2, draftCount: 30 };
-      return { stepDeg: 4, draftCount: 20 };
+    function postHydroProgressToParent({ progress = 0, title = "", text = "", etaMs = null, kind = "report" } = {}) {
+      try {
+        if (!window.parent || window.parent === window) return;
+        window.parent.postMessage({
+          type: "viewer-hydro-progress",
+          payload: {
+            progress: Math.max(0, Math.min(1, Number(progress) || 0)),
+            title: title || "Genererer hydro-rapport...",
+            text: text || "",
+            etaMs: Number.isFinite(Number(etaMs)) ? Number(etaMs) : null,
+            kind,
+          },
+        }, "*");
+      } catch {}
+    }
+
+    function getHydroQualityPreset(quality, performanceMode = false) {
+      if (performanceMode) {
+        if (quality === "high") return { stepDeg: 2.5, draftCount: 26, sectionCount: 22 };
+        if (quality === "med") return { stepDeg: 4.5, draftCount: 18, sectionCount: 16 };
+        return { stepDeg: 7, draftCount: 12, sectionCount: 12 };
+      }
+      if (quality === "high") return { stepDeg: 1, draftCount: 44, sectionCount: 42 };
+      if (quality === "med") return { stepDeg: 2, draftCount: 30, sectionCount: 30 };
+      return { stepDeg: 4, draftCount: 20, sectionCount: 22 };
     }
 
     async function buildHydroReportPayload(options = {}) {
       if (!hydro?.mesh) return null;
+      if (options.forceRecalc) invalidateHydroReportCache();
       if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
       if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
       hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
       const quality = options.quality || hydro.quality || "low";
+      const performanceMode = options.performanceMode === true;
       if (quality) hydro.setQuality(String(quality));
       if (Number.isFinite(Number(options.draftZWorld))) {
         hydro.draftZWorld = Number(options.draftZWorld);
@@ -861,28 +884,40 @@
         await hydro.recompute();
       });
 
-      const cacheKey = buildHydroReportCacheKey({ quality });
-      if (hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
+      const cacheKey = buildHydroReportCacheKey({ quality, performanceMode });
+      if (!options.forceRecalc && hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
         return {
           ...hydroReportCachePayload,
           cached: true,
           reportCacheKey: cacheKey,
         };
       }
-      if (hydroReportCachePromise && hydroReportCacheKey === cacheKey) {
+      if (!options.forceRecalc && hydroReportCachePromise && hydroReportCacheKey === cacheKey) {
         return hydroReportCachePromise;
       }
 
       hydroReportCacheKey = cacheKey;
       hydroReportCachePromise = withHydroGeometryState(async () => {
-        const preset = getHydroQualityPreset(quality);
+        const preset = getHydroQualityPreset(quality, performanceMode);
+        const startedAt = performance.now();
+        const stageProgress = performanceMode
+          ? { prepare: 0.03, roll: 0.12, pitch: 0.24, draft: 0.42, section: 0.62, equilibrium: 0.82 }
+          : { prepare: 0.03, roll: 0.16, pitch: 0.32, draft: 0.54, section: 0.78, equilibrium: 0.9 };
+        const pushProgress = (progress, title, text) => {
+          const fraction = Math.max(0.01, Math.min(0.99, Number(progress) || 0));
+          const elapsedMs = performance.now() - startedAt;
+          const etaMs = elapsedMs > 40 ? (elapsedMs * (1 - fraction)) / fraction : null;
+          postHydroProgressToParent({ progress: fraction, title, text, etaMs, kind: "report" });
+        };
+        pushProgress(stageProgress.prepare, "Genererer hydro-rapport...", "Forbereder hydrotilstand og massegrunnlag.");
         const rollReport = await hydro.generateHydroReport({
           mode: "roll",
           maxDeg: 60,
           stepDeg: preset.stepDeg,
           quality,
-          includeSAK: true,
+          includeSAK: false,
         });
+        pushProgress(stageProgress.roll, "Genererer hydro-rapport...", "Rollkurve ferdig, fortsetter med pitch.");
         const pitchReport = await hydro.generateHydroReport({
           mode: "pitch",
           maxDeg: 40,
@@ -890,25 +925,37 @@
           quality,
           includeSAK: false,
         });
+        pushProgress(stageProgress.pitch, "Genererer hydro-rapport...", "Pitchkurve ferdig, skanner draft og deplasement.");
         const draftScan = await hydro.generateDraftScan({
           draftCount: preset.draftCount,
           quality,
           includeAwp: true,
-          includeSAK: true,
+          includeSAK: false,
         });
+        pushProgress(stageProgress.draft, "Genererer hydro-rapport...", "Draftscan ferdig, bygger seksjonsarealkurve.");
+        const sectionCurve = await hydro.computeSectionAreaCurve({
+          stationCount: preset.sectionCount,
+          draftZ: hydro.draftZWorld,
+          quality,
+          timeSliceMs: performanceMode ? 24 : 10,
+        });
+        pushProgress(stageProgress.section, "Genererer hydro-rapport...", "Seksjonsareal ferdig, finner likevekt.");
         const equilibriumState = await hydro.estimateEquilibriumState({
           solveTrimHeel: true,
-          toleranceTonnes: 0.02,
-          maxIterations: 26,
-          maxHeelDeg: 14,
-          maxTrimDeg: 10,
+          toleranceTonnes: performanceMode ? 0.05 : 0.02,
+          maxIterations: performanceMode ? 16 : 26,
+          maxHeelDeg: performanceMode ? 10 : 14,
+          maxTrimDeg: performanceMode ? 8 : 10,
         });
+        pushProgress(stageProgress.equilibrium, "Genererer hydro-rapport...", "Sammenstiller rapport og sluttverdier.");
+        postHydroProgressToParent({ progress: 1, title: "Hydro-rapport klar", text: "Rapporten er ferdig bygget.", etaMs: 0, kind: "report" });
         const unitMeta = getViewerUnitMeta();
         const payload = {
           generatedAt: new Date().toISOString(),
           fileName: decodeURIComponent((normalizeViewerUrl(modelUrl).split("/").pop() || "Hydro-modell")),
           sourceLabel: "3MF viewer",
           quality,
+          performanceMode,
           units: unitMeta.units,
           sourceUnits: unitMeta.sourceUnits,
           unitNote: unitMeta.unitNote,
@@ -916,10 +963,11 @@
           rollReport,
           pitchReport,
           draftScan,
+          sectionCurve,
           equilibriumState,
           reportCacheKey: cacheKey,
           cached: false,
-          note: "Kurvene er generert fra aktiv 3MF-geometri. Hydro og rapport bruker full, ueksplodert og udempet geometri i bakgrunnen.",
+          note: `${performanceMode ? "Ytelsesmodus er aktiv. " : ""}Kurvene er generert fra aktiv 3MF-geometri. Hydro og rapport bruker full, ueksplodert og udempet geometri i bakgrunnen.`,
         };
         hydroReportCachePayload = payload;
         return payload;
@@ -991,7 +1039,7 @@
       muted: new Set(),
     };
     let pendingExplodeAmount = 0;
-    const HYDRO_REPORT_CACHE_VERSION = "20260411c";
+    const HYDRO_REPORT_CACHE_VERSION = "20260412a";
     let hydroReportCacheKey = "";
     let hydroReportCachePayload = null;
     let hydroReportCachePromise = null;
@@ -1025,6 +1073,7 @@
         file: normalizeViewerUrl(modelUrl),
         modelKind: "3MF",
         quality: String(options.quality || hydro?.quality || "low"),
+        performanceMode: options.performanceMode === true,
         waterDensity: roundCacheNumber(hydro?.waterDensity, 3),
         materialDensity: roundCacheNumber(hydro?.materialDensity, 3),
         draftZWorld: roundCacheNumber(hydro?.draftZWorld, 6),
@@ -1616,8 +1665,8 @@
     // --- Imports (MODULER) ---
     import * as THREE from "/includes/three/three.module.js";
 
-    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260411g";
-    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260411g";
+    import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260412a";
+    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260412a";
     import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260411d";
     import { UIController } from "/includes/three/UIController.js";
     import { ClippingController } from "/includes/three/ClippingController.js";

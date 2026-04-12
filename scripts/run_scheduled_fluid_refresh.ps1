@@ -16,6 +16,7 @@ $logPath = Join-Path $tempDir ("scheduled_fluid_refresh_" + $stamp + ".log")
 $tmpOutput = Join-Path $tempDir "scheduled_fluid_refresh_work.json"
 $backupPath = Join-Path $tempDir ("Forelesning.before_scheduled_refresh_" + $stamp + ".json")
 $backupCreated = $false
+$envPath = Join-Path $root ".env.local"
 
 function Write-Log {
     param([string]$Message)
@@ -23,10 +24,58 @@ function Write-Log {
     $line | Tee-Object -FilePath $logPath -Append
 }
 
+function Get-EnvValue {
+    param(
+        [string]$Key,
+        [string[]]$Lines
+    )
+    foreach ($line in $Lines) {
+        if ($line -match '^\s*#') { continue }
+        if ($line -notmatch '=') { continue }
+        $parts = $line -split '=', 2
+        if ($parts[0].Trim() -ne $Key) { continue }
+        return $parts[1].Trim().Trim('"').Trim("'")
+    }
+    return ""
+}
+
+function Get-OpenRouterKeys {
+    param([string]$EnvFilePath)
+
+    $keys = New-Object System.Collections.Generic.List[string]
+    $envLines = @()
+    if (Test-Path -LiteralPath $EnvFilePath) {
+        $envLines = Get-Content -LiteralPath $EnvFilePath
+    }
+
+    $candidateValues = @()
+    $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEY" -Lines $envLines
+    $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEYS" -Lines $envLines
+    $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEY_2" -Lines $envLines
+    $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEY_3" -Lines $envLines
+    $candidateValues += $env:OPENROUTER_API_KEY
+    $candidateValues += $env:OPENROUTER_API_KEYS
+    $candidateValues += $env:OPENROUTER_API_KEY_2
+    $candidateValues += $env:OPENROUTER_API_KEY_3
+
+    $seen = @{}
+    foreach ($value in $candidateValues) {
+        foreach ($key in @($value -split ',')) {
+            $trimmed = $key.Trim()
+            if (-not $trimmed) { continue }
+            if ($seen.ContainsKey($trimmed)) { continue }
+            $seen[$trimmed] = $true
+            [void]$keys.Add($trimmed)
+        }
+    }
+    return $keys
+}
+
 function Invoke-EnricherBatch {
     param(
         [string]$Label,
-        [string]$Url
+        [string]$Url,
+        [string]$OpenRouterApiKey
     )
 
     $arguments = @(
@@ -37,7 +86,8 @@ function Invoke-EnricherBatch {
         "--preserve-title-grouping",
         "--only-refresh-weak-fields",
         "--ai-provider", "openrouter",
-        "--strict-ai"
+        "--strict-ai",
+        "--openrouter-api-key", $OpenRouterApiKey
     )
     $arguments += @("--process-url", $Url)
 
@@ -61,9 +111,24 @@ function Invoke-EnricherBatch {
         $stderrText | Tee-Object -FilePath $logPath -Append | Out-Null
     }
 
+    $selectedCount = 0
+    if ($stdoutText -match '\[INFO\]\s+Valgte\s+(\d+)\s+av') {
+        $selectedCount = [int]$matches[1]
+    }
+
     if ($proc.ExitCode -ne 0) {
         $combined = (($stdoutText + "`n" + $stderrText).Trim())
         throw ("Batch feilet: " + $Label + " (exit " + $proc.ExitCode + "). " + $combined)
+    }
+    if ($selectedCount -le 0) {
+        if (Test-Path -LiteralPath $tmpOutput) {
+            Remove-Item -LiteralPath $tmpOutput -Force
+        }
+        Write-Log ("Ingen oppdatering nødvendig for batch: " + $Label)
+        return [pscustomobject]@{
+            SelectedCount = 0
+            Updated = $false
+        }
     }
     if (-not (Test-Path -LiteralPath $tmpOutput)) {
         throw "Mangler temp-output etter batch: $Label"
@@ -77,6 +142,10 @@ function Invoke-EnricherBatch {
 
     Move-Item -LiteralPath $tmpOutput -Destination $jsonPath -Force
     Write-Log ("Oppdatert produksjonsfil for batch: " + $Label)
+    return [pscustomobject]@{
+        SelectedCount = $selectedCount
+        Updated = $true
+    }
 }
 
 if (-not (Test-Path -LiteralPath $pythonExe)) {
@@ -91,35 +160,86 @@ if (-not (Test-Path -LiteralPath $enricherScript)) {
 if (-not (Test-Path -LiteralPath $queuePath)) {
     throw "Fant ikke queue-fil: $queuePath"
 }
+if (-not (Test-Path -LiteralPath $envPath)) {
+    throw "Fant ikke env-fil: $envPath"
+}
 if (-not (Test-Path -LiteralPath $jsonPath)) {
     throw "Fant ikke eksisterende JSON: $jsonPath"
 }
 
 $queue = Get-Content -LiteralPath $queuePath -Raw | ConvertFrom-Json
 $enabledBatches = @($queue.batches | Where-Object { $_.enabled -eq $true })
+$openRouterKeys = @(Get-OpenRouterKeys -EnvFilePath $envPath)
+$keyCount = $openRouterKeys.Count
+$dailySuccessLimit = 0
+$perKeyDailySuccessLimit = 0
+if ($queue.PSObject.Properties.Name -contains "daily_success_limit") {
+    $dailySuccessLimit = [int]$queue.daily_success_limit
+}
+if ($queue.PSObject.Properties.Name -contains "per_key_daily_success_limit") {
+    $perKeyDailySuccessLimit = [int]$queue.per_key_daily_success_limit
+}
+$keySuccessCounts = @{}
+$keyAvailable = @{}
+for ($i = 0; $i -lt $keyCount; $i++) {
+    $keySuccessCounts[$i] = 0
+    $keyAvailable[$i] = $true
+}
 $env:YT_DLP_EXE = $ytDlpExe
 $env:PATH = ((Split-Path $ytDlpExe -Parent) + ";" + $env:PATH)
 
+if ($keyCount -le 0) {
+    throw "Fant ingen OpenRouter-nokler i .env.local eller miljoet."
+}
+
 try {
-    Write-Log ("Starter nattjobb for " + $queue.course + ". Aktive batcher: " + $enabledBatches.Count)
+    Write-Log ("Starter nattjobb for " + $queue.course + ". Aktive batcher: " + $enabledBatches.Count + ". Dagsgrense: " + $dailySuccessLimit + ". Nokler: " + $keyCount + ".")
 
     $successCount = 0
     $failureCount = 0
     $consecutiveFailures = 0
     $stopRequested = $false
     $stoppedByRateLimit = $false
+    $allKeysUnavailable = $false
 
-    foreach ($batch in $enabledBatches) {
+    for ($batchIndex = 0; $batchIndex -lt $enabledBatches.Count; $batchIndex++) {
+        $batch = $enabledBatches[$batchIndex]
         $urls = @($batch.urls)
+        $keyIndex = $batchIndex % $keyCount
+        if (-not $keyAvailable[$keyIndex]) {
+            Write-Log ("HOPPER OVER BATCH fordi nokkel er utilgjengelig: " + $batch.label + " [key " + ($keyIndex + 1) + "]")
+            continue
+        }
+        if ($perKeyDailySuccessLimit -gt 0 -and $keySuccessCounts[$keyIndex] -ge $perKeyDailySuccessLimit) {
+            Write-Log ("HOPPER OVER BATCH fordi nokkel har naadd dagsgrense: " + $batch.label + " [key " + ($keyIndex + 1) + "]")
+            continue
+        }
+
         for ($i = 0; $i -lt $urls.Count; $i++) {
-            $label = $batch.label
+            if (-not $keyAvailable[$keyIndex]) {
+                break
+            }
+            if ($perKeyDailySuccessLimit -gt 0 -and $keySuccessCounts[$keyIndex] -ge $perKeyDailySuccessLimit) {
+                Write-Log ("Stopper videre batcher pa key " + ($keyIndex + 1) + " fordi dagsgrensen er naadd.")
+                break
+            }
+
+            $label = $batch.label + " [key " + ($keyIndex + 1) + "]"
             if ($urls.Count -gt 1) {
                 $label = $label + " [" + ($i + 1) + "/" + $urls.Count + "]"
             }
             try {
-                Invoke-EnricherBatch -Label $label -Url $urls[$i]
-                $successCount++
+                $result = Invoke-EnricherBatch -Label $label -Url $urls[$i] -OpenRouterApiKey $openRouterKeys[$keyIndex]
+                if ($result.Updated) {
+                    $successCount++
+                    $keySuccessCounts[$keyIndex] = [int]$keySuccessCounts[$keyIndex] + 1
+                }
                 $consecutiveFailures = 0
+                if ($dailySuccessLimit -gt 0 -and $successCount -ge $dailySuccessLimit) {
+                    Write-Log ("Stopper videre kjoring fordi dagsgrensen pa " + $dailySuccessLimit + " oppdateringer er naadd.")
+                    $stopRequested = $true
+                    break
+                }
             }
             catch {
                 $failureCount++
@@ -133,9 +253,14 @@ try {
                     $message -match "Rate limit exceeded"
                 )
                 if ($hardRateLimit) {
-                    Write-Log "Stopper videre kjoring pa grunn av rate limit."
-                    $stopRequested = $true
-                    $stoppedByRateLimit = $true
+                    $keyAvailable[$keyIndex] = $false
+                    Write-Log ("Markerer key " + ($keyIndex + 1) + " som tom for i dag pa grunn av rate limit.")
+                    $availableCount = @($keyAvailable.GetEnumerator() | Where-Object { $_.Value }).Count
+                    if ($availableCount -le 0) {
+                        Write-Log "Stopper videre kjoring fordi alle nokler er tomme for i dag."
+                        $stopRequested = $true
+                        $stoppedByRateLimit = $true
+                    }
                     break
                 }
                 if ($consecutiveFailures -ge 6) {

@@ -297,6 +297,7 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   border-radius:999px;
   background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--ffa-accent) 92%, #ffffff 8%) 40%, transparent 100%);
   animation: hydro-progress-slide 1.2s ease-in-out infinite;
+  transition: width .8s ease, inset .25s ease, transform .25s ease;
 }
 @keyframes hydro-progress-slide {
   0% { transform: translateX(0%); }

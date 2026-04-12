@@ -436,7 +436,7 @@
         ? "&fallback=1"
         : "";
       const hostFlag = hostMode ? `&host=${encodeURIComponent(hostMode)}` : "";
-      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260411g${fallbackFlag}${hostFlag}`;
+      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260412a${fallbackFlag}${hostFlag}`;
     }
 
     function isBrowserRenderablePreview(url) {
@@ -639,6 +639,15 @@
       }
 
       if (data.type === "viewer-hydro-report") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-hydro-progress") {
         try {
           if (window.parent && window.parent !== window) {
             window.parent.postMessage(data, "*");

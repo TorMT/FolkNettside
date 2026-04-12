@@ -320,10 +320,10 @@ export class STLViewerCore {
       const familySize = familyBox.getSize(new THREE.Vector3());
       const familyMaxDim = Math.max(familySize.x, familySize.y, familySize.z, 0);
       const threshold = Math.max(
-        medianSize * 3.2,
-        medianNearest > 0 ? medianNearest * 1.7 : 0,
-        Math.min(familyMaxDim * 0.08, familyMaxDim > 0 ? familyMaxDim * 0.25 : 0),
-        0.06
+        medianSize * 1.85,
+        medianNearest > 0 ? medianNearest * 1.05 : 0,
+        Math.min(familyMaxDim * 0.04, familyMaxDim > 0 ? familyMaxDim * 0.12 : 0),
+        0.025
       );
 
       const visited = new Set();
@@ -344,7 +344,7 @@ export class STLViewerCore {
             const distance = current.centerMesh.distanceTo(candidate.centerMesh);
             const pairThreshold = Math.max(
               threshold,
-              Math.max(current.sizeMax, candidate.sizeMax) * 3.4
+              Math.max(current.sizeMax, candidate.sizeMax) * 2.0
             );
             if (distance <= pairThreshold) {
               visited.add(j);
@@ -448,20 +448,27 @@ export class STLViewerCore {
         }
 
         const dirMesh = cluster.entries.length > 1
-          ? clusterDir.clone().multiplyScalar(0.9).add(localDir.multiplyScalar(0.38)).normalize()
+          ? clusterDir.clone().multiplyScalar(0.82).add(localDir.clone().multiplyScalar(0.56)).normalize()
           : clusterDir.clone();
 
-        const clusterWeight = 0.8 + 0.42 * Math.min(1, clusterDistance / maxClusterRadius);
+        const clusterWeight = 1.18 + 0.82 * Math.min(1, clusterDistance / maxClusterRadius) + (preferVerticalExplode ? -0.12 : 0);
         const localWeight = cluster.entries.length > 1
-          ? 0.1 + 0.18 * Math.min(1, localDistance / localMaxDistance)
+          ? 0.32 + 0.62 * Math.min(1, localDistance / localMaxDistance)
           : 0;
+        const verticalScale = preferVerticalExplode ? 0.42 : 1;
 
         this._explodeItems.push({
           target: entry.target,
           basePosition: entry.basePosition,
           centerMesh: entry.centerMesh.clone(),
+          clusterDirMesh: clusterDir.clone(),
+          localDirMesh: localDir.clone(),
           dirMesh,
           radialWeight: Math.min(1.6, clusterWeight + localWeight),
+          clusterWeight,
+          localWeight,
+          clusterSize: cluster.entries.length,
+          verticalScale,
         });
       });
     });
@@ -491,7 +498,7 @@ export class STLViewerCore {
     this.modelGroup.updateMatrixWorld(true);
     this.mesh.updateMatrixWorld(true);
 
-    const spreadMultiplier = 0.78 + Math.min(0.26, items.length * 0.01);
+    const spreadMultiplier = 1.48 + Math.min(1.18, items.length * 0.03);
     const spreadDistance = (this._explodeBaseMaxDim || 1) * spreadMultiplier * this._explodeFactor;
 
     items.forEach((item) => {
@@ -499,10 +506,14 @@ export class STLViewerCore {
       if (!parent) return;
 
       const fromWorld = this.mesh.localToWorld(item.centerMesh.clone());
-      const itemDistance = spreadDistance * (item.radialWeight || 1);
-      const toWorld = this.mesh.localToWorld(
-        item.centerMesh.clone().addScaledVector(item.dirMesh, itemDistance)
-      );
+      const verticalScale = Number.isFinite(item.verticalScale) ? item.verticalScale : 1;
+      const clusterDistance = spreadDistance * (item.clusterWeight || item.radialWeight || 1) * verticalScale;
+      const localDistance = spreadDistance
+        * (item.clusterSize > 1 ? (0.26 + 0.6 * this._explodeFactor) * (item.localWeight || 0) : 0);
+      const targetMeshPoint = item.centerMesh.clone()
+        .addScaledVector(item.clusterDirMesh || item.dirMesh, clusterDistance)
+        .addScaledVector(item.localDirMesh || item.dirMesh, localDistance);
+      const toWorld = this.mesh.localToWorld(targetMeshPoint);
 
       const fromParent = parent.worldToLocal(fromWorld.clone());
       const toParent = parent.worldToLocal(toWorld.clone());
