@@ -63,6 +63,8 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 - `scripts/` inneholder verkt?y for oppdatering og eksport (`export_repo.py`, `export/`, etc.). Les filene for mer detaljer. Kj?r Python-skript med et passende virtuelt milj?.
 - `scripts/video_topic_enricher.py` kan brukes til ? gj?re en videoliste om til JSON med `description`, `themes`, `group` og `part`.
 - `scripts/video_topic_enricher.py` stotter na `--ai-provider openrouter` og kan bruke `OPENROUTER_API_KEY` for ekte metadata fra undertekster og videometadata.
+- `scripts/run_scheduled_fluid_refresh.ps1` kj?rer sikre batch-oppdateringer for Fluid ved ? bruke eksisterende JSON som fasit og bare oppdatere svake metadatafelt.
+- `scripts/scheduled_fluid_refresh_queue.json` bestemmer rekkef?lge, dagsgrense og hvor mange oppdateringer hver OpenRouter-n?kkel skal f? pr. dag.
 - Hvis en videotittel er `Ukjent` eller svak, prover enrich-scriptet forst a hente en bedre kildetittel fra `yt-dlp` metadata f?r AI/fallback brukes.
 - Eksempelfil for lokal setup finnes i `.env.openrouter.example` (ikke commit ekte nokler).
 - `SiteUpdater3.py` st?tter n? ogs? `--enrich-video-lists` for ? kj?re enrich automatisk etter indeksoppdatering (valgfritt med cookies/ollama/whisper-flagg).
@@ -320,18 +322,50 @@ git push origin main
 
 **OpenRouter for video-metadata**
 
-Bruk dette hvis du vil generere ekte beskrivelser, tags og bedre titler fra undertekster / videometadata:
+Bruk dette hvis du vil generere ekte beskrivelser, tags og bedre titler fra undertekster / videometadata.
+
+Hvor du oppretter gratis konto og n?kler:
+- Konto: `https://openrouter.ai/sign-in`
+- API-n?kler: `https://openrouter.ai/keys`
+- Dokumentasjon / Quickstart: `https://openrouter.ai/docs/quickstart`
+
+Per OpenRouter sin FAQ er gratisgrensen normalt `50` gratis API-kall per dag uten innskutte credits, og `1000` per dag hvis kontoen har minst `10` credits. Dette kan endres av OpenRouter senere, s? sjekk docs hvis dere planlegger st?rre batcher.
+
+Lokal setup i `.env.local`:
 
 ```bash
-# PowerShell
-$env:OPENROUTER_API_KEY="din-nokkel-her"
-$env:OPENROUTER_MODEL="openrouter/free"
+OPENROUTER_API_KEY=...
+OPENROUTER_API_KEY_2=...
+OPENROUTER_API_KEY_3=...
+OPENROUTER_API_KEY_4=...
+OPENROUTER_API_KEYS=..., ..., ..., ...
+OPENROUTER_MODEL=openrouter/free
+```
 
-python scripts/video_topic_enricher.py --input semestre/3/Fluid/filer/Forelesning.txt --output semestre/3/Fluid/filer/Forelesning.json --ai-provider openrouter --cookies-from-browser chrome
-python scripts/video_topic_enricher.py --input semestre/4/FysikalskKjemi/filer/Forelesning.txt --output semestre/4/FysikalskKjemi/filer/Forelesning.json --ai-provider openrouter --cookies-from-browser chrome
+Manuell enkeltkjoring:
+
+```bash
+python scripts/video_topic_enricher.py --input semestre/3/Fluid/filer/Forelesning.txt --output semestre/3/Fluid/filer/Forelesning.json --existing-json semestre/3/Fluid/filer/Forelesning.json --ai-provider openrouter --preserve-title-grouping --only-refresh-weak-fields --process-url "https://www.youtube.com/watch?v=..." --openrouter-api-key "%OPENROUTER_API_KEY%"
+```
+
+Vanlig batchflyt vi bruker:
+
+1. `Forelesning.txt` er kildelista.
+2. `Forelesning.json` er produksjonsfila som viseren faktisk bruker.
+3. `video_topic_enricher.py` leser undertekster og metadata via `yt-dlp`, sender tekstgrunnlag til AI, og skriver bare tilbake de feltene som skal forbedres.
+4. `--preserve-title-grouping` holder `title`, `group` og `part` stabile nar vi bare vil forbedre `description`, `themes` og `group_description`.
+5. `run_scheduled_fluid_refresh.ps1` leser batcher fra `scripts/scheduled_fluid_refresh_queue.json`, roterer mellom flere OpenRouter-n?kler og lager backup i `temp/` f?r f?rste vellykkede skriving.
+6. Windows-tasken `Codex Fluid API Refresh` kjorer samme batch-jobb automatisk.
+
+Eksempler:
+
+python scripts/video_topic_enricher.py --input semestre/3/Fluid/filer/Forelesning.txt --output semestre/3/Fluid/filer/Forelesning.json --existing-json semestre/3/Fluid/filer/Forelesning.json --ai-provider openrouter --preserve-title-grouping --only-refresh-weak-fields --max-items 2
+python scripts/video_topic_enricher.py --input semestre/4/FysikalskKjemi/filer/Forelesning.txt --output semestre/4/FysikalskKjemi/filer/Forelesning.json --existing-json semestre/4/FysikalskKjemi/filer/Forelesning.json --ai-provider openrouter --only-refresh-weak-fields --max-items 2
 ```
 
 Tips:
 - `--cookies-from-browser chrome` hjelper for innloggede videoer som Panopto.
 - Legg til `--transcribe-with-whisper` hvis du senere installerer `whisper` lokalt og vil bruke tale-til-tekst nar undertekster mangler.
-- Scriptet holder gruppene stabile ved a foretrekke eksisterende `group`/`part`, men kan forbedre `Ukjent`-titler og tags nar kildedata finnes.
+- Batch-jobben bruker na flere n?kler hvis de finnes i `.env.local`, og respekterer `daily_success_limit` og `per_key_daily_success_limit` i queue-fila.
+- Ikke commit `.env.local` eller ekte API-n?kler.
+- Scriptet holder gruppene stabile ved a foretrekke eksisterende `group`/`part`, men kan forbedre `VL20`-lignende gruppetitler til `VL20 - tema` hvis dere kj?rer uten `--preserve-title-grouping`.

@@ -1,13 +1,13 @@
 {
   "course": "Fluid",
-  "daily_success_limit": 6,
+  "daily_success_limit": 8,
   "per_key_daily_success_limit": 2,
-  "notes": "Kjor bare videre pa gjenstaende svake videoer. Stopp etter 2 faktiske oppdateringer per nokkel per dag. Bevar title/group/part.",
+  "notes": "Kjor bare videre pa gjenstaende svake videoer. Stopp etter 2 faktiske oppdateringer per nokkel per dag over fire nokler. Bevar title/group/part.",
   "batches": [
     {
-      "enabled": true,
+      "enabled": false,
       "label": "Forelesning 24A",
-      "reason": "Enkeltrest fra forelesning 24.",
+      "reason": "Enkeltrest fra forelesning 24. Midlertidig deaktivert fordi videoen mangler tekstgrunnlag for AI-kjoring.",
       "urls": [
         "https://www.youtube.com/watch?v=gctzEpXFxoc"
       ]

@@ -109,8 +109,8 @@
   };
   let currentSidebarTab = "overview";
   const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410f";
-  const REPORT_CACHE_VERSION = "20260412d";
-  const MATERIAL_OVERRIDE_STORAGE_VERSION = "20260412d";
+  const REPORT_CACHE_VERSION = "20260412e";
+  const MATERIAL_OVERRIDE_STORAGE_VERSION = "20260412g";
 
   function invalidateHydroReportState() {
     reportState.payload = null;
@@ -131,16 +131,18 @@
         value: valueLabel,
         note: "Cb brukes aktivt i sidebar-estimatet for deplasement, vannlinjeareal og seksjonsareal-fallback.",
         isUsed: true,
+        shouldShow: true,
       };
     }
     return {
       value: valueLabel,
       note: "Cb-feltet er kun fallback her. Live viewer-hydro bygger pa modellgeometri sa lenge viewerdata finnes.",
       isUsed: false,
+      shouldShow: false,
     };
   }
   const REPORT_SESSION_PREFIX = `fusionHydroReport.${REPORT_CACHE_VERSION}`;
-  const MATERIAL_OVERRIDE_STORAGE_PREFIX = `fusionMaterialOverrides.${MATERIAL_OVERRIDE_STORAGE_VERSION}`;
+  const MATERIAL_OVERRIDE_STORAGE_PREFIX = "fusionMaterialOverrides";
   const headResultCache = new Map();
   const jsonResultCache = new Map();
   const arrayBufferResultCache = new Map();
@@ -982,10 +984,14 @@
     const designObjects = designDescription?.designDescription?.designGraphs?.[0]?.designObjects || [];
     const rootFile = manifest?.root || null;
     const rootObject = designObjects.find((obj) => obj.relativePath === rootFile) || designObjects[0] || null;
+    const rootMetadata = rootObject?.metadata || {};
     const seen = new Set();
     const components = [];
+    const contentTypeCounts = {};
 
     for (const obj of designObjects) {
+      const contentType = String(obj.contentType || "").trim() || "ukjent";
+      contentTypeCounts[contentType] = (contentTypeCounts[contentType] || 0) + 1;
       const normalized = normalizeComponentItem({
         key: obj.relativePath || obj.displayName || obj.friendlyName,
         label: obj.displayName || obj.friendlyName || obj.metadata?.rootFileName || obj.relativePath,
@@ -1000,10 +1006,27 @@
       components.push(normalized);
     }
 
+    const simulationStudyIds = [
+      ...new Set([
+        ...String(rootMetadata.SimulationStudies || "")
+          .replace(/^\[|\]$/g, "")
+          .split(",")
+          .map((value) => String(value || "").trim())
+          .filter(Boolean),
+        ...Object.keys(rootMetadata)
+          .filter((key) => /^SIM_STUDY_/i.test(key))
+          .map((key) => key.replace(/^SIM_STUDY_/i, "")),
+      ]),
+    ];
+
     return {
       components,
       rootName: rootObject?.displayName || rootObject?.friendlyName || prettyFusionName(rootObject?.metadata?.rootFileName) || "",
-      entryCount: Object.keys(outer.files || {}).length
+      rootFileName: prettyFusionName(rootMetadata?.rootFileName) || "",
+      entryCount: Object.keys(outer.files || {}).length,
+      contentTypeCounts,
+      simulationStudyCount: simulationStudyIds.length,
+      simulationStudyIds,
     };
   }
 
@@ -1321,12 +1344,14 @@
         value: massSummary.title,
         note: massSummary.detail,
       },
-      {
+    ];
+    if (cbUsage.shouldShow) {
+      cards.push({
         title: "Blokk-koeff.",
         value: `Cb ${cbUsage.value}`,
         note: cbUsage.note,
-      },
-    ];
+      });
+    }
 
     hydroQuickSummary.innerHTML = cards.map((card) => `
       <article class="hydro-stat-card">
@@ -1370,12 +1395,14 @@
         value: massSummary.title,
         note: massSummary.detail,
       },
-      {
+    ];
+    if (cbUsage.shouldShow) {
+      summaryBlocks.push({
         title: "Blokk-koeff.",
         value: `Cb ${cbUsage.value}`,
         note: cbUsage.note,
-      },
-    ];
+      });
+    }
 
     if (reportState.isGenerating) {
       hydroReport.innerHTML = `<div class="muted-box">Genererer hydro-rapport fra aktiv viewer...</div>`;
@@ -1400,6 +1427,8 @@
     renderHydroQuickCards(snapshot.hydro, snapshot.estimate);
     renderHydroSummaryGrid(snapshot.hydro, snapshot.estimate);
     renderHydroTextReport(snapshot.hydro, snapshot.estimate);
+    const cbRow = inpCb?.closest(".kv");
+    if (cbRow) cbRow.hidden = snapshot.mode !== "estimate";
     updateHydroSourceText();
     updateHydroProgressUi(snapshot);
 
@@ -1408,7 +1437,7 @@
       if (!analysisState.bbox) warnings.push("Hydrostatikk venter pa lesbar geometri/bbox.");
       if (snapshot.mode === "estimate") warnings.push("Tallene er forelopig bbox-baserte til live hydro kommer fra vieweren.");
       if (snapshot.mode === "viewer-pending") warnings.push("Draft er satt fra aktiv viewer, men deplasement og hydrodata regnes fortsatt fra modellgeometrien.");
-      if (snapshot.estimate?.isEstimate) warnings.push(`Blokk-koeffisient ${describeBlockCoefficientUsage(snapshot.estimate, snapshot.estimate).value} brukes i sidebar-estimatet.`);
+      if (snapshot.mode === "estimate" && snapshot.estimate?.isEstimate) warnings.push(`Blokk-koeffisient ${describeBlockCoefficientUsage(snapshot.estimate, snapshot.estimate).value} brukes i sidebar-estimatet.`);
       if (reportState.payload?.note) warnings.push(reportState.payload.note);
       hydroWarn.textContent = warnings.join(" ");
     }
@@ -2052,29 +2081,26 @@
   function saveHydroReportCache(
     payload,
     detailSignature = buildHydroDetailSignature(),
-    requestKey = buildHydroReportRequestKey()
+    requestKey = detailSignature
   ) {
     if (!payload) return;
     reportState.payload = payload;
     reportState.detailSignature = detailSignature;
-    reportState.cacheKey = requestKey;
+    reportState.cacheKey = detailSignature;
     try {
       sessionStorage.setItem(getHydroReportSessionKey(), JSON.stringify({
         detailSignature,
-        requestKey,
         payload,
       }));
     } catch {}
   }
 
   function loadHydroReportCache(
-    detailSignature = buildHydroDetailSignature(),
-    requestKey = buildHydroReportRequestKey()
+    detailSignature = buildHydroDetailSignature()
   ) {
     if (
       reportState.payload &&
-      reportState.detailSignature === detailSignature &&
-      reportState.cacheKey === requestKey
+      reportState.detailSignature === detailSignature
     ) {
       return reportState.payload;
     }
@@ -2084,12 +2110,11 @@
       const parsed = JSON.parse(raw);
       if (
         parsed?.detailSignature !== detailSignature ||
-        parsed?.requestKey !== requestKey ||
         !parsed?.payload
       ) return null;
       reportState.payload = parsed.payload;
       reportState.detailSignature = detailSignature;
-      reportState.cacheKey = requestKey;
+      reportState.cacheKey = detailSignature;
       return parsed.payload;
     } catch {
       return null;
@@ -2127,12 +2152,7 @@
   }
 
   function buildHydroReportRequestKey() {
-    const command = collectHydroCommandPayload({ includeDraftPose: true });
-    return JSON.stringify({
-      v: REPORT_CACHE_VERSION,
-      file: cleanUrlPath(decodedFile),
-      command,
-    });
+    return buildHydroDetailSignature();
   }
 
   function describeDraftDirection(direction) {
@@ -2171,7 +2191,7 @@
   function requestHydroReport({ force = false } = {}) {
     const requestKey = buildHydroReportRequestKey();
     const detailSignature = buildHydroDetailSignature();
-    const cachedPayload = force ? null : loadHydroReportCache(detailSignature, requestKey);
+    const cachedPayload = force ? null : loadHydroReportCache(detailSignature);
     if (!force && cachedPayload && !reportState.isGenerating) {
       if (btnHydroReport) {
         btnHydroReport.disabled = false;
@@ -2190,6 +2210,7 @@
     if (viewerHydro?.supported) {
       reportState.isGenerating = true;
       reportState.requestKey = requestKey;
+      reportState.detailSignature = detailSignature;
       reportState.startedAt = Date.now();
       setHydroTaskState(true, "Genererer hydro-rapport...", "Kjører draftscan, seksjonsareal og stabilitetskurver i aktiv viewer.", {
         kind: "report",
@@ -2252,6 +2273,7 @@
     metadataItems: [],
   };
   const componentMaterialOverrides = new Map();
+  restoreMaterialOverrideState();
 
   function escapeHtml(str) {
     return String(str || "").replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
@@ -2289,6 +2311,29 @@
 
   function fmtPercent(value, digits = 0) {
     return Number.isFinite(value) ? `${Number(value).toFixed(digits)} %` : "–";
+  }
+
+  function buildExtraDetailsHtml(lines = []) {
+    const values = Array.isArray(lines) ? lines.filter(Boolean) : [];
+    if (!values.length) return "";
+    return values.map((line) => {
+      const text = String(line || "").trim();
+      if (!text) return "";
+      if (/^Filer i container \(f[øo]rste \d+\):/i.test(text)) {
+        const fullText = text.replace(/^Filer i container \(f[øo]rste \d+\):\s*/i, "");
+        const preview = fullText.length > 120 ? `${fullText.slice(0, 120).trim()}...` : fullText;
+        return `
+          <details class="meta-expand">
+            <summary>
+              <span class="meta-expand-title">Filer i container</span>
+              <span class="meta-expand-preview">${escapeHtml(preview)}</span>
+            </summary>
+            <div class="meta-expand-content">${escapeHtml(fullText)}</div>
+          </details>
+        `;
+      }
+      return `<div class="meta-line">${escapeHtml(text)}</div>`;
+    }).join("");
   }
 
   function fmtVector(vec, digits = 3) {
@@ -2797,6 +2842,130 @@
     return `${baseLabel}${infillPart}${directMassPart}${densityPart}`;
   }
 
+  function getMaterialOverrideStorageKey() {
+    return `${MATERIAL_OVERRIDE_STORAGE_PREFIX}:${cleanUrlPath(decodedFile)}`;
+  }
+
+  function getLegacyMaterialOverrideStorageKeys() {
+    try {
+      if (!window.localStorage) return [];
+      const suffix = `:${cleanUrlPath(decodedFile)}`;
+      const keys = [];
+      for (let index = 0; index < window.localStorage.length; index++) {
+        const key = window.localStorage.key(index);
+        if (!key || key === getMaterialOverrideStorageKey()) continue;
+        if (!key.endsWith(suffix)) continue;
+        if (!key.startsWith("fusionMaterialOverrides.")) continue;
+        keys.push(key);
+      }
+      return keys.sort();
+    } catch {
+      return [];
+    }
+  }
+
+  function clearLegacyMaterialOverrideStorageKeys() {
+    try {
+      if (!window.localStorage) return;
+      getLegacyMaterialOverrideStorageKeys().forEach((key) => {
+        try {
+          window.localStorage.removeItem(key);
+        } catch {}
+      });
+    } catch {}
+  }
+
+  function normalizeStoredMaterialOverride(entry) {
+    if (!entry || typeof entry !== "object") return null;
+    const profile = getMaterialLibraryEntry(entry.materialSlug || "custom");
+    const supportsInfill = entry.supportsInfill !== false && profile.supportsInfill !== false;
+    const baseDensity = clampNumber(entry.baseDensityKgM3 ?? entry.densityKgM3, 50, 50000, profile.density);
+    const density = clampNumber(entry.densityKgM3 ?? baseDensity, 50, 50000, baseDensity);
+    const infillPercent = supportsInfill ? clampInfillPercent(entry.infillPercent, 100) : 100;
+    const massKg = safeNumber(entry.massKg);
+    const groupMassKg = safeNumber(entry.groupMassKg);
+    const directMassActive = String(entry.massMode || "density") === "direct"
+      && (Number.isFinite(massKg) || Number.isFinite(groupMassKg));
+    return {
+      materialSlug: profile.slug,
+      materialLabel: String(entry.materialLabel || profile.label || "Custom"),
+      baseDensityKgM3: baseDensity,
+      densityKgM3: density,
+      infillPercent,
+      supportsInfill,
+      massMode: directMassActive ? "direct" : "density",
+      massKg: Number.isFinite(massKg) ? massKg : null,
+      groupMassKg: Number.isFinite(groupMassKg) ? groupMassKg : null,
+      massDistribution: String(entry.massDistribution || "").trim() || null,
+      source: String(entry.source || "").trim() || null,
+      sourceLabel: String(entry.sourceLabel || "").trim() || "Manuell overstyring",
+      note: String(entry.note || "").trim(),
+    };
+  }
+
+  function saveMaterialOverrideState() {
+    try {
+      if (!window.localStorage) return;
+      if (!componentMaterialOverrides.size) {
+        window.localStorage.removeItem(getMaterialOverrideStorageKey());
+        clearLegacyMaterialOverrideStorageKeys();
+        return;
+      }
+      const overrides = {};
+      [...componentMaterialOverrides.entries()]
+        .sort(([left], [right]) => String(left).localeCompare(String(right), "nb"))
+        .forEach(([key, entry]) => {
+          const normalizedKey = normalizeComponentToken(key);
+          const normalizedEntry = normalizeStoredMaterialOverride(entry);
+          if (normalizedKey && normalizedEntry) overrides[normalizedKey] = normalizedEntry;
+        });
+      if (!Object.keys(overrides).length) {
+        window.localStorage.removeItem(getMaterialOverrideStorageKey());
+        clearLegacyMaterialOverrideStorageKeys();
+        return;
+      }
+      window.localStorage.setItem(getMaterialOverrideStorageKey(), JSON.stringify({
+        v: MATERIAL_OVERRIDE_STORAGE_VERSION,
+        file: cleanUrlPath(decodedFile),
+        savedAt: Date.now(),
+        overrides,
+      }));
+      clearLegacyMaterialOverrideStorageKeys();
+    } catch {}
+  }
+
+  function restoreMaterialOverrideState() {
+    try {
+      if (!window.localStorage) return false;
+      const storageKey = getMaterialOverrideStorageKey();
+      let raw = window.localStorage.getItem(storageKey);
+      let migrated = false;
+      if (!raw) {
+        for (const legacyKey of getLegacyMaterialOverrideStorageKeys()) {
+          raw = window.localStorage.getItem(legacyKey);
+          if (raw) {
+            migrated = true;
+            break;
+          }
+        }
+      }
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      const overrides = parsed?.overrides;
+      if (!overrides || typeof overrides !== "object") return false;
+      componentMaterialOverrides.clear();
+      Object.entries(overrides).forEach(([key, entry]) => {
+        const normalizedKey = normalizeComponentToken(key);
+        const normalizedEntry = normalizeStoredMaterialOverride(entry);
+        if (normalizedKey && normalizedEntry) componentMaterialOverrides.set(normalizedKey, normalizedEntry);
+      });
+      if (componentMaterialOverrides.size && migrated) saveMaterialOverrideState();
+      return componentMaterialOverrides.size > 0;
+    } catch {
+      return false;
+    }
+  }
+
   function buildMaterialSelectOptions(selectedSlug = "custom") {
     return Object.values(MATERIAL_LIBRARY).map((entry) => `
       <option value="${escapeAttr(entry.slug)}" ${entry.slug === selectedSlug ? "selected" : ""}>${escapeHtml(entry.label)}</option>
@@ -2898,24 +3067,26 @@
 
   function buildComponentDensityOverridePayload() {
     const payload = {};
-    componentMaterialOverrides.forEach((entry, key) => {
-      if (!entry || !Number.isFinite(entry.densityKgM3)) return;
-      payload[key] = {
-        densityKgM3: Number(entry.densityKgM3),
-        materialSlug: entry.materialSlug || "custom",
-        materialLabel: entry.materialLabel || getMaterialLibraryEntry(entry.materialSlug).label,
-        baseDensityKgM3: Number.isFinite(entry.baseDensityKgM3) ? Number(entry.baseDensityKgM3) : Number(entry.densityKgM3),
-        infillPercent: Number.isFinite(entry.infillPercent) ? Number(entry.infillPercent) : 100,
-        supportsInfill: entry.supportsInfill !== false,
-        massMode: entry.massMode || "density",
-        massKg: Number.isFinite(entry.massKg) ? Number(entry.massKg) : null,
-        groupMassKg: Number.isFinite(entry.groupMassKg) ? Number(entry.groupMassKg) : null,
-        massDistribution: entry.massDistribution || null,
-        source: entry.source || "override-item",
-        sourceLabel: entry.sourceLabel || "Manuell overstyring",
-        note: entry.note || "",
-      };
-    });
+    [...componentMaterialOverrides.entries()]
+      .sort(([left], [right]) => String(left).localeCompare(String(right), "nb"))
+      .forEach(([key, entry]) => {
+        if (!entry || !Number.isFinite(entry.densityKgM3)) return;
+        payload[key] = {
+          densityKgM3: Number(entry.densityKgM3),
+          materialSlug: entry.materialSlug || "custom",
+          materialLabel: entry.materialLabel || getMaterialLibraryEntry(entry.materialSlug).label,
+          baseDensityKgM3: Number.isFinite(entry.baseDensityKgM3) ? Number(entry.baseDensityKgM3) : Number(entry.densityKgM3),
+          infillPercent: Number.isFinite(entry.infillPercent) ? Number(entry.infillPercent) : 100,
+          supportsInfill: entry.supportsInfill !== false,
+          massMode: entry.massMode || "density",
+          massKg: Number.isFinite(entry.massKg) ? Number(entry.massKg) : null,
+          groupMassKg: Number.isFinite(entry.groupMassKg) ? Number(entry.groupMassKg) : null,
+          massDistribution: entry.massDistribution || null,
+          source: entry.source || "override-item",
+          sourceLabel: entry.sourceLabel || "Manuell overstyring",
+          note: entry.note || "",
+        };
+      });
     return payload;
   }
 
@@ -3770,6 +3941,7 @@
           scope,
         });
         overrides.forEach(({ key, override }) => setComponentMaterialOverride(key, override));
+        saveMaterialOverrideState();
         invalidateHydroReportState();
         applyHydroControlsToViewer({ includeDraftPose: false, silentEstimate: true });
         renderFilteredComponents();
@@ -3784,6 +3956,7 @@
         const keys = resolveMaterialEditorKeys(scope, token);
         if (!keys.length) return;
         setComponentMaterialOverrides(keys, null);
+        saveMaterialOverrideState();
         invalidateHydroReportState();
         applyHydroControlsToViewer({ includeDraftPose: false, silentEstimate: true });
         renderFilteredComponents();
@@ -4040,7 +4213,7 @@
         const names = top.map(e => `${e.name} (${fmtBytes(e.uncompSize)})`);
         extra.push(`Filer i container (første ${top.length}): ${names.join(" | ")}`);
         const dated = top.find(e => e.dosDate && e.dosTime);
-        if (dated) items.push(`<li>Intern container-timestamp (eksempel): ${dosToIso(dated.dosDate, dated.dosTime)}</li>`);
+          if (dated) items.push(`<li>Intern container-timestamp: ${dosToIso(dated.dosDate, dated.dosTime)}</li>`);
         if (ext === "3mf" || ext === "3fm") {
           const modelFiles = zip.entries.filter(e => /(^|\/)3d\/.*\.model$/i.test(e.name));
           items.push(`<li>3MF model-filer funnet: ${modelFiles.length}</li>`);
@@ -4049,8 +4222,21 @@
           try {
             const fusionMeta = await extractFusionComponentData(ab);
             if (fusionMeta?.components?.length) {
+              analysisState.fusionArchiveMeta = fusionMeta;
               items.push(`<li>Fusion-komponenter fra metadata: ${fusionMeta.components.length.toLocaleString("nb-NO")}</li>`);
               if (fusionMeta.rootName) items.push(`<li>Rotdesign: <b>${escapeHtml(fusionMeta.rootName)}</b></li>`);
+              items.push(`<li>${ext.toUpperCase()}-type: ${ext === "f3z" || ext === "3fz" ? "sammensatt Fusion-arkiv med referanser" : "native Fusion-designfil / delarkiv"}</li>`);
+              if (fusionMeta.entryCount) items.push(`<li>Arkiv-entries lest: ${fusionMeta.entryCount.toLocaleString("nb-NO")}</li>`);
+              const contentTypeSummary = Object.entries(fusionMeta.contentTypeCounts || {})
+                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "nb"))
+                .map(([type, count]) => `${type}: ${count}`)
+                .join(" | ");
+              if (contentTypeSummary) extra.push(`Fusion innholdstyper: ${contentTypeSummary}`);
+              if (fusionMeta.simulationStudyCount) {
+                items.push(`<li>Simulation studies i metadata: ${fusionMeta.simulationStudyCount}</li>`);
+                extra.push(`Study-ID-er i Fusion-metadata: ${fusionMeta.simulationStudyIds.join(" | ")}`);
+              }
+              items.push("<li>F3D/F3Z kan inneholde materialer, utseende og studiespor, men nettleserparseren leser foreløpig åpen metadata/komponentgraf og ikke alle proprietære Fusion-segmenter.</li>");
               renderComponentList(fusionMeta.components, "fusion");
             } else {
               renderComponentList(zip.entries.map(e => e.name), "cad");
@@ -4093,7 +4279,7 @@
     }
 
     checks.innerHTML = listToHtml(items);
-    details.textContent = extra.join("\n");
+    details.innerHTML = buildExtraDetailsHtml(extra);
     buildHydroReport();
   }
 
@@ -4177,19 +4363,20 @@
       reportState.lastDurationMs = reportState.startedAt ? (Date.now() - reportState.startedAt) : reportState.lastDurationMs;
       reportState.startedAt = 0;
       setHydroTaskState(false);
-      saveHydroReportCache(
-        data.payload,
-        buildHydroDetailSignature(),
-        reportState.requestKey || buildHydroReportRequestKey()
-      );
-      reportState.cacheKey = reportState.requestKey || buildHydroReportRequestKey();
-      reportState.requestKey = "";
       analysisState.latestViewerReport = data.payload;
       analysisState.latestViewerMassProperties = data.payload.currentHydro?.massProperties || analysisState.latestViewerMassProperties;
       if (data.payload.currentHydro?.supported) {
         analysisState.latestViewerHydro = data.payload.currentHydro;
         syncHydroControlsFromViewer(data.payload.currentHydro);
       }
+      const resolvedDetailSignature = buildHydroDetailSignature();
+      saveHydroReportCache(
+        data.payload,
+        resolvedDetailSignature,
+        resolvedDetailSignature
+      );
+      reportState.cacheKey = resolvedDetailSignature;
+      reportState.requestKey = "";
       if (btnHydroReport) {
         btnHydroReport.disabled = false;
         btnHydroReport.textContent = "Vis rapport";

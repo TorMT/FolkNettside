@@ -17,6 +17,7 @@ $tmpOutput = Join-Path $tempDir "scheduled_fluid_refresh_work.json"
 $backupPath = Join-Path $tempDir ("Forelesning.before_scheduled_refresh_" + $stamp + ".json")
 $backupCreated = $false
 $envPath = Join-Path $root ".env.local"
+$batchTimeoutSeconds = 2700
 
 function Write-Log {
     param([string]$Message)
@@ -49,14 +50,16 @@ function Get-OpenRouterKeys {
     }
 
     $candidateValues = @()
-    $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEY" -Lines $envLines
     $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEYS" -Lines $envLines
     $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEY_2" -Lines $envLines
     $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEY_3" -Lines $envLines
-    $candidateValues += $env:OPENROUTER_API_KEY
+    $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEY_4" -Lines $envLines
     $candidateValues += $env:OPENROUTER_API_KEYS
     $candidateValues += $env:OPENROUTER_API_KEY_2
     $candidateValues += $env:OPENROUTER_API_KEY_3
+    $candidateValues += $env:OPENROUTER_API_KEY_4
+    $candidateValues += Get-EnvValue -Key "OPENROUTER_API_KEY" -Lines $envLines
+    $candidateValues += $env:OPENROUTER_API_KEY
 
     $seen = @{}
     foreach ($value in $candidateValues) {
@@ -99,7 +102,15 @@ function Invoke-EnricherBatch {
     if (Test-Path -LiteralPath $stderrPath) { Remove-Item -LiteralPath $stderrPath -Force }
 
     Write-Log ("Starter batch: " + $Label)
-    $proc = Start-Process -FilePath $pythonExe -ArgumentList $arguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    $proc = Start-Process -FilePath $pythonExe -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    $timedOut = $false
+    try {
+        Wait-Process -Id $proc.Id -Timeout $batchTimeoutSeconds -ErrorAction Stop
+    }
+    catch {
+        $timedOut = $true
+        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
 
     $stdoutText = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { "" }
     $stderrText = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { "" }
@@ -111,9 +122,15 @@ function Invoke-EnricherBatch {
         $stderrText | Tee-Object -FilePath $logPath -Append | Out-Null
     }
 
+    $combinedText = ($stdoutText + "`n" + $stderrText)
+
     $selectedCount = 0
-    if ($stdoutText -match '\[INFO\]\s+Valgte\s+(\d+)\s+av') {
+    if ($combinedText -match '\[INFO\]\s+Valgte\s+(\d+)\s+av') {
         $selectedCount = [int]$matches[1]
+    }
+
+    if ($timedOut) {
+        throw ("Batch timed out etter " + $batchTimeoutSeconds + " sekunder: " + $Label + ". " + $combinedText.Trim())
     }
 
     if ($proc.ExitCode -ne 0) {

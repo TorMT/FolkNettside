@@ -258,6 +258,50 @@ export class STLViewerCore {
     return "component";
   }
 
+  _explodeVectorFromPlain(value) {
+    if (!value) return null;
+    if (value.isVector3) return value.clone();
+    const x = Number(value.x);
+    const y = Number(value.y);
+    const z = Number(value.z);
+    if (![x, y, z].every(Number.isFinite)) return null;
+    return new THREE.Vector3(x, y, z);
+  }
+
+  _resolveExplodeLocalCenter(target) {
+    const centroid =
+      this._explodeVectorFromPlain(target?.userData?.centroidLocal) ||
+      this._explodeVectorFromPlain(target?.userData?.geometryMassProps?.centroidLocal);
+    if (centroid) return centroid;
+
+    if (target?.geometry?.computeBoundingBox) target.geometry.computeBoundingBox();
+    return target?.geometry?.boundingBox?.getCenter(new THREE.Vector3()) || new THREE.Vector3();
+  }
+
+  _resolveExplodeWeight(target, fallbackSize = 0) {
+    const directMass = Number(
+      target?.userData?.massKg ??
+      target?.userData?.directMassKg ??
+      target?.userData?.geometryMassProps?.massKg
+    );
+    if (Number.isFinite(directMass) && directMass > 1e-9) return directMass;
+
+    const volume = Number(target?.userData?.volume ?? target?.userData?.geometryMassProps?.volume);
+    const density =
+      Number(target?.userData?.densityKgM3) ||
+      Number(target?.userData?.geometryMassProps?.densityKgM3) ||
+      Number(target?.userData?.materialHint?.densityKgM3) ||
+      Number(target?.userData?.materialHint?.profile?.density);
+
+    if (Number.isFinite(volume) && volume > 1e-12 && Number.isFinite(density) && density > 0) {
+      return volume * density;
+    }
+    if (Number.isFinite(volume) && volume > 1e-12) {
+      return volume;
+    }
+    return Math.max(Number(fallbackSize) || 0, 1e-6);
+  }
+
   _createDeterministicDirection(index = 0, total = 1) {
     const phi = Math.PI * (3 - Math.sqrt(5));
     const t = (index + 0.5) / Math.max(1, total);
@@ -353,8 +397,15 @@ export class STLViewerCore {
           }
         }
 
-        const center = members.reduce((acc, member) => acc.add(member.centerMesh), new THREE.Vector3())
-          .divideScalar(Math.max(1, members.length));
+        const totalWeight = members.reduce((sum, member) => sum + (Number(member.explodeWeight) || 0), 0);
+        const center = members.reduce((acc, member) => {
+          const weight = Number(member.explodeWeight) || 0;
+          return totalWeight > 1e-9
+            ? acc.addScaledVector(member.centerMesh, weight)
+            : acc.add(member.centerMesh);
+        }, new THREE.Vector3());
+        if (totalWeight > 1e-9) center.divideScalar(totalWeight);
+        else center.divideScalar(Math.max(1, members.length));
         clusters.push({ familyKey: members[0]?.familyKey || "component", entries: members, center });
       }
     });
@@ -382,27 +433,39 @@ export class STLViewerCore {
     this.mesh.updateMatrixWorld(true);
     this._explodeBaseMaxDim = this.computeBoundsWorld(this.mesh).maxDim || 1;
 
+    const weightedModelCenter = new THREE.Vector3();
+    let totalExplodeWeight = 0;
     const meshCenterBox = new THREE.Box3();
     const entries = targets.map((target) => {
       if (target.geometry?.computeBoundingBox) target.geometry.computeBoundingBox();
       const localBox = target.geometry?.boundingBox || null;
-      const localCenter = localBox?.getCenter(new THREE.Vector3()) || new THREE.Vector3();
+      const localCenter = this._resolveExplodeLocalCenter(target);
       const worldCenter = target.localToWorld(localCenter.clone());
       const meshCenter = this.mesh.worldToLocal(worldCenter.clone());
       meshCenterBox.expandByPoint(meshCenter);
       const boxSize = localBox?.getSize(new THREE.Vector3()) || new THREE.Vector3();
+      const explodeWeight = this._resolveExplodeWeight(target, Math.max(boxSize.x, boxSize.y, boxSize.z, 0));
+      if (Number.isFinite(explodeWeight) && explodeWeight > 0) {
+        weightedModelCenter.addScaledVector(meshCenter, explodeWeight);
+        totalExplodeWeight += explodeWeight;
+      }
       return {
         target,
         basePosition: target.position.clone(),
         centerMesh: meshCenter,
         familyKey: this._resolveExplodeFamilyKey(target),
         sizeMax: Math.max(boxSize.x, boxSize.y, boxSize.z, 0),
+        explodeWeight,
       };
     });
 
-    const modelCenter = meshCenterBox.isEmpty()
-      ? new THREE.Vector3()
-      : meshCenterBox.getCenter(new THREE.Vector3());
+    const modelCenter = totalExplodeWeight > 1e-9
+      ? weightedModelCenter.clone().divideScalar(totalExplodeWeight)
+      : (
+        meshCenterBox.isEmpty()
+          ? new THREE.Vector3()
+          : meshCenterBox.getCenter(new THREE.Vector3())
+      );
     const meshSpan = meshCenterBox.getSize(new THREE.Vector3());
     const xyCenterThreshold = Math.max(
       Math.max(meshSpan.x, meshSpan.y, 0) * 0.12,
@@ -440,6 +503,10 @@ export class STLViewerCore {
 
       cluster.entries.forEach((entry, entryIndex) => {
         let localDir = entry.centerMesh.clone().sub(cluster.center);
+        if (preferVerticalExplode) {
+          // Keep centered stacks readable without sending them too far in Z.
+          localDir.z *= 0.03;
+        }
         const localDistance = localDir.length();
         if (localDistance < 1e-9) {
           localDir = this._buildOrthogonalVector(clusterDir, entryIndex);
@@ -451,11 +518,11 @@ export class STLViewerCore {
           ? clusterDir.clone().multiplyScalar(0.82).add(localDir.clone().multiplyScalar(0.56)).normalize()
           : clusterDir.clone();
 
-        const clusterWeight = 1.18 + 0.82 * Math.min(1, clusterDistance / maxClusterRadius) + (preferVerticalExplode ? -0.12 : 0);
+        const clusterWeight = 1.08 + 0.72 * Math.min(1, clusterDistance / maxClusterRadius) + (preferVerticalExplode ? -0.24 : 0);
         const localWeight = cluster.entries.length > 1
           ? 0.32 + 0.62 * Math.min(1, localDistance / localMaxDistance)
           : 0;
-        const verticalScale = preferVerticalExplode ? 0.42 : 1;
+        const verticalScale = preferVerticalExplode ? 0.12 : 1;
 
         this._explodeItems.push({
           target: entry.target,
@@ -498,8 +565,11 @@ export class STLViewerCore {
     this.modelGroup.updateMatrixWorld(true);
     this.mesh.updateMatrixWorld(true);
 
-    const spreadMultiplier = 1.48 + Math.min(1.18, items.length * 0.03);
-    const spreadDistance = (this._explodeBaseMaxDim || 1) * spreadMultiplier * this._explodeFactor;
+    // Make low explode values noticeably calmer, while still allowing wide separation near the top end.
+    const easedFactor = Math.pow(this._explodeFactor, 1.75);
+    const sensitivityScale = 1 / 7;
+    const spreadMultiplier = 1.18 + Math.min(0.92, items.length * 0.024);
+    const spreadDistance = (this._explodeBaseMaxDim || 1) * spreadMultiplier * easedFactor * sensitivityScale;
 
     items.forEach((item) => {
       const parent = item.target.parent;
@@ -509,7 +579,7 @@ export class STLViewerCore {
       const verticalScale = Number.isFinite(item.verticalScale) ? item.verticalScale : 1;
       const clusterDistance = spreadDistance * (item.clusterWeight || item.radialWeight || 1) * verticalScale;
       const localDistance = spreadDistance
-        * (item.clusterSize > 1 ? (0.26 + 0.6 * this._explodeFactor) * (item.localWeight || 0) : 0);
+        * (item.clusterSize > 1 ? (0.18 + 0.42 * easedFactor) * (item.localWeight || 0) : 0);
       const targetMeshPoint = item.centerMesh.clone()
         .addScaledVector(item.clusterDirMesh || item.dirMesh, clusterDistance)
         .addScaledVector(item.localDirMesh || item.dirMesh, localDistance);

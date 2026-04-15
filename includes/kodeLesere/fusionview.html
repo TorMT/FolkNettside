@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fusion fil-analyse</title>
-  <link rel="stylesheet" href="/assets/css/themes.css?v=20260412c">
-  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css?v=20260412c">
+  <link rel="stylesheet" href="/assets/css/themes.css?v=20260412j">
+  <link rel="stylesheet" href="/assets/css/fusion-file-analyzer.css?v=20260412j">
 </head>
 <body>
   <div class="fusion-shell">
@@ -72,6 +72,13 @@
           <h2>Komponent- og geometri-sjekk</h2>
           <div id="checks">Kj&#248;rer analyser...</div>
           <div id="details" class="muted" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card" id="studyCard" hidden>
+          <h2>Simulering / study report</h2>
+          <p id="studyStatus" class="muted">S&#248;ker etter study-rapporter...</p>
+          <div id="studyLinks" class="buttons"></div>
+          <iframe id="studyFrame" class="study-frame" title="Study report forh&#229;ndsvisning" hidden loading="lazy"></iframe>
         </div>
 
         <div class="card" id="hydroCard">
@@ -297,6 +304,6 @@
     </div>
   </div>
 
-  <script src="/assets/js/fusion-file-analyzer.js?v=20260412c" defer></script>
+  <script src="/assets/js/fusion-file-analyzer.js?v=20260412j" defer></script>
 </body>
 </html>
