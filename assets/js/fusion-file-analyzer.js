@@ -50,7 +50,11 @@
   const btnRaw = document.getElementById("btnRaw");
   const btnFusion = document.getElementById("btnFusion");
   const btnBambu = document.getElementById("btnBambu");
+  const btnBambuSelected = document.getElementById("btnBambuSelected");
   const btnStl = document.getElementById("btnStl");
+  const btnComponentView = document.getElementById("btnComponentView");
+  const btnSelectionExplode = document.getElementById("btnSelectionExplode");
+  const btnExportSelected = document.getElementById("btnExportSelected");
   const btnToggleTools = document.getElementById("btnToggleTools");
   const btnToggleInfo = document.getElementById("btnToggleInfo");
   const btnTabOverview = document.getElementById("btnTabOverview");
@@ -67,6 +71,11 @@
     explode: 0,
     explodeSupported: false,
     explodeCount: 0,
+  };
+  const selectionToolState = {
+    isolateChosen: false,
+    explodeChosen: false,
+    pendingSelectedExport: "",
   };
   const hydroControlState = {
     markers: true,
@@ -403,6 +412,72 @@
     if (BAMBU_EXT.has(fileExtFromUrl(stl))) return stl;
     return "";
   }
+  function getResolvedChosenKeys() {
+    return [...chosenSet]
+      .map((token) => findComponentItem(token)?.key || "")
+      .filter(Boolean);
+  }
+  function getSelectionScopeKeys() {
+    return selectionToolState.explodeChosen ? getResolvedChosenKeys() : [];
+  }
+  function getSelectedComponentItems() {
+    const keys = new Set(getResolvedChosenKeys());
+    if (!keys.size) return [];
+    return componentState.items.filter((item) => keys.has(item.key));
+  }
+  function collectComponentCandidateTerms(keys = getResolvedChosenKeys()) {
+    const selectedItems = componentState.items.filter((item) => keys.includes(item.key));
+    const values = [];
+    selectedItems.forEach((item) => {
+      values.push(
+        item.label,
+        item.subtitle,
+        item.description,
+        item.file,
+        item.rootFileName,
+        item.sourceName,
+        item.nodePath
+      );
+    });
+    return [...new Set(values
+      .map((value) => stripExt(basename(decodeDisplayText(String(value || "").trim()))))
+      .map((value) => value.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .filter((value) => !looksGuidish(value))
+      .map((value) => value.toLowerCase()))];
+  }
+  async function resolveSelectionExportCandidate(allowedExts = BAMBU_EXT) {
+    const keys = getResolvedChosenKeys();
+    if (!keys.length) return "";
+    const stems = collectComponentCandidateTerms(keys);
+    if (!stems.length) return "";
+    try {
+      const basePath = clean.replace(/[^\/]+$/, "");
+      if (!basePath) return "";
+      const data = await fetchJsonCached(`${basePath}index.json`);
+      if (!data) return "";
+      const candidates = [];
+      Object.values(data || {}).forEach((value) => {
+        if (!value || !Array.isArray(value.files)) return;
+        value.files.forEach((file) => {
+          if (typeof file !== "string") return;
+          const fullUrl = /^https?:\/\//i.test(file) ? file : `${basePath}${file}`;
+          const extName = fileExtFromUrl(fullUrl);
+          if (!allowedExts.has(extName)) return;
+          const lowerBase = stripExt(basename(decodeDisplayText(fullUrl))).toLowerCase();
+          let score = previewExtWeight(fullUrl);
+          stems.forEach((stem) => {
+            score += candidateScore(lowerBase, stem);
+          });
+          if (score > 120) candidates.push({ url: fullUrl, score });
+        });
+      });
+      candidates.sort((a, b) => b.score - a.score || a.url.localeCompare(b.url, "nb"));
+      return candidates[0]?.url || "";
+    } catch {
+      return "";
+    }
+  }
   function updateBambuButtonState({ canRead = true } = {}) {
     if (!btnBambu) return;
     const target = getActiveBambuCandidate();
@@ -623,8 +698,16 @@
         type: "viewer-component-state",
         chosen: [...chosenSet],
         muted: [...mutedSet],
+        isolateChosen: selectionToolState.isolateChosen,
       }, "*");
     } catch {}
+  }
+  function postExplodeScopeToViewer() {
+    postViewerCommandToViewer("set-explode-scope", {
+      enabled: selectionToolState.explodeChosen,
+      keys: getSelectionScopeKeys(),
+      amount: viewerVisualState.explode || 0,
+    });
   }
 
   function updateExplodeUi() {
@@ -644,6 +727,31 @@
     }
     if (btnExplodeReset) {
       btnExplodeReset.disabled = !viewerVisualState.explodeSupported && (viewerVisualState.explode || 0) <= 0;
+    }
+  }
+  function updateSelectionActionUi() {
+    const chosenKeys = getResolvedChosenKeys();
+    const hasChosen = chosenKeys.length > 0;
+    if (!hasChosen) {
+      selectionToolState.isolateChosen = false;
+      selectionToolState.explodeChosen = false;
+    }
+    if (btnComponentView) {
+      btnComponentView.disabled = !hasChosen;
+      btnComponentView.textContent = selectionToolState.isolateChosen ? "Component view p\u00e5" : "Component view av";
+    }
+    if (btnSelectionExplode) {
+      btnSelectionExplode.disabled = !hasChosen || !viewerVisualState.explodeSupported;
+      btnSelectionExplode.textContent = selectionToolState.explodeChosen ? "Explode valgt p\u00e5" : "Explode valgt av";
+    }
+    if (btnExportSelected) {
+      btnExportSelected.disabled = !hasChosen;
+    }
+    if (btnBambuSelected) {
+      btnBambuSelected.disabled = !hasChosen;
+      btnBambuSelected.textContent = selectionToolState.pendingSelectedExport === "bambu"
+        ? "Forbereder valgt..."
+        : "Bambu valgt";
     }
   }
 
@@ -731,6 +839,54 @@
 
   btnFusion && (btnFusion.onclick = () => window.open("https://myhub.autodesk360.com/", "_blank", "noopener"));
 
+  function buildSelectedExportName() {
+    const items = getSelectedComponentItems();
+    if (!items.length) return `${stripExt(displayFileName || fileName || "selection")}-selection.stl`;
+    if (items.length === 1) return `${stripExt(items[0].label || "component")}.stl`;
+    return `${stripExt(displayFileName || fileName || "selection")}-selection-${items.length}.stl`;
+  }
+
+  async function openBambuUrl(url) {
+    if (!url) return false;
+    const schemeUrl = `bambustudio://open?url=${encodeURIComponent(url)}`;
+    const startedAt = Date.now();
+    let lostFocus = false;
+    const onBlur = () => {
+      lostFocus = true;
+    };
+    window.addEventListener("blur", onBlur, { once: true });
+    try {
+      window.location.href = schemeUrl;
+    } catch {}
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        window.removeEventListener("blur", onBlur);
+        resolve(lostFocus || (document.visibilityState !== "visible" && Date.now() - startedAt >= 800));
+      }, 900);
+    });
+  }
+
+  async function requestSelectedExport(kind = "download") {
+    const keys = getResolvedChosenKeys();
+    if (!keys.length) return;
+    const suggestedFileName = buildSelectedExportName();
+    if (kind === "bambu") {
+      const candidate = await resolveSelectionExportCandidate(BAMBU_EXT);
+      if (candidate) {
+        const opened = await openBambuUrl(candidate);
+        if (!opened) window.open("https://bambulab.com/en/download/studio", "_blank", "noopener");
+        return;
+      }
+      selectionToolState.pendingSelectedExport = "bambu";
+      updateSelectionActionUi();
+    }
+    postViewerCommandToViewer("download-selected-stl", {
+      keys,
+      fileName: suggestedFileName,
+      originFileName: displayFileName || fileName || "selection",
+    });
+  }
+
   btnBambu && (btnBambu.onclick = () => {
     const url = getActiveBambuCandidate();
     if (!url) {
@@ -754,6 +910,29 @@
       }
     }, 900);
   });
+  btnComponentView && (btnComponentView.onclick = () => {
+    if (!getResolvedChosenKeys().length) return;
+    selectionToolState.isolateChosen = !selectionToolState.isolateChosen;
+    postComponentStateToViewer();
+    updateSelectionActionUi();
+  });
+  btnSelectionExplode && (btnSelectionExplode.onclick = () => {
+    if (!getResolvedChosenKeys().length || !viewerVisualState.explodeSupported) return;
+    selectionToolState.explodeChosen = !selectionToolState.explodeChosen;
+    if (selectionToolState.explodeChosen && (viewerVisualState.explode || 0) <= 0.001) {
+      viewerVisualState.explode = 0.12;
+      updateExplodeUi();
+      postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode });
+    }
+    postExplodeScopeToViewer();
+    updateSelectionActionUi();
+  });
+  btnExportSelected && (btnExportSelected.onclick = () => {
+    requestSelectedExport("download");
+  });
+  btnBambuSelected && (btnBambuSelected.onclick = () => {
+    requestSelectedExport("bambu");
+  });
 
   btnToggleInfo && (btnToggleInfo.onclick = () => {
     if (!infoCard) return;
@@ -767,11 +946,13 @@
     viewerVisualState.explode = Math.max(0, Math.min(1, Number(inpExplode.value) || 0));
     updateExplodeUi();
     postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode });
+    postExplodeScopeToViewer();
   });
   btnExplodeReset?.addEventListener("click", () => {
     viewerVisualState.explode = 0;
     updateExplodeUi();
     postViewerCommandToViewer("set-explode", { amount: 0 });
+    postExplodeScopeToViewer();
   });
   selMaterial && (selMaterial.onchange = () => {
     if (selMaterial.value !== "custom") inpRhoMat.value = String(MATERIAL_DENSITY[selMaterial.value] || 7850);
@@ -953,6 +1134,10 @@
       label,
       subtitle: subtitleParts.join(" | "),
       description: String(item.description || "").trim(),
+      file: String(item.file || "").trim(),
+      rootFileName: String(item.rootFileName || "").trim(),
+      sourceName: String(item.sourceName || "").trim(),
+      nodePath: String(item.nodePath || "").trim(),
       center: item.center && Number.isFinite(Number(item.center.x)) && Number.isFinite(Number(item.center.y)) && Number.isFinite(Number(item.center.z))
         ? { x: Number(item.center.x), y: Number(item.center.y), z: Number(item.center.z) }
         : null,
@@ -966,6 +1151,8 @@
         item.friendlyName,
         item.file,
         item.rootFileName,
+        item.sourceName,
+        item.nodePath,
         item.description,
         item.type
       ].filter(Boolean).join(" ").toLowerCase()
@@ -3469,6 +3656,8 @@
       </div>
     `;
     postComponentStateToViewer();
+    updateSelectionActionUi();
+    postExplodeScopeToViewer();
   }
 
   function getComponentState(item) {

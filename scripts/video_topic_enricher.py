@@ -70,6 +70,15 @@ MOJIBAKE_MAP = {
     "kj??r": "kjor",
 }
 
+MOJIBAKE_SEQUENCES = (
+    "Ã",
+    "Â",
+    "â€“",
+    "â€”",
+    "â€",
+    "ðŸ",
+)
+
 LOW_SIGNAL_THEME_WORDS = {
     "bare", "han", "hun", "dere", "hvis", "kommer", "komme", "virker", "lik",
     "over", "under", "inn", "ut", "andre", "indre", "then", "there", "here",
@@ -106,13 +115,43 @@ def load_local_env() -> None:
 
 
 def clean_group_label(text: str) -> str:
-    s = str(text or "").strip()
+    s = repair_mojibake_text(str(text or "").strip())
     for bad, good in MOJIBAKE_MAP.items():
         s = s.replace(bad, good)
     s = s.replace("_", " ")
-    s = s.replace("?", " - ")
     s = re.sub(r"\s+", " ", s)
     return s.strip(" -:|\t")
+
+
+def looks_like_mojibake(text: str) -> bool:
+    return any(seq in text for seq in MOJIBAKE_SEQUENCES)
+
+
+def repair_mojibake_text(text: str) -> str:
+    s = str(text or "")
+    if not s:
+        return ""
+
+    candidates = [s]
+    current = s
+    for _ in range(2):
+        if not looks_like_mojibake(current):
+            break
+        repaired_variants: list[str] = []
+        for source_encoding in ("cp1252", "latin-1"):
+            try:
+                repaired = current.encode(source_encoding, errors="strict").decode("utf-8", errors="strict")
+            except Exception:
+                continue
+            if repaired != current:
+                repaired_variants.append(repaired)
+        if not repaired_variants:
+            break
+        candidates.extend(repaired_variants)
+        current = min(repaired_variants, key=lambda value: sum(value.count(seq) for seq in MOJIBAKE_SEQUENCES))
+
+    best = min(candidates, key=lambda value: sum(value.count(seq) for seq in MOJIBAKE_SEQUENCES))
+    return best
 
 
 def normalize_group_key(text: str) -> str:
@@ -667,6 +706,17 @@ def merge_enriched_subset(
         if url not in seen:
             merged.append(item)
     return merged
+
+
+def sanitize_video_records(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sanitized: list[dict[str, Any]] = []
+    for item in items:
+        clean_item = dict(item)
+        for key in ("title", "description", "group", "part", "group_description"):
+            clean_item[key] = clean_group_label(clean_item.get(key, "") or "")
+        clean_item["themes"] = [clean_group_label(theme) for theme in list(clean_item.get("themes") or []) if clean_group_label(theme)]
+        sanitized.append(clean_item)
+    return sanitized
 
 
 def group_title_needs_refresh(group_title: str) -> bool:
@@ -1373,6 +1423,7 @@ def main() -> None:
     )
     if len(selected_items) != len(items):
         videos = merge_enriched_subset(items, videos, existing_by_url=existing_by_url)
+    videos = sanitize_video_records(videos)
     out.write_text(json.dumps({"videos": videos}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Skrev {len(videos)} videoer til {out}")
 

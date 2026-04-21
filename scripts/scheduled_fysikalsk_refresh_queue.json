@@ -1,0 +1,276 @@
+{
+  "course": "FysikalskKjemi",
+  "daily_success_limit": 8,
+  "per_key_daily_success_limit": 2,
+  "notes": "Kjor videre pa svake VL-grupper. Tillat oppdatering av title/group nar AI finner bedre tema, men bevar eksisterende data ellers.",
+  "batches": [
+    {
+      "enabled": true,
+      "label": "VL10 - Termodynamiske potensialer",
+      "reason": "Part-titler er fortsatt generiske.",
+      "urls": [
+        "https://www.youtube.com/watch?v=TXIch7f3_Pk",
+        "https://www.youtube.com/watch?v=xbibfLJpclk",
+        "https://www.youtube.com/watch?v=b3oh4XS6e_4",
+        "https://www.youtube.com/watch?v=3SbK5gzin_U"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL11",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=eegcGwzV-8s",
+        "https://www.youtube.com/watch?v=YQMawNkYuu4",
+        "https://www.youtube.com/watch?v=9M6tdoF6-qA",
+        "https://www.youtube.com/watch?v=o-z2kUA60xw",
+        "https://www.youtube.com/watch?v=gh8IqWo74Kg"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL12",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=mbd3CIrkbGc",
+        "https://www.youtube.com/watch?v=TG6sriGfhms",
+        "https://www.youtube.com/watch?v=k-36ZMj9U6E",
+        "https://www.youtube.com/watch?v=X3A9OiqSvkY",
+        "https://www.youtube.com/watch?v=DThNacfMZCc"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL13",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=u2th0aduBa0",
+        "https://www.youtube.com/watch?v=GTrfgosHn5M",
+        "https://www.youtube.com/watch?v=YnWeblQpRTc",
+        "https://www.youtube.com/watch?v=SanjudnHxFU"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL14",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=6xutqXJO2dc",
+        "https://www.youtube.com/watch?v=vEFgk7e0slo",
+        "https://www.youtube.com/watch?v=YsrTYcnwgG4",
+        "https://www.youtube.com/watch?v=WqQbzhGMetY"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL15",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=e5BO73lciWo",
+        "https://www.youtube.com/watch?v=6v88XHxs_Zs",
+        "https://www.youtube.com/watch?v=aIz9VT-mvIw",
+        "https://www.youtube.com/watch?v=m_VatmTNPXU",
+        "https://www.youtube.com/watch?v=BIyCbHj7Qxs",
+        "https://www.youtube.com/watch?v=p8qFj9GRiCo"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL16",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=RjtVIyS1eK4",
+        "https://www.youtube.com/watch?v=5NJlQ27bhEk",
+        "https://www.youtube.com/watch?v=a6jYNoNOGKc",
+        "https://www.youtube.com/watch?v=24qhwDL1JdY",
+        "https://www.youtube.com/watch?v=0IYYw0yEkCA",
+        "https://www.youtube.com/watch?v=iUPtNBkKpZs"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL17",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=6gKJGPS-mFQ",
+        "https://www.youtube.com/watch?v=8TJchF0oHLE",
+        "https://www.youtube.com/watch?v=QiQ7P4gOiIQ",
+        "https://www.youtube.com/watch?v=_Y4vUN4AloI",
+        "https://www.youtube.com/watch?v=QUE_hWkcUCI"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL18",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=knNcFccHo-0",
+        "https://www.youtube.com/watch?v=eN6XMnNV-II",
+        "https://www.youtube.com/watch?v=ISe70J4wH7s",
+        "https://www.youtube.com/watch?v=TrQzopUUjV4",
+        "https://www.youtube.com/watch?v=ncTV2MaCX5Q"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL19",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=iDYUXf93UH8",
+        "https://www.youtube.com/watch?v=bIPojpXy3rc",
+        "https://www.youtube.com/watch?v=madsCUYTWMo",
+        "https://www.youtube.com/watch?v=erE8EB2_pYc"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL2 - Termodynamiske systemer og tilstander",
+      "reason": "Part-titler er fortsatt generiske.",
+      "urls": [
+        "https://www.youtube.com/watch?v=iEjg-U140t8",
+        "https://www.youtube.com/watch?v=_tLH0XGTuIE",
+        "https://www.youtube.com/watch?v=DIopsMXb58Q",
+        "https://www.youtube.com/watch?v=R34o_NrZqcI",
+        "https://www.youtube.com/watch?v=4p5OUZj-YBY"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL20",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=OV_Suod_3DA",
+        "https://www.youtube.com/watch?v=Gga7FQ3IbNA",
+        "https://www.youtube.com/watch?v=9aLI-IfLb0c",
+        "https://www.youtube.com/watch?v=YuDmm_06Hlo"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL21",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=iXKiK4J9pp0",
+        "https://www.youtube.com/watch?v=SMaAuzUKVF0",
+        "https://www.youtube.com/watch?v=fx8GHBdtGd8",
+        "https://www.youtube.com/watch?v=-xNod4Sjxyc",
+        "https://www.youtube.com/watch?v=go51cbBIQok"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL22",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=9Mzc1lYe6tU",
+        "https://www.youtube.com/watch?v=eR7hJsNa91Y",
+        "https://www.youtube.com/watch?v=zPPmDbf-Kwg",
+        "https://www.youtube.com/watch?v=1586TrJf_pM"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL23",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=ZEjOFMNrAzc",
+        "https://www.youtube.com/watch?v=NGN5DAswUY8",
+        "https://www.youtube.com/watch?v=btsBViUjxhg",
+        "https://www.youtube.com/watch?v=DheGQUVd1TU"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL24",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=CtDSTnHTfRU",
+        "https://www.youtube.com/watch?v=mUk-8CJ5PJ4",
+        "https://www.youtube.com/watch?v=Q1UBWdXagzQ",
+        "https://www.youtube.com/watch?v=uaKWC6jxKBQ"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL3",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=dJVKkTiuYtE",
+        "https://www.youtube.com/watch?v=Q5aoDtJTn5k",
+        "https://www.youtube.com/watch?v=AY4_-WZ8YI8",
+        "https://www.youtube.com/watch?v=e3S_61L6YZc"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL4",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=K9mgb7wJoNg",
+        "https://www.youtube.com/watch?v=g2Xuhej5H_U",
+        "https://www.youtube.com/watch?v=zhs_5MVkHBE",
+        "https://www.youtube.com/watch?v=TyYa13her2w",
+        "https://www.youtube.com/watch?v=ooVXPPZmZyA"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL5",
+      "reason": "Gruppa mangler spesifikt tema.",
+      "urls": [
+        "https://www.youtube.com/watch?v=13Q_9asyGRc",
+        "https://www.youtube.com/watch?v=VQFlW_Vn_sw",
+        "https://www.youtube.com/watch?v=_z8OvbdOK0Y",
+        "https://www.youtube.com/watch?v=lfqbBeYemZE",
+        "https://www.youtube.com/watch?v=s8r7x3DG2IM"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL6 - Åpne systemer og kontrollvolum",
+      "reason": "Part-titler er fortsatt generiske.",
+      "urls": [
+        "https://www.youtube.com/watch?v=1NMQKuJYs1c",
+        "https://www.youtube.com/watch?v=nkqMBF2jSxU",
+        "https://www.youtube.com/watch?v=Tmuj92F-g_E",
+        "https://www.youtube.com/watch?v=QzJjS2jUci4",
+        "https://www.youtube.com/watch?v=8-vQwMYNAjM"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL7 - Entalpi og strømningsarbeid",
+      "reason": "Part-titler er fortsatt generiske.",
+      "urls": [
+        "https://www.youtube.com/watch?v=ioce5v8N-74",
+        "https://www.youtube.com/watch?v=JWyKk1PfNeQ",
+        "https://www.youtube.com/watch?v=vXS5J2pAZJQ",
+        "https://www.youtube.com/watch?v=xIJgOlhse88",
+        "https://www.youtube.com/watch?v=eg1Idn7lDqc"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL8 - Andre lov og entropi",
+      "reason": "Part-titler er fortsatt generiske.",
+      "urls": [
+        "https://www.youtube.com/watch?v=Ld0G5RXXY5o",
+        "https://www.youtube.com/watch?v=n1a02i_GceM",
+        "https://www.youtube.com/watch?v=Oxy505ouDRs",
+        "https://www.youtube.com/watch?v=nzNe-kR-iUE",
+        "https://www.youtube.com/watch?v=JJ8DJ3VKo6M"
+      ]
+    },
+    {
+      "enabled": true,
+      "label": "VL9 - Entropi i åpne systemer",
+      "reason": "Part-titler er fortsatt generiske.",
+      "urls": [
+        "https://www.youtube.com/watch?v=NHMIHGPNtYE",
+        "https://www.youtube.com/watch?v=az1LsnDsIXs",
+        "https://www.youtube.com/watch?v=x6QxAfuEV7o",
+        "https://www.youtube.com/watch?v=vr3ZN4PFZwQ"
+      ]
+    }
+  ]
+}

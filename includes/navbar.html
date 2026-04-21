@@ -70,9 +70,9 @@
 <a href="/diverse/AndreKokSider/" role="menuitem">AndreKokSider</a>
 <a href="/diverse/Hydrometer/" role="menuitem">Hydrometer</a>
 <a href="/diverse/LAOS/" role="menuitem">LAOS</a>
+<a href="/diverse/MedisinTimer/" role="menuitem">MedisinTimer</a>
 <a href="/diverse/Njord/" role="menuitem">Njord</a>
-<a href="/diverse/Sandalen%20G%C3%A5rd/" role="menuitem">Sandalen Gård</a>
-<a href="/diverse/Sandalen%20Tools/" role="menuitem">Sandalen Tools</a>
+<a href="/diverse/SandalenG%C3%A5rd/" role="menuitem">Sandalen Gård</a>
 </div>
 </div>
 <a href="/om/index.html">Om</a>
@@ -92,63 +92,28 @@
       return `/diverse/${h.replace(/^\.?\//, "")}`;
     };
 
-    const basename = (href) => {
-      const clean = String(href || "").split("?")[0].split("#")[0];
-      const last = clean.split("/").pop() || clean;
-      return last.replace(/\.[^/.]+$/, "") || "Lenke";
-    };
-
-    const parseStringEntry = (entry) => {
-      const raw = String(entry || "").trim();
-      if (!raw) return null;
-      if (!raw.includes("|")) {
-        const href = normalizeHref(raw);
-        return href ? { label: basename(href), href } : null;
-      }
-      const [labelRaw, hrefRaw] = raw.split("|").map(s => s.trim());
-      const href = normalizeHref(hrefRaw || labelRaw);
-      if (!href) return null;
-      return { label: labelRaw || basename(href), href };
-    };
-
     const out = [];
     const seen = new Set();
     const pushLink = (label, href) => {
-      const key = `${label}::${href}`;
-      if (!href || seen.has(key)) return;
+      const cleanLabel = String(label || "").trim();
+      const cleanHref = String(href || "").trim();
+      const key = `${cleanLabel}::${cleanHref}`;
+      if (!cleanLabel || !cleanHref || seen.has(key)) return;
       seen.add(key);
-      out.push({ label, href });
-    };
-
-    const walk = (node) => {
-      if (!node) return;
-      if (typeof node === "string") {
-        const parsed = parseStringEntry(node);
-        if (parsed) pushLink(parsed.label, parsed.href);
-        return;
-      }
-      if (Array.isArray(node)) {
-        node.forEach(walk);
-        return;
-      }
-      if (typeof node === "object") {
-        if (typeof node.url === "string") {
-          const href = normalizeHref(node.url);
-          const label = String(node.title || node.name || basename(href));
-          pushLink(label, href);
-        }
-        Object.entries(node).forEach(([k, v]) => {
-          if (k === "welcome" || k === "quiz" || k === "url") return;
-          walk(v);
-        });
-      }
+      out.push({ label: cleanLabel, href: cleanHref });
     };
 
     try {
       const res = await fetch("/diverse/index.json", { cache: "no-store" });
       if (!res.ok) return;
       const json = await res.json();
-      walk(json);
+      Object.entries(json).forEach(([key, value]) => {
+        if (key === "welcome" || !value || typeof value !== "object" || Array.isArray(value)) return;
+        const dir = typeof value.dir === "string" ? value.dir.trim() : "";
+        if (!dir) return;
+        const href = normalizeHref(`${dir.replace(/\/+$/, "")}/`);
+        pushLink(key, href);
+      });
       if (!out.length) return;
       menu.innerHTML = "";
       out.forEach(({ label, href }) => {
@@ -159,7 +124,7 @@
         menu.appendChild(a);
       });
     } catch {
-      // Fallback: behold statiske Tools-lenker
+      // Fallback: behold statiske Diverse-lenker
     }
   })();
 </script>

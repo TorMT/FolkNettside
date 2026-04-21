@@ -2,20 +2,12 @@
   "course": "Fluid",
   "daily_success_limit": 8,
   "per_key_daily_success_limit": 2,
-  "notes": "Kjor bare videre pa gjenstaende svake videoer. Stopp etter 2 faktiske oppdateringer per nokkel per dag over fire nokler. Bevar title/group/part.",
+  "notes": "Kjor bare videre pa dagens faktiske svake videoer. Stopp etter 2 faktiske oppdateringer per nokkel per dag over fire nokler. Bevar title/group/part.",
   "batches": [
-    {
-      "enabled": false,
-      "label": "Forelesning 24A",
-      "reason": "Enkeltrest fra forelesning 24. Midlertidig deaktivert fordi videoen mangler tekstgrunnlag for AI-kjoring.",
-      "urls": [
-        "https://www.youtube.com/watch?v=gctzEpXFxoc"
-      ]
-    },
     {
       "enabled": true,
       "label": "Forelesning 25 A/B",
-      "reason": "Naturlig forelesningspar.",
+      "reason": "Begge deler er fortsatt svake og har god prioritet.",
       "urls": [
         "https://www.youtube.com/watch?v=Lqq5mlp0Iy0",
         "https://www.youtube.com/watch?v=WOq8l-254EA"
@@ -24,7 +16,7 @@
     {
       "enabled": true,
       "label": "Forelesning 20 A/B",
-      "reason": "Sterk kandidatgruppe med god metadata.",
+      "reason": "Begge deler er fortsatt svake og har god prioritet.",
       "urls": [
         "https://www.youtube.com/watch?v=hDK8MBZFGTw",
         "https://www.youtube.com/watch?v=GyVkqmDy6Vo"
@@ -33,7 +25,7 @@
     {
       "enabled": true,
       "label": "Forelesning 2 A/B",
-      "reason": "Trykkraft pa krumme flater.",
+      "reason": "Begge deler er fortsatt svake og matcher samme tema.",
       "urls": [
         "https://www.youtube.com/watch?v=hLRocFwis00",
         "https://www.youtube.com/watch?v=v0Ic0IPWsl8"
@@ -42,7 +34,7 @@
     {
       "enabled": true,
       "label": "Forelesning 21 A/B",
-      "reason": "Grunnleggende begreper med lange undertekster.",
+      "reason": "Begge deler er fortsatt svake og matcher samme tema.",
       "urls": [
         "https://www.youtube.com/watch?v=7-CvPW--hIE",
         "https://www.youtube.com/watch?v=7k4UeRI-6eI"
@@ -51,7 +43,7 @@
     {
       "enabled": true,
       "label": "Forelesning 12B + 10A",
-      "reason": "To enkeltvideoer med gode metabeskrivelser.",
+      "reason": "To enkeltvideoer som fortsatt har svake beskrivelser eller temaer.",
       "urls": [
         "https://www.youtube.com/watch?v=qm0-UkV_fjs",
         "https://www.youtube.com/watch?v=phK8km_drkE"
@@ -60,7 +52,7 @@
     {
       "enabled": true,
       "label": "Forelesning 16A + 15B",
-      "reason": "To enkeltvideoer med brukbare undertekster.",
+      "reason": "To enkeltvideoer som fortsatt har svake beskrivelser eller temaer.",
       "urls": [
         "https://www.youtube.com/watch?v=xoUpr-mnXcU",
         "https://www.youtube.com/watch?v=1ImliYi33Fg"
@@ -68,62 +60,53 @@
     },
     {
       "enabled": true,
-      "label": "Forelesning 22 A/B",
-      "reason": "Intro- og demo-innhold.",
+      "label": "Forelesning 22A + 24B",
+      "reason": "To enkeltrester der 24B fortsatt kan forbedres, mens 24A holdes utenfor pga manglende tekstgrunnlag.",
       "urls": [
         "https://www.youtube.com/watch?v=SlY0qj9SPB0",
-        "https://www.youtube.com/watch?v=s3RgvpeQJF4"
+        "https://www.youtube.com/watch?v=njboJT9aAuQ"
       ]
     },
     {
       "enabled": true,
-      "label": "Forelesning 13B + 26B",
-      "reason": "Neste to enkeltrester i lista.",
+      "label": "Forelesning 26B + 27B",
+      "reason": "Neste to enkeltrester i dagens faktiske restliste.",
       "urls": [
-        "https://www.youtube.com/watch?v=OpuyE6ke_q0",
-        "https://www.youtube.com/watch?v=w6_u_wd_j9s"
+        "https://www.youtube.com/watch?v=w6_u_wd_j9s",
+        "https://www.youtube.com/watch?v=HUo-A4cuRWc"
       ]
     },
     {
       "enabled": true,
-      "label": "Forelesning 27B + 28A",
-      "reason": "Neste to rester i lista.",
+      "label": "Forelesning 28 A/B",
+      "reason": "Samlet forelesningspar i restlista.",
       "urls": [
-        "https://www.youtube.com/watch?v=HUo-A4cuRWc",
-        "https://www.youtube.com/watch?v=MDGzCaweXsc"
+        "https://www.youtube.com/watch?v=MDGzCaweXsc",
+        "https://www.youtube.com/watch?v=FMmQGnDJ3C8"
       ]
     },
     {
       "enabled": true,
-      "label": "Forelesning 28B + 29A",
-      "reason": "Neste to rester i lista.",
-      "urls": [
-        "https://www.youtube.com/watch?v=FMmQGnDJ3C8",
-        "https://www.youtube.com/watch?v=jSqNjqc2XQ4"
-      ]
-    },
-    {
-      "enabled": true,
-      "label": "Forelesning 29B + 3",
-      "reason": "Neste to rester i lista.",
+      "label": "Forelesning 29B + 4A",
+      "reason": "Neste to enkeltrester i restlista.",
       "urls": [
         "https://www.youtube.com/watch?v=lvoSSKqYifM",
-        "https://www.youtube.com/watch?v=8CnGOpLlO6M"
+        "https://www.youtube.com/watch?v=R29r2JYjgFk"
       ]
     },
     {
       "enabled": true,
-      "label": "Forelesning 4A + 5A",
-      "reason": "Neste to rester i lista.",
+      "label": "Forelesning 4B + 5A",
+      "reason": "Neste to enkeltrester i restlista.",
       "urls": [
-        "https://www.youtube.com/watch?v=R29r2JYjgFk",
+        "https://www.youtube.com/watch?v=Nuw3x-xhupA",
         "https://www.youtube.com/watch?v=cManJVu1Nho"
       ]
     },
     {
       "enabled": true,
       "label": "Forelesning 5B + 6A",
-      "reason": "Neste to rester i lista.",
+      "reason": "Neste to enkeltrester i restlista.",
       "urls": [
         "https://www.youtube.com/watch?v=nGObVKUQmhQ",
         "https://www.youtube.com/watch?v=Ea1kJR6jguM"
@@ -132,7 +115,7 @@
     {
       "enabled": true,
       "label": "Forelesning 6B + 7A",
-      "reason": "Neste to rester i lista.",
+      "reason": "Neste to enkeltrester i restlista.",
       "urls": [
         "https://www.youtube.com/watch?v=OvlPfaWI3xE",
         "https://www.youtube.com/watch?v=KFXRoVsg2os"
@@ -140,8 +123,8 @@
     },
     {
       "enabled": true,
-      "label": "Forelesning 8A + 8B",
-      "reason": "Samlet forelesningspar.",
+      "label": "Forelesning 8 A/B",
+      "reason": "Samlet forelesningspar i restlista.",
       "urls": [
         "https://www.youtube.com/watch?v=mx45S6k-h_A",
         "https://www.youtube.com/watch?v=OY_MGtn6P9I"
@@ -149,11 +132,19 @@
     },
     {
       "enabled": true,
-      "label": "Forelesning 9A + 9B",
-      "reason": "Siste samlede forelesningspar i nåværende liste.",
+      "label": "Forelesning 9 A/B",
+      "reason": "Samlet forelesningspar i restlista.",
       "urls": [
         "https://www.youtube.com/watch?v=p1y0SkqpMgw",
         "https://www.youtube.com/watch?v=zyyJWUJEazU"
+      ]
+    },
+    {
+      "enabled": false,
+      "label": "Forelesning 24A",
+      "reason": "Holdes deaktivert til vi har et bedre tekstgrunnlag enn dagens metadata.",
+      "urls": [
+        "https://www.youtube.com/watch?v=gctzEpXFxoc"
       ]
     }
   ]

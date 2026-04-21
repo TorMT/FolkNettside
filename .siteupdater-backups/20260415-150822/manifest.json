@@ -1,0 +1,54 @@
+{
+  "created_at": "2026-04-15T15:12:06",
+  "root": "\\\\webedit.ntnu.no\\tormt\\",
+  "changes": [
+    {
+      "path": "diverse\\Njord\\filer\\MuninTing\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "diverse\\Njord\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "diverse\\Njord\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "diverse\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "semestre\\4\\marin-Hydro\\filer\\Ekstra(Beskyttet)\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "semestre\\4\\marin-Hydro\\filer\\Øving13\\Friprøve_og_propulsjonsprøve_Øv13-1-filer\\index.json",
+      "action": "created"
+    },
+    {
+      "path": "semestre\\4\\marin-Hydro\\filer\\Øving13\\index.json",
+      "action": "created"
+    },
+    {
+      "path": "semestre\\4\\marin-Hydro\\filer\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "semestre\\4\\marin-Hydro\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "semestre\\4\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "semestre\\index.json",
+      "action": "modified"
+    },
+    {
+      "path": "index.json",
+      "action": "modified"
+    }
+  ]
+}

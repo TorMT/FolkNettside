@@ -710,6 +710,16 @@ async function tryOpenVideoListFile(url){
 
 
 function openInViewer(url, kind){
+  const lowerUrl = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+  const officeExts = new Set([
+    'doc', 'docx', 'docm', 'dot', 'dotx',
+    'xls', 'xlsx', 'xlsm', 'xlt', 'xltx',
+    'ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'pot', 'potx'
+  ]);
+  const officePattern = /\.(doc|docx|docm|dot|dotx|xls|xlsx|xlsm|xlt|xltx|ppt|pptx|pptm|pps|ppsx|pot|potx)$/i;
+  if (kind === 'htm' || lowerUrl.endsWith('.htm')) kind = 'html';
+  if (officeExts.has(String(kind || '').toLowerCase()) || officePattern.test(lowerUrl)) kind = 'office';
+
   if (kind === 'video' || kind === 'youtube' || kind === 'panopto'){
     const {box, holder} = ensureMediaViewer();
     try{ if (holder._fallbackTimer) { clearTimeout(holder._fallbackTimer); holder._fallbackTimer = null; } }catch{}
@@ -869,6 +879,7 @@ function openInViewer(url, kind){
   else if (kind === 'fusionshare') target = `/includes/kodeLesere/fusionshareview.html?share=${encodeURIComponent(url)}`;
   else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'csv')   target = `/includes/kodeLesere/csvview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'office') target = `/includes/kodeLesere/officeview.html?file=${encodeURIComponent(url)}`;
 
   if (kind === 'pdf' && frame.tagName.toLowerCase() === 'object') frame.type = 'application/pdf';
   else frame.removeAttribute('type');
@@ -954,6 +965,9 @@ function openFile(url){
   if (clean.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
   if (clean.endsWith('.py'))    return openInViewer(url, 'py');
   if (clean.endsWith('.stl')) return openInViewer(url, 'stl');
+  if (/\.(doc|docx|docm|dot|dotx|xls|xlsx|xlsm|xlt|xltx|ppt|pptx|pptm|pps|ppsx|pot|potx)$/.test(clean)) {
+    return openInViewer(url, 'office');
+  }
   if (clean.endsWith('.html')) {
     if (!/\/filer\//i.test(clean) || clean.endsWith('/index.html')) {
       window.location.href = url;
@@ -961,6 +975,7 @@ function openFile(url){
     }
     return openInViewer(url, 'html');
   }
+  if (clean.endsWith('.htm')) return openInViewer(url, 'html');
   if (isFusionShareUrl(url)) return openInViewer(url, 'fusionshare');
   if (isFusionArchive && fusionViewerEnabled) return openInViewer(url, 'fusion');
   if (clean.endsWith('.fbm')) return openInViewer(url, 'fbm');
@@ -1924,7 +1939,10 @@ async function initSidebar(){
     const lower = href.toLowerCase();
     
     if (
-      lower.endsWith('.pdf') || lower.endsWith('.py') || lower.endsWith('.ipynb') || lower.endsWith('.html') ||
+      lower.endsWith('.pdf') || lower.endsWith('.py') || lower.endsWith('.ipynb') || lower.endsWith('.html') || lower.endsWith('.htm') ||
+      lower.endsWith('.doc') || lower.endsWith('.docx') || lower.endsWith('.docm') || lower.endsWith('.dot') || lower.endsWith('.dotx') ||
+      lower.endsWith('.xls') || lower.endsWith('.xlsx') || lower.endsWith('.xlsm') || lower.endsWith('.xlt') || lower.endsWith('.xltx') ||
+      lower.endsWith('.ppt') || lower.endsWith('.pptx') || lower.endsWith('.pptm') || lower.endsWith('.pps') || lower.endsWith('.ppsx') || lower.endsWith('.pot') || lower.endsWith('.potx') ||
       lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.stl') ||
       lower.endsWith('.mov') || lower.endsWith('.m4v') || lower.split('?')[0].split('#')[0].endsWith('.fbm') ||
       lower.split('?')[0].split('#')[0].endsWith('.3mf') ||

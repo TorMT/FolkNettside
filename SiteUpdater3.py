@@ -41,7 +41,10 @@ ALLOWED_EXT = {
     ".py", ".pdf", ".ipynb",
     ".mp4", ".webm", ".ogg", ".mov", ".m4v",
     ".url", ".webloc",
-    ".html", ".txt", ".md", ".list", ".links", ".csv", ".json",
+    ".html", ".htm", ".txt", ".md", ".list", ".links", ".csv", ".json",
+    ".doc", ".docx", ".docm", ".dot", ".dotx",
+    ".xls", ".xlsx", ".xlsm", ".xlt", ".xltx",
+    ".ppt", ".pptx", ".pptm", ".pps", ".ppsx", ".pot", ".potx",
     ".stl", ".fbm", ".3mf", ".3fz", ".f3d", ".f3z", ".3fm", ".fm3",
     ".step", ".stp", ".iges", ".igs", ".obj", ".ply", ".fbx", ".gltf", ".glb",
     ".sat", ".smt", ".x_t", ".x_b", ".sldprt", ".sldasm", ".slddrw"

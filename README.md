@@ -68,6 +68,7 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 - Hvis en videotittel er `Ukjent` eller svak, prover enrich-scriptet forst a hente en bedre kildetittel fra `yt-dlp` metadata f?r AI/fallback brukes.
 - Eksempelfil for lokal setup finnes i `.env.openrouter.example` (ikke commit ekte nokler).
 - `SiteUpdater3.py` st?tter n? ogs? `--enrich-video-lists` for ? kj?re enrich automatisk etter indeksoppdatering (valgfritt med cookies/ollama/whisper-flagg).
+- Viewer og `SiteUpdater3.py` st?tter n? ogs? Office-pakken bedre: `.htm`, Word, Excel og PowerPoint-filer kan indekseres og ?pnes i viewer.
 - Enrich-trinnet hopper n? over filer uten endringer (bruk `--enrich-force` for ? tvinge full kj?ring).
 - Etter enrich vises en oppsummering med antall kandidater/kj?rte/skippede/feilede filer.
 - Videoviseren foretrekker `Forelesning.json` over `Forelesning.txt` n?r begge finnes, slik at gruppebeskrivelser, temaer og logiske grupper kan vises direkte.

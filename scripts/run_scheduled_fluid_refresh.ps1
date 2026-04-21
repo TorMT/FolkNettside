@@ -4,9 +4,9 @@ $root = "\\webedit.ntnu.no\tormt"
 $pythonExe = "C:\Users\tormt\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\python.exe"
 $ytDlpExe = "C:\Users\tormt\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\Scripts\yt-dlp.exe"
 $enricherScript = Join-Path $root "scripts\video_topic_enricher.py"
-$queuePath = Join-Path $root "scripts\scheduled_fluid_refresh_queue.json"
-$inputPath = Join-Path $root "semestre\3\Fluid\filer\Forelesning.txt"
-$jsonPath = Join-Path $root "semestre\3\Fluid\filer\Forelesning.json"
+$queuePath = if ($env:VIDEO_REFRESH_QUEUE_PATH) { $env:VIDEO_REFRESH_QUEUE_PATH } else { Join-Path $root "scripts\scheduled_fluid_refresh_queue.json" }
+$inputPath = if ($env:VIDEO_REFRESH_INPUT_PATH) { $env:VIDEO_REFRESH_INPUT_PATH } else { Join-Path $root "semestre\3\Fluid\filer\Forelesning.txt" }
+$jsonPath = if ($env:VIDEO_REFRESH_JSON_PATH) { $env:VIDEO_REFRESH_JSON_PATH } else { Join-Path $root "semestre\3\Fluid\filer\Forelesning.json" }
 $tempDir = Join-Path $root "temp"
 
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
@@ -18,6 +18,14 @@ $backupPath = Join-Path $tempDir ("Forelesning.before_scheduled_refresh_" + $sta
 $backupCreated = $false
 $envPath = Join-Path $root ".env.local"
 $batchTimeoutSeconds = 2700
+$transientRateLimitSleepSeconds = 20
+$preserveTitleGrouping = $true
+if ($env:VIDEO_REFRESH_PRESERVE_TITLE_GROUPING) {
+    $flag = $env:VIDEO_REFRESH_PRESERVE_TITLE_GROUPING.Trim().ToLowerInvariant()
+    if ($flag -in @("0", "false", "no")) {
+        $preserveTitleGrouping = $false
+    }
+}
 
 function Write-Log {
     param([string]$Message)
@@ -74,6 +82,28 @@ function Get-OpenRouterKeys {
     return $keys
 }
 
+function Test-DailyRateLimit {
+    param([string]$Message)
+    return (
+        $Message -match "free-models-per-day" -or
+        $Message -match "X-RateLimit-Remaining.:.0"
+    )
+}
+
+function Test-TransientRateLimit {
+    param([string]$Message)
+    return (
+        $Message -match "free-models-per-min" -or
+        $Message -match "temporarily rate-limited upstream" -or
+        $Message -match "Provider returned error"
+    )
+}
+
+function Test-MissingAiTextGrounding {
+    param([string]$Message)
+    return ($Message -match "Mangler tekstgrunnlag for AI-klassifisering")
+}
+
 function Invoke-EnricherBatch {
     param(
         [string]$Label,
@@ -86,12 +116,14 @@ function Invoke-EnricherBatch {
         "--input", $inputPath,
         "--output", $tmpOutput,
         "--existing-json", $jsonPath,
-        "--preserve-title-grouping",
         "--only-refresh-weak-fields",
         "--ai-provider", "openrouter",
         "--strict-ai",
         "--openrouter-api-key", $OpenRouterApiKey
     )
+    if ($preserveTitleGrouping) {
+        $arguments += "--preserve-title-grouping"
+    }
     $arguments += @("--process-url", $Url)
 
     $safeLabel = ($Label -replace '[^A-Za-z0-9._-]+', '_')
@@ -111,6 +143,9 @@ function Invoke-EnricherBatch {
         $timedOut = $true
         Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
     }
+
+    Start-Sleep -Milliseconds 200
+    $proc.Refresh()
 
     $stdoutText = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { "" }
     $stderrText = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { "" }
@@ -133,9 +168,20 @@ function Invoke-EnricherBatch {
         throw ("Batch timed out etter " + $batchTimeoutSeconds + " sekunder: " + $Label + ". " + $combinedText.Trim())
     }
 
-    if ($proc.ExitCode -ne 0) {
+    $exitCode = $null
+    try {
+        $exitCode = $proc.ExitCode
+    }
+    catch {
+        $exitCode = $null
+    }
+    if ($null -eq $exitCode -and (Test-Path -LiteralPath $tmpOutput) -and $selectedCount -gt 0 -and ($combinedText -notmatch 'Traceback|^\[FEIL\]|^\[OPENROUTER\]')) {
+        $exitCode = 0
+    }
+
+    if ($exitCode -ne 0) {
         $combined = (($stdoutText + "`n" + $stderrText).Trim())
-        throw ("Batch feilet: " + $Label + " (exit " + $proc.ExitCode + "). " + $combined)
+        throw ("Batch feilet: " + $Label + " (exit " + $exitCode + "). " + $combined)
     }
     if ($selectedCount -le 0) {
         if (Test-Path -LiteralPath $tmpOutput) {
@@ -263,15 +309,12 @@ try {
                 $consecutiveFailures++
                 $message = $_.Exception.Message
                 Write-Log ("HOPPER OVER: " + $label + " :: " + $message)
-                $hardRateLimit = (
-                    $message -match "free-models-per-day" -or
-                    $message -match "free-models-per-min" -or
-                    $message -match "X-RateLimit-Remaining.:.0" -or
-                    $message -match "Rate limit exceeded"
-                )
-                if ($hardRateLimit) {
+                $dailyRateLimit = Test-DailyRateLimit -Message $message
+                $transientRateLimit = Test-TransientRateLimit -Message $message
+                $missingTextGrounding = Test-MissingAiTextGrounding -Message $message
+                if ($dailyRateLimit) {
                     $keyAvailable[$keyIndex] = $false
-                    Write-Log ("Markerer key " + ($keyIndex + 1) + " som tom for i dag pa grunn av rate limit.")
+                    Write-Log ("Markerer key " + ($keyIndex + 1) + " som tom for i dag pa grunn av daglig rate limit.")
                     $availableCount = @($keyAvailable.GetEnumerator() | Where-Object { $_.Value }).Count
                     if ($availableCount -le 0) {
                         Write-Log "Stopper videre kjoring fordi alle nokler er tomme for i dag."
@@ -280,8 +323,19 @@ try {
                     }
                     break
                 }
+                if ($transientRateLimit) {
+                    $consecutiveFailures = 0
+                    Write-Log ("Midlertidig provider/rate-limit pa key " + ($keyIndex + 1) + ". Lar nokkelen leve videre og prover neste batch etter kort pause.")
+                    Start-Sleep -Seconds $transientRateLimitSleepSeconds
+                    break
+                }
+                if ($missingTextGrounding) {
+                    $consecutiveFailures = 0
+                    Write-Log ("Hopper videre fordi videoen mangler tekstgrunnlag for AI: " + $label)
+                    break
+                }
                 if ($consecutiveFailures -ge 6) {
-                    Write-Log "Stopper videre kjoring etter 6 feil pa rad."
+                    Write-Log "Stopper videre kjoring etter 6 ekte feil pa rad."
                     $stopRequested = $true
                     break
                 }

@@ -74,6 +74,7 @@ export class STLViewerCore {
     this._explodeFactor = 0;
     this._explodeItems = [];
     this._explodeBaseMaxDim = 1;
+    this._explodeSelectionTokens = null;
 
     // Units scale: meters per STL-unit
     this.unitsScale = 1.0;
@@ -302,6 +303,83 @@ export class STLViewerCore {
     return Math.max(Number(fallbackSize) || 0, 1e-6);
   }
 
+  _resolveExplodeLongAxis(target) {
+    const box = target?.geometry?.boundingBox || null;
+    if (!box) return null;
+    const size = box.getSize(new THREE.Vector3());
+    const ranked = [
+      { axis: new THREE.Vector3(1, 0, 0), length: size.x },
+      { axis: new THREE.Vector3(0, 1, 0), length: size.y },
+      { axis: new THREE.Vector3(0, 0, 1), length: size.z },
+    ].sort((a, b) => b.length - a.length);
+    if (!Number.isFinite(ranked[0]?.length) || ranked[0].length <= 1e-9) return null;
+
+    const worldQuat = new THREE.Quaternion();
+    target.getWorldQuaternion(worldQuat);
+    const worldAxis = ranked[0].axis.clone().applyQuaternion(worldQuat).normalize();
+    const meshAxis = this.worldToLocalDir(worldAxis);
+    return meshAxis.lengthSq() > 1e-9 ? meshAxis.normalize() : null;
+  }
+
+  _getExplodeTargetAliases(target) {
+    if (!target) return [];
+    return [...new Set([
+      target?.userData?.componentKey,
+      target?.userData?.componentName,
+      target?.name,
+      target?.userData?.nodePath,
+      target?.userData?.sourceName,
+    ].map((value) => this._normalizeExplodeToken(value)).filter(Boolean))];
+  }
+
+  _matchesExplodeSelection(target) {
+    if (!this._explodeSelectionTokens?.size) return true;
+    const aliases = this._getExplodeTargetAliases(target);
+    return aliases.some((alias) => this._explodeSelectionTokens.has(alias));
+  }
+
+  _getExplodableMeshes() {
+    return this._getRenderableMeshes().filter((target) => {
+      return target && target !== this.mesh && this._matchesExplodeSelection(target);
+    });
+  }
+
+  _restoreExplodeBasePositions(items = this._explodeItems) {
+    if (!Array.isArray(items) || !items.length) return;
+    items.forEach((item) => {
+      if (!item?.target || !item.basePosition) return;
+      item.target.position.copy(item.basePosition);
+      item.target.updateMatrixWorld?.(true);
+    });
+    this.modelGroup?.updateMatrixWorld?.(true);
+  }
+
+  setExplodeSelection(tokens = []) {
+    const normalized = [...new Set((Array.isArray(tokens) ? tokens : [])
+      .map((value) => this._normalizeExplodeToken(value))
+      .filter(Boolean))];
+    const next = normalized.length ? new Set(normalized) : null;
+    const prevList = this._explodeSelectionTokens ? [...this._explodeSelectionTokens].sort() : [];
+    const nextList = next ? [...next].sort() : [];
+    const unchanged = prevList.length === nextList.length && prevList.every((value, index) => value === nextList[index]);
+    if (unchanged) return;
+
+    this._restoreExplodeBasePositions(this._explodeItems);
+    this._explodeItems = [];
+    this._explodeSelectionTokens = next;
+
+    if (this.mesh && this._explodeFactor > 0) {
+      this.setExplodeFactor(this._explodeFactor);
+    } else {
+      this.modelGroup?.updateMatrixWorld?.(true);
+      if (this._bboxHelper) {
+        try {
+          this._bboxHelper.box.setFromObject(this.modelGroup);
+        } catch {}
+      }
+    }
+  }
+
   _createDeterministicDirection(index = 0, total = 1) {
     const phi = Math.PI * (3 - Math.sqrt(5));
     const t = (index + 0.5) / Math.max(1, total);
@@ -324,6 +402,18 @@ export class STLViewerCore {
     const bitangent = new THREE.Vector3().crossVectors(dir, tangent).normalize();
     const angle = ((index % 12) / 12) * Math.PI * 2;
     return tangent.multiplyScalar(Math.cos(angle)).add(bitangent.multiplyScalar(Math.sin(angle))).normalize();
+  }
+
+  _resolveAxisSign(primaryValue, secondaryValue = 0, index = 0) {
+    if (Math.abs(primaryValue) > 1e-6) return Math.sign(primaryValue);
+    if (Math.abs(secondaryValue) > 1e-6) return Math.sign(secondaryValue);
+    return index % 2 === 0 ? 1 : -1;
+  }
+
+  _quantizeExplodeValue(value, step = 0.01) {
+    const safeStep = Math.max(Number(step) || 0.01, 1e-6);
+    const safeValue = Number.isFinite(value) ? value : 0;
+    return (Math.round(safeValue / safeStep) * safeStep).toFixed(4);
   }
 
   _clusterExplodeEntries(entries = []) {
@@ -422,7 +512,7 @@ export class STLViewerCore {
     }
     if (this._explodeItems.length) return this._explodeItems;
 
-    const targets = this._getRenderableMeshes().filter((target) => target && target !== this.mesh);
+    const targets = this._getExplodableMeshes();
     if (targets.length <= 1) {
       this._explodeItems = [];
       this._explodeBaseMaxDim = 1;
@@ -445,6 +535,10 @@ export class STLViewerCore {
       meshCenterBox.expandByPoint(meshCenter);
       const boxSize = localBox?.getSize(new THREE.Vector3()) || new THREE.Vector3();
       const explodeWeight = this._resolveExplodeWeight(target, Math.max(boxSize.x, boxSize.y, boxSize.z, 0));
+      const sortedDims = [boxSize.x, boxSize.y, boxSize.z].filter((value) => Number.isFinite(value)).sort((a, b) => b - a);
+      const parallelWeight = sortedDims.length >= 2 && sortedDims[0] > 1e-9
+        ? Math.max(0, Math.min(1, (sortedDims[0] - sortedDims[1]) / sortedDims[0]))
+        : 0;
       if (Number.isFinite(explodeWeight) && explodeWeight > 0) {
         weightedModelCenter.addScaledVector(meshCenter, explodeWeight);
         totalExplodeWeight += explodeWeight;
@@ -456,6 +550,8 @@ export class STLViewerCore {
         familyKey: this._resolveExplodeFamilyKey(target),
         sizeMax: Math.max(boxSize.x, boxSize.y, boxSize.z, 0),
         explodeWeight,
+        longAxisMesh: this._resolveExplodeLongAxis(target),
+        parallelWeight,
       };
     });
 
@@ -467,11 +563,24 @@ export class STLViewerCore {
           : meshCenterBox.getCenter(new THREE.Vector3())
       );
     const meshSpan = meshCenterBox.getSize(new THREE.Vector3());
+    const modelLongAxisMesh = meshSpan.x >= meshSpan.y
+      ? new THREE.Vector3(1, 0, 0)
+      : new THREE.Vector3(0, 1, 0);
+    const modelTransverseAxisMesh = meshSpan.x >= meshSpan.y
+      ? new THREE.Vector3(0, 1, 0)
+      : new THREE.Vector3(1, 0, 0);
+    const modelVerticalAxisMesh = new THREE.Vector3(0, 0, 1);
+    const transverseHalfSpan = Math.max(
+      1e-6,
+      Math.abs(meshSpan.x >= meshSpan.y ? meshSpan.y : meshSpan.x) * 0.5
+    );
     const xyCenterThreshold = Math.max(
       Math.max(meshSpan.x, meshSpan.y, 0) * 0.12,
       (this._explodeBaseMaxDim || 1) * 0.05,
       0.04
     );
+    const symmetryStep = Math.max((this._explodeBaseMaxDim || 1) * 0.04, 0.016);
+    const sizeStep = Math.max((this._explodeBaseMaxDim || 1) * 0.03, 0.008);
     const clusters = this._clusterExplodeEntries(entries);
     const maxClusterRadius = Math.max(
       1e-6,
@@ -502,27 +611,92 @@ export class STLViewerCore {
       );
 
       cluster.entries.forEach((entry, entryIndex) => {
+        const centerOffset = entry.centerMesh.clone().sub(modelCenter);
+        const longitudinalValue = centerOffset.dot(modelLongAxisMesh);
+        const clusterLongitudinalValue = clusterOffset.dot(modelLongAxisMesh);
+        const longitudinalSign = this._resolveAxisSign(
+          longitudinalValue,
+          clusterLongitudinalValue,
+          clusterIndex + entryIndex + 11
+        );
+        const clusterTransverseValue = clusterOffset.dot(modelTransverseAxisMesh);
+        const centerTransverseValue = centerOffset.dot(modelTransverseAxisMesh);
+        const transverseSign = this._resolveAxisSign(
+          centerTransverseValue,
+          clusterTransverseValue,
+          clusterIndex + entryIndex
+        );
+        const centerVerticalValue = centerOffset.dot(modelVerticalAxisMesh);
+        const verticalSign = this._resolveAxisSign(
+          centerVerticalValue,
+          clusterOffset.dot(modelVerticalAxisMesh),
+          clusterIndex + entryIndex + 37
+        );
+        const longitudinalDir = modelLongAxisMesh.clone().multiplyScalar(longitudinalSign).normalize();
+        const transverseDir = modelTransverseAxisMesh.clone().multiplyScalar(transverseSign).normalize();
         let localDir = entry.centerMesh.clone().sub(cluster.center);
         if (preferVerticalExplode) {
           // Keep centered stacks readable without sending them too far in Z.
           localDir.z *= 0.03;
         }
         const localDistance = localDir.length();
+        const localTransverseValue = localDir.dot(modelTransverseAxisMesh);
         if (localDistance < 1e-9) {
-          localDir = this._buildOrthogonalVector(clusterDir, entryIndex);
+          localDir = transverseDir.clone().multiplyScalar(0.82).add(longitudinalDir.clone().multiplyScalar(0.38));
         } else {
           localDir.normalize();
+          const localLongMag = Math.abs(localDir.dot(modelLongAxisMesh));
+          const localTransMag = Math.abs(localDir.dot(modelTransverseAxisMesh));
+          const localVertMag = Math.abs(localDir.dot(modelVerticalAxisMesh));
+          localDir = modelLongAxisMesh.clone().multiplyScalar(longitudinalSign * localLongMag)
+            .addScaledVector(modelTransverseAxisMesh, transverseSign * localTransMag)
+            .addScaledVector(modelVerticalAxisMesh, verticalSign * localVertMag * 0.35);
+          if (preferVerticalExplode) localDir.z *= 0.4;
         }
+        if (localDir.lengthSq() < 1e-9) localDir = this._buildOrthogonalVector(clusterDir, entryIndex);
+        else localDir.normalize();
 
         const dirMesh = cluster.entries.length > 1
           ? clusterDir.clone().multiplyScalar(0.82).add(localDir.clone().multiplyScalar(0.56)).normalize()
           : clusterDir.clone();
+        let parallelDir = clusterDir.clone();
+        if (entry.longAxisMesh?.lengthSq?.() > 1e-9) {
+          const axisLong = Math.abs(entry.longAxisMesh.dot(modelLongAxisMesh));
+          const axisTrans = Math.abs(entry.longAxisMesh.dot(modelTransverseAxisMesh));
+          const axisVert = Math.abs(entry.longAxisMesh.dot(modelVerticalAxisMesh));
+          if (axisVert > axisLong && axisVert > axisTrans) {
+            parallelDir = modelVerticalAxisMesh.clone().multiplyScalar(verticalSign);
+          } else if (axisTrans > axisLong) {
+            parallelDir = modelTransverseAxisMesh.clone().multiplyScalar(transverseSign);
+          } else {
+            parallelDir = modelLongAxisMesh.clone().multiplyScalar(longitudinalSign);
+          }
+        }
+        if (preferVerticalExplode) parallelDir.z *= 0.18;
+        if (parallelDir.lengthSq() < 1e-9) parallelDir = clusterDir.clone();
+        else parallelDir.normalize();
+        const transverseNormalized = Math.min(1, Math.abs(centerTransverseValue) / transverseHalfSpan);
+        const transverseCenterBoost = 1 - transverseNormalized;
 
         const clusterWeight = 1.08 + 0.72 * Math.min(1, clusterDistance / maxClusterRadius) + (preferVerticalExplode ? -0.24 : 0);
         const localWeight = cluster.entries.length > 1
           ? 0.32 + 0.62 * Math.min(1, localDistance / localMaxDistance)
           : 0;
         const verticalScale = preferVerticalExplode ? 0.12 : 1;
+        const transverseWeight = (preferVerticalExplode ? 0.5 : 0.22) + 0.9 * transverseCenterBoost;
+        const symmetryKey = [
+          entry.familyKey || "component",
+          this._quantizeExplodeValue(Math.abs(longitudinalValue), symmetryStep),
+          this._quantizeExplodeValue(Math.abs(centerTransverseValue), symmetryStep),
+          this._quantizeExplodeValue(Math.abs(centerVerticalValue), symmetryStep),
+          this._quantizeExplodeValue(entry.sizeMax, sizeStep),
+        ].join("|");
+        const mirrorKey = [
+          this._quantizeExplodeValue(Math.abs(longitudinalValue), symmetryStep),
+          this._quantizeExplodeValue(Math.abs(centerTransverseValue), symmetryStep),
+          this._quantizeExplodeValue(Math.abs(centerVerticalValue), symmetryStep),
+          this._quantizeExplodeValue(entry.sizeMax, sizeStep),
+        ].join("|");
 
         this._explodeItems.push({
           target: entry.target,
@@ -530,15 +704,79 @@ export class STLViewerCore {
           centerMesh: entry.centerMesh.clone(),
           clusterDirMesh: clusterDir.clone(),
           localDirMesh: localDir.clone(),
+          parallelDirMesh: parallelDir.clone(),
+          transverseDirMesh: transverseDir.clone(),
           dirMesh,
           radialWeight: Math.min(1.6, clusterWeight + localWeight),
           clusterWeight,
           localWeight,
           clusterSize: cluster.entries.length,
           verticalScale,
+          parallelWeight: Number.isFinite(entry.parallelWeight) ? entry.parallelWeight : 0,
+          transverseWeight,
+          symmetryKey,
+          mirrorKey,
+          longitudinalSign,
+          transverseSign,
+          verticalSign,
         });
       });
     });
+
+    const applySymmetryBucket = (bucket) => {
+      if (!Array.isArray(bucket) || bucket.length <= 1) return;
+      const avgClusterWeight = bucket.reduce((sum, item) => sum + (Number(item.clusterWeight) || 0), 0) / bucket.length;
+      const avgLocalWeight = bucket.reduce((sum, item) => sum + (Number(item.localWeight) || 0), 0) / bucket.length;
+      const avgParallelWeight = bucket.reduce((sum, item) => sum + (Number(item.parallelWeight) || 0), 0) / bucket.length;
+      const avgTransverseWeight = bucket.reduce((sum, item) => sum + (Number(item.transverseWeight) || 0), 0) / bucket.length;
+      const avgVerticalScale = bucket.reduce((sum, item) => sum + (Number(item.verticalScale) || 0), 0) / bucket.length;
+      const avgClusterLongMag = bucket.reduce((sum, item) => sum + Math.abs(item.clusterDirMesh?.dot?.(modelLongAxisMesh) || 0), 0) / bucket.length;
+      const avgClusterTransMag = bucket.reduce((sum, item) => sum + Math.abs(item.clusterDirMesh?.dot?.(modelTransverseAxisMesh) || 0), 0) / bucket.length;
+      const avgClusterVertMag = bucket.reduce((sum, item) => sum + Math.abs(item.clusterDirMesh?.dot?.(modelVerticalAxisMesh) || 0), 0) / bucket.length;
+      const avgLocalLongMag = bucket.reduce((sum, item) => sum + Math.abs(item.localDirMesh?.dot?.(modelLongAxisMesh) || 0), 0) / bucket.length;
+      const avgLocalTransMag = bucket.reduce((sum, item) => sum + Math.abs(item.localDirMesh?.dot?.(modelTransverseAxisMesh) || 0), 0) / bucket.length;
+      const avgLocalVertMag = bucket.reduce((sum, item) => sum + Math.abs(item.localDirMesh?.dot?.(modelVerticalAxisMesh) || 0), 0) / bucket.length;
+      bucket.forEach((item) => {
+        item.clusterWeight = avgClusterWeight;
+        item.localWeight = avgLocalWeight;
+        item.parallelWeight = avgParallelWeight;
+        item.transverseWeight = avgTransverseWeight;
+        item.verticalScale = avgVerticalScale;
+        item.radialWeight = Math.min(1.6, item.clusterWeight + item.localWeight);
+        const rebuiltClusterDir = modelLongAxisMesh.clone().multiplyScalar((item.longitudinalSign || 1) * avgClusterLongMag)
+          .addScaledVector(modelTransverseAxisMesh, (item.transverseSign || 1) * avgClusterTransMag)
+          .addScaledVector(modelVerticalAxisMesh, (item.verticalSign || 1) * avgClusterVertMag);
+        if (rebuiltClusterDir.lengthSq() > 1e-9) item.clusterDirMesh = rebuiltClusterDir.normalize();
+        const rebuiltLocalDir = modelLongAxisMesh.clone().multiplyScalar((item.longitudinalSign || 1) * avgLocalLongMag)
+          .addScaledVector(modelTransverseAxisMesh, (item.transverseSign || 1) * avgLocalTransMag)
+          .addScaledVector(modelVerticalAxisMesh, (item.verticalSign || 1) * avgLocalVertMag);
+        if (rebuiltLocalDir.lengthSq() > 1e-9) item.localDirMesh = rebuiltLocalDir.normalize();
+        item.dirMesh = item.clusterDirMesh.clone().multiplyScalar(0.82).add(item.localDirMesh.clone().multiplyScalar(0.56)).normalize();
+      });
+    };
+
+    const symmetryBuckets = new Map();
+    const symmetryCounts = new Map();
+    this._explodeItems.forEach((item) => {
+      const key = item.symmetryKey || "";
+      if (!key) return;
+      if (!symmetryBuckets.has(key)) symmetryBuckets.set(key, []);
+      symmetryBuckets.get(key).push(item);
+    });
+    symmetryBuckets.forEach((bucket, key) => {
+      symmetryCounts.set(key, Array.isArray(bucket) ? bucket.length : 0);
+      applySymmetryBucket(bucket);
+    });
+
+    const mirrorBuckets = new Map();
+    this._explodeItems.forEach((item) => {
+      if ((symmetryCounts.get(item.symmetryKey || "") || 0) > 1) return;
+      const key = item.mirrorKey || "";
+      if (!key) return;
+      if (!mirrorBuckets.has(key)) mirrorBuckets.set(key, []);
+      mirrorBuckets.get(key).push(item);
+    });
+    mirrorBuckets.forEach((bucket) => applySymmetryBucket(bucket));
 
     return this._explodeItems;
   }
@@ -567,7 +805,7 @@ export class STLViewerCore {
 
     // Make low explode values noticeably calmer, while still allowing wide separation near the top end.
     const easedFactor = Math.pow(this._explodeFactor, 1.75);
-    const sensitivityScale = 1 / 7;
+    const sensitivityScale = 1 / 5.25;
     const spreadMultiplier = 1.18 + Math.min(0.92, items.length * 0.024);
     const spreadDistance = (this._explodeBaseMaxDim || 1) * spreadMultiplier * easedFactor * sensitivityScale;
 
@@ -579,10 +817,18 @@ export class STLViewerCore {
       const verticalScale = Number.isFinite(item.verticalScale) ? item.verticalScale : 1;
       const clusterDistance = spreadDistance * (item.clusterWeight || item.radialWeight || 1) * verticalScale;
       const localDistance = spreadDistance
-        * (item.clusterSize > 1 ? (0.18 + 0.42 * easedFactor) * (item.localWeight || 0) : 0);
+        * (item.clusterSize > 1 ? (0.24 + 0.54 * easedFactor) * (item.localWeight || 0) : 0);
+      const parallelDistance = spreadDistance
+        * (0.72 + 0.38 * easedFactor)
+        * Math.max(0, Math.min(1, Number(item.parallelWeight) || 0));
+      const transverseDistance = spreadDistance
+        * (0.34 + 0.32 * easedFactor)
+        * Math.max(0, Math.min(1.4, Number(item.transverseWeight) || 0));
       const targetMeshPoint = item.centerMesh.clone()
         .addScaledVector(item.clusterDirMesh || item.dirMesh, clusterDistance)
-        .addScaledVector(item.localDirMesh || item.dirMesh, localDistance);
+        .addScaledVector(item.localDirMesh || item.dirMesh, localDistance)
+        .addScaledVector(item.parallelDirMesh || item.dirMesh, parallelDistance)
+        .addScaledVector(item.transverseDirMesh || item.dirMesh, transverseDistance);
       const toWorld = this.mesh.localToWorld(targetMeshPoint);
 
       const fromParent = parent.worldToLocal(fromWorld.clone());

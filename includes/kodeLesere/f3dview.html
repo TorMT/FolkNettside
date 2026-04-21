@@ -282,8 +282,8 @@
     const hudText = document.getElementById("hudText");
     const fileName = decodeDisplayText((sourceFile || "").split("/").pop());
     let previewFrame = null;
-    const pendingComponentState = { chosen: [], muted: [] };
-    let pendingViewerCommand = { action: "set-explode", amount: 0 };
+    const pendingComponentState = { chosen: [], muted: [], isolateChosen: false };
+    const pendingViewerCommands = new Map();
     const existsCache = new Map();
     const jsonCache = new Map();
 
@@ -450,17 +450,27 @@
           type: "viewer-component-state",
           chosen: pendingComponentState.chosen,
           muted: pendingComponentState.muted,
+          isolateChosen: pendingComponentState.isolateChosen,
         }, "*");
       } catch {}
     }
 
-    function relayViewerCommandToPreview() {
+    function rememberViewerCommand(command = {}) {
+      if (!command?.action) return;
+      pendingViewerCommands.set(String(command.action), { ...command });
+    }
+
+    function relayViewerCommandToPreview(command = null) {
       try {
         if (!previewFrame?.contentWindow) return;
-        previewFrame.contentWindow.postMessage({
-          type: "viewer-command",
-          ...pendingViewerCommand,
-        }, "*");
+        const commands = command ? [command] : [...pendingViewerCommands.values()];
+        commands.forEach((entry) => {
+          if (!entry?.action) return;
+          previewFrame.contentWindow.postMessage({
+            type: "viewer-command",
+            ...entry,
+          }, "*");
+        });
       } catch {}
     }
 
@@ -607,16 +617,18 @@
       if (data.type === "viewer-component-state") {
         pendingComponentState.chosen = Array.isArray(data.chosen) ? [...data.chosen] : [];
         pendingComponentState.muted = Array.isArray(data.muted) ? [...data.muted] : [];
+        pendingComponentState.isolateChosen = data.isolateChosen === true;
         relayComponentStateToPreview();
         return;
       }
 
       if (data.type === "viewer-command") {
-        pendingViewerCommand = { ...data };
+        const command = { ...data };
         if (data.action === "set-explode") {
-          pendingViewerCommand.amount = Math.max(0, Math.min(1, Number(data.amount) || 0));
+          command.amount = Math.max(0, Math.min(1, Number(data.amount) || 0));
         }
-        relayViewerCommandToPreview();
+        rememberViewerCommand(command);
+        relayViewerCommandToPreview(command);
         return;
       }
 
@@ -657,6 +669,15 @@
       }
 
       if (data.type === "viewer-explode-info") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-selection-export-status") {
         try {
           if (window.parent && window.parent !== window) {
             window.parent.postMessage(data, "*");
