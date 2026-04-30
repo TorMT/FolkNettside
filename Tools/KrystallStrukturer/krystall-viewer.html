@@ -666,6 +666,7 @@
           <div class="btnRow">
             <button id="toggleTetrahedral" class="btnToggle" data-on="0">Tetraedre</button>
             <button id="toggleOctahedral" class="btnToggle" data-on="0">Oktaedre</button>
+            <button id="toggleUnitCell" class="btnToggle" data-on="0">Enhetscelle</button>
           </div>
           <div style="color:var(--text-muted); font-size:.88rem; line-height:1.35; margin-top:8px;">
             Vis alle tetraedriske eller oktaedriske hull med koordinerende atomer.
@@ -949,6 +950,7 @@ camera.position.set(6,6,6);
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.setSize(host.clientWidth, host.clientHeight);
+renderer.localClippingEnabled = true;
 host.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -973,6 +975,7 @@ let placedGroup  = new THREE.Group(); scene.add(placedGroup);
 let bondGroup    = new THREE.Group(); scene.add(bondGroup);
 let planeGroup   = new THREE.Group(); scene.add(planeGroup);
 let cutGroup     = new THREE.Group(); scene.add(cutGroup);
+let unitCellGroup= new THREE.Group(); scene.add(unitCellGroup);
 
 /* hover/snap ghost */
 let ghost = null;
@@ -1081,6 +1084,61 @@ function clearCuts(){
     cutLines.material.dispose();
     cutLines = null;
   }
+}
+
+function clearUnitCellPreview(){
+  while(unitCellGroup.children.length){
+    const c = unitCellGroup.children.pop();
+    if(c.geometry) c.geometry.dispose();
+    if(c.material){
+      if(Array.isArray(c.material)) c.material.forEach(m=>m.dispose());
+      else c.material.dispose();
+    }
+  }
+}
+
+function rebuildUnitCellPreview(){
+  clearUnitCellPreview();
+  if($("toggleUnitCell").dataset.on!=="1") return;
+
+  const edgeGeom = new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1));
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x22c55e, transparent:true, opacity:0.95 });
+  const wire = new THREE.LineSegments(edgeGeom, edgeMat);
+  wire.position.set(0.5,0.5,0.5);
+  unitCellGroup.add(wire);
+
+  const clip = [
+    new THREE.Plane(new THREE.Vector3( 1, 0, 0), 0),
+    new THREE.Plane(new THREE.Vector3(-1, 0, 0), 1),
+    new THREE.Plane(new THREE.Vector3( 0, 1, 0), 0),
+    new THREE.Plane(new THREE.Vector3( 0,-1, 0), 1),
+    new THREE.Plane(new THREE.Vector3( 0, 0, 1), 0),
+    new THREE.Plane(new THREE.Vector3( 0, 0,-1), 1),
+  ];
+
+  const eps = 1e-6;
+  atomPositions.forEach((p, idx)=>{
+    if(!p || p.x > 1e8) return;
+    if(p.x < -eps || p.x > 1+eps || p.y < -eps || p.y > 1+eps || p.z < -eps || p.z > 1+eps) return;
+    const src = atomMeshes[idx];
+    const baseColor = (src && src.material && src.material.color) ? src.material.color.getHex() : 0x94a3b8;
+    const radius = (src && src.geometry && src.geometry.parameters && src.geometry.parameters.radius) ? src.geometry.parameters.radius : 0.15;
+
+    const g = new THREE.SphereGeometry(radius, 24, 24);
+    const m = new THREE.MeshStandardMaterial({
+      color: baseColor,
+      roughness: 0.35,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.9,
+      clippingPlanes: clip,
+      clipIntersection: true
+    });
+    const s = new THREE.Mesh(g, m);
+    s.position.copy(p);
+    unitCellGroup.add(s);
+  });
+  unitCellGroup.visible = true;
 }
 
 /* ---------- atoms/materials ---------- */
@@ -1700,7 +1758,8 @@ function nearestSnapPoint(forceActive = false){
   raycaster.setFromCamera(pointer, camera);
   const ray = raycaster.ray;
 
-  const snapR = parseFloat($("snapRadius").value) || 0.35;
+  const baseR = parseFloat($("snapRadius").value) || 0.35;
+  const snapR = forceActive ? Math.max(baseR, 0.65) : baseR;
   const snapR2 = snapR*snapR;
 
   const allow = currentSnapFilter();
@@ -1721,7 +1780,7 @@ function nearestSnapPoint(forceActive = false){
     }
   }
 
-  if(best && bestD2 <= snapR2) return best;
+  if(best && (bestD2 <= snapR2 || forceActive)) return best;
   return null;
 }
 
@@ -1757,9 +1816,16 @@ function placeAtSnap(){
   // Handle manual placement mode
   if(manualPlaceMode && sp){
     const atomType = $("manualAtomType").value;
-    const radius = parseFloat($("manualRadius").value) || 0.25;
+    const props = ManualAtomsModule.atomProperties[atomType] || ManualAtomsModule.atomProperties.custom;
+    const radiusInput = parseFloat($("manualRadius").value);
+    const radius = (atomType === "custom")
+      ? (Number.isFinite(radiusInput) ? radiusInput : props.radius)
+      : props.radius;
     const colorInput = $("manualColor").value;
-    const color = parseInt(colorInput.replace('#', '0x'));
+    const parsed = parseInt((colorInput || "").replace('#', '0x'));
+    const color = (atomType === "custom")
+      ? (Number.isFinite(parsed) ? parsed : props.color)
+      : props.color;
     
     const added = ManualAtomsModule.addManualAtom(sp.pos, atomType, color, radius, scene);
     if(added) pushAction({ type: "manualAtom" });
@@ -2005,6 +2071,20 @@ $("toggleOctahedral").addEventListener("click", ()=>{
   }
 });
 
+$("toggleUnitCell").addEventListener("click", ()=>{
+  const on = $("toggleUnitCell").dataset.on==="1";
+  setBtnOn($("toggleUnitCell"), !on);
+  if(!on){
+    rebuildUnitCellPreview();
+    applyUnitCellIsolation(true);
+    toast("Enhetscelle", "Viser kun enhetscellen (klippede rand-atomer)");
+  }else{
+    clearUnitCellPreview();
+    applyUnitCellIsolation(false);
+    toast("Enhetscelle", "Skjult");
+  }
+});
+
 // Measurement tool
 measureMode = false;
 $("toggleMeasure").addEventListener("click", ()=>{
@@ -2124,11 +2204,13 @@ setBtnOn($("toggleGrid"), true);
 setBtnOn($("toggleAxes"), true);
 setBtnOn($("toggleBonds"), false);
 setBtnOn($("toggleCuts"), true);
+setBtnOn($("toggleUnitCell"), false);
 setBtnOn($("autoRebuild"), true);
 $("autoRebuildBadge").textContent = "ON";
 
 renderPlaneList();
 setMode("intrinsic");
+$("manualAtomType").dispatchEvent(new Event("change"));
 buildCrystal();
 updateGuess();
 
