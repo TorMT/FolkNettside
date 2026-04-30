@@ -238,6 +238,8 @@ class ThreeMFLoader extends Loader {
       const pid = baseNode.getAttribute('id');
       if (!pid) return;
       baseNode.querySelectorAll('base').forEach((matNode, index) => {
+        const customData = this._extractMetadataMap(matNode);
+        const densityKgM3 = this._parseDensityFromMetadata(customData);
         const key = `${pid}:${index}`;
         library.set(key, {
           type: 'basematerials',
@@ -245,6 +247,8 @@ class ThreeMFLoader extends Loader {
           pindex: index,
           name: matNode.getAttribute('name') || `material_${index}`,
           displayColor: matNode.getAttribute('displaycolor') || null,
+          densityKgM3,
+          customData,
           source: 'base'
         });
       });
@@ -254,6 +258,8 @@ class ThreeMFLoader extends Loader {
       const pid = groupNode.getAttribute('id');
       if (!pid) return;
       groupNode.querySelectorAll('color').forEach((colorNode, index) => {
+        const customData = this._extractMetadataMap(colorNode);
+        const densityKgM3 = this._parseDensityFromMetadata(customData);
         const key = `${pid}:${index}`;
         library.set(key, {
           type: 'colorgroup',
@@ -261,6 +267,8 @@ class ThreeMFLoader extends Loader {
           pindex: index,
           name: colorNode.getAttribute('name') || `color_${index}`,
           displayColor: colorNode.getAttribute('color') || null,
+          densityKgM3,
+          customData,
           source: 'color'
         });
       });
@@ -299,6 +307,23 @@ class ThreeMFLoader extends Loader {
       }
     }
     return Array.from(byKey.values());
+  }
+
+  _extractMetadataMap(node) {
+    const map = {};
+    Array.from(node.querySelectorAll(':scope > metadata')).forEach((metaNode) => {
+      const key = String(metaNode.getAttribute('name') || metaNode.getAttribute('key') || '').trim();
+      if (!key) return;
+      map[key] = (metaNode.textContent || '').trim();
+    });
+    return map;
+  }
+
+  _parseDensityFromMetadata(metadata = {}) {
+    const value = Object.entries(metadata).find(([k]) => /dens/i.test(k))?.[1];
+    if (!value) return null;
+    const parsed = Number(String(value).replace(',', '.').match(/[+\-]?\d+(?:\.\d+)?/)?.[0]);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
   // Synchronous version for direct data parsing (used by ModelLoader)
