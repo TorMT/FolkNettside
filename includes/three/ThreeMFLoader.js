@@ -122,6 +122,7 @@ class ThreeMFLoader extends Loader {
   _parse3MFXML( xmlText ) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString( xmlText, 'text/xml' );
+    const materialLibrary = this._extract3MFMaterials( xmlDoc );
 
     // Find all <object> nodes (each can reference a mesh)
     const objects = Array.from(xmlDoc.querySelectorAll('object'));
@@ -150,7 +151,13 @@ class ThreeMFLoader extends Loader {
         const v1 = parseInt(triangle.getAttribute('v1'));
         const v2 = parseInt(triangle.getAttribute('v2'));
         const v3 = parseInt(triangle.getAttribute('v3'));
-        triangles.push([v1, v2, v3]);
+        triangles.push({
+          v1, v2, v3,
+          pid: triangle.getAttribute('pid'),
+          p1: triangle.getAttribute('p1'),
+          p2: triangle.getAttribute('p2'),
+          p3: triangle.getAttribute('p3')
+        });
       });
 
       // Create geometry
@@ -158,9 +165,9 @@ class ThreeMFLoader extends Loader {
       const positions = new Float32Array(triangles.length * 9);
       for (let i = 0; i < triangles.length; i++) {
         const triangle = triangles[i];
-        const v1 = vertices[triangle[0]];
-        const v2 = vertices[triangle[1]];
-        const v3 = vertices[triangle[2]];
+        const v1 = vertices[triangle.v1];
+        const v2 = vertices[triangle.v2];
+        const v3 = vertices[triangle.v3];
         positions[i * 9] = v1.x;
         positions[i * 9 + 1] = v1.y;
         positions[i * 9 + 2] = v1.z;
@@ -175,9 +182,10 @@ class ThreeMFLoader extends Loader {
       geometry.computeVertexNormals();
 
       // Store geometry by mesh node and by id (if present)
-      meshMap.set(meshNode, geometry);
+      const triangleMaterials = this._collectTriangleMaterials(triangles, materialLibrary);
+      meshMap.set(meshNode, { geometry, triangleMaterials });
       const meshId = meshNode.getAttribute('id');
-      if (meshId) meshMap.set(meshId, geometry);
+      if (meshId) meshMap.set(meshId, { geometry, triangleMaterials });
     });
 
     const objectsById = new Map();
@@ -213,14 +221,109 @@ class ThreeMFLoader extends Loader {
     const components = objects.map(objNode => {
       // Try to get name/id
       const name = objNode.getAttribute('name') || objNode.getAttribute('id') || 'component';
-      const geometry = resolveGeometryForObject(objNode);
-      if (!geometry) return null;
-      return { name, geometry };
+      const meshData = resolveGeometryForObject(objNode);
+      if (!meshData?.geometry) return null;
+      const objectMaterials = this._collectObjectMaterials(objNode, materialLibrary, meshData.triangleMaterials);
+      return { name, geometry: meshData.geometry, materials: objectMaterials };
     }).filter(Boolean);
 
     // Fallback: if only one, return geometry directly for backward compatibility
     if (components.length === 1) return components[0].geometry;
     return components;
+  }
+
+  _extract3MFMaterials(xmlDoc) {
+    const library = new Map();
+    xmlDoc.querySelectorAll('resources basematerials').forEach((baseNode) => {
+      const pid = baseNode.getAttribute('id');
+      if (!pid) return;
+      baseNode.querySelectorAll('base').forEach((matNode, index) => {
+        const customData = this._extractMetadataMap(matNode);
+        const densityKgM3 = this._parseDensityFromMetadata(customData);
+        const key = `${pid}:${index}`;
+        library.set(key, {
+          type: 'basematerials',
+          pid,
+          pindex: index,
+          name: matNode.getAttribute('name') || `material_${index}`,
+          displayColor: matNode.getAttribute('displaycolor') || null,
+          densityKgM3,
+          customData,
+          source: 'base'
+        });
+      });
+    });
+
+    xmlDoc.querySelectorAll('resources colorgroup').forEach((groupNode) => {
+      const pid = groupNode.getAttribute('id');
+      if (!pid) return;
+      groupNode.querySelectorAll('color').forEach((colorNode, index) => {
+        const customData = this._extractMetadataMap(colorNode);
+        const densityKgM3 = this._parseDensityFromMetadata(customData);
+        const key = `${pid}:${index}`;
+        library.set(key, {
+          type: 'colorgroup',
+          pid,
+          pindex: index,
+          name: colorNode.getAttribute('name') || `color_${index}`,
+          displayColor: colorNode.getAttribute('color') || null,
+          densityKgM3,
+          customData,
+          source: 'color'
+        });
+      });
+    });
+
+    return library;
+  }
+
+  _collectTriangleMaterials(triangles, materialLibrary) {
+    const used = new Map();
+    for (const tri of triangles) {
+      if (!tri.pid) continue;
+      const indexes = [tri.p1, tri.p2, tri.p3].filter((v) => v !== null && v !== undefined);
+      if (!indexes.length) indexes.push('0');
+      for (const idx of indexes) {
+        const key = `${tri.pid}:${idx}`;
+        const material = materialLibrary.get(key);
+        if (!material) continue;
+        const count = used.get(key)?.usageCount || 0;
+        used.set(key, { ...material, usageCount: count + 1 });
+      }
+    }
+    return Array.from(used.values());
+  }
+
+  _collectObjectMaterials(objNode, materialLibrary, triangleMaterials = []) {
+    const byKey = new Map();
+    triangleMaterials.forEach((m) => byKey.set(`${m.pid}:${m.pindex}`, m));
+    const pid = objNode.getAttribute('pid');
+    const pindex = objNode.getAttribute('pindex') || '0';
+    if (pid) {
+      const key = `${pid}:${pindex}`;
+      const material = materialLibrary.get(key);
+      if (material && !byKey.has(key)) {
+        byKey.set(key, { ...material, usageCount: 0 });
+      }
+    }
+    return Array.from(byKey.values());
+  }
+
+  _extractMetadataMap(node) {
+    const map = {};
+    Array.from(node.querySelectorAll(':scope > metadata')).forEach((metaNode) => {
+      const key = String(metaNode.getAttribute('name') || metaNode.getAttribute('key') || '').trim();
+      if (!key) return;
+      map[key] = (metaNode.textContent || '').trim();
+    });
+    return map;
+  }
+
+  _parseDensityFromMetadata(metadata = {}) {
+    const value = Object.entries(metadata).find(([k]) => /dens/i.test(k))?.[1];
+    if (!value) return null;
+    const parsed = Number(String(value).replace(',', '.').match(/[+\-]?\d+(?:\.\d+)?/)?.[0]);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
   // Synchronous version for direct data parsing (used by ModelLoader)

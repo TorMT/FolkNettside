@@ -239,6 +239,7 @@ export class ModelLoader {
         );
         const compMesh = new THREE.Mesh(geometry, null); // Material set below
         compMesh.name = compName;
+        const derivedMaterialHint = this._deriveMaterialHint(comp);
         const componentFamilyKey = this._buildComponentFamilyKey(comp, compName);
         compMesh.userData.componentName = compName;
         compMesh.userData.componentKey = compKey;
@@ -248,6 +249,7 @@ export class ModelLoader {
           ? comp.userData.brepFaces.length
           : Number(comp?.userData?.brepFaces) || 0;
         compMesh.userData.sourceName = String(comp?.userData?.sourceName || "");
+        compMesh.userData.materialHint = derivedMaterialHint;
         group.add(compMesh);
 
         // Calculate component volume/centroid + geometry moments for later mass combine
@@ -263,8 +265,8 @@ export class ModelLoader {
           familyKey: componentFamilyKey,
           nodePath: String(comp?.userData?.nodePath || ""),
           sourceName: String(comp?.userData?.sourceName || ""),
-          materialHint: comp?.userData?.materialHint || null,
-          densityKgM3: this._resolveDensityHint(comp?.userData?.materialHint),
+          materialHint: derivedMaterialHint,
+          densityKgM3: this._resolveDensityHint(derivedMaterialHint),
           ...geometryMassProps,
         };
         componentMassProps.push(componentMassEntry);
@@ -283,6 +285,7 @@ export class ModelLoader {
             componentKey: compKey,
             componentName: compName,
             componentFamilyKey,
+            materialHint: derivedMaterialHint,
           },
         });
       }
@@ -409,6 +412,26 @@ export class ModelLoader {
         centroidLocal: centroid,
       };
     }
+  }
+
+  _deriveMaterialHint(component) {
+    const explicitHint = component?.userData?.materialHint;
+    if (explicitHint) return explicitHint;
+    const materials = Array.isArray(component?.materials) ? component.materials : [];
+    if (!materials.length) return null;
+    const primary = materials[0] || {};
+    const customData = primary?.customData && typeof primary.customData === "object"
+      ? primary.customData
+      : {};
+    return {
+      name: primary.name || component?.name || "Custom",
+      displayColor: primary.displayColor || null,
+      densityKgM3: Number.isFinite(Number(primary.densityKgM3)) ? Number(primary.densityKgM3) : null,
+      source: "3mf-material",
+      usageCount: Number.isFinite(Number(primary.usageCount)) ? Number(primary.usageCount) : null,
+      customData,
+      materials,
+    };
   }
 
   async _loadZipByBestEffort(data) {
