@@ -878,6 +878,7 @@ function openInViewer(url, kind){
   else if (kind === 'f3d') target = `/includes/kodeLesere/f3dview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fusionshare') target = `/includes/kodeLesere/fusionshareview.html?share=${encodeURIComponent(url)}`;
   else if (kind === 'code')  target = `/includes/kodeLesere/codeview.html?file=${encodeURIComponent(url)}`;
+  else if (kind === 'latex') target = `/includes/kodeLesere/latexview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'csv')   target = `/includes/kodeLesere/csvview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'office') target = `/includes/kodeLesere/officeview.html?file=${encodeURIComponent(url)}`;
 
@@ -964,6 +965,8 @@ function openFile(url){
   if (clean.endsWith('.csv') || clean.endsWith('.tsv')) return openInViewer(url, 'csv');
   if (clean.endsWith('.ipynb')) return openInViewer(url, 'ipynb');
   if (clean.endsWith('.py'))    return openInViewer(url, 'py');
+  if (clean.endsWith('.tex'))   return openInViewer(url, 'latex');
+  if (clean.endsWith('.zip'))   return openInViewer(url, 'latex');
   if (clean.endsWith('.stl')) return openInViewer(url, 'stl');
   if (/\.(doc|docx|docm|dot|dotx|xls|xlsx|xlsm|xlt|xltx|ppt|pptx|pptm|pps|ppsx|pot|potx)$/.test(clean)) {
     return openInViewer(url, 'office');
@@ -1210,6 +1213,27 @@ function iconForFile(file){
         + '</span>';
     }
     
+    if (lower.endsWith('.tex')){
+      return '<span class="file-icon latex" style="background:#2E7D32;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<path d="M5 12l3-8 3 8M6.3 9h3.4" style="stroke:#ffffff;stroke-width:1.5;fill:none;stroke-linecap:round"/>'
+        + '<path d="M13 4v8h6" style="stroke:#ffffff;stroke-width:1.5;fill:none;stroke-linecap:round"/>'
+        + '</svg>'
+        + '</span>';
+    }
+
+    if (lower.endsWith('.zip')){
+      return '<span class="file-icon latexzip" style="background:#455A64;border-radius:3px">'
+        + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
+        + '<rect rx="2" x="0" y="0" width="24" height="16" fill="transparent"/>'
+        + '<path d="M6 3h7l3 3v7H6z" fill="none" stroke="#fff" stroke-width="1.4"/>'
+        + '<path d="M10 4.5v7" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>'
+        + '<path d="M9 6h2M9 8h2M9 10h2" stroke="#fff" stroke-width="1.1" stroke-linecap="round"/>'
+        + '</svg>'
+        + '</span>';
+    }
+
     if (lower.endsWith('.pdf')){
       return '<span class="file-icon pdf" style="background:#D32F2F;border-radius:3px">'
         + '<svg viewBox="0 0 24 16" width="18" height="12" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">'
@@ -1939,7 +1963,7 @@ async function initSidebar(){
     const lower = href.toLowerCase();
     
     if (
-      lower.endsWith('.pdf') || lower.endsWith('.py') || lower.endsWith('.ipynb') || lower.endsWith('.html') || lower.endsWith('.htm') ||
+      lower.endsWith('.pdf') || lower.endsWith('.py') || lower.endsWith('.ipynb') || lower.endsWith('.tex') || lower.endsWith('.zip') || lower.endsWith('.html') || lower.endsWith('.htm') ||
       lower.endsWith('.doc') || lower.endsWith('.docx') || lower.endsWith('.docm') || lower.endsWith('.dot') || lower.endsWith('.dotx') ||
       lower.endsWith('.xls') || lower.endsWith('.xlsx') || lower.endsWith('.xlsm') || lower.endsWith('.xlt') || lower.endsWith('.xltx') ||
       lower.endsWith('.ppt') || lower.endsWith('.pptx') || lower.endsWith('.pptm') || lower.endsWith('.pps') || lower.endsWith('.ppsx') || lower.endsWith('.pot') || lower.endsWith('.potx') ||
@@ -2215,6 +2239,8 @@ document.readyState==='loading'
     if (/\.(sldprt|sldasm|slddrw)$/i.test(lower)) return { text: 'SW', bg: '#C62828' };
     if (/\.(stl|obj|ply|vtk|fbx|abc|usd|usda|usdc|usdz|draco|vdb|gltf|glb)$/i.test(lower)) return { text: '3D', bg: '#00897B' };
     if (/\.(py|ipynb)$/i.test(lower)) return { text: 'PY', bg: '#3572A5' };
+    if (/\.tex$/i.test(lower)) return { text: 'TEX', bg: '#2E7D32' };
+    if (/\.zip$/i.test(lower)) return { text: 'ZIP', bg: '#455A64' };
     if (/\.pdf$/i.test(lower)) return { text: 'PDF', bg: '#D32F2F' };
     if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(lower)) return { text: 'IMG', bg: '#4CAF50' };
     if (/\.(mp4|webm|ogg|mov|m4v)$/i.test(lower)) return { text: 'VID', bg: '#444444' };
@@ -2338,7 +2364,6 @@ document.readyState==='loading'
   b.textContent=txt;
 })();
 /* -------------------------------------------------------------------- */
-
 
 
 

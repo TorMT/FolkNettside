@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LaTeX-visning</title>
+  <style>
+    :root{--bg:#1e1e1e;--panel:#252526;--fg:#d4d4d4;--muted:#9ca3af;--line:#2f2f2f}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.55 ui-monospace,Consolas,monospace}
+    body{display:flex;flex-direction:column}
+    header{padding:8px 12px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
+    a,button,label{background:#2a2a2a;color:#cfe3ff;border:1px solid #3a3a3a;border-radius:6px;padding:6px 10px;text-decoration:none;cursor:pointer}
+    .hint{color:var(--muted);font-family:system-ui,sans-serif}
+    .layout{display:grid;grid-template-columns:1fr 1fr;min-height:0;flex:1}
+    pre{margin:0;padding:16px 20px;white-space:pre;overflow:auto;background:#1b1b1b;border-right:1px solid var(--line)}
+    #render{padding:16px 20px;overflow:auto;background:#fff;color:#111;font-family:Georgia,serif}
+    .cmd{color:#4fc1ff}.com{color:#6a9955}.math{color:#ce9178}
+    body.preview-only .layout{grid-template-columns:1fr}
+    body.preview-only pre{display:none}
+    @media (max-width: 900px){.layout{grid-template-columns:1fr}pre{max-height:38vh;border-right:none;border-bottom:1px solid var(--line)}}
+  </style>
+  <script>
+    window.MathJax = { tex: {inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$'],['\\[','\\]']]}, options:{skipHtmlTags:['script','noscript','style','textarea','pre']}};
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+<header>
+  <div class="title" id="t">LaTeX</div>
+  <a id="raw" target="_blank" rel="noopener">Åpne råfil</a>
+  <button id="copy">Kopier</button>
+  <label><input id="previewOnly" type="checkbox"/> Kun render</label>
+  <span id="msg" class="hint"></span>
+</header>
+<div class="layout">
+  <pre id="code">Laster…</pre>
+  <article id="render">Renderer…</article>
+</div>
+<script>
+const qs = new URL(location.href).searchParams;
+const src = qs.get('file') || '';
+const code = document.getElementById('code');
+const t = document.getElementById('t');
+const raw = document.getElementById('raw');
+const renderEl = document.getElementById('render');
+const msg = document.getElementById('msg');
+let content = '';
+
+if (!src) {
+  code.textContent = 'Mangler ?file=';
+  renderEl.textContent = 'Mangler ?file=';
+} else {
+  t.textContent = decodeURIComponent(src.split('/').pop()) || 'LaTeX';
+  raw.href = src;
+  loadContent(src)
+    .then(txt=>{content=txt; renderSource(); renderLatex();})
+    .catch(e=>{code.textContent='Kunne ikke laste fil\n'+e; renderEl.textContent='Kunne ikke rendre LaTeX.';});
+}
+
+async function loadContent(url){
+  const clean = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+  if (!clean.endsWith('.zip')){
+    const r = await fetch(url, {cache:'no-store'});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.text();
+  }
+  const r = await fetch(url, {cache:'no-store'});
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const buf = await r.arrayBuffer();
+  if (!window.JSZip) throw new Error('JSZip ikke lastet');
+  const zip = await window.JSZip.loadAsync(buf);
+  const texEntries = Object.values(zip.files).filter(f => !f.dir && /\.tex$/i.test(f.name));
+  if (!texEntries.length) throw new Error('Fant ingen .tex-filer i zip-arkivet');
+  const preferred = texEntries.find(f => /(^|\/)(main|master|index)\.tex$/i.test(f.name)) || texEntries[0];
+  msg.textContent = `ZIP: viser ${preferred.name}`;
+  return await preferred.async('text');
+}
+
+function esc(s){return (s+'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+function renderSource(){
+  let h = esc(content);
+  h = h.replace(/%[^\n]*/g, m=>`<span class="com">${m}</span>`);
+  h = h.replace(/\\[A-Za-z@]+/g, m=>`<span class="cmd">${m}</span>`);
+  h = h.replace(/\$[^$]+\$/g, m=>`<span class="math">${m}</span>`);
+  code.innerHTML = h;
+}
+
+function texToHtmlLike(tex){
+  const docMatch = tex.match(/\\begin\{document\}([\s\S]*?)\\end\{document\}/);
+  let out = (docMatch ? docMatch[1] : tex).trim();
+  out = out
+    .replace(/\\section\*?\{([^}]*)\}/g, '\n\n## $1\n\n')
+    .replace(/\\subsection\*?\{([^}]*)\}/g, '\n\n### $1\n\n')
+    .replace(/\\paragraph\*?\{([^}]*)\}/g, '\n\n**$1** ')
+    .replace(/\\begin\{itemize\}/g, '\n')
+    .replace(/\\end\{itemize\}/g, '\n')
+    .replace(/\\item\s+/g, '\n• ')
+    .replace(/\\\\/g, '\n');
+  return out;
+}
+
+async function renderLatex(){
+  renderEl.textContent = '';
+  const text = texToHtmlLike(content);
+  renderEl.innerHTML = text.split('\n').map(line=>`<p>${esc(line)}</p>`).join('');
+  try{
+    if (window.MathJax?.typesetPromise){
+      await window.MathJax.typesetPromise([renderEl]);
+      msg.textContent = 'LaTeX rendret.';
+    } else {
+      msg.textContent = 'MathJax lastes…';
+    }
+  }catch(e){
+    msg.textContent = 'Kunne ikke rendre all LaTeX.';
+  }
+}
+
+document.getElementById('copy').onclick = async ()=>{
+  try{ await navigator.clipboard.writeText(content); msg.textContent='Kopiert!'; setTimeout(()=>msg.textContent='',1200);}catch{}
+};
+
+document.getElementById('previewOnly').addEventListener('change', (e)=>{
+  document.body.classList.toggle('preview-only', !!e.target.checked);
+});
+</script>
+</body>
+</html>
