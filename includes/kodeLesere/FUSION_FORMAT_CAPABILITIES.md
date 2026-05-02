@@ -30,3 +30,22 @@ Denne oversikten beskriver hva vieweren kan trekke ut **i nettleser uten backend
 1. **Komponentliste + chosen/muted UI**: allerede mulig for formater der vi får delnavn.
 2. **Faktisk isolering/farging i 3D**: mulig hvis filen lastes i renderer med delstruktur.
 3. **Full Fusion timeline/feature tree**: krever Autodesk API eller Fusion-native eksportpipeline.
+
+
+## Nettfunn: hvordan hente materialdata fra `.f3z` / `.3fz`
+
+Praktisk konklusjon fra Autodesk-dokumentasjon:
+
+- Fusion-assembly eksporteres som **`.f3z`**, og Autodesk beskriver dette som en **ZIP-konteiner** med én eller flere `f3d`-filer.
+- Fordi dette er en konteiner, kan vi indeksere innholdet ved å lese ZIP entries i nettleser (JSZip), og deretter parse underfiler.
+- Materialer hentes sikrest via innholdet i 3D-modellfilene (typisk 3MF-XML når tilgjengelig), ikke bare fra toppnivå i `.f3z`.
+
+Anbefalt pipeline for vår indeks:
+
+1. Åpne `.f3z`/`.3fz` som ZIP.
+2. Bygg filindeks (sti, størrelse, hash, type).
+3. Prioriter parsing av `*.3mf` inni arkivet; hent ut `basematerials`, `colorgroup`, `materialid/pid/pindex` og mapping til objekter/mesh.
+4. Fallback: hvis bare `*.f3d` finnes, merk filen som “krever Fusion/APS-oversettelse” for full materialliste.
+5. Lagre et normalisert materialkart: `materialName`, `density` (hvis finnes), `color`, `usageCount`, `sourcePath`.
+
+Dette matcher også dagens begrensning i prosjektet: full Fusion feature tree/material-system krever Autodesk-API eller konverteringssteg.

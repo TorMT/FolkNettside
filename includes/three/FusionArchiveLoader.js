@@ -1,5 +1,5 @@
 // /includes/three/FusionArchiveLoader.js
-// Loader for Fusion 360 Archive (.3fz) files (ZIP with multiple 3MFs)
+// Loader for Fusion archive files (.f3z/.3fz) (ZIP with one or more Fusion payload files)
 // Gjenbruker ThreeMFLoader for å hente ut alle komponenter fra hver 3MF
 
 import { ThreeMFLoader } from "./ThreeMFLoader.js?v=20260409j";
@@ -40,7 +40,7 @@ class FusionArchiveLoader {
 
   async load(url) {
     await ensureJsZip();
-    // Fetch .3fz file
+    // Fetch .f3z/.3fz file
     const res = await fetch(url, { cache: "default" });
     if (!res.ok) throw new Error(`HTTP ${res.status} ved lasting av ${url}`);
     return this.parse(await res.arrayBuffer());
@@ -53,7 +53,7 @@ class FusionArchiveLoader {
 
     // Find all 3MF files in archive
     const threeMFfiles = Object.values(zipContent.files).filter(f => f.name.toLowerCase().endsWith('.3mf'));
-    if (!threeMFfiles.length) throw new Error('Ingen 3MF-filer funnet i .3fz-arkivet');
+    if (!threeMFfiles.length) throw new Error('Ingen 3MF-filer funnet i .f3z/.3fz-arkivet');
 
     // Parse manifest if present (for navn/hierarki)
     let manifest = null;
