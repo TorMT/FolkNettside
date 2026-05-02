@@ -59,6 +59,7 @@
 <header>
 <div class="title" id="t">Kildekode</div>
 <a id="raw" rel="noopener" target="_blank">Åpne råfil</a>
+<a id="vscode" rel="noopener" target="_blank">Åpne i VSCode</a>
 <button id="copy">Kopier</button>
 <label><input id="wrap" type="checkbox"/> Myk linjebryting</label>
 <label><input checked="" id="ln" type="checkbox"/> Linjenummer</label>
@@ -72,6 +73,7 @@
     const rawA = document.getElementById('raw');
     const code = document.getElementById('code');
     const msg  = document.getElementById('msg');
+    const vscodeA = document.getElementById('vscode');
     const wrapBox = document.getElementById('wrap');
     const lnBox   = document.getElementById('ln');
 
@@ -85,11 +87,27 @@
     } else {
       tEl.textContent = decodeURIComponent(src.split('/').pop()) || 'Kildekode';
       rawA.href = src;
+      const absSrc = new URL(src, location.href).href;
+      const localPath = decodeURIComponent(new URL(src, location.href).pathname);
+      const localUriPath = encodeURI(localPath.startsWith('/') ? localPath : '/' + localPath);
+      vscodeA.href = 'vscode://file' + localUriPath;
+      vscodeA.setAttribute('data-fallback', 'https://vscode.dev/?url=' + encodeURIComponent(absSrc));
       fetch(src, {cache:'no-store'})
         .then(r=>r.text())
         .then(txt => { RAW = txt; render(true); })
         .catch(e => { code.textContent = 'Kunne ikke laste '+src+'\n'+e; });
     }
+
+
+    vscodeA.addEventListener('click', () => {
+      const fallback = vscodeA.getAttribute('data-fallback');
+      if (!fallback) return;
+      setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          window.open(fallback, '_blank', 'noopener');
+        }
+      }, 900);
+    });
 
     document.getElementById('copy').onclick = async () => {
       try {
