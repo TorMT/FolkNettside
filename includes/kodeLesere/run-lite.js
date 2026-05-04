@@ -515,7 +515,8 @@ _announce("Klar")
     stop: $("#stop"),
     ln: $("#toggleLn"),
     wrap: $("#toggleWrap"),
-    raw: $("#raw")
+    raw: $("#raw"),
+    vscode: $("#vscode")
   };
 
   function setStatus(msg){
@@ -524,6 +525,22 @@ _announce("Klar")
 
   if (tb.raw && src){
     tb.raw.href = src;
+  }
+  if (tb.vscode && src){
+    const absSrc = new URL(src, location.href).href;
+    const localPath = decodeURIComponent(new URL(src, location.href).pathname);
+    const localUriPath = encodeURI(localPath.startsWith("/") ? localPath : "/" + localPath);
+    tb.vscode.href = "vscode://file" + localUriPath;
+    tb.vscode.setAttribute("data-fallback", "https://vscode.dev/?url=" + encodeURIComponent(absSrc));
+    tb.vscode.addEventListener("click", () => {
+      const fallback = tb.vscode.getAttribute("data-fallback");
+      if (!fallback) return;
+      setTimeout(() => {
+        if (document.visibilityState === "visible") {
+          window.open(fallback, "_blank", "noopener");
+        }
+      }, 900);
+    });
   }
 
   const wrap = $("#wrap");
