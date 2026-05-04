@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hydro Lab Demo</title>
+<style>
+body{font-family:system-ui;background:#041025;color:#dbeafe;margin:0;padding:20px}
+.card{max-width:900px;margin:auto;background:#0b1733;border:1px solid #1e3a8a;border-radius:14px;padding:16px}
+.bar{height:16px;background:#1f2937;border-radius:999px;overflow:hidden}
+.fill{height:100%;width:0;background:linear-gradient(90deg,#06b6d4,#3b82f6,#8b5cf6);transition:width .2s}
+.wave{height:120px;border-radius:12px;background:linear-gradient(180deg,#0ea5e9,#1d4ed8);position:relative;overflow:hidden;margin-top:14px}
+.wave::before{content:"";position:absolute;left:-40%;top:20%;width:180%;height:140%;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.4),transparent 55%);animation:roll 3s linear infinite}
+@keyframes roll{from{transform:translateX(0)}to{transform:translateX(25%)}}
+pre{white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Hydro Lab – Bølge/Motstand demo</h2>
+  <button id="runBtn">Kjør estimat</button>
+  <div class="bar"><div id="fill" class="fill"></div></div>
+  <small id="meta">Venter…</small>
+  <div class="wave"></div>
+  <pre id="out"></pre>
+</div>
+<script type="module">
+import {
+  estimateAddedResistanceInWaves,
+  estimateWaveExcitationForceMorison,
+  estimateTotalResistance,
+  runWithProgress,
+} from './HydroAdvancedEstimator.js';
+import { normalizeModelMetrics, validateUnitScale, buildMassCase } from './HydroDataContract.js';
+import { assessHydroQuality, buildUncertaintyBand } from './HydroQuality.js';
+
+const fill = document.getElementById('fill');
+const out = document.getElementById('out');
+const meta = document.getElementById('meta');
+
+document.getElementById('runBtn').onclick = async () => {
+  const tasks = [
+    async () => estimateAddedResistanceInWaves({ displacementKg: 220000, lwlM: 42, bwlM: 9.5, shipSpeedMs: 6.2, waveHeightM: 1.3, waveHeadingDeg: 170 }),
+    async () => estimateWaveExcitationForceMorison({ waveHeightM: 1.3, wavePeriodS: 6.5, headingDeg: 170, projectedAreaM2: 72, volumeM3: 180 }),
+  ];
+
+  const { results } = await runWithProgress(tasks, ({ pct, elapsedMs, etaMs }) => {
+    fill.style.width = `${pct.toFixed(1)}%`;
+    meta.textContent = `Progress: ${pct.toFixed(1)}% | elapsed: ${(elapsedMs/1000).toFixed(2)}s | ETA: ${etaMs ? (etaMs/1000).toFixed(2) : '-'}s`;
+  });
+
+  const total = estimateTotalResistance({ calmWaterResistanceN: 18000, addedResistanceN: results[0].addedResistanceN || 0, waveForceN: results[1].forcePeakN || 0 });
+  const contract = normalizeModelMetrics({ source:'demo', lengthM:42, beamM:9.5, draftM:2.2, volumeM3:190, awpM2:280, wettedAreaM2:510, displacementKg:220000 });
+  const units = validateUnitScale(contract);
+  const mass = buildMassCase({ lightshipKg:190000, payloadKg:20000, ballastKg:10000, kgLightshipM:2.6, kgPayloadM:3.2, kgBallastM:1.1 });
+  const quality = assessHydroQuality(contract, { unitsConfirmed: units.unitsConfirmed, liveHydroGeometry: false, kgM: mass.kgM });
+  const band = buildUncertaintyBand(total.totalResistanceN, quality.score, 10);
+  out.textContent = JSON.stringify({ added: results[0], wave: results[1], total, contract, units, mass, quality, resistanceBand: band }, null, 2);
+};
+
+</script>
+<script type="module">
+import { buildExampleStepWithHydroTags, resolveWaterlineFromStep } from './StepWaterlineAdapter.js';
+import { searchLocation, fetchMarineSnapshot } from './MarineLocationApi.js';
+
+(async () => {
+  const ex = buildExampleStepWithHydroTags();
+  const wl = resolveWaterlineFromStep({ stepText: ex, bounds: { minZ: 0, maxZ: 2 } });
+  const panel = document.createElement('pre');
+  panel.textContent = 'STEP-eksempel vannlinje: ' + JSON.stringify(wl, null, 2);
+  document.querySelector('.card').appendChild(panel);
+
+  const places = await searchLocation('Trondheim');
+  if (places[0]) {
+    const marine = await fetchMarineSnapshot({ latitude: places[0].latitude, longitude: places[0].longitude });
+    const p2 = document.createElement('pre');
+    p2.textContent = 'Marine API eksempel: ' + JSON.stringify({ place: places[0], marine }, null, 2);
+    document.querySelector('.card').appendChild(p2);
+  }
+})();
+</script>
+</body>
+</html>
