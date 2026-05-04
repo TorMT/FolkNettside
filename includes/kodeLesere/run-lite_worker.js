@@ -2,6 +2,7 @@
 let pyodide = null;
 let PRELUDE = "";
 let currentId = null;
+const loadedPackages = new Set();
 
 // -----------------------------------------------------------
 // 1) Forward Python → JS postMessage
@@ -220,94 +221,105 @@ sys.stdout = DirectStdout()
 
       // CUSTOM IMPORT HOOK for loading .py files from same directory
       const customImportHook = `
-# CUSTOM IMPORT HOOK - Laster .py filer fra samme mappe
+# CUSTOM IMPORT HOOK - Støtter moduler + pakker fra samme mappe
 import sys
 import importlib.abc
 import importlib.machinery
-import os.path
 
 _open_url = globals().get('_open_url')
 _url_for_local = globals().get('_url_for_local')
 
-class WebModuleFinder(importlib.abc.MetaPathFinder):
-    """Custom import finder that loads .py files from web"""
-    
-    def find_spec(self, fullname, path, target=None):
-        # Kun håndter enkle modulnavn (ikke pakker med punktum)
-        if '.' in fullname:
-            return None
-        
-        # Prøv å laste fra samme mappe som hovedfilen
-        module_filename = fullname + '.py'
-        
-        try:
-            if _open_url and _url_for_local:
-                module_url = _url_for_local(module_filename)
-                
-                # Forsøk å laste filen
-                try:
-                    data = _open_url(module_url).read()
-                    
-                    # Konverter til string
-                    if isinstance(data, (bytes, bytearray)):
-                        code_str = data.decode('utf-8')
-                    else:
-                        code_str = str(data)
-                    
-                    # Kompiler koden
-                    code_obj = compile(code_str, module_filename, 'exec')
-                    
-                    # Returner en spec som bruker vår custom loader
-                    return importlib.machinery.ModuleSpec(
-                        fullname, 
-                        WebModuleLoader(code_obj, module_filename),
-                        origin=module_url
-                    )
-                except Exception as e:
-                    # Filen finnes ikke eller feil ved lasting - la Python prøve andre steder
-                    pass
-        except:
-            pass
-        
-        return None
+def _decode_source(data):
+    if isinstance(data, (bytes, bytearray)):
+        for enc in ('utf-8', 'latin-1'):
+            try:
+                return data.decode(enc)
+            except Exception:
+                pass
+        return data.decode('utf-8', errors='replace')
+    return str(data)
 
 class WebModuleLoader(importlib.abc.Loader):
     """Custom loader that executes preloaded code"""
-    
-    def __init__(self, code_obj, filename):
+
+    def __init__(self, fullname, code_obj, filename, is_package=False, package_path=None):
+        self.fullname = fullname
         self.code_obj = code_obj
         self.filename = filename
-    
+        self.is_package = is_package
+        self.package_path = package_path
+
     def create_module(self, spec):
-        # Returner None for å la Python lage modulen
         return None
-    
+
     def exec_module(self, module):
-        # Sett __file__ attributt
         module.__file__ = self.filename
-        
-        # Gi modulen tilgang til nødvendige globale variabler
+        module.__loader__ = self
+        if self.is_package:
+            module.__package__ = self.fullname
+            module.__path__ = [self.package_path or self.fullname.replace('.', '/')]
+        else:
+            module.__package__ = self.fullname.rpartition('.')[0]
+
         module_globals = module.__dict__
         main_globals = globals()
-        
-        # Kopier kritiske variabler fra main namespace
         for key in ['_open_url', '_url_for_local', 'NB_BASE', '__NB_BASE__']:
             if key in main_globals:
                 module_globals[key] = main_globals[key]
-        
-        # Sett opp builtins slik at modulen bruker samme open() overstyring
+
         if '__builtins__' not in module_globals:
             import builtins
             module_globals['__builtins__'] = builtins
-        
-        # Kjør koden i modulens namespace
+
         exec(self.code_obj, module_globals)
 
-# Installer custom import hook
+class WebModuleFinder(importlib.abc.MetaPathFinder):
+    """Finder that loads module.py or package/__init__.py via _open_url"""
+
+    _cache = {}
+
+    def _candidate_paths(self, fullname):
+        mod_path = fullname.replace('.', '/')
+        return [
+            (f"{mod_path}.py", False),
+            (f"{mod_path}/__init__.py", True),
+        ]
+
+    def _fetch_code(self, rel_path):
+        if rel_path in self._cache:
+            return self._cache[rel_path]
+        url = _url_for_local(rel_path)
+        data = _open_url(url).read()
+        code = _decode_source(data)
+        self._cache[rel_path] = (code, url)
+        return code, url
+
+    def find_spec(self, fullname, path=None, target=None):
+        if not (_open_url and _url_for_local):
+            return None
+
+        for rel_path, is_pkg in self._candidate_paths(fullname):
+            try:
+                code_str, source_url = self._fetch_code(rel_path)
+                code_obj = compile(code_str, rel_path, 'exec')
+                loader = WebModuleLoader(
+                    fullname=fullname,
+                    code_obj=code_obj,
+                    filename=rel_path,
+                    is_package=is_pkg,
+                    package_path=rel_path.rsplit('/', 1)[0] if is_pkg else None,
+                )
+                spec = importlib.machinery.ModuleSpec(fullname, loader, origin=source_url, is_package=is_pkg)
+                if is_pkg:
+                    spec.submodule_search_locations = [loader.package_path]
+                return spec
+            except Exception:
+                continue
+
+        return None
+
 if _open_url and _url_for_local:
-    # Fjern eksisterende hvis den finnes
     sys.meta_path = [f for f in sys.meta_path if not isinstance(f, WebModuleFinder)]
-    # Legg til vår finder først i listen
     sys.meta_path.insert(0, WebModuleFinder())
 `;
 
@@ -417,8 +429,13 @@ async function bootPyodide() {
 // 4) Package loader
 // -----------------------------------------------------------
 async function ensurePackages(pkgs) {
-  const all = [...new Set([...pkgs, "numpy", "matplotlib", "scipy"])];
-  await pyodide.loadPackage(all);
+  const required = [...new Set([...pkgs, "numpy", "matplotlib", "scipy"])];
+  const missing = required.filter((pkg) => !loadedPackages.has(pkg));
+
+  if (missing.length) {
+    await pyodide.loadPackage(missing);
+    for (const pkg of missing) loadedPackages.add(pkg);
+  }
 
   try {
     await pyodide.runPythonAsync(`
