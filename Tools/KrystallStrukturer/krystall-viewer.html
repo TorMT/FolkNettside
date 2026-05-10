@@ -509,14 +509,15 @@
           <div class="field">
             <label>Replisering (Nx Ny Nz)</label>
             <div class="row">
-              <input id="nx" type="number" value="2" min="1" max="8" />
-              <input id="ny" type="number" value="2" min="1" max="8" />
-              <input id="nz" type="number" value="2" min="1" max="8" />
+              <input id="nx" type="number" value="1" min="1" max="8" />
+              <input id="ny" type="number" value="1" min="1" max="8" />
+              <input id="nz" type="number" value="1" min="1" max="8" />
             </div>
           </div>
 
           <div class="btnRow">
             <button id="build" class="btnPrimary">Bygg</button>
+            <button id="toggleUnitCell" class="btnToggle" data-on="0">Vis kun enhetscelle</button>
             <button id="autoRebuild" class="btnToggle" data-on="1">Auto</button>
             <button id="toggleGrid" class="btnToggle" data-on="1">Grid</button>
             <button id="toggleAxes" class="btnToggle" data-on="1">Aksene</button>
@@ -666,10 +667,9 @@
           <div class="btnRow">
             <button id="toggleTetrahedral" class="btnToggle" data-on="0">Tetraedre</button>
             <button id="toggleOctahedral" class="btnToggle" data-on="0">Oktaedre</button>
-            <button id="toggleUnitCell" class="btnToggle" data-on="0">Enhetscelle</button>
           </div>
           <div style="color:var(--text-muted); font-size:.88rem; line-height:1.35; margin-top:8px;">
-            Vis alle tetraedriske eller oktaedriske hull med koordinerende atomer.
+            Visualiser tetraedriske og oktaedriske hull som polyedre rundt hullposisjonene.
           </div>
         </div>
       </div>
@@ -1006,10 +1006,23 @@ function resetActionHistory(){
 function refreshDerivedVisuals(){
   if($("toggleBonds").dataset.on==="1") rebuildBonds();
   rebuildSnapPoints();
-  if($("toggleTetrahedral").dataset.on==="1"){
-    PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
-  }else if($("toggleOctahedral").dataset.on==="1"){
-    PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
+  if($("toggleUnitCell").dataset.on==="1"){
+    rebuildUnitCellPreview();
+    applyUnitCellIsolation(true);
+  }else{
+    applyUnitCellIsolation(false);
+  }
+  const showTetra = $("toggleTetrahedral").dataset.on==="1";
+  const showOcta = $("toggleOctahedral").dataset.on==="1";
+  if(showTetra || showOcta){
+    PolyhedraModule.renderPolyhedra(snapPoints, atomPositions, scene, {
+      showTetra,
+      showOcta,
+      structureType: $("structure").value,
+      unitCellOnly: $("toggleUnitCell").dataset.on==="1"
+    });
+  }else{
+    PolyhedraModule.clearPolyhedra();
   }
 }
 
@@ -1129,16 +1142,24 @@ function rebuildUnitCellPreview(){
       color: baseColor,
       roughness: 0.35,
       metalness: 0.08,
-      transparent: true,
-      opacity: 0.9,
-      clippingPlanes: clip,
-      clipIntersection: true
+      transparent: false,
+      opacity: 1.0
     });
     const s = new THREE.Mesh(g, m);
     s.position.copy(p);
     unitCellGroup.add(s);
   });
   unitCellGroup.visible = true;
+}
+
+function applyUnitCellIsolation(on){
+  crystalGroup.visible = !on;
+  bondGroup.visible = !on;
+  planeGroup.visible = !on;
+  cutGroup.visible = !on;
+  placedGroup.visible = !on;
+  if(on) ghost.visible = false;
+  unitCellGroup.visible = on;
 }
 
 /* ---------- atoms/materials ---------- */
@@ -1156,37 +1177,112 @@ function addAtom(x,y,z, mat){
   atomMeshes.push(s);
 }
 
+function buildFromBasis(nx, ny, nz, basis){
+  const seen = new Set();
+  basis.forEach(site => {
+    for(let i=0; i<nx; i++){
+      for(let j=0; j<ny; j++){
+        for(let k=0; k<nz; k++){
+          const x = i + site.pos[0];
+          const y = j + site.pos[1];
+          const z = k + site.pos[2];
+          const key = `${x.toFixed(4)}|${y.toFixed(4)}|${z.toFixed(4)}`;
+          if(seen.has(key)) continue;
+          seen.add(key);
+          addAtom(x, y, z, site.mat);
+        }
+      }
+    }
+  });
+}
+
+function buildConventionalCells(nx, ny, nz, sites){
+  const seen = new Set();
+  for(let i=0; i<nx; i++){
+    for(let j=0; j<ny; j++){
+      for(let k=0; k<nz; k++){
+        sites.forEach(site => {
+          const x = i + site.pos[0];
+          const y = j + site.pos[1];
+          const z = k + site.pos[2];
+          const key = `${x.toFixed(4)}|${y.toFixed(4)}|${z.toFixed(4)}`;
+          if(seen.has(key)) return;
+          seen.add(key);
+          addAtom(x, y, z, site.mat);
+        });
+      }
+    }
+  }
+}
+
 /* ---------- build structures ---------- */
 function buildSC(nx,ny,nz, matA){
-  for(let i=0;i<nx;i++)
-    for(let j=0;j<ny;j++)
-      for(let k=0;k<nz;k++)
-        addAtom(i,j,k,matA);
+  buildConventionalCells(nx, ny, nz, [
+    { pos:[0,0,0], mat:matA },
+    { pos:[1,0,0], mat:matA },
+    { pos:[0,1,0], mat:matA },
+    { pos:[0,0,1], mat:matA },
+    { pos:[1,1,0], mat:matA },
+    { pos:[1,0,1], mat:matA },
+    { pos:[0,1,1], mat:matA },
+    { pos:[1,1,1], mat:matA }
+  ]);
 }
 
 function buildBCC(nx,ny,nz, matA, matB){
-  buildSC(nx,ny,nz, matA);
-  for(let i=0;i<nx;i++)
-    for(let j=0;j<ny;j++)
-      for(let k=0;k<nz;k++)
-        addAtom(i+0.5,j+0.5,k+0.5,matB);
+  buildConventionalCells(nx, ny, nz, [
+    { pos:[0,0,0], mat:matA },
+    { pos:[1,0,0], mat:matA },
+    { pos:[0,1,0], mat:matA },
+    { pos:[0,0,1], mat:matA },
+    { pos:[1,1,0], mat:matA },
+    { pos:[1,0,1], mat:matA },
+    { pos:[0,1,1], mat:matA },
+    { pos:[1,1,1], mat:matA },
+    { pos:[0.5,0.5,0.5], mat:matB }
+  ]);
 }
 
 function buildFCC(nx,ny,nz, matA, matB){
-  buildSC(nx,ny,nz, matA);
-  const faces=[[.5,.5,0],[.5,0,.5],[0,.5,.5]];
-  for(let i=0;i<nx;i++)
-    for(let j=0;j<ny;j++)
-      for(let k=0;k<nz;k++)
-        faces.forEach(f=>addAtom(i+f[0],j+f[1],k+f[2],matB));
+  buildConventionalCells(nx, ny, nz, [
+    { pos:[0,0,0], mat:matA },
+    { pos:[1,0,0], mat:matA },
+    { pos:[0,1,0], mat:matA },
+    { pos:[0,0,1], mat:matA },
+    { pos:[1,1,0], mat:matA },
+    { pos:[1,0,1], mat:matA },
+    { pos:[0,1,1], mat:matA },
+    { pos:[1,1,1], mat:matA },
+    { pos:[0.5,0.5,0], mat:matB },
+    { pos:[0.5,0.5,1], mat:matB },
+    { pos:[0.5,0,0.5], mat:matB },
+    { pos:[0.5,1,0.5], mat:matB },
+    { pos:[0,0.5,0.5], mat:matB },
+    { pos:[1,0.5,0.5], mat:matB }
+  ]);
 }
 
 function buildDiamond(nx,ny,nz, matA, matB){
-  buildFCC(nx,ny,nz, matA, matA);
-  for(let i=0;i<nx;i++)
-    for(let j=0;j<ny;j++)
-      for(let k=0;k<nz;k++)
-        addAtom(i+0.25,j+0.25,k+0.25,matB);
+  buildConventionalCells(nx, ny, nz, [
+    { pos:[0,0,0], mat:matA },
+    { pos:[1,0,0], mat:matA },
+    { pos:[0,1,0], mat:matA },
+    { pos:[0,0,1], mat:matA },
+    { pos:[1,1,0], mat:matA },
+    { pos:[1,0,1], mat:matA },
+    { pos:[0,1,1], mat:matA },
+    { pos:[1,1,1], mat:matA },
+    { pos:[0.5,0.5,0], mat:matA },
+    { pos:[0.5,0.5,1], mat:matA },
+    { pos:[0.5,0,0.5], mat:matA },
+    { pos:[0.5,1,0.5], mat:matA },
+    { pos:[0,0.5,0.5], mat:matA },
+    { pos:[1,0.5,0.5], mat:matA },
+    { pos:[0.25,0.25,0.25], mat:matB },
+    { pos:[0.25,0.75,0.75], mat:matB },
+    { pos:[0.75,0.25,0.75], mat:matB },
+    { pos:[0.75,0.75,0.25], mat:matB }
+  ]);
 }
 
 function buildSpinel(nx,ny,nz, matO, matA, matB){
@@ -1228,78 +1324,53 @@ function buildHCP(nx,ny,nz, matA){
 }
 
 function buildNaCl(nx,ny,nz, matA, matB){
-  for(let i=0; i<nx; i++){
-    for(let j=0; j<ny; j++){
-      for(let k=0; k<nz; k++){
-        // Na+ (FCC)
-        addAtom(i, j, k, matA);
-        addAtom(i+0.5, j+0.5, k, matA);
-        addAtom(i+0.5, j, k+0.5, matA);
-        addAtom(i, j+0.5, k+0.5, matA);
-        
-        // Cl- (FCC offset)
-        addAtom(i+0.5, j, k, matB);
-        addAtom(i, j+0.5, k, matB);
-        addAtom(i, j, k+0.5, matB);
-        addAtom(i+0.5, j+0.5, k+0.5, matB);
-      }
-    }
-  }
+  buildFromBasis(nx, ny, nz, [
+    { pos:[0,0,0], mat:matA },
+    { pos:[0.5,0.5,0], mat:matA },
+    { pos:[0.5,0,0.5], mat:matA },
+    { pos:[0,0.5,0.5], mat:matA },
+    { pos:[0.5,0,0], mat:matB },
+    { pos:[0,0.5,0], mat:matB },
+    { pos:[0,0,0.5], mat:matB },
+    { pos:[0.5,0.5,0.5], mat:matB }
+  ]);
 }
 
 function buildCsCl(nx,ny,nz, matA, matB){
-  for(let i=0; i<nx; i++){
-    for(let j=0; j<ny; j++){
-      for(let k=0; k<nz; k++){
-        addAtom(i, j, k, matA);
-        addAtom(i+0.5, j+0.5, k+0.5, matB);
-      }
-    }
-  }
+  buildFromBasis(nx, ny, nz, [
+    { pos:[0,0,0], mat:matA },
+    { pos:[0.5,0.5,0.5], mat:matB }
+  ]);
 }
 
 function buildZnS(nx,ny,nz, matA, matB){
-  for(let i=0; i<nx; i++){
-    for(let j=0; j<ny; j++){
-      for(let k=0; k<nz; k++){
-        // Zn (FCC)
-        addAtom(i, j, k, matA);
-        addAtom(i+0.5, j+0.5, k, matA);
-        addAtom(i+0.5, j, k+0.5, matA);
-        addAtom(i, j+0.5, k+0.5, matA);
-        
-        // S (half tetrahedral)
-        addAtom(i+0.25, j+0.25, k+0.25, matB);
-        addAtom(i+0.75, j+0.75, k+0.25, matB);
-        addAtom(i+0.75, j+0.25, k+0.75, matB);
-        addAtom(i+0.25, j+0.75, k+0.75, matB);
-      }
-    }
-  }
+  buildFromBasis(nx, ny, nz, [
+    { pos:[0,0,0], mat:matA },
+    { pos:[0.5,0.5,0], mat:matA },
+    { pos:[0.5,0,0.5], mat:matA },
+    { pos:[0,0.5,0.5], mat:matA },
+    { pos:[0.25,0.25,0.25], mat:matB },
+    { pos:[0.75,0.75,0.25], mat:matB },
+    { pos:[0.75,0.25,0.75], mat:matB },
+    { pos:[0.25,0.75,0.75], mat:matB }
+  ]);
 }
 
 function buildCaF2(nx,ny,nz, matA, matB){
-  for(let i=0; i<nx; i++){
-    for(let j=0; j<ny; j++){
-      for(let k=0; k<nz; k++){
-        // Ca (FCC)
-        addAtom(i, j, k, matA);
-        addAtom(i+0.5, j+0.5, k, matA);
-        addAtom(i+0.5, j, k+0.5, matA);
-        addAtom(i, j+0.5, k+0.5, matA);
-        
-        // F (all tetrahedral)
-        addAtom(i+0.25, j+0.25, k+0.25, matB);
-        addAtom(i+0.75, j+0.75, k+0.25, matB);
-        addAtom(i+0.75, j+0.25, k+0.75, matB);
-        addAtom(i+0.25, j+0.75, k+0.75, matB);
-        addAtom(i+0.75, j+0.75, k+0.75, matB);
-        addAtom(i+0.25, j+0.25, k+0.75, matB);
-        addAtom(i+0.25, j+0.75, k+0.25, matB);
-        addAtom(i+0.75, j+0.25, k+0.25, matB);
-      }
-    }
-  }
+  buildFromBasis(nx, ny, nz, [
+    { pos:[0,0,0], mat:matA },
+    { pos:[0.5,0.5,0], mat:matA },
+    { pos:[0.5,0,0.5], mat:matA },
+    { pos:[0,0.5,0.5], mat:matA },
+    { pos:[0.25,0.25,0.25], mat:matB },
+    { pos:[0.75,0.75,0.25], mat:matB },
+    { pos:[0.75,0.25,0.75], mat:matB },
+    { pos:[0.25,0.75,0.75], mat:matB },
+    { pos:[0.75,0.75,0.75], mat:matB },
+    { pos:[0.25,0.25,0.75], mat:matB },
+    { pos:[0.25,0.75,0.25], mat:matB },
+    { pos:[0.75,0.25,0.25], mat:matB }
+  ]);
 }
 
 /* ---------- snap points ---------- */
@@ -1307,19 +1378,21 @@ function keyOf(v){
   return `${v.x.toFixed(3)}|${v.y.toFixed(3)}|${v.z.toFixed(3)}`;
 }
 
-function addSnapPoint(pos, kind, map, holeType){
+function addSnapPoint(pos, kind, map, holeType, extra = {}){
   const k = keyOf(pos);
   if(map.has(k)) return;
   map.set(k, true);
-  snapPoints.push({ pos, kind, holeType });
+  snapPoints.push({ pos, kind, holeType, ...extra });
 }
 
 function rebuildSnapPoints(){
   snapPoints.length = 0;
   const map = new Map();
+  const atomMap = new Map();
 
   atomPositions.forEach(p => {
     if(p.x > 1e8) return; // skip removed atoms (vacancies)
+    atomMap.set(keyOf(p), p.clone());
     addSnapPoint(p.clone(), "atom", map);
   });
 
@@ -1328,9 +1401,16 @@ function rebuildSnapPoints(){
   const ny = clampInt($("ny").value,1,8);
   const nz = clampInt($("nz").value,1,8);
 
-  const addHolesAtCell = (i,j,k, arr, holeType)=>{
+  const resolveAtoms = (coords)=>coords
+    .map(([x,y,z]) => atomMap.get(keyOf(new THREE.Vector3(x,y,z))))
+    .filter(Boolean)
+    .map(p => p.clone());
+
+  const addHolesAtCell = (i,j,k, arr, holeType, coordFn)=>{
     arr.forEach(h=>{
-      addSnapPoint(new THREE.Vector3(i+h[0], j+h[1], k+h[2]), "hole", map, holeType);
+      const holePos = new THREE.Vector3(i+h[0], j+h[1], k+h[2]);
+      const coordinatingAtoms = coordFn ? resolveAtoms(coordFn(i, j, k, h)) : [];
+      addSnapPoint(holePos, "hole", map, holeType, { coordinatingAtoms });
     });
   };
 
@@ -1361,8 +1441,93 @@ function rebuildSnapPoints(){
       [0.75,0.25,0.25],[0.75,0.25,0.75],[0.75,0.75,0.25],[0.75,0.75,0.75]
     ];
     for(let i=0;i<nx;i++) for(let j=0;j<ny;j++) for(let k=0;k<nz;k++){
-      addHolesAtCell(i,j,k,octa, "octahedral");
-      addHolesAtCell(i,j,k,tetra, "tetrahedral");
+      addHolesAtCell(i,j,k,octa, "octahedral", (ci, cj, ck, hole)=>{
+        const px = hole[0], py = hole[1], pz = hole[2];
+        if(Math.abs(px - 0.5) < 1e-6 && Math.abs(py - 0.5) < 1e-6 && Math.abs(pz - 0.5) < 1e-6){
+          return [
+            [ci + 0.5, cj + 0.5, ck + 0.0],
+            [ci + 0.5, cj + 0.5, ck + 1.0],
+            [ci + 0.5, cj + 0.0, ck + 0.5],
+            [ci + 0.5, cj + 1.0, ck + 0.5],
+            [ci + 0.0, cj + 0.5, ck + 0.5],
+            [ci + 1.0, cj + 0.5, ck + 0.5]
+          ];
+        }
+        if(Math.abs(py) < 1e-6 && Math.abs(pz) < 1e-6){
+          return [
+            [ci + 0.0, cj + 0.0, ck + 0.0],
+            [ci + 1.0, cj + 0.0, ck + 0.0],
+            [ci + 0.5, cj + 0.5, ck + 0.0],
+            [ci + 0.5, cj - 0.5, ck + 0.0],
+            [ci + 0.5, cj + 0.0, ck + 0.5],
+            [ci + 0.5, cj + 0.0, ck - 0.5]
+          ];
+        }
+        if(Math.abs(px) < 1e-6 && Math.abs(pz) < 1e-6){
+          return [
+            [ci + 0.0, cj + 0.0, ck + 0.0],
+            [ci + 0.0, cj + 1.0, ck + 0.0],
+            [ci + 0.5, cj + 0.5, ck + 0.0],
+            [ci - 0.5, cj + 0.5, ck + 0.0],
+            [ci + 0.0, cj + 0.5, ck + 0.5],
+            [ci + 0.0, cj + 0.5, ck - 0.5]
+          ];
+        }
+        if(Math.abs(px) < 1e-6 && Math.abs(py) < 1e-6){
+          return [
+            [ci + 0.0, cj + 0.0, ck + 0.0],
+            [ci + 0.0, cj + 0.0, ck + 1.0],
+            [ci + 0.5, cj + 0.0, ck + 0.5],
+            [ci - 0.5, cj + 0.0, ck + 0.5],
+            [ci + 0.0, cj + 0.5, ck + 0.5],
+            [ci + 0.0, cj - 0.5, ck + 0.5]
+          ];
+        }
+        return [];
+      });
+      addHolesAtCell(i,j,k,tetra, "tetrahedral", (ci, cj, ck, hole)=>{
+        const sx = hole[0] < 0.5 ? 0 : 1;
+        const sy = hole[1] < 0.5 ? 0 : 1;
+        const sz = hole[2] < 0.5 ? 0 : 1;
+        return [
+          [ci + sx,      cj + sy,      ck + sz],
+          [ci + 0.5,     cj + 0.5,     ck + sz],
+          [ci + 0.5,     cj + sy,      ck + 0.5],
+          [ci + sx,      cj + 0.5,     ck + 0.5]
+        ];
+      });
+    }
+  }
+
+  if(type==="hcp"){
+    const a = 1.0;
+    const c = a * 1.633;
+    for(let i=0; i<nx; i++){
+      for(let j=0; j<ny; j++){
+        for(let k=0; k<nz; k++){
+          const x0 = i * a;
+          const y0 = k * c;
+          const z0 = j * a * Math.sqrt(3);
+          addSnapPoint(
+            new THREE.Vector3(x0 + 0.5*a, y0 + c/4, z0 + (1/3)*a*Math.sqrt(3)),
+            "hole",
+            map,
+            "tetrahedral"
+          );
+          addSnapPoint(
+            new THREE.Vector3(x0 + 0.5*a, y0 + 3*c/4, z0 + (2/3)*a*Math.sqrt(3)),
+            "hole",
+            map,
+            "tetrahedral"
+          );
+          addSnapPoint(
+            new THREE.Vector3(x0 + 0.5*a, y0 + c/2, z0 + 0.5*a*Math.sqrt(3)),
+            "hole",
+            map,
+            "octahedral"
+          );
+        }
+      }
     }
   }
 }
@@ -1577,6 +1742,7 @@ async function buildCrystal(){
   isBuilding = true;
   $("build").disabled = true;
   setStatus("Bygger...");
+  try{
 
   // Delay to let UI update
   await new Promise(r=>setTimeout(r, 10));
@@ -1616,10 +1782,12 @@ async function buildCrystal(){
 
   rebuildSnapPoints();
 
-  const center = new THREE.Vector3((nx-1)/2, (ny-1)/2, (nz-1)/2);
+  const bbox = new THREE.Box3().setFromPoints(atomPositions.filter(p => p.x < 1e8));
+  const center = bbox.isEmpty() ? new THREE.Vector3(0.5, 0.5, 0.5) : bbox.getCenter(new THREE.Vector3());
   controls.target.copy(center);
 
-  const dist = Math.max(nx,ny,nz) * 2.2;
+  const size = bbox.isEmpty() ? new THREE.Vector3(1,1,1) : bbox.getSize(new THREE.Vector3());
+  const dist = Math.max(size.x, size.y, size.z, 1) * 2.2;
   camera.position.set(center.x + dist, center.y + dist*0.9, center.z + dist);
   camera.lookAt(center);
 
@@ -1627,16 +1795,15 @@ async function buildCrystal(){
   toast("Bygget", `${type.toUpperCase()} • ${nx}×${ny}×${nz}`);
 
   if($("toggleBonds").dataset.on==="1") rebuildBonds();
-  if($("toggleTetrahedral").dataset.on==="1"){
-    PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
-  }else if($("toggleOctahedral").dataset.on==="1"){
-    PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
-  }else{
-    PolyhedraModule.clearPolyhedra();
+  refreshDerivedVisuals();
+  }catch(err){
+    console.error("buildCrystal failed", err);
+    setStatus("Feil");
+    toast("Bygg-feil", err && err.message ? err.message : "Kunne ikke bygge strukturen.");
+  }finally{
+    $("build").disabled = false;
+    isBuilding = false;
   }
-
-  $("build").disabled = false;
-  isBuilding = false;
 }
 
 /* ---------- material guess ---------- */
@@ -2046,28 +2213,38 @@ window.addEventListener("keydown", (ev)=>{
 $("toggleTetrahedral").addEventListener("click", ()=>{
   const on = $("toggleTetrahedral").dataset.on==="1";
   setBtnOn($("toggleTetrahedral"), !on);
-  if(!on){
-    setBtnOn($("toggleOctahedral"), false);
-    PolyhedraModule.clearPolyhedra();
-    const count = PolyhedraModule.showAllTetrahedralHoles(snapPoints, atomPositions, scene);
-    toast("Tetraedre", `Vises (${count} hull)`);
+  const showTetra = $("toggleTetrahedral").dataset.on==="1";
+  const showOcta = $("toggleOctahedral").dataset.on==="1";
+  if(showTetra || showOcta){
+    const counts = PolyhedraModule.renderPolyhedra(snapPoints, atomPositions, scene, {
+      showTetra,
+      showOcta,
+      structureType: $("structure").value,
+      unitCellOnly: $("toggleUnitCell").dataset.on==="1"
+    });
+    toast("Polyedre", `Tetra: ${counts.tetraCount}, Okta: ${counts.octaCount}`);
   }else{
     PolyhedraModule.clearPolyhedra();
-    toast("Tetraedre", "Skjult");
+    toast("Polyedre", "Skjult");
   }
 });
 
 $("toggleOctahedral").addEventListener("click", ()=>{
   const on = $("toggleOctahedral").dataset.on==="1";
   setBtnOn($("toggleOctahedral"), !on);
-  if(!on){
-    setBtnOn($("toggleTetrahedral"), false);
-    PolyhedraModule.clearPolyhedra();
-    const count = PolyhedraModule.showAllOctahedralHoles(snapPoints, atomPositions, scene);
-    toast("Oktaedre", `Vises (${count} hull)`);
+  const showTetra = $("toggleTetrahedral").dataset.on==="1";
+  const showOcta = $("toggleOctahedral").dataset.on==="1";
+  if(showTetra || showOcta){
+    const counts = PolyhedraModule.renderPolyhedra(snapPoints, atomPositions, scene, {
+      showTetra,
+      showOcta,
+      structureType: $("structure").value,
+      unitCellOnly: $("toggleUnitCell").dataset.on==="1"
+    });
+    toast("Polyedre", `Tetra: ${counts.tetraCount}, Okta: ${counts.octaCount}`);
   }else{
     PolyhedraModule.clearPolyhedra();
-    toast("Oktaedre", "Skjult");
+    toast("Polyedre", "Skjult");
   }
 });
 

@@ -1830,6 +1830,12 @@
     padding-bottom: 60px;
   }
   
+  body.has-bottom-bar .content,
+  body.has-bottom-bar main,
+  body.has-bottom-bar .main-content {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  
   /* ===== ACCESSIBILITY ===== */
   *:focus-visible {
     outline: 2px solid var(--primary, #004f9f) !important;
