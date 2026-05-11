@@ -9,6 +9,11 @@ $input = brewing_read_input_json();
 $batchName = brewing_safe_folder_name((string)($input['batchName'] ?? 'Brygglogg'));
 $folderName = brewing_safe_folder_name((string)($input['folderName'] ?? $batchName));
 $exportedAt = trim((string)($input['exportedAt'] ?? ''));
+$targetSlug = trim((string)($input['targetSlug'] ?? ''));
+$createdAt = trim((string)($input['createdAt'] ?? ''));
+$logMode = strtolower(trim((string)($input['logMode'] ?? '')));
+$responseMode = strtolower(trim((string)($input['responseMode'] ?? 'download')));
+$responseMode = in_array($responseMode, ['download', 'json'], true) ? $responseMode : 'download';
 $recipeRef = brewing_normalize_recipe_ref($input['recipeRef'] ?? null);
 $storageConfig = brewing_read_storage_config();
 $storage = brewing_normalize_storage_payload($input['storage'] ?? null, $storageConfig);
@@ -23,6 +28,8 @@ $log = [
     'profileName' => $input['profileName'] ?? null,
     'periodLabel' => $input['periodLabel'] ?? null,
     'recipeRef' => $recipeRef,
+    'createdAt' => $createdAt !== '' ? $createdAt : null,
+    'logMode' => in_array($logMode, ['draft', 'hydrometer'], true) ? $logMode : null,
     'exportedAt' => $exportedAt !== '' ? $exportedAt : gmdate(DATE_ATOM),
     'summary' => is_array($input['summary'] ?? null) ? $input['summary'] : [],
     'metrics' => is_array($input['metrics'] ?? null) ? $input['metrics'] : [],
@@ -39,12 +46,13 @@ if (!is_string($json)) {
 
 $html = brewing_render_log_html($log);
 $csv = brewing_csv_from_history((array)$log['history']);
-$log = brewing_persist_log_folder($log, $html, $csv);
+$log = brewing_persist_log_folder($log, $html, $csv, $targetSlug !== '' ? $targetSlug : null);
 $html = brewing_render_log_html($log);
 $json = json_encode($log, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 if (!is_string($json)) {
     brewing_error('Could not encode persisted brew log.', 500);
 }
+$dir = brewing_safe_join(brewing_ensure_logs_root(), basename((string)($log['folderName'] ?? $folderName)));
 $readme = "Denne mappen er eksportert fra Brygging-siden.\n\n"
     . "Legg egne bilder i mappen 'bilder' eller i rotmappen.\n"
     . "Viewer-en leser loggdata fra logg.json og viser alle bildefiler den finner i samme bryggemappe.\n"
@@ -52,6 +60,18 @@ $readme = "Denne mappen er eksportert fra Brygging-siden.\n\n"
 $driveManifest = json_encode(brewing_drive_manifest($log), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 
 $safeZipBase = brewing_slugify($folderName);
+
+if ($responseMode === 'json') {
+    brewing_json_response([
+        'saved' => true,
+        'filename' => $safeZipBase . '.zip',
+        'logSlug' => (string)($log['folderName'] ?? $folderName),
+        'updatedExisting' => !empty($log['updatedExisting']),
+        'folderUrl' => brewing_path_to_url($dir),
+        'log' => $log,
+        'storage' => $log['storage'] ?? null,
+    ]);
+}
 
 if (class_exists('ZipArchive')) {
     $tmpFile = tempnam(sys_get_temp_dir(), 'brewlog_');

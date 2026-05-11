@@ -58,19 +58,32 @@
     return match && match[1] ? match[1] : fallback;
   }
 
-  async function exportLog(payload) {
+  async function exportLog(payload, options) {
+    const settings = options || {};
+    const shouldDownload = settings.download !== false;
     const response = await fetch(API_BASE + '/export.php', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(Object.assign({}, payload || {}, {
+        responseMode: shouldDownload ? 'download' : 'json'
+      }))
     });
 
     if (!response.ok) {
       const text = await response.text();
       const data = parseJsonSafe(text);
       throw new Error((data && data.error) || ('HTTP ' + response.status));
+    }
+
+    if (!shouldDownload) {
+      const text = await response.text();
+      const data = parseJsonSafe(text);
+      if (!data) {
+        throw new Error('Kunne ikke lese eksportsvaret fra serveren.');
+      }
+      return data;
     }
 
     const blob = await response.blob();

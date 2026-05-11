@@ -6,6 +6,7 @@
   const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
   const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
   const FOLDER_MIME = 'application/vnd.google-apps.folder';
+  const BREWING_LIBRARY_FOLDER = 'Brygging';
 
   function safeTrim(value) {
     return String(value == null ? '' : value).trim();
@@ -83,6 +84,7 @@
       accessToken: '',
       accessTokenExpiresAt: 0,
       accessPromise: null,
+      accountLabel: '',
       statusText: 'Google Drive: ikke satt opp ennå',
       busy: false,
       connected: false
@@ -316,7 +318,7 @@
 
       const baseUrl = DRIVE_UPLOAD_BASE + '/files' + (existing && existing.id ? '/' + encodeURIComponent(existing.id) : '');
       const payload = await driveJson(
-        baseUrl + '?uploadType=multipart&supportsAllDrives=true&fields=id,name,mimeType,webViewLink,parents',
+        baseUrl + '?uploadType=multipart&supportsAllDrives=true&fields=id,name,mimeType,webViewLink,webContentLink,thumbnailLink,parents',
         {
           method: existing && existing.id ? 'PATCH' : 'POST',
           body: body
@@ -328,6 +330,8 @@
         name: payload.name || name,
         mimeType: payload.mimeType || mimeType,
         webViewLink: payload.webViewLink || '',
+        webContentLink: payload.webContentLink || '',
+        thumbnailLink: payload.thumbnailLink || '',
         parentId: parentId
       };
     }
@@ -371,7 +375,8 @@
         return {
           id: ids.logFolderId,
           name: folderName,
-          webViewLink: buildDriveFolderUrl(ids.logFolderId)
+          webViewLink: buildDriveFolderUrl(ids.logFolderId),
+          pathLabel: BREWING_LIBRARY_FOLDER + '/' + folderName
         };
       }
 
@@ -379,7 +384,14 @@
         throw new Error('Ingen standardmappe er satt for Google Drive ennå.');
       }
 
-      return ensureFolder(ids.rootFolderId, folderName);
+      const brewingFolder = await ensureFolder(ids.rootFolderId, BREWING_LIBRARY_FOLDER);
+      const logFolder = await ensureFolder(brewingFolder.id, folderName);
+      return {
+        id: logFolder.id,
+        name: logFolder.name || folderName,
+        webViewLink: logFolder.webViewLink || buildDriveFolderUrl(logFolder.id),
+        pathLabel: BREWING_LIBRARY_FOLDER + '/' + (logFolder.name || folderName)
+      };
     }
 
     async function syncPackageFiles(folderId, packageFiles) {
@@ -413,20 +425,88 @@
       return uploaded;
     }
 
+    async function listFolderImages(parentId) {
+      if (!parentId) return [];
+      const query = [
+        "trashed = false",
+        "'" + escapeDriveQueryValue(parentId) + "' in parents",
+        "(mimeType contains 'image/' or name contains '.jpg' or name contains '.jpeg' or name contains '.png' or name contains '.webp' or name contains '.gif' or name contains '.bmp' or name contains '.avif' or name contains '.svg')"
+      ].join(' and ');
+      const url = DRIVE_API_BASE + '/files'
+        + '?supportsAllDrives=true'
+        + '&includeItemsFromAllDrives=true'
+        + '&pageSize=200'
+        + '&fields=files(id,name,mimeType,webViewLink,webContentLink,thumbnailLink,parents)'
+        + '&orderBy=createdTime desc'
+        + '&q=' + encodeURIComponent(query);
+      const payload = await driveJson(url, { method: 'GET' });
+      return Array.isArray(payload.files) ? payload.files : [];
+    }
+
+    async function fetchLogImages(log) {
+      const drive = log && log.storage && log.storage.googleDrive ? log.storage.googleDrive : null;
+      const logFolderId = extractDriveId(drive && (drive.folderId || drive.shareUrl));
+      if (!logFolderId) return [];
+      if (!moduleState.connected && !hasFreshToken()) return [];
+
+      await ensureAccessToken(false);
+      const images = await listFolderImages(logFolderId);
+      const imageFolder = await searchChild(logFolderId, 'bilder', FOLDER_MIME);
+      if (imageFolder && imageFolder.id) {
+        const childImages = await listFolderImages(imageFolder.id);
+        childImages.forEach(function (entry) {
+          images.push(entry);
+        });
+      }
+      return images;
+    }
+
+    async function fetchAccountLabel() {
+      if (safeTrim(moduleState.accountLabel)) {
+        return moduleState.accountLabel;
+      }
+
+      try {
+        const payload = await driveJson(
+          DRIVE_API_BASE + '/about?fields=user(displayName,emailAddress)',
+          { method: 'GET' }
+        );
+        const user = payload && payload.user ? payload.user : {};
+        const label = safeTrim(user.emailAddress) || safeTrim(user.displayName);
+        if (label) {
+          moduleState.accountLabel = label;
+        }
+      } catch (error) {
+      }
+
+      return safeTrim(moduleState.accountLabel) || 'Google Drive OAuth';
+    }
+
     function buildStoragePayload(log, folderMeta, fileRecords) {
       const currentStorage = log && log.storage ? log.storage : {};
       const currentDrive = currentStorage.googleDrive || {};
       const mode = safeTrim(currentStorage.mode) === 'google-drive'
         ? 'google-drive'
         : 'hybrid';
+      const storageConfig = moduleState.storageConfig || {};
+      const rootLabel = safeTrim(
+        (storageConfig.googleDrive && storageConfig.googleDrive.folderLabel)
+          || currentDrive.folderLabel
+      );
+      const normalizedRootLabel = rootLabel
+        ? rootLabel.replace(/\/?Bryggelogger$/i, '').replace(/\/+$/, '')
+        : '';
+      const resolvedFolderLabel = normalizedRootLabel
+        ? normalizedRootLabel + '/' + (folderMeta.pathLabel || folderMeta.name || 'Brygglogg')
+        : (folderMeta.pathLabel || folderMeta.name || 'Brygglogg');
       return {
         mode: mode,
         googleDrive: {
           folderId: folderMeta.id,
           shareUrl: folderMeta.webViewLink || buildDriveFolderUrl(folderMeta.id),
-          folderLabel: folderMeta.name || safeTrim(currentDrive.folderLabel) || 'Bryggelogger',
+          folderLabel: resolvedFolderLabel,
           note: safeTrim(currentDrive.note),
-          accountLabel: 'Google Drive OAuth',
+          accountLabel: safeTrim(moduleState.accountLabel) || safeTrim(currentDrive.accountLabel) || 'Google Drive OAuth',
           lastSyncedAt: new Date().toISOString(),
           files: Array.isArray(fileRecords) ? fileRecords : []
         }
@@ -437,7 +517,8 @@
       try {
         setBusy(true, 'Google Drive: kobler til konto...');
         await ensureAccessToken(interactive !== false);
-        setStatus('Google Drive: konto koblet', true);
+        const accountLabel = await fetchAccountLabel();
+        setStatus('Google Drive: konto koblet' + (accountLabel ? ' som ' + accountLabel : ''), true);
         return true;
       } catch (error) {
         setStatus('Google Drive: tilkobling feilet (' + error.message + ')', false);
@@ -457,6 +538,7 @@
       try {
         setBusy(true, 'Google Drive: forbereder synk...');
         await ensureAccessToken(syncOptions.interactive !== false);
+        await fetchAccountLabel();
 
         const detail = await tools.fetchLogDetail(targetSlug);
         const logFolder = await resolveLogFolder(detail);
@@ -497,7 +579,8 @@
 
         setStatus(
           'Google Drive: synket ' + (prepared.log && prepared.log.folderName ? prepared.log.folderName : targetSlug)
-            + ' · ' + formatTimestamp(finalStorage.googleDrive.lastSyncedAt),
+            + ' · ' + formatTimestamp(finalStorage.googleDrive.lastSyncedAt)
+            + (finalStorage.googleDrive.accountLabel ? ' · ' + finalStorage.googleDrive.accountLabel : ''),
           true
         );
 
@@ -523,6 +606,7 @@
 
     return {
       connect: connect,
+      fetchLogImages: fetchLogImages,
       setConfig: setConfig,
       shouldAutoSync: shouldAutoSync,
       syncLogBySlug: syncLogBySlug

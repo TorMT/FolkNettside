@@ -25,6 +25,26 @@
     return 'Lokal';
   }
 
+  function exportButtonLabel(mode) {
+    if (mode === 'google-drive') return 'Lagre til Google Drive';
+    if (mode === 'hybrid') return 'Lagre og synk';
+    return 'Lagre bryggelogg';
+  }
+
+  function buildRecipeReferenceFromState(state) {
+    const recipe = state && state.linkedRecipe ? state.linkedRecipe : null;
+    if (!recipe) return null;
+    return {
+      id: recipe.id || '',
+      slug: recipe.slug || recipe.id || '',
+      source: recipe.source || 'local',
+      providerLabel: recipe.providerLabel || (recipe.source === 'brewfather' ? 'Brewfather' : 'Lokal'),
+      name: recipe.name || 'Oppskrift',
+      style: recipe.style || '',
+      batchVolume: recipe.batchVolume || null
+    };
+  }
+
   function buildMetricCards(metrics) {
     const entries = Object.entries(metrics || {});
     if (!entries.length) {
@@ -84,8 +104,12 @@
     const driveUrl = storage.googleDrive && storage.googleDrive.shareUrl ? storage.googleDrive.shareUrl : '';
     const localUrl = storage.local && storage.local.folderUrl ? storage.local.folderUrl : folderUrl;
     const lastSyncedAt = storage.googleDrive && storage.googleDrive.lastSyncedAt ? storage.googleDrive.lastSyncedAt : '';
+    const syncedBy = storage.googleDrive && storage.googleDrive.accountLabel ? storage.googleDrive.accountLabel : '';
     const syncLine = lastSyncedAt
       ? '<p><span class="log-label">Sist synket</span>' + escapeHtml(fmtTime(lastSyncedAt)) + '</p>'
+      : '';
+    const syncedByLine = syncedBy
+      ? '<p><span class="log-label">Synket av</span>' + escapeHtml(syncedBy) + '</p>'
       : '';
 
     return ''
@@ -93,32 +117,94 @@
       + '<strong>' + escapeHtml(storage.label || storageModeLabel(storage.mode)) + '</strong>'
       + '<span>' + escapeHtml(storage.summary || '') + '</span>'
       + syncLine
+      + syncedByLine
       + (localUrl ? '<a class="action-btn subtle-action relation-action" href="' + escapeHtml(localUrl) + '" target="_blank" rel="noopener noreferrer">Åpne lokal mappe</a>' : '')
       + (driveUrl ? '<a class="action-btn subtle-action relation-action" href="' + escapeHtml(driveUrl) + '" target="_blank" rel="noopener noreferrer">Åpne Drive-mappe</a>' : '')
       + '</article>';
   }
 
-  function buildImageGrid(images, storage) {
-    const safeImages = Array.isArray(images) ? images : [];
+  function isImageName(name) {
+    return /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(String(name || ''));
+  }
+
+  function isDriveImageFile(file) {
+    if (!file) return false;
+    return /^image\//i.test(String(file.mimeType || '')) || isImageName(file.name || '');
+  }
+
+  function drivePreviewUrl(file) {
+    if (!file) return '';
+    const mimeType = String(file.mimeType || '').toLowerCase();
+    if ((mimeType === 'image/svg+xml' || /\.svg$/i.test(String(file.name || ''))) && file.webContentLink) {
+      return String(file.webContentLink);
+    }
+    if (file.thumbnailLink) return String(file.thumbnailLink);
+    if (file.id) return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(file.id) + '&sz=w1600';
+    return file.webContentLink || file.webViewLink || '';
+  }
+
+  function buildDriveImagesFromFiles(files) {
+    const safeFiles = Array.isArray(files) ? files : [];
+    return safeFiles.filter(isDriveImageFile).map(function (file) {
+      return {
+        name: file.name || 'Drive-bilde',
+        url: drivePreviewUrl(file),
+        href: file.webViewLink || file.webContentLink || '',
+        source: 'drive'
+      };
+    }).filter(function (image) {
+      return !!image.url;
+    });
+  }
+
+  function buildDriveImages(storage) {
+    const drive = storage && storage.googleDrive ? storage.googleDrive : null;
+    const files = Array.isArray(drive && drive.files) ? drive.files : [];
+    return buildDriveImagesFromFiles(files);
+  }
+
+  function mergeImages(localImages, driveImages) {
+    const safeLocalImages = Array.isArray(localImages) ? localImages : [];
+    const safeDriveImages = Array.isArray(driveImages) ? driveImages : [];
+    return safeLocalImages.concat(
+      safeDriveImages.filter(function (driveImage) {
+        return !safeLocalImages.some(function (localImage) {
+          return String(localImage && localImage.name || '').toLowerCase() === String(driveImage.name || '').toLowerCase();
+        });
+      })
+    );
+  }
+
+  function buildImageGrid(images, storage, liveDriveImages) {
+    const localImages = Array.isArray(images) ? images : [];
+    const driveImages = Array.isArray(liveDriveImages) && liveDriveImages.length
+      ? buildDriveImagesFromFiles(liveDriveImages)
+      : buildDriveImages(storage);
+    const mergedImages = mergeImages(localImages, driveImages);
     const driveUrl = storage && storage.googleDrive && storage.googleDrive.shareUrl ? storage.googleDrive.shareUrl : '';
 
-    if (!safeImages.length) {
+    if (!mergedImages.length) {
       if (driveUrl) {
         return ''
           + '<article class="relation-card">'
-          + '<strong>Ingen lokale bilder funnet</strong>'
-          + '<span>Bildene ser ut til å ligge i Google Drive eller er ikke lagret lokalt ennå.</span>'
+          + '<strong>Ingen bilder funnet ennå</strong>'
+          + '<span>Loggen er koblet til Google Drive, men det ligger ingen bildefiler i bilder-mappen ennå.</span>'
           + '<a class="action-btn subtle-action relation-action" href="' + escapeHtml(driveUrl) + '" target="_blank" rel="noopener noreferrer">Åpne Drive-mappe</a>'
           + '</article>';
       }
       return '<div class="empty-state">Ingen bilder funnet ennå.</div>';
     }
 
-    const gallery = safeImages.map(function (image) {
+    const gallery = mergedImages.map(function (image) {
+      const imageUrl = image.url || '';
+      const href = image.href || imageUrl;
+      const sourceLabel = image.source === 'drive' ? ' · Drive' : '';
       return ''
         + '<figure class="image-card">'
-        + '<img src="' + escapeHtml(image.url || '') + '" alt="' + escapeHtml(image.name || 'Bryggebilde') + '" loading="lazy">'
-        + '<figcaption>' + escapeHtml(image.name || '') + '</figcaption>'
+        + (href ? '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' : '')
+        + '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(image.name || 'Bryggebilde') + '" loading="lazy">'
+        + (href ? '</a>' : '')
+        + '<figcaption>' + escapeHtml(image.name || '') + sourceLabel + '</figcaption>'
         + '</figure>';
     }).join('');
 
@@ -166,6 +252,12 @@
     els.storageHintPill.textContent = 'Lagringsmodus: ' + storageModeLabel(mode) + suffix;
   }
 
+  function updateExportButtonLabel(els) {
+    if (!els.downloadLogBtn) return;
+    const mode = els.storageModeSelect ? normalizeStorageMode(els.storageModeSelect.value) : 'local';
+    els.downloadLogBtn.textContent = exportButtonLabel(mode);
+  }
+
   function applyStorageConfigToControls(els, state, config) {
     state.storageConfig = config || null;
     if (els.storageModeSelect) {
@@ -191,24 +283,16 @@
     if (els.storageModeSelect) {
       els.storageModeSelect.value = normalizeStorageMode(log.storage.mode);
     }
-    if (els.logDriveUrlInput) {
-      els.logDriveUrlInput.value = log.storage.googleDrive && log.storage.googleDrive.shareUrl
-        ? log.storage.googleDrive.shareUrl
-        : '';
-    }
     renderStorageHint(els, state.storageConfig, log);
   }
 
-  function buildStoragePayloadFromControls(els, state, useLogSpecificUrl) {
+  function buildStoragePayloadFromControls(els, state) {
     const globalDriveUrl = els.driveRootUrlInput ? String(els.driveRootUrlInput.value || '').trim() : '';
-    const logDriveUrl = (useLogSpecificUrl && els.logDriveUrlInput)
-      ? String(els.logDriveUrlInput.value || '').trim()
-      : '';
 
     return {
       mode: els.storageModeSelect ? normalizeStorageMode(els.storageModeSelect.value) : normalizeStorageMode(state.storageConfig && state.storageConfig.defaultMode),
       googleDrive: {
-        shareUrl: logDriveUrl || globalDriveUrl || ((state.storageConfig && state.storageConfig.googleDrive && state.storageConfig.googleDrive.shareUrl) || '')
+        shareUrl: globalDriveUrl || ((state.storageConfig && state.storageConfig.googleDrive && state.storageConfig.googleDrive.shareUrl) || '')
       }
     };
   }
@@ -234,6 +318,7 @@
   function renderLogDetail(els, data) {
     const log = data && data.log ? data.log : null;
     const images = Array.isArray(data && data.images) ? data.images : [];
+    const liveDriveImages = Array.isArray(data && data.driveImages) ? data.driveImages : [];
     const folderUrl = data && data.folderUrl ? data.folderUrl : '';
 
     if (!log) {
@@ -252,6 +337,7 @@
     els.brewLogTitle.textContent = log.folderName || log.batchName || 'Bryggelogg';
     els.brewLogSubtitle.textContent = (log.styleName || 'Ukjent stil') + ' · eksportert ' + fmtTime(log.exportedAt);
     els.brewLogPills.innerHTML = ''
+      + '<div class="info-pill subtle">' + escapeHtml((log.logMode || (Array.isArray(log.history) && log.history.length ? 'hydrometer' : 'draft')) === 'draft' ? 'Status: uten hydrometer' : 'Status: hydrometer koblet') + '</div>'
       + (log.deviceName ? '<div class="info-pill subtle">Enhet: ' + escapeHtml(log.deviceName) + '</div>' : '')
       + (log.profileName ? '<div class="info-pill subtle">Profil: ' + escapeHtml(log.profileName) + '</div>' : '')
       + (log.periodLabel ? '<div class="info-pill subtle">Vindu: ' + escapeHtml(log.periodLabel) + '</div>' : '')
@@ -264,12 +350,19 @@
       + '<section class="detail-section"><h3>Lagrede metrics</h3>' + buildMetricCards(log.metrics) + '</section>'
       + '<section class="detail-section"><h3>Gjæringslogg</h3>' + buildSummarySection(log.summary) + '</section>'
       + '<section class="detail-section"><h3>Varsler</h3>' + buildAlertSection(log.alerts) + '</section>';
-    els.brewLogImages.innerHTML = buildImageGrid(images, storage);
+    els.brewLogImages.innerHTML = buildImageGrid(images, storage, liveDriveImages);
 
-    if (images.length) {
-      els.brewLogImageMeta.textContent = images.length + ' bilder funnet i bryggemappen.' + (driveUrl ? ' Drive-mappe er også koblet.' : '');
+    const driveImageCount = (Array.isArray(liveDriveImages) && liveDriveImages.length)
+      ? buildDriveImagesFromFiles(liveDriveImages).length
+      : buildDriveImages(storage).length;
+    const totalImageCount = images.length + driveImageCount;
+    if (totalImageCount) {
+      els.brewLogImageMeta.textContent = totalImageCount + ' bilder funnet'
+        + (images.length ? (' lokalt: ' + images.length + '.') : '.')
+        + (driveImageCount ? (' Drive: ' + driveImageCount + '.') : '')
+        + (driveUrl ? ' Drive-mappe er også koblet.' : '');
     } else if (driveUrl) {
-      els.brewLogImageMeta.textContent = 'Ingen lokale bilder funnet. Denne loggen er koblet til Google Drive for media.';
+      els.brewLogImageMeta.textContent = 'Ingen bilder funnet ennå. Denne loggen er koblet til Google Drive for media.';
     } else {
       els.brewLogImageMeta.textContent = 'Ingen bilder funnet i bryggemappen.';
     }
@@ -363,6 +456,35 @@
         renderLogDetail(els, detail);
         applyLogStorageToControls(els, detail.log, state);
         wireRelationActions(detail && detail.log ? detail.log.recipeRef : null);
+        if (driveModule && detail && detail.log) {
+          try {
+            const liveDriveImages = await driveModule.fetchLogImages(detail.log);
+            if (Array.isArray(liveDriveImages) && liveDriveImages.length) {
+              detail.driveImages = liveDriveImages;
+              if (detail.log && detail.log.storage && detail.log.storage.googleDrive) {
+                detail.log.storage.googleDrive.files = liveDriveImages.slice();
+              }
+              const matchedEntry = Array.isArray(state.logs)
+                ? state.logs.find(function (entry) { return entry.slug === state.selectedLogSlug; })
+                : null;
+              if (matchedEntry) {
+                matchedEntry.imageCount = (Array.isArray(detail.images) ? detail.images.length : 0) + liveDriveImages.length;
+                renderLogList(els, state, state.logs);
+                Array.from(els.brewLogList.querySelectorAll('[data-slug]')).forEach(function (button) {
+                  button.addEventListener('click', function () {
+                    state.selectedLogSlug = button.getAttribute('data-slug') || '';
+                    renderLogList(els, state, state.logs);
+                    loadSelectedLog();
+                  });
+                });
+              }
+              state.currentLogDetail = detail;
+              renderLogDetail(els, detail);
+              wireRelationActions(detail.log.recipeRef);
+            }
+          } catch (error) {
+          }
+        }
         return detail;
       } catch (error) {
         els.brewLogText.innerHTML = '<div class="empty-state">Klarte ikke åpne loggen: ' + escapeHtml(error.message) + '</div>';
@@ -392,9 +514,9 @@
         return device.id === state.exportDeviceId;
       }) || null;
       const mode = els.storageModeSelect ? storageModeLabel(normalizeStorageMode(els.storageModeSelect.value)) : 'Lokal';
-      const driveTarget = els.logDriveUrlInput && els.logDriveUrlInput.value
-        ? ' · egen Drive-mappe'
-        : ((els.driveRootUrlInput && els.driveRootUrlInput.value) ? ' · Drive-standard satt' : '');
+      const driveTarget = (els.driveRootUrlInput && els.driveRootUrlInput.value)
+        ? ' · delt Drive-bibliotek satt'
+        : '';
 
       state.batchName = batchName;
       state.folderName = folder;
@@ -402,6 +524,7 @@
         + (exportDevice ? (' · ' + (exportDevice.name || 'Uten navn')) : '')
         + ' · ' + mode
         + driveTarget;
+      updateExportButtonLabel(els);
       renderStorageHint(els, state.storageConfig, state.currentLogDetail && state.currentLogDetail.log);
     }
 
@@ -440,7 +563,7 @@
         const payload = await tools.saveLogStorage({
           action: 'save-log-storage',
           slug: state.selectedLogSlug,
-          storage: buildStoragePayloadFromControls(els, state, true)
+          storage: buildStoragePayloadFromControls(els, state)
         });
         state.currentLogDetail = payload;
         renderStorageOptionsNote(els, payload.storageOptions);
@@ -502,6 +625,146 @@
       }
     }
 
+    function draftBatchName() {
+      const selectedLogName = state.currentLogDetail && state.currentLogDetail.log
+        ? String(state.currentLogDetail.log.batchName || '').trim()
+        : '';
+      return String((els.batchNameInput && els.batchNameInput.value) || state.batchName || selectedLogName || 'Brygg').trim();
+    }
+
+    function buildDraftPayload() {
+      const batchName = draftBatchName();
+      const recipeRef = buildRecipeReferenceFromState(state);
+      const recipeStyle = recipeRef && recipeRef.style ? recipeRef.style : '';
+      const nowIso = new Date().toISOString();
+
+      return {
+        batchName: batchName,
+        folderName: tools.buildFolderName(batchName, new Date()),
+        styleName: recipeStyle,
+        deviceId: '',
+        deviceName: '',
+        profileName: '',
+        periodLabel: 'Ingen hydrometer koblet ennå',
+        recipeRef: recipeRef,
+        createdAt: nowIso,
+        exportedAt: nowIso,
+        logMode: 'draft',
+        summary: {
+          'Prosessbilde': 'Bryggeloggen er startet før RAPT Pill er koblet til denne batchen.',
+          'Risikobilde': 'Ingen hydrometerdata er lagt til ennå, så fermenteringsrisiko vurderes senere når måleserien er koblet inn.',
+          'Stilvurdering': recipeRef && recipeRef.style
+            ? ('Oppskriften er koblet til loggen som ' + recipeRef.style + '.')
+            : 'Ingen oppskrift er koblet til loggen ennå.',
+          'Modellprognose': 'Numerisk prognose aktiveres når filtrerte hydrometerdata er koblet til denne loggen.',
+          'Tidsvindu': 'Bryggeloggen er startet uten hydrometervindu ennå.',
+          'Filtrering': 'Ingen hydrometerfiltrering kjørt ennå.'
+        },
+        metrics: {
+          'Status': 'Startet uten hydrometer',
+          'Oppskrift': recipeRef ? (recipeRef.name || 'Koblet oppskrift') : 'Ingen koblet oppskrift'
+        },
+        alerts: [],
+        history: [],
+        source: {
+          usedCache: false,
+          generatedAt: nowIso,
+          draftOnly: true
+        }
+      };
+    }
+
+    async function persistPayload(payload, options) {
+      const settings = options || {};
+      const normalizedMode = normalizeStorageMode(payload && payload.storage && payload.storage.mode);
+      const shouldDownload = !!settings.forceDownload || (!settings.forceNoDownload && normalizedMode === 'local');
+      const busyLabel = settings.busyLabel || (shouldDownload ? 'Pakker eksport...' : 'Lagrer...');
+      const successPrefix = settings.successPrefix || (shouldDownload ? 'Eksportert' : 'Lagret');
+
+      els.downloadLogBtn.disabled = true;
+      if (els.startDraftLogBtn) els.startDraftLogBtn.disabled = true;
+      if (els.updateSelectedLogBtn) els.updateSelectedLogBtn.disabled = true;
+      els.downloadLogBtn.textContent = busyLabel;
+
+      try {
+        const result = await tools.exportLog(payload, {
+          download: shouldDownload
+        });
+        const filename = result && result.filename ? result.filename : 'brygglogg.zip';
+        state.selectedLogSlug = result && result.logSlug ? result.logSlug : (payload.targetSlug || payload.folderName || state.selectedLogSlug);
+        els.exportHintPill.textContent = shouldDownload
+          ? (successPrefix + ': ' + filename + (result && result.updatedExisting ? ' · eksisterende logg ble oppdatert' : ' · lokal metadata ble oppdatert'))
+          : (successPrefix + ': ' + (payload.targetSlug || payload.folderName || filename) + (result && result.updatedExisting ? ' · eksisterende logg ble oppdatert' : ''));
+        await refreshList();
+        if (driveModule && state.selectedLogSlug && driveModule.shouldAutoSync(payload.storage && payload.storage.mode)) {
+          await driveModule.syncLogBySlug(state.selectedLogSlug, {
+            interactive: true
+          });
+          els.exportHintPill.textContent = 'Lagret og synket til Google Drive: ' + (payload.targetSlug || payload.folderName || filename);
+          await refreshList();
+        }
+        if (state.selectedLogSlug) {
+          await selectLog(state.selectedLogSlug);
+        }
+        return result;
+      } finally {
+        els.downloadLogBtn.disabled = false;
+        if (els.startDraftLogBtn) els.startDraftLogBtn.disabled = false;
+        if (els.updateSelectedLogBtn) els.updateSelectedLogBtn.disabled = false;
+        updateExportButtonLabel(els);
+      }
+    }
+
+    async function startDraftLog() {
+      updateExportHint();
+      const payload = buildDraftPayload();
+      payload.batchName = draftBatchName();
+      payload.folderName = tools.buildFolderName(payload.batchName, new Date());
+      payload.storage = buildStoragePayloadFromControls(els, state);
+
+      try {
+        await persistPayload(payload, {
+          forceNoDownload: true,
+          busyLabel: 'Starter logg...',
+          successPrefix: 'Bryggeloggen er startet'
+        });
+      } catch (error) {
+        els.exportHintPill.textContent = 'Kunne ikke starte loggen: ' + error.message;
+      }
+    }
+
+    async function updateSelectedLogWithHydrometer() {
+      if (!state.selectedLogSlug) {
+        els.exportHintPill.textContent = 'Velg en eksisterende bryggelogg først.';
+        return;
+      }
+
+      const payload = config.getExportPayload();
+      if (!payload) {
+        els.exportHintPill.textContent = 'Velg en hydrometeranalyse før du oppdaterer loggen.';
+        return;
+      }
+
+      const currentLog = state.currentLogDetail && state.currentLogDetail.log ? state.currentLogDetail.log : null;
+      updateExportHint();
+      payload.targetSlug = state.selectedLogSlug;
+      payload.batchName = currentLog && currentLog.batchName ? currentLog.batchName : draftBatchName();
+      payload.folderName = state.selectedLogSlug;
+      payload.createdAt = currentLog && currentLog.createdAt ? currentLog.createdAt : '';
+      payload.recipeRef = payload.recipeRef || (currentLog && currentLog.recipeRef ? currentLog.recipeRef : null);
+      payload.storage = buildStoragePayloadFromControls(els, state);
+
+      try {
+        await persistPayload(payload, {
+          forceNoDownload: true,
+          busyLabel: 'Oppdaterer logg...',
+          successPrefix: 'Loggen ble oppdatert'
+        });
+      } catch (error) {
+        els.exportHintPill.textContent = 'Kunne ikke oppdatere loggen: ' + error.message;
+      }
+    }
+
     async function exportCurrent() {
       const payload = config.getExportPayload();
       if (!payload) {
@@ -512,28 +775,16 @@
       updateExportHint();
       payload.batchName = state.batchName;
       payload.folderName = state.folderName;
-      payload.storage = buildStoragePayloadFromControls(els, state, true);
+      payload.storage = buildStoragePayloadFromControls(els, state);
 
       try {
-        els.downloadLogBtn.disabled = true;
-        els.downloadLogBtn.textContent = 'Pakker eksport...';
-        const result = await tools.exportLog(payload);
-        const filename = result && result.filename ? result.filename : 'brygglogg.zip';
-        state.selectedLogSlug = result && result.logSlug ? result.logSlug : (payload.folderName || state.selectedLogSlug);
-        els.exportHintPill.textContent = 'Eksportert: ' + filename + (result && result.updatedExisting ? ' · eksisterende logg ble oppdatert' : ' · lokal metadata ble oppdatert');
-        await refreshList();
-        if (driveModule && state.selectedLogSlug && driveModule.shouldAutoSync(payload.storage && payload.storage.mode)) {
-          await driveModule.syncLogBySlug(state.selectedLogSlug, {
-            interactive: true
-          });
-          await refreshList();
-          await selectLog(state.selectedLogSlug);
-        }
+        await persistPayload(payload, {
+          busyLabel: normalizeStorageMode(payload.storage && payload.storage.mode) === 'local'
+            ? 'Pakker eksport...'
+            : (normalizeStorageMode(payload.storage && payload.storage.mode) === 'google-drive' ? 'Lagrer til Drive...' : 'Lagrer og synker...')
+        });
       } catch (error) {
         els.exportHintPill.textContent = 'Eksport feilet: ' + error.message;
-      } finally {
-        els.downloadLogBtn.disabled = false;
-        els.downloadLogBtn.textContent = 'Lagre bryggelogg';
       }
     }
 
@@ -548,6 +799,12 @@
       els.logDriveUrlInput.addEventListener('input', updateExportHint);
     }
     els.downloadLogBtn.addEventListener('click', exportCurrent);
+    if (els.startDraftLogBtn) {
+      els.startDraftLogBtn.addEventListener('click', startDraftLog);
+    }
+    if (els.updateSelectedLogBtn) {
+      els.updateSelectedLogBtn.addEventListener('click', updateSelectedLogWithHydrometer);
+    }
     els.refreshLogsBtn.addEventListener('click', refreshList);
     if (els.saveStorageConfigBtn) {
       els.saveStorageConfigBtn.addEventListener('click', saveStorageConfig);

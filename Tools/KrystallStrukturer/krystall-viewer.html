@@ -1012,6 +1012,7 @@ function refreshDerivedVisuals(){
   if($("toggleBonds").dataset.on==="1") rebuildBonds();
   rebuildSnapPoints();
   rebuildClosePackedPlanes();
+  updatePlanePresentation();
   if($("toggleUnitCell").dataset.on==="1"){
     rebuildUnitCellPreview();
     applyUnitCellIsolation(true);
@@ -1235,7 +1236,8 @@ function rebuildUnitCellPreview(){
         roughness: 0.35,
         metalness: 0.08,
         transparent: false,
-        opacity: 1.0
+        opacity: 1.0,
+        side: THREE.DoubleSide
       });
       const s = new THREE.Mesh(g, m);
       s.position.copy(p);
@@ -1251,7 +1253,7 @@ function rebuildUnitCellPreview(){
   wire.position.set(0.5,0.5,0.5);
   unitCellGroup.add(wire);
 
-  const clip = [
+  const baseClip = [
     new THREE.Plane(new THREE.Vector3( 1, 0, 0), 0),
     new THREE.Plane(new THREE.Vector3(-1, 0, 0), 1),
     new THREE.Plane(new THREE.Vector3( 0, 1, 0), 0),
@@ -1259,6 +1261,7 @@ function rebuildUnitCellPreview(){
     new THREE.Plane(new THREE.Vector3( 0, 0, 1), 0),
     new THREE.Plane(new THREE.Vector3( 0, 0,-1), 1),
   ];
+  const clip = baseClip;
 
   const eps = 1e-6;
   atomPositions.forEach((p, idx)=>{
@@ -1282,7 +1285,7 @@ function rebuildUnitCellPreview(){
     const s = new THREE.Mesh(g, m);
     s.position.copy(p);
     unitCellGroup.add(s);
-    addUnitCellCapsForSphere(p, radius, baseColor, clip);
+    addUnitCellCapsForSphere(p, radius, baseColor, baseClip);
   });
   unitCellGroup.visible = true;
 }
@@ -1290,11 +1293,11 @@ function rebuildUnitCellPreview(){
 function applyUnitCellIsolation(on){
   crystalGroup.visible = !on;
   bondGroup.visible = !on;
-  planeGroup.visible = !on;
   cutGroup.visible = !on;
   placedGroup.visible = !on;
   if(on) ghost.visible = false;
   unitCellGroup.visible = on;
+  updatePlanePresentation();
 }
 
 /* ---------- atoms/materials ---------- */
@@ -1700,10 +1703,120 @@ const planes = [];
 let planeIdCounter = 1;
 
 function planeColorForIndex(i){
-  const p = parseCssColorToThree(cssVar("--primary","#2f6fed"), 0x2f6fed).clone();
-  const t = parseCssColorToThree(cssVar("--text-muted","rgba(17,24,39,.65)"), 0x6b7280).clone();
-  const a = (i % 4) / 3;
-  return p.lerp(t, a).getHex();
+  const palette = [
+    0xef4444,
+    0x3b82f6,
+    0x22c55e,
+    0xf59e0b,
+    0xa855f7,
+    0x06b6d4,
+    0xec4899,
+    0x84cc16
+  ];
+  return palette[i % palette.length];
+}
+
+function formatCrystalIndex(value){
+  const n = Math.round(value);
+  if(n < 0) return `${Math.abs(n)}\u0305`;
+  return `${n}`;
+}
+
+function getPlaneVisualSize(){
+  const pts = atomPositions.filter(p => p && p.x < 1e8);
+  if(!pts.length) return 3.0;
+  const min = pts[0].clone();
+  const max = pts[0].clone();
+  pts.forEach(p => {
+    min.min(p);
+    max.max(p);
+  });
+  const span = max.clone().sub(min);
+  return Math.max(3.0, span.length() + 1.5);
+}
+
+function getActiveUnitCellClipPlanes(){
+  if($("toggleUnitCell").dataset.on!=="1") return null;
+  if($("structure").value === "hcp") return null;
+  return [
+    new THREE.Plane(new THREE.Vector3( 1, 0, 0), 0),
+    new THREE.Plane(new THREE.Vector3(-1, 0, 0), 1),
+    new THREE.Plane(new THREE.Vector3( 0, 1, 0), 0),
+    new THREE.Plane(new THREE.Vector3( 0,-1, 0), 1),
+    new THREE.Plane(new THREE.Vector3( 0, 0, 1), 0),
+    new THREE.Plane(new THREE.Vector3( 0, 0,-1), 1),
+  ];
+}
+
+function formatNormalLabel(normal){
+  const parts = [normal.x, normal.y, normal.z].map(v => formatCrystalIndex(v));
+  return `[${parts.join(" ")}]`;
+}
+
+function formatPlaneFamilyLabel(normal, familyBraces = true){
+  const parts = [normal.x, normal.y, normal.z].map(v => formatCrystalIndex(v));
+  const open = familyBraces ? "{" : "(";
+  const close = familyBraces ? "}" : ")";
+  return `${open}${parts.join(" ")}${close}`;
+}
+
+function getVisibleAtomPositions(){
+  return atomPositions.filter(p => p && p.x < 1e8);
+}
+
+function clusterPlaneOffsetsAlongNormal(rawNormal, tolerance = 0.08){
+  const atoms = getVisibleAtomPositions();
+  if(!atoms.length) return [];
+  const n = rawNormal.clone().normalize();
+  const values = atoms
+    .map(p => ({ point: p.clone(), offset: n.dot(p) }))
+    .sort((a, b) => a.offset - b.offset);
+
+  const groups = [];
+  values.forEach(entry => {
+    const last = groups[groups.length - 1];
+    if(!last || Math.abs(entry.offset - last.offset) > tolerance){
+      groups.push({
+        offset: entry.offset,
+        points: [entry.point]
+      });
+      return;
+    }
+    const count = last.points.length;
+    last.offset = (last.offset * count + entry.offset) / (count + 1);
+    last.points.push(entry.point);
+  });
+  return groups;
+}
+
+function createPlaneSpecsFromAtomLayers(rawNormal, label){
+  const groups = clusterPlaneOffsetsAlongNormal(rawNormal);
+  const n = rawNormal.clone().normalize();
+  return groups.map((group, idx) => ({
+    label: `${label} ${idx + 1}`,
+    normal: rawNormal.clone(),
+    point: n.clone().multiplyScalar(group.offset)
+  }));
+}
+
+function createRepresentativePlaneSpecFromAtomLayers(rawNormal, label){
+  const groups = clusterPlaneOffsetsAlongNormal(rawNormal);
+  if(!groups.length) return [];
+  const n = rawNormal.clone().normalize();
+  const atoms = getVisibleAtomPositions();
+  const center = atoms.length
+    ? atoms.reduce((acc, p) => acc.add(p.clone()), new THREE.Vector3()).multiplyScalar(1 / atoms.length)
+    : new THREE.Vector3(0.5, 0.5, 0.5);
+  const centerOffset = n.dot(center);
+  const best = groups.reduce((closest, group) => {
+    if(!closest) return group;
+    return Math.abs(group.offset - centerOffset) < Math.abs(closest.offset - centerOffset) ? group : closest;
+  }, null);
+  return [{
+    label,
+    normal: rawNormal.clone(),
+    point: n.clone().multiplyScalar(best.offset)
+  }];
 }
 
 function renderPlaneList(){
@@ -1727,7 +1840,8 @@ function renderPlaneList(){
     meta.className = "meta";
     meta.textContent = p.label || `(${p.h} ${p.k} ${p.l})`;
     const sm = document.createElement("small");
-    sm.textContent = p.visible ? "synlig" : "skjult";
+    const direction = p.normalDisplay ? ` · normal ${p.normalDisplay}` : "";
+    sm.textContent = `${p.visible ? "synlig" : "skjult"}${direction}`;
     meta.appendChild(sm);
 
     const tog = document.createElement("button");
@@ -1763,19 +1877,25 @@ function renderPlaneList(){
 
 function addPlaneMeshRecord({ label, normal, point, color = null, opacity = 0.12, autoFamily = null }){
   const n = normal.clone().normalize();
-  const geom = new THREE.PlaneGeometry(7, 7, 1, 1);
+  const rawNormal = normal.clone();
+  const geom = new THREE.PlaneGeometry(getPlaneVisualSize(), getPlaneVisualSize(), 1, 1);
   const mat = new THREE.MeshStandardMaterial({
     color: color ?? planeColorForIndex(planes.length),
     transparent: true,
-    opacity,
+    opacity: Math.max(opacity, 0.22),
     side: THREE.DoubleSide,
     roughness: 0.6,
-    metalness: 0.0
+    metalness: 0.0,
+    clippingPlanes: getActiveUnitCellClipPlanes(),
+    clipIntersection: false,
+    depthTest: false,
+    depthWrite: false
   });
   const mesh = new THREE.Mesh(geom, mat);
   const zAxis = new THREE.Vector3(0,0,1);
   mesh.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(zAxis, n));
   mesh.position.copy(point);
+  mesh.renderOrder = 30;
   planeGroup.add(mesh);
 
   planes.push({
@@ -1785,6 +1905,8 @@ function addPlaneMeshRecord({ label, normal, point, color = null, opacity = 0.12
     mesh,
     visible: true,
     normal: n.clone(),
+    rawNormal: rawNormal.clone(),
+    normalDisplay: formatNormalLabel(rawNormal),
     point: point.clone(),
     autoFamily
   });
@@ -1792,20 +1914,18 @@ function addPlaneMeshRecord({ label, normal, point, color = null, opacity = 0.12
 
 function addMillerPlane(h,k,l){
   const eps = 1e-9;
-  const n = new THREE.Vector3(h||0, k||0, l||0);
-  if(n.length() < eps){
+  const raw = new THREE.Vector3(h||0, k||0, l||0);
+  if(raw.length() < eps){
     toast("Ugyldig plan", "h=k=l=0 gir ikke et plan.");
     return;
   }
-  n.normalize();
-
-  const x0 = (h===0) ? 0.5 : Math.min(1, Math.max(0, 1/h));
-  const y0 = (k===0) ? 0.5 : Math.min(1, Math.max(0, 1/k));
-  const z0 = (l===0) ? 0.5 : Math.min(1, Math.max(0, 1/l));
-  const p0 = new THREE.Vector3(x0,y0,z0);
+  const n = raw.clone().normalize();
+  const center = new THREE.Vector3(0.5,0.5,0.5);
+  const scale = (1 - raw.dot(center)) / raw.lengthSq();
+  const p0 = center.clone().add(raw.clone().multiplyScalar(scale));
 
   addPlaneMeshRecord({
-    label: `(${h} ${k} ${l})`,
+    label: formatPlaneFamilyLabel(raw, false),
     normal: n,
     point: p0
   });
@@ -1825,38 +1945,32 @@ function removeAutoPlanes(family){
 }
 
 function getClosePackedPlaneSpecs(type){
-  const center = new THREE.Vector3(0.5,0.5,0.5);
   if(type==="fcc" || type==="diamond" || type==="nacl" || type==="zns" || type==="caf2" || type==="spinel"){
     return [
-      { label: "{111} A", normal: new THREE.Vector3( 1, 1, 1), point: center.clone() },
-      { label: "{111} B", normal: new THREE.Vector3( 1, 1,-1), point: center.clone() },
-      { label: "{111} C", normal: new THREE.Vector3( 1,-1, 1), point: center.clone() },
-      { label: "{111} D", normal: new THREE.Vector3(-1, 1, 1), point: center.clone() },
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1, 1), true)),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 1,-1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1,-1), true)),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1,-1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1,-1, 1), true)),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(-1, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3(-1, 1, 1), true))
     ];
   }
   if(type==="bcc"){
     return [
-      { label: "{110} A", normal: new THREE.Vector3( 1, 1, 0), point: center.clone() },
-      { label: "{110} B", normal: new THREE.Vector3( 1,-1, 0), point: center.clone() },
-      { label: "{110} C", normal: new THREE.Vector3( 1, 0, 1), point: center.clone() },
-      { label: "{110} D", normal: new THREE.Vector3( 1, 0,-1), point: center.clone() },
-      { label: "{110} E", normal: new THREE.Vector3( 0, 1, 1), point: center.clone() },
-      { label: "{110} F", normal: new THREE.Vector3( 0, 1,-1), point: center.clone() },
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 1, 0), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1, 0), true)),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1,-1, 0), formatPlaneFamilyLabel(new THREE.Vector3( 1,-1, 0), true)),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 0, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 0, 1), true)),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 0,-1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 0,-1), true)),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 0, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 0, 1, 1), true)),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 0, 1,-1), formatPlaneFamilyLabel(new THREE.Vector3( 0, 1,-1), true)),
     ];
   }
   if(type==="hcp"){
-    const a = 1.0;
-    const c = a * 1.633;
-    return [
-      { label: "Basalplan A", normal: new THREE.Vector3(0,1,0), point: new THREE.Vector3(0, 0, 0) },
-      { label: "Basalplan B", normal: new THREE.Vector3(0,1,0), point: new THREE.Vector3(0, c/2, 0) },
-    ];
+    return createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(0,1,0), "(0001)");
   }
   if(type==="sc" || type==="cscl"){
     return [
-      { label: "{100}", normal: new THREE.Vector3(1,0,0), point: center.clone() },
-      { label: "{010}", normal: new THREE.Vector3(0,1,0), point: center.clone() },
-      { label: "{001}", normal: new THREE.Vector3(0,0,1), point: center.clone() },
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(1,0,0), "{100}"),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(0,1,0), "{010}"),
+      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(0,0,1), "{001}"),
     ];
   }
   return [];
@@ -1868,7 +1982,7 @@ function rebuildClosePackedPlanes(){
   const specs = getClosePackedPlaneSpecs($("structure").value);
   specs.forEach(spec => {
     addPlaneMeshRecord({
-      label: spec.label,
+      label: spec.label || formatPlaneFamilyLabel(spec.normal, true),
       normal: spec.normal,
       point: spec.point,
       opacity: 0.16,
@@ -1877,6 +1991,18 @@ function rebuildClosePackedPlanes(){
   });
   renderPlaneList();
   rebuildCuts();
+}
+
+function updatePlanePresentation(){
+  const clip = getActiveUnitCellClipPlanes();
+  planeGroup.visible = planes.some(p => p.visible);
+  planes.forEach(p => {
+    p.mesh.visible = p.visible;
+    if(p.mesh.material){
+      p.mesh.material.clippingPlanes = clip;
+      p.mesh.material.needsUpdate = true;
+    }
+  });
 }
 
 /* ---------- bonds ---------- */
@@ -2497,10 +2623,12 @@ $("toggleUnitCell").addEventListener("click", ()=>{
   if(!on){
     rebuildUnitCellPreview();
     applyUnitCellIsolation(true);
+    updatePlanePresentation();
     toast("Enhetscelle", "Viser kun enhetscellen (klippede rand-atomer)");
   }else{
     clearUnitCellPreview();
     applyUnitCellIsolation(false);
+    updatePlanePresentation();
     toast("Enhetscelle", "Skjult");
   }
 });

@@ -234,10 +234,10 @@ function brewing_storage_mode_label(string $mode): string {
 
 function brewing_storage_mode_summary(string $mode): string {
     if ($mode === 'google-drive') {
-        return 'Bryggedata speiles lokalt for viewer-en, mens Google Drive er hovedstedet for deling og bilder.';
+        return 'Bryggedata speiles lokalt for viewer-en, mens Google Drive er hovedstedet for deling, loggmapper og bilder.';
     }
     if ($mode === 'hybrid') {
-        return 'Bryggedata lagres lokalt, og Google Drive kan brukes i tillegg for bilder og deling.';
+        return 'Bryggedata lagres lokalt, og Google Drive kan brukes i tillegg for synk, loggmapper og bilder.';
     }
     return 'Bryggeloggen holdes lokalt på serveren sammen med eventuelle bilder.';
 }
@@ -290,7 +290,7 @@ function brewing_normalize_google_drive_settings($value, array $fallback = []): 
         'folderId' => $folderId,
         'shareUrl' => $shareUrl,
         'note' => trim((string)($input['note'] ?? ($fallback['note'] ?? ''))),
-        'folderLabel' => trim((string)($input['folderLabel'] ?? ($fallback['folderLabel'] ?? 'Bryggelogger'))),
+        'folderLabel' => trim((string)($input['folderLabel'] ?? ($fallback['folderLabel'] ?? 'FolkNettside'))),
         'lastSyncedAt' => trim((string)($input['lastSyncedAt'] ?? ($fallback['lastSyncedAt'] ?? ''))),
         'accountLabel' => trim((string)($input['accountLabel'] ?? ($fallback['accountLabel'] ?? ''))),
         'files' => is_array($input['files'] ?? null)
@@ -307,7 +307,7 @@ function brewing_default_storage_config(): array {
         'googleDrive' => brewing_normalize_google_drive_settings([
             'folderId' => $secrets['googleDriveFolderId'],
             'shareUrl' => $secrets['googleDriveShareUrl'],
-            'folderLabel' => 'Bryggelogger',
+            'folderLabel' => 'FolkNettside',
         ]),
     ];
 }
@@ -371,6 +371,9 @@ function brewing_normalize_storage_payload($value, array $config = []): array {
             'shareUrl' => $googleDrive['shareUrl'],
             'note' => $googleDrive['note'],
             'folderLabel' => $googleDrive['folderLabel'],
+            'lastSyncedAt' => $googleDrive['lastSyncedAt'],
+            'accountLabel' => $googleDrive['accountLabel'],
+            'files' => $googleDrive['files'],
         ],
     ];
 }
@@ -404,6 +407,37 @@ function brewing_drive_manifest(array $log): array {
     ];
 }
 
+function brewing_example_drive_image_svg(array $log): string {
+    $batchName = htmlspecialchars((string)($log['batchName'] ?? 'Brygg'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $styleName = htmlspecialchars((string)($log['styleName'] ?? 'Brygging'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $periodLabel = htmlspecialchars((string)($log['periodLabel'] ?? 'Fra valgt visning'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    return '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">'
+        . '<title id="title">Eksempelbilde for bryggeloggen</title>'
+        . '<desc id="desc">Automatisk eksempelbilde for Google Drive-visning i Brygging.</desc>'
+        . '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0f405c"/><stop offset="55%" stop-color="#2f79b8"/><stop offset="100%" stop-color="#7e36ff"/></linearGradient></defs>'
+        . '<rect width="1600" height="900" rx="36" fill="url(#bg)"/>'
+        . '<circle cx="1320" cy="180" r="120" fill="rgba(255,255,255,0.16)"/>'
+        . '<circle cx="1440" cy="720" r="190" fill="rgba(255,255,255,0.08)"/>'
+        . '<rect x="84" y="96" width="580" height="708" rx="32" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.22)"/>'
+        . '<text x="128" y="190" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" fill="#ffffff">Brygging</text>'
+        . '<text x="128" y="262" font-family="Segoe UI, Arial, sans-serif" font-size="68" font-weight="800" fill="#ffffff">' . $batchName . '</text>'
+        . '<text x="128" y="326" font-family="Segoe UI, Arial, sans-serif" font-size="30" fill="rgba(255,255,255,0.86)">' . $styleName . '</text>'
+        . '<text x="128" y="388" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.76)">Visning: ' . $periodLabel . '</text>'
+        . '<text x="128" y="500" font-family="Segoe UI, Arial, sans-serif" font-size="28" fill="#ffffff">Dette er et automatisk eksempelbilde.</text>'
+        . '<text x="128" y="548" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.82)">Legg egne bryggebilder i bilder-mappen i Google Drive,</text>'
+        . '<text x="128" y="588" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.82)">sa vises de her sammen med loggen.</text>'
+        . '<g transform="translate(820 190)">'
+        . '<rect x="0" y="0" width="540" height="520" rx="34" fill="rgba(255,255,255,0.92)"/>'
+        . '<path d="M86 370 L210 250 L310 330 L396 210 L486 370 Z" fill="#9c64ff" opacity="0.92"/>'
+        . '<circle cx="414" cy="134" r="44" fill="#f7b94a"/>'
+        . '<rect x="78" y="408" width="382" height="18" rx="9" fill="#d6e7f4"/>'
+        . '<rect x="78" y="444" width="278" height="18" rx="9" fill="#d6e7f4"/>'
+        . '</g>'
+        . '</svg>';
+}
+
 function brewing_build_drive_sync_package(array $log): array {
     $html = brewing_render_log_html($log);
     $csv = brewing_csv_from_history((array)($log['history'] ?? []));
@@ -419,6 +453,20 @@ function brewing_build_drive_sync_package(array $log): array {
     $imageGuide = (!empty($log['storage']['googleDrive']['enabled']))
         ? "Denne bryggeloggen er koblet til Google Drive.\nLegg gjerne bildefiler i denne undermappen, så kan Brygging oppdatere dem videre.\n"
         : "Legg lokale bryggebilder i denne mappen for å vise dem direkte i Brygging.\n";
+    $imageFiles = [
+        [
+            'name' => 'legg-bilder-her.txt',
+            'mimeType' => 'text/plain',
+            'content' => $imageGuide,
+        ],
+    ];
+    if (!empty($log['storage']['googleDrive']['enabled'])) {
+        $imageFiles[] = [
+            'name' => 'eksempel-brygging.svg',
+            'mimeType' => 'image/svg+xml',
+            'content' => brewing_example_drive_image_svg($log),
+        ];
+    }
 
     return [
         'folderName' => (string)($log['folderName'] ?? 'Brygglogg'),
@@ -457,13 +505,7 @@ function brewing_build_drive_sync_package(array $log): array {
         'subfolders' => [
             [
                 'name' => 'bilder',
-                'files' => [
-                    [
-                        'name' => 'legg-bilder-her.txt',
-                        'mimeType' => 'text/plain',
-                        'content' => $imageGuide,
-                    ],
-                ],
+                'files' => $imageFiles,
             ],
         ],
     ];
@@ -473,12 +515,12 @@ function brewing_drive_upload_readme(array $log): string {
     $storage = is_array($log['storage'] ?? null) ? $log['storage'] : [];
     $shareUrl = trim((string)($storage['googleDrive']['shareUrl'] ?? ''));
 
-    return "Google Drive-opplasting for Brygging\n\n"
-        . "1. Last ned ZIP-filen fra Brygging-siden.\n"
-        . "2. Pakk ut mappen lokalt hvis du vil kontrollere innholdet.\n"
-        . "3. Last opp hele bryggemappen til din delte Google Drive-mappe.\n"
-        . "4. Kopier delingslenken til den konkrete Drive-mappen for dette brygget.\n"
-        . "5. Lim den inn tilbake i Brygging under 'Drive-mappe for valgt logg' for å koble loggen til Drive.\n\n"
+    return "Google Drive-synk for Brygging\n\n"
+        . "1. Koble Google-kontoen din i Brygging.\n"
+        . "2. Velg lagringsmodus Hybrid eller Google Drive.\n"
+        . "3. Lagre bryggeloggen fra Brygging-siden.\n"
+        . "4. Brygging oppretter deretter mappen automatisk i Drive under FolkNettside/Brygging/<logg>.\n"
+        . "5. Legg egne bilder i undermappen bilder hvis du vil at de skal vises sammen med loggen.\n\n"
         . ($shareUrl !== '' ? ("Standard Drive-mappe er satt til:\n" . $shareUrl . "\n\n") : '')
         . "Tips: behold logg.json, logg.html og telemetry.csv lokalt hvis du vil ha rask visning, og legg de tunge bildene i Drive.\n";
 }
@@ -568,18 +610,56 @@ function brewing_resolve_log_dir(string $root, string $folderName, array $log): 
     brewing_error('Could not find a safe log folder name without creating duplicates.', 500);
 }
 
-function brewing_persist_log_folder(array $log, string $html, string $csv): array {
+function brewing_persist_log_folder(array $log, string $html, string $csv, ?string $targetSlug = null): array {
     $root = brewing_ensure_logs_root();
-    $folderName = brewing_safe_folder_name((string)($log['folderName'] ?? 'Brygglogg'));
-    $resolved = brewing_resolve_log_dir($root, $folderName, $log);
-    $dir = $resolved['dir'];
-    $log['folderName'] = $resolved['folderName'];
-    $log['logFingerprint'] = $resolved['fingerprint'];
-    $log['updatedExisting'] = (bool)$resolved['updatedExisting'];
+    $existingLog = [];
+    $safeTargetSlug = $targetSlug !== null ? brewing_safe_folder_name($targetSlug) : '';
+
+    if ($safeTargetSlug !== '') {
+        $dir = brewing_safe_join($root, basename($safeTargetSlug));
+        if (!is_dir($dir)) {
+            brewing_error('Selected brew log folder could not be found for update.', 404);
+        }
+        $jsonPath = $dir . DIRECTORY_SEPARATOR . 'logg.json';
+        if (is_file($jsonPath)) {
+            $existingLog = brewing_read_json_file($jsonPath);
+        }
+        $log['folderName'] = basename($safeTargetSlug);
+        $log['logFingerprint'] = brewing_log_fingerprint($log);
+        $log['updatedExisting'] = true;
+    } else {
+        $folderName = brewing_safe_folder_name((string)($log['folderName'] ?? 'Brygglogg'));
+        $resolved = brewing_resolve_log_dir($root, $folderName, $log);
+        $dir = $resolved['dir'];
+        $log['folderName'] = $resolved['folderName'];
+        $log['logFingerprint'] = $resolved['fingerprint'];
+        $log['updatedExisting'] = (bool)$resolved['updatedExisting'];
+        if (!empty($resolved['updatedExisting'])) {
+            $jsonPath = $dir . DIRECTORY_SEPARATOR . 'logg.json';
+            if (is_file($jsonPath)) {
+                $existingLog = brewing_read_json_file($jsonPath);
+            }
+        }
+    }
 
     if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
         brewing_error('Could not create brew log folder.', 500);
     }
+
+    if (($log['recipeRef'] ?? null) === null && !empty($existingLog['recipeRef'])) {
+        $log['recipeRef'] = brewing_normalize_recipe_ref($existingLog['recipeRef']);
+    }
+    if (empty($log['styleName']) && !empty($existingLog['styleName'])) {
+        $log['styleName'] = $existingLog['styleName'];
+    }
+    if (empty($log['deviceId']) && !empty($existingLog['deviceId'])) {
+        $log['deviceId'] = $existingLog['deviceId'];
+        $log['deviceName'] = $log['deviceName'] ?: ($existingLog['deviceName'] ?? null);
+        $log['profileName'] = $log['profileName'] ?: ($existingLog['profileName'] ?? null);
+    }
+    $log['createdAt'] = trim((string)($log['createdAt'] ?? ($existingLog['createdAt'] ?? ($log['exportedAt'] ?? gmdate(DATE_ATOM)))));
+    $log['updatedAt'] = gmdate(DATE_ATOM);
+    $log['logMode'] = (!empty($log['history']) || !empty($log['deviceId'])) ? 'hydrometer' : 'draft';
 
     $storage = brewing_normalize_storage_payload($log['storage'] ?? null);
     $storage = brewing_attach_local_storage_url($storage, $dir);
@@ -768,6 +848,33 @@ function brewing_list_image_files(string $dir): array {
     return $images;
 }
 
+function brewing_is_image_file_name(string $name): bool {
+    return (bool)preg_match('/\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i', $name);
+}
+
+function brewing_drive_image_files(array $storage): array {
+    $drive = is_array($storage['googleDrive'] ?? null) ? $storage['googleDrive'] : [];
+    $files = is_array($drive['files'] ?? null) ? $drive['files'] : [];
+    $images = [];
+
+    foreach ($files as $file) {
+        if (!is_array($file)) {
+            continue;
+        }
+        $mimeType = strtolower((string)($file['mimeType'] ?? ''));
+        $name = (string)($file['name'] ?? '');
+        if ($mimeType !== '' && strpos($mimeType, 'image/') === 0) {
+            $images[] = $file;
+            continue;
+        }
+        if (brewing_is_image_file_name($name)) {
+            $images[] = $file;
+        }
+    }
+
+    return $images;
+}
+
 function brewing_collect_log_folders(): array {
     $root = brewing_ensure_logs_root();
     $entries = [];
@@ -787,6 +894,7 @@ function brewing_collect_log_folders(): array {
             brewing_normalize_storage_payload($log['storage'] ?? null),
             $full
         );
+        $driveImages = brewing_drive_image_files($storage);
         $entries[] = [
             'slug' => basename($full),
             'folderName' => $log['folderName'] ?? basename($full),
@@ -795,7 +903,7 @@ function brewing_collect_log_folders(): array {
             'styleName' => $log['styleName'] ?? null,
             'deviceName' => $log['deviceName'] ?? null,
             'recipeRef' => $recipeRef,
-            'imageCount' => count($images),
+            'imageCount' => count($images) + count($driveImages),
             'coverImage' => $images[0]['url'] ?? null,
             'summary' => $log['summary'] ?? [],
             'metrics' => $log['metrics'] ?? [],
@@ -839,8 +947,6 @@ function brewing_render_log_html(array $log): string {
             . '<p><span class="label">Kilde</span>' . brewing_escape_html((string)($recipeRef['providerLabel'] ?? 'Lokal')) . '</p>'
             . '<p><span class="label">Stil</span>' . brewing_escape_html((string)($recipeRef['style'] ?? '')) . '</p>';
     }
-    $recipeHtml = str_replace('ennÃ¥', 'ennå', $recipeHtml);
-
     $storageHtml = '<p><span class="label">Lagringsmodus</span>' . brewing_escape_html((string)($storage['label'] ?? 'Lokal')) . '</p>'
         . '<p>' . brewing_escape_html((string)($storage['summary'] ?? '')) . '</p>';
     if (!empty($storage['googleDrive']['shareUrl'])) {
@@ -870,10 +976,7 @@ function brewing_render_log_html(array $log): string {
             . '</tr>';
     }
 
-    return str_replace(
-        ['GjÃ¦ringslogg', 'FÃ¸rste datapunkter'],
-        ['Gjæringslogg', 'Første datapunkter'],
-        '<!DOCTYPE html>
+    return '<!DOCTYPE html>
 <html lang="no">
 <head>
   <meta charset="utf-8">
@@ -942,6 +1045,5 @@ function brewing_render_log_html(array $log): string {
     </section>
   </main>
 </body>
-</html>'
-    );
+</html>';
 }

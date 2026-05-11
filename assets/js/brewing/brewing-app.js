@@ -69,6 +69,8 @@
     driveRootUrlInput: document.getElementById('driveRootUrlInput'),
     logDriveUrlInput: document.getElementById('logDriveUrlInput'),
     downloadLogBtn: document.getElementById('downloadLogBtn'),
+    startDraftLogBtn: document.getElementById('startDraftLogBtn'),
+    updateSelectedLogBtn: document.getElementById('updateSelectedLogBtn'),
     connectGoogleDriveBtn: document.getElementById('connectGoogleDriveBtn'),
     syncSelectedDriveBtn: document.getElementById('syncSelectedDriveBtn'),
     refreshLogsBtn: document.getElementById('refreshLogsBtn'),
@@ -196,7 +198,9 @@
   function setActiveView(view) {
     state.activeView = view;
     els.viewTabs.forEach(function (button) {
-      button.classList.toggle('active', button.getAttribute('data-view') === view);
+      const isActive = button.getAttribute('data-view') === view;
+      button.classList.toggle('active', isActive);
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
     els.panels.forEach(function (panel) {
       panel.classList.toggle('active', panel.getAttribute('data-view') === view);
@@ -309,7 +313,9 @@
     syncDateInputs(state.currentAnalysis);
     syncBatchName(state.currentAnalysis);
     els.rangeButtons.forEach(function (button) {
-      button.classList.toggle('active', button.getAttribute('data-days') === String(state.days));
+      const isActive = button.getAttribute('data-days') === String(state.days);
+      button.classList.toggle('active', isActive);
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
     wireDeviceList();
   }

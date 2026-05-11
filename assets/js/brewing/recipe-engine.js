@@ -840,6 +840,24 @@
       }).join('') + '</div></section>';
   }
 
+  function renderActiveBrewLinkSection(recipe, isLinkedSelection) {
+    const title = isLinkedSelection
+      ? 'Denne oppskriften er koblet til aktivt brygg.'
+      : 'Koble denne oppskriften til aktivt brygg før du lagrer loggen.';
+    const detail = isLinkedSelection
+      ? 'Neste bryggelogg som eksporteres vil bruke denne oppskriften som referanse.'
+      : 'Når du klikker knappen under, brukes denne oppskriften i hydrometerdelen og følger med inn i neste bryggeloggeksport.';
+    const buttonLabel = isLinkedSelection ? 'Brukes for neste logg' : 'Bruk for neste logg';
+
+    return ''
+      + '<section class="detail-section"><h3>Kobling til aktivt brygg</h3>'
+      + '<article class="relation-card">'
+      + '<strong>' + escapeHtml(title) + '</strong>'
+      + '<span>' + escapeHtml(detail) + '</span>'
+      + '<button class="action-btn subtle-action relation-action" type="button" data-link-active-recipe="' + escapeHtml(String(recipe && recipe.id || '')) + '">' + escapeHtml(buttonLabel) + '</button>'
+      + '</article></section>';
+  }
+
   function renderRecipeDetail(els, recipe, linkedLogs, isLinkedSelection, storageOptions) {
     if (!recipe) {
       els.recipeTitle.textContent = 'Velg en oppskrift';
@@ -876,6 +894,7 @@
       + (inventoryFit && inventoryFit.active ? '<div class="info-pill subtle">Lagerfit: ' + escapeHtml(String(inventoryFitPct)) + '%</div>' : '')
       + '<div class="info-pill subtle">Brygget som: ' + escapeHtml(String((linkedLogs || []).length)) + ' logg(er)</div>';
     els.recipeText.innerHTML = ''
+      + renderActiveBrewLinkSection(recipe, isLinkedSelection)
       + '<section class="detail-section"><h3>Knyttede bryggelogger</h3>' + renderLinkedLogCards(linkedLogs) + '</section>'
       + renderScalingSection(recipe)
       + renderInventoryFitSection(recipe)
@@ -1059,13 +1078,30 @@
     const onLogNavigate = typeof config.onLogNavigate === 'function' ? config.onLogNavigate : null;
     const ensureLogsLoaded = typeof config.ensureLogsLoaded === 'function' ? config.ensureLogsLoaded : null;
 
+    function resolveRecipeById(recipeId) {
+      const id = String(recipeId || '');
+      return (state.recipeResults || []).find(function (entry) { return entry.id === id; })
+        || (state.recipes || []).find(function (entry) { return entry.id === id; })
+        || null;
+    }
+
+    function setLinkedRecipe(recipe) {
+      if (!recipe) {
+        state.linkedRecipe = null;
+        return;
+      }
+      const canonical = (state.recipes || []).find(function (entry) {
+        return recipeMatchesRef(entry, recipe);
+      }) || recipe;
+      state.selectedRecipeId = canonical.id || recipe.id || '';
+      state.linkedRecipe = canonical;
+    }
+
     function wireRecipeButtons() {
       Array.from(els.recipeList.querySelectorAll('[data-id]')).forEach(function (button) {
         button.addEventListener('click', function () {
-          state.selectedRecipeId = button.getAttribute('data-id') || '';
-          state.linkedRecipe = (state.recipes || []).find(function (entry) {
-            return entry.id === state.selectedRecipeId;
-          }) || null;
+          const recipe = resolveRecipeById(button.getAttribute('data-id') || '');
+          setLinkedRecipe(recipe);
           renderRecipeList(els, state);
           loadSelectedRecipe();
         });
@@ -1078,6 +1114,18 @@
         button.addEventListener('click', function () {
           onLogNavigate(button.getAttribute('data-log-slug') || '');
         });
+      });
+    }
+
+    function wireActiveRecipeLinkButton() {
+      const button = els.recipeText.querySelector('[data-link-active-recipe]');
+      if (!button) return;
+      button.addEventListener('click', function () {
+        const recipe = resolveRecipeById(button.getAttribute('data-link-active-recipe') || state.selectedRecipeId);
+        setLinkedRecipe(recipe);
+        renderRecipeList(els, state);
+        loadSelectedRecipe();
+        onRecipeChange();
       });
     }
 
@@ -1213,6 +1261,7 @@
       const linkedToActiveBatch = recipe && state.linkedRecipe ? recipeMatchesRef(recipe, state.linkedRecipe) : false;
       renderRecipeDetail(els, recipe, linkedLogs, linkedToActiveBatch, state.storageOptions);
       wireLinkedLogButtons();
+      wireActiveRecipeLinkButton();
       onRecipeChange();
 
       if (!recipe) {
