@@ -1,7 +1,7 @@
-(function (global) {
+﻿(function (global) {
   'use strict';
 
-  const CACHE_KEY = 'brewingDashboardCache:v1';
+  const CACHE_KEY = 'brewingDashboardCache:v7';
   const CACHE_MAX_AGE_MS = 2 * 60 * 60 * 1000;
   const renderApi = global.BrewingHydrometerRender;
   const logApi = global.BrewingLogViewer;
@@ -11,9 +11,10 @@
 
   const state = {
     activeView: 'hydrometer',
-    days: '7',
+    days: 'max',
     fromDate: '',
     toDate: '',
+    dateOverrides: {},
     devices: [],
     selectedId: '',
     username: '',
@@ -24,12 +25,16 @@
     batchName: '',
     batchNameTouched: false,
     folderName: '',
+    exportDeviceId: '',
     currentAnalysis: null,
     logs: [],
     selectedLogSlug: '',
     recipes: [],
     recipeResults: null,
     recipeProviders: [],
+    recipeCatalogs: null,
+    storageOptions: [],
+    storageConfig: null,
     linkedRecipe: null,
     selectedRecipeId: '',
     recipeQuery: ''
@@ -58,10 +63,22 @@
     alertStack: document.getElementById('alertStack'),
     chartGrid: document.getElementById('chartGrid'),
     fermentationLog: document.getElementById('fermentationLog'),
+    exportDeviceSelect: document.getElementById('exportDeviceSelect'),
     batchNameInput: document.getElementById('batchNameInput'),
+    storageModeSelect: document.getElementById('storageModeSelect'),
+    driveRootUrlInput: document.getElementById('driveRootUrlInput'),
+    logDriveUrlInput: document.getElementById('logDriveUrlInput'),
     downloadLogBtn: document.getElementById('downloadLogBtn'),
+    connectGoogleDriveBtn: document.getElementById('connectGoogleDriveBtn'),
+    syncSelectedDriveBtn: document.getElementById('syncSelectedDriveBtn'),
     refreshLogsBtn: document.getElementById('refreshLogsBtn'),
+    saveStorageConfigBtn: document.getElementById('saveStorageConfigBtn'),
+    saveLogDriveBtn: document.getElementById('saveLogDriveBtn'),
+    openDriveLibraryBtn: document.getElementById('openDriveLibraryBtn'),
     exportHintPill: document.getElementById('exportHintPill'),
+    driveAuthPill: document.getElementById('driveAuthPill'),
+    storageHintPill: document.getElementById('storageHintPill'),
+    logStorageOptions: document.getElementById('logStorageOptions'),
     brewLogList: document.getElementById('brewLogList'),
     brewLogTitle: document.getElementById('brewLogTitle'),
     brewLogSubtitle: document.getElementById('brewLogSubtitle'),
@@ -84,6 +101,7 @@
     recipeText: document.getElementById('recipeText'),
     referenceList: document.getElementById('referenceList'),
     referenceMeta: document.getElementById('referenceMeta'),
+    recipeSearchMeta: document.getElementById('recipeSearchMeta'),
     openToolsBtn: document.getElementById('openToolsBtn'),
     toolsViewerSlot: document.getElementById('toolsViewerSlot')
   };
@@ -118,7 +136,13 @@
     state: state,
     onRecipeNavigate: navigateToRecipe,
     getExportPayload: function () {
-      const payload = renderApi.buildExportPayload(state.currentAnalysis, state);
+      const exportDevice = state.devices.find(function (device) {
+        return device.id === state.exportDeviceId;
+      }) || state.devices.find(function (device) {
+        return device.id === state.selectedId;
+      }) || state.devices[0] || null;
+      const exportAnalysis = exportDevice ? renderApi.buildAnalysis(exportDevice, state) : state.currentAnalysis;
+      const payload = renderApi.buildExportPayload(exportAnalysis, state);
       return payload;
     }
   });
@@ -193,10 +217,31 @@
 
   function syncBatchName(analysis) {
     if (state.batchNameTouched) return;
-    const defaultName = (analysis && analysis.device && (analysis.device.activeProfileName || analysis.device.name)) || 'Brygg';
+    const exportDevice = state.devices.find(function (device) {
+      return device.id === state.exportDeviceId;
+    }) || (analysis && analysis.device) || null;
+    const defaultName = (exportDevice && (exportDevice.activeProfileName || exportDevice.name)) || 'Brygg';
     state.batchName = defaultName;
     els.batchNameInput.value = defaultName;
     logModule.updateExportHint();
+  }
+
+  function loadDateOverrideForSelectedDevice() {
+    const override = state.selectedId ? state.dateOverrides[state.selectedId] : null;
+    state.fromDate = override && override.fromDate ? override.fromDate : '';
+    state.toDate = override && override.toDate ? override.toDate : '';
+  }
+
+  function storeDateOverrideForSelectedDevice() {
+    if (!state.selectedId) return;
+    if (!state.fromDate && !state.toDate) {
+      delete state.dateOverrides[state.selectedId];
+      return;
+    }
+    state.dateOverrides[state.selectedId] = {
+      fromDate: state.fromDate || '',
+      toDate: state.toDate || ''
+    };
   }
 
   function applyPayload(payload, options) {
@@ -208,13 +253,36 @@
     if (!state.devices.some(function (device) { return device.id === state.selectedId; })) {
       state.selectedId = state.devices[0] ? state.devices[0].id : '';
     }
+    loadDateOverrideForSelectedDevice();
+    if (!state.devices.some(function (device) { return device.id === state.exportDeviceId; })) {
+      state.exportDeviceId = state.selectedId || (state.devices[0] ? state.devices[0].id : '');
+    }
     renderHydrometer();
+  }
+
+  function syncExportDeviceSelect() {
+    if (!els.exportDeviceSelect) return;
+    const devices = Array.isArray(state.devices) ? state.devices : [];
+    if (!devices.length) {
+      els.exportDeviceSelect.innerHTML = '<option value="">Ingen hydrometere funnet</option>';
+      return;
+    }
+
+    els.exportDeviceSelect.innerHTML = devices.map(function (device) {
+      const label = (device.name || 'Uten navn') + (device.activeProfileName ? (' - ' + device.activeProfileName) : '');
+      const selected = device.id === state.exportDeviceId ? ' selected' : '';
+      return '<option value="' + renderApi.escapeHtml(device.id) + '"' + selected + '>' + renderApi.escapeHtml(label) + '</option>';
+    }).join('');
   }
 
   function wireDeviceList() {
     Array.from(els.deviceList.querySelectorAll('[data-id]')).forEach(function (button) {
       button.addEventListener('click', function () {
         state.selectedId = button.getAttribute('data-id') || '';
+        if (!state.exportDeviceId) {
+          state.exportDeviceId = state.selectedId;
+        }
+        loadDateOverrideForSelectedDevice();
         renderHydrometer();
       });
     });
@@ -237,6 +305,7 @@
   function renderHydrometer() {
     state.currentAnalysis = renderApi.renderHydrometerView(els, state);
     renderMetaPills(state.currentAnalysis);
+    syncExportDeviceSelect();
     syncDateInputs(state.currentAnalysis);
     syncBatchName(state.currentAnalysis);
     els.rangeButtons.forEach(function (button) {
@@ -304,23 +373,27 @@
       state.days = button.getAttribute('data-days') || '7';
       state.fromDate = '';
       state.toDate = '';
+      storeDateOverrideForSelectedDevice();
       renderHydrometer();
     });
   });
 
   els.fromDateInput.addEventListener('change', function () {
     state.fromDate = els.fromDateInput.value || '';
+    storeDateOverrideForSelectedDevice();
     renderHydrometer();
   });
 
   els.toDateInput.addEventListener('change', function () {
     state.toDate = els.toDateInput.value || '';
+    storeDateOverrideForSelectedDevice();
     renderHydrometer();
   });
 
   els.clearDateBtn.addEventListener('click', function () {
     state.fromDate = '';
     state.toDate = '';
+    storeDateOverrideForSelectedDevice();
     renderHydrometer();
   });
 
@@ -328,6 +401,15 @@
     state.batchNameTouched = true;
     state.batchName = els.batchNameInput.value || '';
   });
+
+  if (els.exportDeviceSelect) {
+    els.exportDeviceSelect.addEventListener('change', function () {
+      state.exportDeviceId = els.exportDeviceSelect.value || '';
+      state.batchNameTouched = false;
+      syncBatchName(state.currentAnalysis);
+      logModule.updateExportHint();
+    });
+  }
 
   els.refreshBtn.addEventListener('click', function () {
     loadDashboard({ force: true });

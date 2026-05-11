@@ -390,6 +390,7 @@
     const windowMeta = filterApi.buildWindow(device, state);
     const windowRows = filterApi.filterRowsByWindow(device.history || [], windowMeta);
     const displayRows = filterApi.filterDisplayHistory(windowRows);
+    const displayFilteredOutCount = Math.max(0, windowRows.length - displayRows.length);
     const currentRow = displayRows[displayRows.length - 1] || windowRows[windowRows.length - 1] || null;
     const currentGravity = currentRow ? Number(currentRow.gravity) : Number(device.gravity);
     const currentTemp = currentRow ? Number(currentRow.temperature) : Number(device.temperature);
@@ -455,6 +456,7 @@
       attenuationEstimate: attenuationEstimate,
       ogEstimate: ogEstimate,
       fgEstimate: fgEstimate,
+      displayFilteredOutCount: displayFilteredOutCount,
       styleMatch: styleMatch,
       styleAssessment: styleAssessment,
       alerts: alerts,
@@ -517,8 +519,8 @@
     const rows = analysis.rows;
     els.deviceTitle.textContent = device.name || 'Uten navn';
     els.deviceSubtitle.textContent = rows.length
-      ? 'Viser ' + rows.length + ' filtrerte telemetry-punkter i aktivt tidsvindu.'
-      : 'Ingen filtrerte telemetry-punkter i aktivt tidsvindu.';
+      ? 'Viser ' + rows.length + ' filtrerte av ' + analysis.windowRows.length + ' telemetripunkter i aktivt tidsvindu.'
+      : 'Ingen filtrerte telemetripunkter i aktivt tidsvindu.';
     els.devicePills.innerHTML = ''
       + (analysis.styleMatch ? '<div class="info-pill subtle">Stil: ' + escapeHtml(analysis.styleMatch.name) + '</div>' : '')
       + (state.linkedRecipe ? '<div class="info-pill subtle">Oppskrift: ' + escapeHtml(state.linkedRecipe.name || 'Koblet oppskrift') + '</div>' : '')
@@ -526,7 +528,7 @@
       + '<div class="info-pill">MAC: ' + escapeHtml(device.macAddress || '--') + '</div>'
       + '<div class="info-pill">RSSI: ' + fmtNumber(Number(device.rssi), 0) + '</div>'
       + '<div class="info-pill">' + (device.isLatestFirmware ? 'Siste firmware' : 'Firmware kan oppdateres') + '</div>'
-      + '<div class="info-pill">Filtrert bort: ' + Number(device.filteredOutCount || 0) + '</div>';
+      + '<div class="info-pill">Filtrert bort: ' + Number(device.filteredOutCount || 0) + ' + ' + Number(analysis.displayFilteredOutCount || 0) + '</div>';
 
     els.metricsGrid.innerHTML = ''
       + '<article class="metric-card"><strong>Gravity</strong><span>' + fmtGravity(Number(analysis.currentGravity)) + '</span><small>Siste filtrerte tetthet i valgt visning.</small></article>'
@@ -587,6 +589,7 @@
       batchName: state.batchName || analysis.device.activeProfileName || analysis.device.name || 'Brygg',
       folderName: state.folderName || '',
       styleName: analysis.styleMatch ? analysis.styleMatch.name : '',
+      deviceId: analysis.device.id || '',
       deviceName: analysis.device.name || '',
       profileName: analysis.device.activeProfileName || '',
       periodLabel: analysis.windowMeta.label,
@@ -597,7 +600,8 @@
         'Risikobilde': analysis.riskAssessment,
         'Stilvurdering': analysis.styleAssessment,
         'Modellprognose': analysis.forecast,
-        'Tidsvindu': analysis.windowMeta.label + ' · ' + fmtTime(analysis.windowMeta.fromIso) + ' - ' + fmtTime(analysis.windowMeta.toIso)
+        'Tidsvindu': analysis.windowMeta.label + ' · ' + fmtTime(analysis.windowMeta.fromIso) + ' - ' + fmtTime(analysis.windowMeta.toIso),
+        'Filtrering': 'Backend ' + Number(analysis.device.filteredOutCount || 0) + ' · Visning ' + Number(analysis.displayFilteredOutCount || 0)
       },
       metrics: {
         'Gravity': fmtGravity(Number(analysis.currentGravity)),

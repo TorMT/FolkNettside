@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   'use strict';
 
   const WINDOW_MS = 5 * 60 * 60 * 1000;
@@ -24,6 +24,12 @@
     const mid = Math.floor(valid.length / 2);
     if (valid.length % 2) return valid[mid];
     return (valid[mid - 1] + valid[mid]) / 2;
+  }
+
+  function average(values) {
+    const valid = values.filter(Number.isFinite);
+    if (!valid.length) return NaN;
+    return valid.reduce((sum, value) => sum + value, 0) / valid.length;
   }
 
   function spread(values) {
@@ -56,11 +62,164 @@
     }).slice(0, 6);
   }
 
+  function gravityValue(row) {
+    return parseGravityToSpecific(row && row.gravity);
+  }
+
+  function temperatureValue(row) {
+    const numeric = Number(row && row.temperature);
+    return Number.isFinite(numeric) ? numeric : NaN;
+  }
+
   function normalizeHistory(rows) {
     return (Array.isArray(rows) ? rows : [])
       .filter((row) => row && row.createdOn)
       .slice()
       .sort((a, b) => String(a.createdOn || '').localeCompare(String(b.createdOn || '')));
+  }
+
+  function summarizeRows(rows) {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    const gravities = safeRows.map(gravityValue).filter(Number.isFinite);
+    const temps = safeRows.map(temperatureValue).filter(Number.isFinite);
+    const firstTs = safeRows.length ? toTimestamp(safeRows[0].createdOn) : NaN;
+    const lastTs = safeRows.length ? toTimestamp(safeRows[safeRows.length - 1].createdOn) : NaN;
+
+    return {
+      count: safeRows.length,
+      gravityMedian: median(gravities),
+      gravityAverage: average(gravities),
+      gravitySpread: spread(gravities),
+      tempMedian: median(temps),
+      tempAverage: average(temps),
+      tempSpread: spread(temps),
+      durationMs: Number.isFinite(firstTs) && Number.isFinite(lastTs) ? Math.max(0, lastTs - firstTs) : NaN,
+    };
+  }
+
+  function removeIndexes(rows, indexes) {
+    if (!Array.isArray(indexes) || !indexes.length) return rows.slice();
+    const blocked = new Set(indexes);
+    return rows.filter(function (row, index) {
+      return !blocked.has(index);
+    });
+  }
+
+  function buildIndexRange(start, count) {
+    return Array.from({ length: count }, function (_, offset) {
+      return start + offset;
+    });
+  }
+
+  function detectShortEdgeCluster(rows, direction) {
+    const safeRows = normalizeHistory(rows);
+    if (safeRows.length < 8) return [];
+
+    const maxClusterSize = Math.min(10, Math.max(3, Math.floor(safeRows.length / 4)));
+    for (let clusterSize = maxClusterSize; clusterSize >= 2; clusterSize -= 1) {
+      const clusterStart = direction === 'start' ? 0 : safeRows.length - clusterSize;
+      const baselineStart = direction === 'start' ? clusterSize : Math.max(0, safeRows.length - clusterSize - 8);
+      const baselineEnd = direction === 'start' ? Math.min(safeRows.length, clusterSize + 8) : safeRows.length - clusterSize;
+      const clusterRows = safeRows.slice(clusterStart, clusterStart + clusterSize);
+      const baselineRows = safeRows.slice(baselineStart, baselineEnd);
+      if (baselineRows.length < 4) continue;
+
+      const clusterSummary = summarizeRows(clusterRows);
+      const baselineSummary = summarizeRows(baselineRows);
+      const gravityGap = Math.abs(clusterSummary.gravityMedian - baselineSummary.gravityMedian);
+      const baselineStable = Number.isFinite(baselineSummary.gravitySpread) && baselineSummary.gravitySpread <= 0.024;
+      const clusterShort = Number.isFinite(clusterSummary.durationMs) && clusterSummary.durationMs <= (12 * 60 * 60 * 1000);
+      const tempGap = Math.abs(clusterSummary.tempMedian - baselineSummary.tempMedian);
+      const tempChanged = Number.isFinite(tempGap) && tempGap >= 1.2;
+      const largeGravityGap = Number.isFinite(gravityGap) && gravityGap >= 0.12;
+      const extremeGravityGap = Number.isFinite(gravityGap) && gravityGap >= 0.18;
+      const clusterCompact = Number.isFinite(clusterSummary.gravitySpread) && clusterSummary.gravitySpread <= 0.06;
+
+      if (baselineStable && clusterShort && Number.isFinite(gravityGap) && gravityGap >= 0.08) {
+        if (
+          tempChanged
+          || clusterSummary.count <= 3
+          || (Number.isFinite(clusterSummary.gravitySpread) && clusterSummary.gravitySpread <= 0.03)
+          || (largeGravityGap && clusterSummary.count <= 4 && clusterCompact)
+          || extremeGravityGap
+          || (largeGravityGap && clusterCompact && clusterSummary.count <= 8)
+        ) {
+          return buildIndexRange(clusterStart, clusterSize);
+        }
+      }
+    }
+
+    return [];
+  }
+
+  function detectShortTransientClusters(rows) {
+    const safeRows = normalizeHistory(rows);
+    if (safeRows.length < 12) return [];
+
+    const drops = [];
+    for (let start = 2; start < safeRows.length - 4; start += 1) {
+      for (let clusterSize = 2; clusterSize <= 4; clusterSize += 1) {
+        const end = start + clusterSize;
+        if (end >= safeRows.length - 2) break;
+
+        const clusterRows = safeRows.slice(start, end);
+        const leftRows = safeRows.slice(Math.max(0, start - 5), start);
+        const rightRows = safeRows.slice(end, Math.min(safeRows.length, end + 5));
+        if (leftRows.length < 3 || rightRows.length < 3) continue;
+
+        const clusterSummary = summarizeRows(clusterRows);
+        const leftSummary = summarizeRows(leftRows);
+        const rightSummary = summarizeRows(rightRows);
+        const baselineGap = Math.abs(leftSummary.gravityMedian - rightSummary.gravityMedian);
+        const clusterGap = Math.min(
+          Math.abs(clusterSummary.gravityMedian - leftSummary.gravityMedian),
+          Math.abs(clusterSummary.gravityMedian - rightSummary.gravityMedian)
+        );
+        const baselineStable = Number.isFinite(leftSummary.gravitySpread) && leftSummary.gravitySpread <= 0.022
+          && Number.isFinite(rightSummary.gravitySpread) && rightSummary.gravitySpread <= 0.022;
+        const clusterShort = Number.isFinite(clusterSummary.durationMs) && clusterSummary.durationMs <= (4 * 60 * 60 * 1000);
+        const edgeTemps = leftRows.concat(rightRows).map(temperatureValue).filter(Number.isFinite);
+        const edgeTempSpread = spread(edgeTemps);
+        const tempStable = !Number.isFinite(edgeTempSpread) || edgeTempSpread <= 2.4;
+
+        if (baselineStable && clusterShort && tempStable && Number.isFinite(baselineGap) && baselineGap <= 0.03 && Number.isFinite(clusterGap) && clusterGap >= 0.05) {
+          buildIndexRange(start, clusterSize).forEach(function (index) {
+            drops.push(index);
+          });
+        }
+      }
+    }
+
+    return Array.from(new Set(drops)).sort(function (a, b) { return a - b; });
+  }
+
+  function detectExtendedEdgePlateau(rows, direction) {
+    const safeRows = normalizeHistory(rows);
+    if (safeRows.length < 14) return [];
+
+    for (let clusterSize = Math.min(10, Math.max(4, Math.floor(safeRows.length / 5))); clusterSize >= 4; clusterSize -= 1) {
+      const clusterStart = direction === 'start' ? 0 : safeRows.length - clusterSize;
+      const clusterRows = safeRows.slice(clusterStart, clusterStart + clusterSize);
+      const baselineRows = direction === 'start'
+        ? safeRows.slice(clusterSize, Math.min(safeRows.length, clusterSize + 12))
+        : safeRows.slice(Math.max(0, safeRows.length - clusterSize - 12), safeRows.length - clusterSize);
+      if (baselineRows.length < 6) continue;
+
+      const clusterSummary = summarizeRows(clusterRows);
+      const baselineSummary = summarizeRows(baselineRows);
+      const gravityGap = Math.abs(clusterSummary.gravityMedian - baselineSummary.gravityMedian);
+      const tempGap = Math.abs(clusterSummary.tempMedian - baselineSummary.tempMedian);
+      const baselineStable = Number.isFinite(baselineSummary.gravitySpread) && baselineSummary.gravitySpread <= 0.028;
+      const clusterStable = Number.isFinite(clusterSummary.gravitySpread) && clusterSummary.gravitySpread <= 0.08;
+      const clusterShort = Number.isFinite(clusterSummary.durationMs) && clusterSummary.durationMs <= (12 * 60 * 60 * 1000);
+      const tempCompatible = !Number.isFinite(tempGap) || tempGap <= 1.5;
+
+      if (baselineStable && clusterStable && clusterShort && tempCompatible && Number.isFinite(gravityGap) && gravityGap >= 0.12) {
+        return buildIndexRange(clusterStart, clusterSize);
+      }
+    }
+
+    return [];
   }
 
   function shouldDropGravitySpike(rows, index) {
@@ -105,11 +264,36 @@
     let working = normalizeHistory(rows);
     if (working.length < 3) return working;
 
-    for (let pass = 0; pass < 2; pass += 1) {
+    for (let pass = 0; pass < 4; pass += 1) {
       const filtered = working.filter((row, index) => !shouldDropGravitySpike(working, index));
       if (filtered.length === working.length) break;
       working = filtered;
       if (working.length < 3) break;
+    }
+
+    const transientDrops = detectShortTransientClusters(working);
+    if (transientDrops.length) {
+      working = removeIndexes(working, transientDrops);
+    }
+
+    const leadingPlateauDrops = detectExtendedEdgePlateau(working, 'start');
+    if (leadingPlateauDrops.length) {
+      working = removeIndexes(working, leadingPlateauDrops);
+    }
+
+    const leadingDrops = detectShortEdgeCluster(working, 'start');
+    if (leadingDrops.length) {
+      working = removeIndexes(working, leadingDrops);
+    }
+
+    const trailingPlateauDrops = detectExtendedEdgePlateau(working, 'end');
+    if (trailingPlateauDrops.length) {
+      working = removeIndexes(working, trailingPlateauDrops);
+    }
+
+    const trailingDrops = detectShortEdgeCluster(working, 'end');
+    if (trailingDrops.length) {
+      working = removeIndexes(working, trailingDrops);
     }
 
     return working;

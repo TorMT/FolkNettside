@@ -578,6 +578,9 @@
           <div class="hint">hkl</div>
         </div>
         <div class="sectionBody">
+          <div class="btnRow">
+            <button id="toggleClosePackedPlanes" class="btnToggle" data-on="0">Vis tettpakkede plan</button>
+          </div>
 
           <div class="field">
             <label>Nytt plan (h k l)</label>
@@ -882,6 +885,8 @@
 import * as THREE from "/includes/three/three.module.js";
 import { OrbitControls } from "/includes/three/OrbitControls.js";
 
+window.THREE = THREE;
+
 /* ---------- helpers ---------- */
 const $ = (id)=>document.getElementById(id);
 
@@ -1006,6 +1011,7 @@ function resetActionHistory(){
 function refreshDerivedVisuals(){
   if($("toggleBonds").dataset.on==="1") rebuildBonds();
   rebuildSnapPoints();
+  rebuildClosePackedPlanes();
   if($("toggleUnitCell").dataset.on==="1"){
     rebuildUnitCellPreview();
     applyUnitCellIsolation(true);
@@ -1110,9 +1116,134 @@ function clearUnitCellPreview(){
   }
 }
 
+function addUnitCellCap(center, normal, capRadius, color, clippingPlanes){
+  if(capRadius <= 1e-5) return;
+  const geom = new THREE.CircleGeometry(capRadius, 28);
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.35,
+    metalness: 0.08,
+    side: THREE.DoubleSide,
+    clippingPlanes,
+    clipIntersection: false
+  });
+  const cap = new THREE.Mesh(geom, mat);
+  const q = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1),
+    normal.clone().normalize()
+  );
+  cap.quaternion.copy(q);
+  cap.position.copy(center);
+  unitCellGroup.add(cap);
+}
+
+function addUnitCellCapsForSphere(pos, radius, color, clip){
+  const planes = [
+    { axis: "x", boundary: 0, sign: -1, normal: new THREE.Vector3(-1,0,0), omitIndex: 0 },
+    { axis: "x", boundary: 1, sign:  1, normal: new THREE.Vector3( 1,0,0), omitIndex: 1 },
+    { axis: "y", boundary: 0, sign: -1, normal: new THREE.Vector3(0,-1,0), omitIndex: 2 },
+    { axis: "y", boundary: 1, sign:  1, normal: new THREE.Vector3(0, 1,0), omitIndex: 3 },
+    { axis: "z", boundary: 0, sign: -1, normal: new THREE.Vector3(0,0,-1), omitIndex: 4 },
+    { axis: "z", boundary: 1, sign:  1, normal: new THREE.Vector3(0,0, 1), omitIndex: 5 },
+  ];
+
+  planes.forEach(({ axis, boundary, sign, normal, omitIndex }) => {
+    const d = (pos[axis] - boundary) * sign;
+    if(d < 0 || d >= radius) return;
+    const capRadius = Math.sqrt(Math.max(0, radius*radius - d*d));
+    const center = pos.clone();
+    center[axis] = boundary;
+    const capClip = clip.filter((_, idx) => idx !== omitIndex);
+    addUnitCellCap(center, normal, capRadius, color, capClip);
+  });
+}
+
+function getHcpCellOrigin(ix, iy, iz, a, c){
+  return new THREE.Vector3(
+    ix * 1.5 * a,
+    iy * c,
+    iz * Math.sqrt(3) * a + (ix % 2) * (Math.sqrt(3) * a / 2)
+  );
+}
+
+function addHcpUnitCellWireframe(a, c, origin = new THREE.Vector3(0, 0, 0)){
+  const r = a;
+  const y0 = origin.y;
+  const y1 = origin.y + c;
+  const xzOffset = new THREE.Vector3(origin.x, 0, origin.z);
+  const base = [
+    new THREE.Vector3( r, y0, 0),
+    new THREE.Vector3( r/2, y0,  Math.sqrt(3)*r/2),
+    new THREE.Vector3(-r/2, y0,  Math.sqrt(3)*r/2),
+    new THREE.Vector3(-r, y0, 0),
+    new THREE.Vector3(-r/2, y0, -Math.sqrt(3)*r/2),
+    new THREE.Vector3( r/2, y0, -Math.sqrt(3)*r/2),
+  ].map(v => v.add(xzOffset));
+  const top = [
+    new THREE.Vector3( r, y1, 0),
+    new THREE.Vector3( r/2, y1,  Math.sqrt(3)*r/2),
+    new THREE.Vector3(-r/2, y1,  Math.sqrt(3)*r/2),
+    new THREE.Vector3(-r, y1, 0),
+    new THREE.Vector3(-r/2, y1, -Math.sqrt(3)*r/2),
+    new THREE.Vector3( r/2, y1, -Math.sqrt(3)*r/2),
+  ].map(v => v.add(xzOffset));
+  const pts = [];
+  for(let i=0; i<6; i++){
+    const n = (i+1)%6;
+    pts.push(base[i], base[n], top[i], top[n], base[i], top[i]);
+  }
+  const arr = [];
+  pts.forEach(p => arr.push(p.x, p.y, p.z));
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.Float32BufferAttribute(arr, 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0x22c55e, transparent:true, opacity:0.95 });
+  const wire = new THREE.LineSegments(geom, mat);
+  unitCellGroup.add(wire);
+}
+
+function pointInHcpUnitCell(p, a, c, origin = new THREE.Vector3(0, 0, 0)){
+  const eps = 1e-6;
+  const local = p.clone().sub(origin);
+  if(local.y < -eps || local.y > c + eps) return false;
+  const q = Math.abs(local.z);
+  const xLimit = (q <= Math.sqrt(3)*a/2 + eps)
+    ? a - q / Math.sqrt(3)
+    : -1;
+  return xLimit >= 0 && Math.abs(local.x) <= xLimit + eps;
+}
+
 function rebuildUnitCellPreview(){
   clearUnitCellPreview();
   if($("toggleUnitCell").dataset.on!=="1") return;
+
+  const type = $("structure").value;
+  if(type==="hcp"){
+    const a = 1.0;
+    const c = a * 1.633;
+    const cellOrigin = getHcpCellOrigin(0, 0, 0, a, c);
+    addHcpUnitCellWireframe(a, c, cellOrigin);
+
+    atomPositions.forEach((p, idx)=>{
+      if(!p || p.x > 1e8) return;
+      if(!pointInHcpUnitCell(p, a, c, cellOrigin)) return;
+      const src = atomMeshes[idx];
+      const baseColor = (src && src.material && src.material.color) ? src.material.color.getHex() : 0x94a3b8;
+      const radius = (src && src.geometry && src.geometry.parameters && src.geometry.parameters.radius) ? src.geometry.parameters.radius : 0.15;
+      const g = new THREE.SphereGeometry(radius, 24, 24);
+      const m = new THREE.MeshStandardMaterial({
+        color: baseColor,
+        roughness: 0.35,
+        metalness: 0.08,
+        transparent: false,
+        opacity: 1.0
+      });
+      const s = new THREE.Mesh(g, m);
+      s.position.copy(p);
+      unitCellGroup.add(s);
+    });
+    unitCellGroup.visible = true;
+    return;
+  }
 
   const edgeGeom = new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1));
   const edgeMat = new THREE.LineBasicMaterial({ color: 0x22c55e, transparent:true, opacity:0.95 });
@@ -1143,11 +1274,15 @@ function rebuildUnitCellPreview(){
       roughness: 0.35,
       metalness: 0.08,
       transparent: false,
-      opacity: 1.0
+      opacity: 1.0,
+      side: THREE.DoubleSide,
+      clippingPlanes: clip,
+      clipIntersection: false
     });
     const s = new THREE.Mesh(g, m);
     s.position.copy(p);
     unitCellGroup.add(s);
+    addUnitCellCapsForSphere(p, radius, baseColor, clip);
   });
   unitCellGroup.visible = true;
 }
@@ -1307,17 +1442,45 @@ function buildSpinel(nx,ny,nz, matO, matA, matB){
 function buildHCP(nx,ny,nz, matA){
   const a = 1.0;
   const c = a * 1.633; // ideal c/a ratio
-  
-  for(let i=0; i<nx; i++){
-    for(let j=0; j<ny; j++){
-      for(let k=0; k<nz; k++){
-        const x0 = i * a;
-        const y0 = k * c;
-        const z0 = j * a * Math.sqrt(3);
-        
-        addAtom(x0, y0, z0, matA);
-        addAtom(x0 + 0.5*a, y0, z0 + 0.5*a*Math.sqrt(3), matA);
-        addAtom(x0 + 0.5*a, y0 + c/2, z0 + (1/6)*a*Math.sqrt(3), matA);
+  const v1 = new THREE.Vector3(a, 0, 0);
+  const v2 = new THREE.Vector3(a/2, 0, Math.sqrt(3)*a/2);
+  const v3 = new THREE.Vector3(0, c, 0);
+  const basis = [
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(2/3, 1/2, 1/3),
+  ];
+  const seen = new Set();
+
+  for(let ix=0; ix<nx; ix++){
+    for(let iy=0; iy<ny; iy++){
+      for(let iz=0; iz<nz; iz++){
+        const cellOrigin = getHcpCellOrigin(ix, iy, iz, a, c);
+        const cellOffset = new THREE.Vector3(cellOrigin.x, 0, cellOrigin.z);
+
+        for(let i=-2; i<=2; i++){
+          for(let j=-2; j<=2; j++){
+            for(let k=-1; k<=1; k++){
+              const latticeOrigin = new THREE.Vector3()
+                .add(cellOffset)
+                .add(v1.clone().multiplyScalar(i))
+                .add(v2.clone().multiplyScalar(j))
+                .add(v3.clone().multiplyScalar(iy + k));
+
+              basis.forEach(b => {
+                const pos = latticeOrigin.clone()
+                  .add(v1.clone().multiplyScalar(b.x))
+                  .add(v2.clone().multiplyScalar(b.z))
+                  .add(v3.clone().multiplyScalar(b.y));
+
+                if(!pointInHcpUnitCell(pos, a, c, cellOrigin)) return;
+                const key = `${pos.x.toFixed(4)}|${pos.y.toFixed(4)}|${pos.z.toFixed(4)}`;
+                if(seen.has(key)) return;
+                seen.add(key);
+                addAtom(pos.x, pos.y, pos.z, matA);
+              });
+            }
+          }
+        }
       }
     }
   }
@@ -1562,7 +1725,7 @@ function renderPlaneList(){
 
     const meta = document.createElement("div");
     meta.className = "meta";
-    meta.textContent = `(${p.h} ${p.k} ${p.l})`;
+    meta.textContent = p.label || `(${p.h} ${p.k} ${p.l})`;
     const sm = document.createElement("small");
     sm.textContent = p.visible ? "synlig" : "skjult";
     meta.appendChild(sm);
@@ -1598,6 +1761,35 @@ function renderPlaneList(){
   });
 }
 
+function addPlaneMeshRecord({ label, normal, point, color = null, opacity = 0.12, autoFamily = null }){
+  const n = normal.clone().normalize();
+  const geom = new THREE.PlaneGeometry(7, 7, 1, 1);
+  const mat = new THREE.MeshStandardMaterial({
+    color: color ?? planeColorForIndex(planes.length),
+    transparent: true,
+    opacity,
+    side: THREE.DoubleSide,
+    roughness: 0.6,
+    metalness: 0.0
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  const zAxis = new THREE.Vector3(0,0,1);
+  mesh.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(zAxis, n));
+  mesh.position.copy(point);
+  planeGroup.add(mesh);
+
+  planes.push({
+    id: planeIdCounter++,
+    h: null, k: null, l: null,
+    label,
+    mesh,
+    visible: true,
+    normal: n.clone(),
+    point: point.clone(),
+    autoFamily
+  });
+}
+
 function addMillerPlane(h,k,l){
   const eps = 1e-9;
   const n = new THREE.Vector3(h||0, k||0, l||0);
@@ -1612,34 +1804,77 @@ function addMillerPlane(h,k,l){
   const z0 = (l===0) ? 0.5 : Math.min(1, Math.max(0, 1/l));
   const p0 = new THREE.Vector3(x0,y0,z0);
 
-  const size = 7;
-  const geom = new THREE.PlaneGeometry(size, size, 1, 1);
-
-  const mat = new THREE.MeshStandardMaterial({
-    color: planeColorForIndex(planes.length),
-    transparent: true,
-    opacity: 0.12,
-    side: THREE.DoubleSide,
-    roughness: 0.6,
-    metalness: 0.0
+  addPlaneMeshRecord({
+    label: `(${h} ${k} ${l})`,
+    normal: n,
+    point: p0
   });
+  renderPlaneList();
+  rebuildCuts();
+}
 
-  const mesh = new THREE.Mesh(geom, mat);
-  const zAxis = new THREE.Vector3(0,0,1);
-  mesh.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(zAxis, n));
-  mesh.position.copy(p0);
+function removeAutoPlanes(family){
+  for(let i=planes.length-1; i>=0; i--){
+    const p = planes[i];
+    if(p.autoFamily !== family) continue;
+    planeGroup.remove(p.mesh);
+    p.mesh.geometry.dispose();
+    p.mesh.material.dispose();
+    planes.splice(i,1);
+  }
+}
 
-  planeGroup.add(mesh);
+function getClosePackedPlaneSpecs(type){
+  const center = new THREE.Vector3(0.5,0.5,0.5);
+  if(type==="fcc" || type==="diamond" || type==="nacl" || type==="zns" || type==="caf2" || type==="spinel"){
+    return [
+      { label: "{111} A", normal: new THREE.Vector3( 1, 1, 1), point: center.clone() },
+      { label: "{111} B", normal: new THREE.Vector3( 1, 1,-1), point: center.clone() },
+      { label: "{111} C", normal: new THREE.Vector3( 1,-1, 1), point: center.clone() },
+      { label: "{111} D", normal: new THREE.Vector3(-1, 1, 1), point: center.clone() },
+    ];
+  }
+  if(type==="bcc"){
+    return [
+      { label: "{110} A", normal: new THREE.Vector3( 1, 1, 0), point: center.clone() },
+      { label: "{110} B", normal: new THREE.Vector3( 1,-1, 0), point: center.clone() },
+      { label: "{110} C", normal: new THREE.Vector3( 1, 0, 1), point: center.clone() },
+      { label: "{110} D", normal: new THREE.Vector3( 1, 0,-1), point: center.clone() },
+      { label: "{110} E", normal: new THREE.Vector3( 0, 1, 1), point: center.clone() },
+      { label: "{110} F", normal: new THREE.Vector3( 0, 1,-1), point: center.clone() },
+    ];
+  }
+  if(type==="hcp"){
+    const a = 1.0;
+    const c = a * 1.633;
+    return [
+      { label: "Basalplan A", normal: new THREE.Vector3(0,1,0), point: new THREE.Vector3(0, 0, 0) },
+      { label: "Basalplan B", normal: new THREE.Vector3(0,1,0), point: new THREE.Vector3(0, c/2, 0) },
+    ];
+  }
+  if(type==="sc" || type==="cscl"){
+    return [
+      { label: "{100}", normal: new THREE.Vector3(1,0,0), point: center.clone() },
+      { label: "{010}", normal: new THREE.Vector3(0,1,0), point: center.clone() },
+      { label: "{001}", normal: new THREE.Vector3(0,0,1), point: center.clone() },
+    ];
+  }
+  return [];
+}
 
-  planes.push({
-    id: planeIdCounter++,
-    h,k,l,
-    mesh,
-    visible: true,
-    normal: n.clone(),
-    point: p0.clone()
+function rebuildClosePackedPlanes(){
+  removeAutoPlanes("closePacked");
+  if($("toggleClosePackedPlanes").dataset.on !== "1") return;
+  const specs = getClosePackedPlaneSpecs($("structure").value);
+  specs.forEach(spec => {
+    addPlaneMeshRecord({
+      label: spec.label,
+      normal: spec.normal,
+      point: spec.point,
+      opacity: 0.16,
+      autoFamily: "closePacked"
+    });
   });
-
   renderPlaneList();
   rebuildCuts();
 }
@@ -2175,6 +2410,13 @@ $("addPlane").addEventListener("click", ()=>{
   toast("Plan", `La til (${h} ${k} ${l})`);
 });
 
+$("toggleClosePackedPlanes").addEventListener("click", ()=>{
+  const on = $("toggleClosePackedPlanes").dataset.on==="1";
+  setBtnOn($("toggleClosePackedPlanes"), !on);
+  rebuildClosePackedPlanes();
+  toast("Plan", (!on) ? "Tettpakkede plan vist." : "Tettpakkede plan skjult.");
+});
+
 $("clearPlanes").addEventListener("click", ()=>{
   while(planes.length){
     const p = planes.pop();
@@ -2182,6 +2424,7 @@ $("clearPlanes").addEventListener("click", ()=>{
     p.mesh.geometry.dispose();
     p.mesh.material.dispose();
   }
+  setBtnOn($("toggleClosePackedPlanes"), false);
   renderPlaneList();
   rebuildCuts();
   toast("Plan", "Tømt.");

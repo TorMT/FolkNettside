@@ -96,7 +96,19 @@
           new THREE.Vector3(0.75, 0.75, 0.75)
         ],
         octa: [
-          new THREE.Vector3(0.5, 0.5, 0.5)
+          new THREE.Vector3(0.5, 0.5, 0.5),
+          new THREE.Vector3(0.5, 0.0, 0.0),
+          new THREE.Vector3(0.5, 1.0, 0.0),
+          new THREE.Vector3(0.5, 0.0, 1.0),
+          new THREE.Vector3(0.5, 1.0, 1.0),
+          new THREE.Vector3(0.0, 0.5, 0.0),
+          new THREE.Vector3(1.0, 0.5, 0.0),
+          new THREE.Vector3(0.0, 0.5, 1.0),
+          new THREE.Vector3(1.0, 0.5, 1.0),
+          new THREE.Vector3(0.0, 0.0, 0.5),
+          new THREE.Vector3(1.0, 0.0, 0.5),
+          new THREE.Vector3(0.0, 1.0, 0.5),
+          new THREE.Vector3(1.0, 1.0, 0.5)
         ]
       };
     }
