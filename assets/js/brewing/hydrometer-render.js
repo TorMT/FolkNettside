@@ -347,9 +347,9 @@
     return alerts.map(function (alert) {
       return ''
         + '<article class="alert-card ' + escapeHtml(alert.severity || 'info') + '">'
-        + '<strong>' + escapeHtml(alert.title || 'Varsel') + '</strong>'
-        + '<p>' + escapeHtml(alert.summary || '') + '</p>'
-        + (alert.actionSummary ? '<p><span class="log-label">Tiltak</span>' + escapeHtml(alert.actionSummary) + '</p>' : '')
+        + '<strong>' + escapeHtml(normalizeUiText(alert.title || 'Varsel')) + '</strong>'
+        + '<p>' + escapeHtml(normalizeUiText(alert.summary || '')) + '</p>'
+        + (alert.actionSummary ? '<p><span class="log-label">Tiltak</span>' + escapeHtml(normalizeUiText(alert.actionSummary)) + '</p>' : '')
         + ((Array.isArray(alert.links) && alert.links.length)
           ? '<div class="alert-links">' + alert.links.map(function (link) {
             return link && link.url
@@ -550,9 +550,9 @@
       els.fermentationLog.innerHTML = ''
         + '<h3>Gjæringslogg</h3>'
         + '<p><span class="log-label">Prosessbilde</span>Det finnes foreløpig ingen filtrerte punkter i valgt periode.</p>'
-        + '<p><span class="log-label">Risikobilde</span>' + escapeHtml(analysis.riskAssessment) + '</p>'
-        + '<p><span class="log-label">Stilvurdering</span>' + escapeHtml(analysis.styleAssessment) + '</p>'
-        + '<p><span class="log-label">Modellprognose</span>' + escapeHtml(analysis.forecast) + '</p>';
+        + '<p><span class="log-label">Risikobilde</span>' + escapeHtml(normalizeUiText(analysis.riskAssessment)) + '</p>'
+        + '<p><span class="log-label">Stilvurdering</span>' + escapeHtml(normalizeUiText(analysis.styleAssessment)) + '</p>'
+        + '<p><span class="log-label">Modellprognose</span>' + escapeHtml(normalizeUiText(analysis.forecast)) + '</p>';
       return;
     }
 
@@ -565,11 +565,11 @@
 
     els.fermentationLog.innerHTML = ''
       + '<h3>Gjæringslogg</h3>'
-      + '<p><span class="log-label">Prosessbilde</span>' + escapeHtml(analysis.summary) + '</p>'
-      + '<p><span class="log-label">Risikobilde</span>' + escapeHtml(analysis.riskAssessment) + '</p>'
-      + '<p><span class="log-label">Stilvurdering</span>' + escapeHtml(analysis.styleAssessment) + '</p>'
-      + '<p><span class="log-label">Modellprognose</span>' + escapeHtml(analysis.forecast) + '</p>'
-      + (analysis.alerts.length ? '<p><span class="log-label">Aktive varsler</span>' + escapeHtml(analysis.alerts.map(function (alert) { return alert.title; }).join(', ')) + '</p>' : '');
+      + '<p><span class="log-label">Prosessbilde</span>' + escapeHtml(normalizeUiText(analysis.summary)) + '</p>'
+      + '<p><span class="log-label">Risikobilde</span>' + escapeHtml(normalizeUiText(analysis.riskAssessment)) + '</p>'
+      + '<p><span class="log-label">Stilvurdering</span>' + escapeHtml(normalizeUiText(analysis.styleAssessment)) + '</p>'
+      + '<p><span class="log-label">Modellprognose</span>' + escapeHtml(normalizeUiText(analysis.forecast)) + '</p>'
+      + (analysis.alerts.length ? '<p><span class="log-label">Aktive varsler</span>' + escapeHtml(analysis.alerts.map(function (alert) { return normalizeUiText(alert.title); }).join(', ')) + '</p>' : '');
   }
 
   function renderHydrometerView(els, state) {
@@ -596,10 +596,10 @@
       recipeRef: recipeRef,
       exportedAt: new Date().toISOString(),
       summary: {
-        'Prosessbilde': analysis.summary,
-        'Risikobilde': analysis.riskAssessment,
-        'Stilvurdering': analysis.styleAssessment,
-        'Modellprognose': analysis.forecast,
+        'Prosessbilde': normalizeUiText(analysis.summary),
+        'Risikobilde': normalizeUiText(analysis.riskAssessment),
+        'Stilvurdering': normalizeUiText(analysis.styleAssessment),
+        'Modellprognose': normalizeUiText(analysis.forecast),
         'Tidsvindu': analysis.windowMeta.label + ' · ' + fmtTime(analysis.windowMeta.fromIso) + ' - ' + fmtTime(analysis.windowMeta.toIso),
         'Filtrering': 'Backend ' + Number(analysis.device.filteredOutCount || 0) + ' · Visning ' + Number(analysis.displayFilteredOutCount || 0)
       },
@@ -615,6 +615,17 @@
       },
       alerts: analysis.alerts,
       history: analysis.rows,
+      raptWindow: {
+        deviceId: analysis.device.id || '',
+        deviceName: analysis.device.name || '',
+        profileName: analysis.device.activeProfileName || '',
+        rangeLabel: analysis.windowMeta.label,
+        windowStart: analysis.windowMeta.fromIso || null,
+        windowEnd: analysis.windowMeta.toIso || null,
+        historyStart: analysis.rows.length ? (analysis.rows[0].createdOn || null) : null,
+        historyEnd: analysis.rows.length ? (analysis.rows[analysis.rows.length - 1].createdOn || null) : null,
+        historyCount: Array.isArray(analysis.rows) ? analysis.rows.length : 0
+      },
       source: {
         usedCache: !!state.usedCache,
         generatedAt: state.generatedAt || null,

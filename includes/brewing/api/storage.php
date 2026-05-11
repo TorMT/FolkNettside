@@ -51,6 +51,7 @@ if ($action === 'save-log-storage') {
         $dir
     );
     $log['storage'] = $storage;
+    $log['updatedAt'] = gmdate(DATE_ATOM);
     brewing_write_json_file($jsonPath, $log);
     @file_put_contents($dir . DIRECTORY_SEPARATOR . 'logg.html', brewing_render_log_html($log));
     @file_put_contents($dir . DIRECTORY_SEPARATOR . 'telemetry.csv', brewing_csv_from_history((array)($log['history'] ?? [])));

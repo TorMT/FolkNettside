@@ -7,6 +7,7 @@
   const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
   const FOLDER_MIME = 'application/vnd.google-apps.folder';
   const BREWING_LIBRARY_FOLDER = 'Brygging';
+  const DRIVE_SESSION_KEY = 'brewingGoogleDriveSession:v1';
 
   function safeTrim(value) {
     return String(value == null ? '' : value).trim();
@@ -73,6 +74,33 @@
     });
   }
 
+  function readSavedSession() {
+    try {
+      const raw = global.localStorage ? global.localStorage.getItem(DRIVE_SESSION_KEY) : '';
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeSavedSession(payload) {
+    try {
+      if (!global.localStorage) return;
+      global.localStorage.setItem(DRIVE_SESSION_KEY, JSON.stringify(payload || {}));
+    } catch (error) {
+    }
+  }
+
+  function clearSavedSession() {
+    try {
+      if (!global.localStorage) return;
+      global.localStorage.removeItem(DRIVE_SESSION_KEY);
+    } catch (error) {
+    }
+  }
+
   function createModule(config) {
     const els = config.elements || {};
     const state = config.state || {};
@@ -85,6 +113,7 @@
       accessTokenExpiresAt: 0,
       accessPromise: null,
       accountLabel: '',
+      autoReconnectAttempted: false,
       statusText: 'Google Drive: ikke satt opp ennå',
       busy: false,
       connected: false
@@ -132,6 +161,10 @@
     function setConfig(authConfig, storageConfig) {
       moduleState.authConfig = authConfig || moduleState.authConfig;
       moduleState.storageConfig = storageConfig || moduleState.storageConfig;
+      const savedSession = readSavedSession();
+      if (savedSession && safeTrim(savedSession.accountLabel) && !safeTrim(moduleState.accountLabel)) {
+        moduleState.accountLabel = safeTrim(savedSession.accountLabel);
+      }
 
       if (!isConfigured()) {
         setStatus('Google Drive: mangler OAuth-oppsett', false);
@@ -153,6 +186,15 @@
           : 'Google Drive: OAuth klart, men standardmappe mangler',
         false
       );
+
+      if (savedSession
+        && safeTrim(savedSession.clientId) === safeTrim(moduleState.authConfig.clientId)
+        && !moduleState.autoReconnectAttempted) {
+        moduleState.autoReconnectAttempted = true;
+        setTimeout(function () {
+          silentReconnect();
+        }, 0);
+      }
     }
 
     async function ensureGoogleIdentity() {
@@ -192,6 +234,10 @@
           moduleState.tokenClient.callback = function (response) {
             moduleState.accessPromise = null;
             if (response && response.error) {
+              if (!interactive) {
+                reject(new Error(response.error));
+                return;
+              }
               reject(new Error(response.error_description || response.error));
               return;
             }
@@ -201,12 +247,17 @@
             }
             moduleState.accessToken = response.access_token;
             moduleState.accessTokenExpiresAt = Date.now() + (Number(response.expires_in || 3600) * 1000);
+            writeSavedSession({
+              clientId: safeTrim(moduleState.authConfig && moduleState.authConfig.clientId),
+              accountLabel: safeTrim(moduleState.accountLabel),
+              savedAt: new Date().toISOString()
+            });
             setStatus('Google Drive: konto koblet', true);
             resolve(moduleState.accessToken);
           };
 
           moduleState.tokenClient.requestAccessToken({
-            prompt: interactive || !moduleState.accessToken ? 'consent' : ''
+            prompt: interactive ? 'consent' : ''
           });
         });
       }());
@@ -518,13 +569,61 @@
         setBusy(true, 'Google Drive: kobler til konto...');
         await ensureAccessToken(interactive !== false);
         const accountLabel = await fetchAccountLabel();
+        writeSavedSession({
+          clientId: safeTrim(moduleState.authConfig && moduleState.authConfig.clientId),
+          accountLabel: safeTrim(accountLabel),
+          savedAt: new Date().toISOString()
+        });
         setStatus('Google Drive: konto koblet' + (accountLabel ? ' som ' + accountLabel : ''), true);
         return true;
       } catch (error) {
+        if (interactive) {
+          clearSavedSession();
+        }
         setStatus('Google Drive: tilkobling feilet (' + error.message + ')', false);
         throw error;
       } finally {
         setBusy(false);
+      }
+    }
+
+    async function silentReconnect() {
+      if (!isConfigured() || moduleState.connected || moduleState.busy) {
+        return false;
+      }
+
+      const savedSession = readSavedSession();
+      if (!savedSession || safeTrim(savedSession.clientId) !== safeTrim(moduleState.authConfig && moduleState.authConfig.clientId)) {
+        return false;
+      }
+
+      try {
+        setStatus(
+          'Google Drive: gjenopptar kobling' + (moduleState.accountLabel ? ' for ' + moduleState.accountLabel : '') + '...',
+          false
+        );
+        await ensureAccessToken(false);
+        const accountLabel = await fetchAccountLabel();
+        writeSavedSession({
+          clientId: safeTrim(moduleState.authConfig && moduleState.authConfig.clientId),
+          accountLabel: safeTrim(accountLabel),
+          savedAt: new Date().toISOString()
+        });
+        setStatus('Google Drive: konto koblet' + (accountLabel ? ' som ' + accountLabel : ''), true);
+        return true;
+      } catch (error) {
+        clearSavedSession();
+        const rootFolderId = extractDriveId(
+          (moduleState.storageConfig && moduleState.storageConfig.googleDrive && moduleState.storageConfig.googleDrive.folderId)
+            || (moduleState.authConfig && moduleState.authConfig.folderId)
+        );
+        setStatus(
+          rootFolderId
+            ? 'Google Drive: klar til innlogging og synk'
+            : 'Google Drive: OAuth klart, men standardmappe mangler',
+          false
+        );
+        return false;
       }
     }
 
@@ -607,6 +706,7 @@
     return {
       connect: connect,
       fetchLogImages: fetchLogImages,
+      silentReconnect: silentReconnect,
       setConfig: setConfig,
       shouldAutoSync: shouldAutoSync,
       syncLogBySlug: syncLogBySlug

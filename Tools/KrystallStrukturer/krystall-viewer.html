@@ -580,6 +580,7 @@
         <div class="sectionBody">
           <div class="btnRow">
             <button id="toggleClosePackedPlanes" class="btnToggle" data-on="0">Vis tettpakkede plan</button>
+            <button id="toggleAllClosePackedLayers" class="btnToggle" data-on="0">Vis alle parallelle lag</button>
           </div>
 
           <div class="field">
@@ -1819,6 +1820,10 @@ function createRepresentativePlaneSpecFromAtomLayers(rawNormal, label){
   }];
 }
 
+function shouldShowAllClosePackedLayers(){
+  return $("toggleAllClosePackedLayers")?.dataset.on === "1";
+}
+
 function renderPlaneList(){
   const list = $("planList");
   list.innerHTML = "";
@@ -1945,32 +1950,35 @@ function removeAutoPlanes(family){
 }
 
 function getClosePackedPlaneSpecs(type){
+  const fromLayers = shouldShowAllClosePackedLayers()
+    ? createPlaneSpecsFromAtomLayers
+    : createRepresentativePlaneSpecFromAtomLayers;
   if(type==="fcc" || type==="diamond" || type==="nacl" || type==="zns" || type==="caf2" || type==="spinel"){
     return [
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1, 1), true)),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 1,-1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1,-1), true)),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1,-1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1,-1, 1), true)),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(-1, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3(-1, 1, 1), true))
+      ...fromLayers(new THREE.Vector3( 1, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1, 1), true)),
+      ...fromLayers(new THREE.Vector3( 1, 1,-1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1,-1), true)),
+      ...fromLayers(new THREE.Vector3( 1,-1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1,-1, 1), true)),
+      ...fromLayers(new THREE.Vector3(-1, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3(-1, 1, 1), true))
     ];
   }
   if(type==="bcc"){
     return [
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 1, 0), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1, 0), true)),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1,-1, 0), formatPlaneFamilyLabel(new THREE.Vector3( 1,-1, 0), true)),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 0, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 0, 1), true)),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 1, 0,-1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 0,-1), true)),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 0, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 0, 1, 1), true)),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3( 0, 1,-1), formatPlaneFamilyLabel(new THREE.Vector3( 0, 1,-1), true)),
+      ...fromLayers(new THREE.Vector3( 1, 1, 0), formatPlaneFamilyLabel(new THREE.Vector3( 1, 1, 0), true)),
+      ...fromLayers(new THREE.Vector3( 1,-1, 0), formatPlaneFamilyLabel(new THREE.Vector3( 1,-1, 0), true)),
+      ...fromLayers(new THREE.Vector3( 1, 0, 1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 0, 1), true)),
+      ...fromLayers(new THREE.Vector3( 1, 0,-1), formatPlaneFamilyLabel(new THREE.Vector3( 1, 0,-1), true)),
+      ...fromLayers(new THREE.Vector3( 0, 1, 1), formatPlaneFamilyLabel(new THREE.Vector3( 0, 1, 1), true)),
+      ...fromLayers(new THREE.Vector3( 0, 1,-1), formatPlaneFamilyLabel(new THREE.Vector3( 0, 1,-1), true)),
     ];
   }
   if(type==="hcp"){
-    return createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(0,1,0), "(0001)");
+    return fromLayers(new THREE.Vector3(0,1,0), "(0001)");
   }
   if(type==="sc" || type==="cscl"){
     return [
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(1,0,0), "{100}"),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(0,1,0), "{010}"),
-      ...createRepresentativePlaneSpecFromAtomLayers(new THREE.Vector3(0,0,1), "{001}"),
+      ...fromLayers(new THREE.Vector3(1,0,0), "{100}"),
+      ...fromLayers(new THREE.Vector3(0,1,0), "{010}"),
+      ...fromLayers(new THREE.Vector3(0,0,1), "{001}"),
     ];
   }
   return [];
@@ -2543,6 +2551,15 @@ $("toggleClosePackedPlanes").addEventListener("click", ()=>{
   toast("Plan", (!on) ? "Tettpakkede plan vist." : "Tettpakkede plan skjult.");
 });
 
+$("toggleAllClosePackedLayers").addEventListener("click", ()=>{
+  const on = $("toggleAllClosePackedLayers").dataset.on==="1";
+  setBtnOn($("toggleAllClosePackedLayers"), !on);
+  if($("toggleClosePackedPlanes").dataset.on==="1"){
+    rebuildClosePackedPlanes();
+  }
+  toast("Plan", (!on) ? "Viser alle parallelle lag." : "Viser bare representativt lag.");
+});
+
 $("clearPlanes").addEventListener("click", ()=>{
   while(planes.length){
     const p = planes.pop();
@@ -2551,6 +2568,7 @@ $("clearPlanes").addEventListener("click", ()=>{
     p.mesh.material.dispose();
   }
   setBtnOn($("toggleClosePackedPlanes"), false);
+  setBtnOn($("toggleAllClosePackedLayers"), false);
   renderPlaneList();
   rebuildCuts();
   toast("Plan", "Tømt.");

@@ -1,4 +1,4 @@
-﻿(function (global) {
+(function (global) {
   'use strict';
 
   const STYLE_LIBRARY = [
@@ -156,7 +156,7 @@
       url: 'https://help.stillspirits.com/hc/en-us/articles/360005510257-Turbo-Yeast-Range'
     },
     stillSpiritsNutrient: {
-      label: 'Still Spirits: Distiller’s Nutrient Light Spirits',
+      label: 'Still Spirits: DistillerÃ¢â‚¬â„¢s Nutrient Light Spirits',
       url: 'https://www.stillspirits.com/products/nutrient-light-spirits'
     },
     scottNutrition: {
@@ -180,11 +180,11 @@
       url: 'https://www.audeamusdistilling.com/blogs/news/tomato-paste-wash'
     },
     bryggolDAP: {
-      label: 'Brygg Øl: DAP',
+      label: 'Brygg ÃƒËœl: DAP',
       url: 'https://bryggol.no/produkt/diammonium-phosphate-dap-500g/'
     },
     bryggolFermaidO: {
-      label: 'Brygg Øl: Fermaid O',
+      label: 'Brygg ÃƒËœl: Fermaid O',
       url: 'https://bryggol.no/produkt/fermaid-o-yeast-nutrient-50g/'
     }
   };
@@ -267,7 +267,7 @@
     if (!Array.isArray(range) || range.length < 2) return '--';
     const useDigits = Number.isFinite(digits) ? digits : 3;
     const end = suffix || '';
-    return range[0].toFixed(useDigits) + '–' + range[1].toFixed(useDigits) + end;
+    return range[0].toFixed(useDigits) + 'Ã¢â‚¬â€œ' + range[1].toFixed(useDigits) + end;
   }
 
   function classifyRangeFit(value, range, tolerance) {
@@ -341,7 +341,7 @@
           ...style,
           score,
           matchedAliases,
-          confidenceLabel: matchedAliases.length >= 2 ? 'Høy' : 'Moderat'
+          confidenceLabel: matchedAliases.length >= 2 ? 'HÃƒÂ¸y' : 'Moderat'
         };
       }
     });
@@ -368,14 +368,14 @@
     };
 
     if (!styleMatch) {
-      return 'Navn og aktiv profil gir ikke et tydelig stiltreff ennå, så denne delen holder seg bevisst konservativ og beskriver prosessen uten å låse batchen til en bestemt ølstil.';
+      return 'Navn og aktiv profil gir ikke et tydelig stiltreff ennÃƒÂ¥, sÃƒÂ¥ denne delen holder seg bevisst konservativ og beskriver prosessen uten ÃƒÂ¥ lÃƒÂ¥se batchen til en bestemt ÃƒÂ¸lstil.';
     }
 
     const seed = styleMatch.id + ':' + (device && device.name ? device.name : '') + ':' + rows.length;
     const intro = pickVariant(seed, [
       'Navn og profil peker tydelig mot ' + styleMatch.name + '.',
       'Ordvalget i enhetsnavn og profil leses mest plausibelt som ' + styleMatch.name + '.',
-      'Batchen ser ut til å være ment som ' + styleMatch.name + ', basert på navnet og den aktive profilen.'
+      'Batchen ser ut til ÃƒÂ¥ vÃƒÂ¦re ment som ' + styleMatch.name + ', basert pÃƒÂ¥ navnet og den aktive profilen.'
     ]);
 
     const og = rows.length > 1 ? parseGravityToSpecific(rows[0] && rows[0].gravity) : NaN;
@@ -390,16 +390,16 @@
       const currentGravity = parseGravityToSpecific(rows.length ? rows[rows.length - 1] && rows[rows.length - 1].gravity : device && device.gravity);
       const ogMid = midpoint(styleMatch.ogRange);
       const fgMid = midpoint(styleMatch.fgRange);
-      let phaseText = 'Det finnes foreløpig for lite gjæringshistorikk til å vurdere utgjæringen mot stilvinduet.';
+      let phaseText = 'Det finnes forelÃƒÂ¸pig for lite gjÃƒÂ¦ringshistorikk til ÃƒÂ¥ vurdere utgjÃƒÂ¦ringen mot stilvinduet.';
 
       if (Number.isFinite(currentGravity) && Number.isFinite(ogMid) && Number.isFinite(fgMid) && ogMid > fgMid) {
         const progress = clamp(1 - ((currentGravity - fgMid) / (ogMid - fgMid)), 0, 1);
         if (progress < 0.25) {
-          phaseText = 'Den observerte gravityen på ' + formatSg(currentGravity) + ' plasserer batchen tidlig i et typisk forløp for denne stilen.';
+          phaseText = 'Den observerte gravityen pÃƒÂ¥ ' + formatSg(currentGravity) + ' plasserer batchen tidlig i et typisk forlÃƒÂ¸p for denne stilen.';
         } else if (progress < 0.8) {
-          phaseText = 'Nåværende gravity på ' + formatSg(currentGravity) + ' ligger mellom stilens vanlige start- og sluttområde, noe som peker mot en arbeidende mellomfase.';
+          phaseText = 'NÃƒÂ¥vÃƒÂ¦rende gravity pÃƒÂ¥ ' + formatSg(currentGravity) + ' ligger mellom stilens vanlige start- og sluttomrÃƒÂ¥de, noe som peker mot en arbeidende mellomfase.';
         } else {
-          phaseText = 'Gravityen på ' + formatSg(currentGravity) + ' ligger nær et vanlig sluttområde for denne stilen og tyder på sen fase eller nær stabilisering.';
+          phaseText = 'Gravityen pÃƒÂ¥ ' + formatSg(currentGravity) + ' ligger nÃƒÂ¦r et vanlig sluttomrÃƒÂ¥de for denne stilen og tyder pÃƒÂ¥ sen fase eller nÃƒÂ¦r stabilisering.';
         }
       }
 
@@ -411,36 +411,36 @@
     }
 
     const ogTextMap = {
-      within: 'OG-en på ' + formatSg(og) + ' ligger pent innenfor stilens vanlige startstyrke.',
-      'near-low': 'OG-en på ' + formatSg(og) + ' ligger like under det klassiske stilvinduet, men fortsatt tett på en plausibel tolkning.',
-      'near-high': 'OG-en på ' + formatSg(og) + ' ligger i overkant av stilens kjerne, men ikke så langt at stiltreffet bryter sammen.',
-      low: 'OG-en på ' + formatSg(og) + ' er merkbart lavere enn det som er typisk for denne stilen.',
-      high: 'OG-en på ' + formatSg(og) + ' er tydelig sterkere enn det som normalt forventes i denne stilen.',
+      within: 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' ligger pent innenfor stilens vanlige startstyrke.',
+      'near-low': 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' ligger like under det klassiske stilvinduet, men fortsatt tett pÃƒÂ¥ en plausibel tolkning.',
+      'near-high': 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' ligger i overkant av stilens kjerne, men ikke sÃƒÂ¥ langt at stiltreffet bryter sammen.',
+      low: 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' er merkbart lavere enn det som er typisk for denne stilen.',
+      high: 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' er tydelig sterkere enn det som normalt forventes i denne stilen.',
       unknown: 'OG-en kan ikke vurderes sikkert mot stilvinduet.'
     };
 
     const fgTextMap = {
-      within: 'Sluttgravityen som vises nå, ' + formatSg(fg) + ', stemmer godt med et stilriktig sluttpunkt.',
-      'near-low': 'Sluttgravityen på ' + formatSg(fg) + ' ligger litt tørrere enn kjernen, men fortsatt innenfor et troverdig utfall.',
-      'near-high': 'Sluttgravityen på ' + formatSg(fg) + ' ligger litt fyldigere enn kjernen, men fortsatt innenfor et forsvarlig spenn.',
-      low: 'Sluttgravityen på ' + formatSg(fg) + ' peker mot et tørrere og mer utgjæret resultat enn det som vanligvis forbindes med stilen.',
-      high: 'Sluttgravityen på ' + formatSg(fg) + ' peker mot mer restsødme og mer kropp enn det stilen normalt tilsier.',
+      within: 'Sluttgravityen som vises nÃƒÂ¥, ' + formatSg(fg) + ', stemmer godt med et stilriktig sluttpunkt.',
+      'near-low': 'Sluttgravityen pÃƒÂ¥ ' + formatSg(fg) + ' ligger litt tÃƒÂ¸rrere enn kjernen, men fortsatt innenfor et troverdig utfall.',
+      'near-high': 'Sluttgravityen pÃƒÂ¥ ' + formatSg(fg) + ' ligger litt fyldigere enn kjernen, men fortsatt innenfor et forsvarlig spenn.',
+      low: 'Sluttgravityen pÃƒÂ¥ ' + formatSg(fg) + ' peker mot et tÃƒÂ¸rrere og mer utgjÃƒÂ¦ret resultat enn det som vanligvis forbindes med stilen.',
+      high: 'Sluttgravityen pÃƒÂ¥ ' + formatSg(fg) + ' peker mot mer restsÃƒÂ¸dme og mer kropp enn det stilen normalt tilsier.',
       unknown: 'Sluttgravityen kan ikke vurderes sikkert mot stilvinduet.'
     };
 
     const abvTextMap = {
-      within: 'Estimert alkohol på ' + formatAbv(abvEstimate) + ' samsvarer godt med stilens normalområde.',
-      'near-low': 'Estimert alkohol på ' + formatAbv(abvEstimate) + ' ligger marginalt i nedre kant, men fortsatt innenfor et naturlig uttrykk.',
-      'near-high': 'Estimert alkohol på ' + formatAbv(abvEstimate) + ' ligger marginalt i øvre kant, men fortsatt innenfor et rimelig stiluttrykk.',
-      low: 'Estimert alkohol på ' + formatAbv(abvEstimate) + ' havner lavere enn det som normalt er typisk for stilen.',
-      high: 'Estimert alkohol på ' + formatAbv(abvEstimate) + ' havner høyere enn det som normalt er typisk for stilen.',
-      unknown: 'Alkoholnivået kan ikke vurderes sikkert mot stilvinduet ennå.'
+      within: 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' samsvarer godt med stilens normalomrÃƒÂ¥de.',
+      'near-low': 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' ligger marginalt i nedre kant, men fortsatt innenfor et naturlig uttrykk.',
+      'near-high': 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' ligger marginalt i ÃƒÂ¸vre kant, men fortsatt innenfor et rimelig stiluttrykk.',
+      low: 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' havner lavere enn det som normalt er typisk for stilen.',
+      high: 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' havner hÃƒÂ¸yere enn det som normalt er typisk for stilen.',
+      unknown: 'AlkoholnivÃƒÂ¥et kan ikke vurderes sikkert mot stilvinduet ennÃƒÂ¥.'
     };
 
     let verdict = '';
     if (fitScore >= 5) {
       verdict = pickVariant(seed + ':verdict', [
-        'Helhetsbildet ligger derfor tett på et klassisk stiluttrykk.',
+        'Helhetsbildet ligger derfor tett pÃƒÂ¥ et klassisk stiluttrykk.',
         'Samlet sett ser batchen stilfaglig godt kalibrert ut.',
         'Tallene samsvarer overraskende godt med stilreferansen og gir et troverdig stiltreff.'
       ]);
@@ -453,8 +453,8 @@
     } else {
       verdict = pickVariant(seed + ':verdict', [
         'Samlet peker tallene mot en mer fri tolkning enn en stilren skolebokversjon.',
-        'Det er fortsatt mulig å lese intensjonen, men batchen ligger et godt stykke fra den typiske statistikken.',
-        'Tallene avviker så mye at stilen bør behandles som en løs referanse heller enn en presis mal.'
+        'Det er fortsatt mulig ÃƒÂ¥ lese intensjonen, men batchen ligger et godt stykke fra den typiske statistikken.',
+        'Tallene avviker sÃƒÂ¥ mye at stilen bÃƒÂ¸r behandles som en lÃƒÂ¸s referanse heller enn en presis mal.'
       ]);
     }
 
@@ -483,7 +483,7 @@
     };
 
     if (!styleMatch) {
-      return 'Det finnes foreløpig for lite gjæringsdata til å kjøre den numeriske modellen med trygghet, og uten et tydelig stiltreff blir reserveestimatet med vilje holdt tilbake til flere målinger er inne.';
+      return 'Det finnes forelÃƒÂ¸pig for lite gjÃƒÂ¦ringsdata til ÃƒÂ¥ kjÃƒÂ¸re den numeriske modellen med trygghet, og uten et tydelig stiltreff blir reserveestimatet med vilje holdt tilbake til flere mÃƒÂ¥linger er inne.';
     }
 
     const safeRows = rows.map((row) => ({
@@ -502,17 +502,17 @@
     const recentSlope = safeRows.length >= 2 ? calculateSlopePerHour(safeRows, 'gravity', Math.min(6, safeRows.length)) : NaN;
     const currentAbv = estimateAbvFromRows(safeRows);
 
-    let stageText = 'Reserveprognosen hviler derfor på stilreferansen alene.';
+    let stageText = 'Reserveprognosen hviler derfor pÃƒÂ¥ stilreferansen alene.';
     let remainingDays = Number.isFinite(typicalDays) ? typicalDays : 7;
 
     if (Number.isFinite(currentGravity) && Number.isFinite(typicalOg) && Number.isFinite(typicalFg) && typicalOg > typicalFg) {
       const progress = clamp(1 - ((currentGravity - typicalFg) / (typicalOg - typicalFg)), 0, 1);
       if (progress < 0.2) {
-        stageText = 'Dagens gravity på ' + formatSg(currentGravity) + ' ligner en tidlig fase i et typisk ' + styleMatch.name + '-forløp.';
+        stageText = 'Dagens gravity pÃƒÂ¥ ' + formatSg(currentGravity) + ' ligner en tidlig fase i et typisk ' + styleMatch.name + '-forlÃƒÂ¸p.';
       } else if (progress < 0.75) {
-        stageText = 'Dagens gravity på ' + formatSg(currentGravity) + ' peker mot en arbeidende mellomfase der det fortsatt er meningsfull fremdrift igjen.';
+        stageText = 'Dagens gravity pÃƒÂ¥ ' + formatSg(currentGravity) + ' peker mot en arbeidende mellomfase der det fortsatt er meningsfull fremdrift igjen.';
       } else {
-        stageText = 'Dagens gravity på ' + formatSg(currentGravity) + ' ligger nær et normalt sluttområde for stilen, så batchen ser ut til å være sent i forløpet.';
+        stageText = 'Dagens gravity pÃƒÂ¥ ' + formatSg(currentGravity) + ' ligger nÃƒÂ¦r et normalt sluttomrÃƒÂ¥de for stilen, sÃƒÂ¥ batchen ser ut til ÃƒÂ¥ vÃƒÂ¦re sent i forlÃƒÂ¸pet.';
       }
       remainingDays = Math.max(0.5, typicalDays * (1 - progress));
     }
@@ -525,26 +525,26 @@
     let tempText = '';
     if (Array.isArray(styleMatch.tempRangeC) && styleMatch.tempRangeC.length === 2 && Number.isFinite(currentTemp)) {
       if (currentTemp < styleMatch.tempRangeC[0] - 0.5) {
-        tempText = 'Temperaturen på ' + formatTemp(currentTemp) + ' ligger under det som ofte brukes for denne stilen, så tempoet kan være mer dempet enn normalt.';
+        tempText = 'Temperaturen pÃƒÂ¥ ' + formatTemp(currentTemp) + ' ligger under det som ofte brukes for denne stilen, sÃƒÂ¥ tempoet kan vÃƒÂ¦re mer dempet enn normalt.';
         remainingDays *= 1.15;
       } else if (currentTemp > styleMatch.tempRangeC[1] + 0.5) {
-        tempText = 'Temperaturen på ' + formatTemp(currentTemp) + ' ligger over et vanlig arbeidsområde for stilen, noe som ofte gir raskere drift men også mer sensorisk risiko.';
+        tempText = 'Temperaturen pÃƒÂ¥ ' + formatTemp(currentTemp) + ' ligger over et vanlig arbeidsomrÃƒÂ¥de for stilen, noe som ofte gir raskere drift men ogsÃƒÂ¥ mer sensorisk risiko.';
         remainingDays *= 0.9;
       } else {
-        tempText = 'Temperaturen på ' + formatTemp(currentTemp) + ' ligger innenfor et ganske plausibelt arbeidsområde for denne stilen.';
+        tempText = 'Temperaturen pÃƒÂ¥ ' + formatTemp(currentTemp) + ' ligger innenfor et ganske plausibelt arbeidsomrÃƒÂ¥de for denne stilen.';
       }
     }
 
     const abvText = Number.isFinite(currentAbv)
-      ? 'Den forelopige alkoholdannelsen ligger rundt ' + formatAbv(currentAbv) + ', mens et typisk sluttomraade for stilen ofte ender rundt ' + formatRange(styleMatch.abvRange, 1, '%') + '.'
+      ? 'Den forel?pige alkoholdannelsen ligger rundt ' + formatAbv(currentAbv) + ', mens et typisk sluttomr?de for stilen ofte ender rundt ' + formatRange(styleMatch.abvRange, 1, '%') + '.'
       : 'Stilreferansen som brukes her er omtrent OG ' + formatRange(styleMatch.ogRange, 3, '') + ', FG ' + formatRange(styleMatch.fgRange, 3, '') + ' og ABV ' + formatRange(styleMatch.abvRange, 1, '%') + '.';
 
     return [
-      'Det finnes ennå ikke nok filtrert historikk til å la den numeriske modellen stå alene, så prognosen faller tilbake på en modulbasert stilreferanse for ' + styleMatch.name + '.',
+      'Det finnes ennÃƒÂ¥ ikke nok filtrert historikk til ÃƒÂ¥ la den numeriske modellen stÃƒÂ¥ alene, sÃƒÂ¥ prognosen faller tilbake pÃƒÂ¥ en modulbasert stilreferanse for ' + styleMatch.name + '.',
       stageText,
       tempText,
       abvText,
-      'Som arbeidsanslag ligger det igjen omtrent ' + remainingDays.toFixed(1) + ' døgn til et sannsynlig sluttområde rundt ' + formatSg(typicalFg) + ', gitt at utviklingen fortsetter uten et nytt prosesskifte.'
+      'Som arbeidsanslag ligger det igjen omtrent ' + remainingDays.toFixed(1) + ' dÃƒÂ¸gn til et sannsynlig sluttomrÃƒÂ¥de rundt ' + formatSg(typicalFg) + ', gitt at utviklingen fortsetter uten et nytt prosesskifte.'
     ].filter(Boolean).join(' ');
   }
 
@@ -586,9 +586,9 @@
 
     if (!Number.isFinite(recentSlopeSgPerHour) || recentSlopeSgPerHour >= -0.0002) {
       if (styleMatch && Number.isFinite(styleFgMid) && currentGravity <= styleFgRange[1] + 0.002) {
-        return 'Den modulare fermenteringsmodellen leser forløpet som nær praktisk stabilt. Gravityen ligger allerede tett på et normalt sluttområde for ' + styleMatch.name + ', så videre endring ventes å bli beskjeden uten et nytt temperatur- eller gjærskifte.';
+        return 'Den modulare fermenteringsmodellen leser forlÃƒÂ¸pet som nÃƒÂ¦r praktisk stabilt. Gravityen ligger allerede tett pÃƒÂ¥ et normalt sluttomrÃƒÂ¥de for ' + styleMatch.name + ', sÃƒÂ¥ videre endring ventes ÃƒÂ¥ bli beskjeden uten et nytt temperatur- eller gjÃƒÂ¦rskifte.';
       }
-      return 'Den modulare fermenteringsmodellen leser forløpet som nær praktisk stabilt. Videre endring ventes å bli liten uten et nytt temperatur- eller gjærskifte.';
+      return 'Den modulare fermenteringsmodellen leser forlÃƒÂ¸pet som nÃƒÂ¦r praktisk stabilt. Videre endring ventes ÃƒÂ¥ bli liten uten et nytt temperatur- eller gjÃƒÂ¦rskifte.';
     }
 
     let sugar = Math.max((currentGravity - fgFloor) * 1000, 0.2);
@@ -624,19 +624,19 @@
       if (fgFit === 'within' || fgFit === 'near-low' || fgFit === 'near-high') {
         styleTail = ' Det predikerte sluttpunktet ligger fortsatt innenfor et plausibelt stilvindu for ' + styleMatch.name + '.';
       } else if (fgFit === 'low') {
-        styleTail = ' Prognosen peker mot et tørrere sluttpunkt enn stilens kjerne tilsier.';
+        styleTail = ' Prognosen peker mot et tÃƒÂ¸rrere sluttpunkt enn stilens kjerne tilsier.';
       } else if (fgFit === 'high') {
-        styleTail = ' Prognosen peker mot mer restsodme enn stilens kjerne normalt tilsier.';
+        styleTail = ' Prognosen peker mot mer rests?dme enn stilens kjerne normalt tilsier.';
       }
     }
 
     if (days <= 1.2) {
-      return 'Den modulare prognosen, bygget videre på Monod-inspirert vekstlogikk og enkel midtpunktsintegrasjon, antyder at batchen kan være nær praktisk slutt innen omtrent ' + hours.toFixed(0) + ' timer med estimert sluttgravity rundt ' + fmtSg(predictedGravity) + ' dersom dagens trend holder seg.' + styleTail;
+      return 'Den modulare prognosen, bygget videre pÃƒÂ¥ Monod-inspirert vekstlogikk og enkel midtpunktsintegrasjon, antyder at batchen kan vÃƒÂ¦re nÃƒÂ¦r praktisk slutt innen omtrent ' + hours.toFixed(0) + ' timer med estimert sluttgravity rundt ' + fmtSg(predictedGravity) + ' dersom dagens trend holder seg.' + styleTail;
     }
     if (days <= 7) {
-      return 'Den modulare fermenteringsmodellen antyder cirka ' + days.toFixed(1) + ' døgn til tilnærmet stabil gravity, med mulig sluttpunkt rundt ' + fmtSg(predictedGravity) + ' dersom temperaturbildet og gjæraktiviteten fortsetter omtrent som nå.' + styleTail;
+      return 'Den modulare fermenteringsmodellen antyder cirka ' + days.toFixed(1) + ' dÃƒÂ¸gn til tilnÃƒÂ¦rmet stabil gravity, med mulig sluttpunkt rundt ' + fmtSg(predictedGravity) + ' dersom temperaturbildet og gjÃƒÂ¦raktiviteten fortsetter omtrent som nÃƒÂ¥.' + styleTail;
     }
-    return 'Modellprognosen peker mot et roligere og seigere sluttforløp, med omtrent ' + days.toFixed(1) + ' døgn til nær stabil gravity og beregnet sluttpunkt rundt ' + fmtSg(predictedGravity) + '. Dette bør fortsatt leses som prosessindikasjon, ikke som eksakt sluttdato.' + styleTail;
+    return 'Modellprognosen peker mot et roligere og seigere sluttforlÃƒÂ¸p, med omtrent ' + days.toFixed(1) + ' dÃƒÂ¸gn til nÃƒÂ¦r stabil gravity og beregnet sluttpunkt rundt ' + fmtSg(predictedGravity) + '. Dette bÃƒÂ¸r fortsatt leses som prosessindikasjon, ikke som eksakt sluttdato.' + styleTail;
   }
 
   function buildAlerts(options) {
@@ -691,11 +691,11 @@
     if (Number(device && device.filteredOutCount) >= 3) {
       alerts.push({
         severity: 'info',
-        title: 'Stoy i maaleserien',
-        summary: 'Flere maaleutliggere er filtrert bort i perioden. Det styrker trenden, men tilsier at enkelthopp ikke boer tolkes som prosessendring.',
+        title: 'St?y i m?leserien',
+        summary: 'Flere m?leutliggere er filtrert bort i perioden. Det styrker trenden, men tilsier at enkelthopp ikke b?r tolkes som prosessendring.',
         actionSummary: 'Bruk filtrerte trendlinjer som hovedgrunnlag.',
         proActions: ['Kontroller kalibrering og fysisk plassering av Pillen.'],
-        hobbyActions: ['Vaer forsiktig med enkeltspikes som ikke gjenfinnes i nabomaalingene.'],
+        hobbyActions: ['V?r forsiktig med enkeltspikes som ikke gjenfinnes i nabom?lingene.'],
         links: []
       });
     }
@@ -703,16 +703,16 @@
     if (looksStalled) {
       alerts.push({
         severity: 'warning',
-        title: 'Tegn til treg eller stoppende gjæring',
-        summary: 'Gravitykurven har flatet merkbart ut mens det fortsatt ser ut til å være gjærbart ekstrakt igjen. Dette ligner en treg eller delvis stuck fermentering.',
-        actionSummary: 'Bekreft temperatur og gravity, resuspender gjær forsiktig og vurder restart eller næring ut fra batchtype.',
+        title: 'Tegn til treg eller stoppende gjÃƒÂ¦ring',
+        summary: 'Gravitykurven har flatet merkbart ut mens det fortsatt ser ut til ÃƒÂ¥ vÃƒÂ¦re gjÃƒÂ¦rbart ekstrakt igjen. Dette ligner en treg eller delvis stuck fermentering.',
+        actionSummary: 'Bekreft temperatur og gravity, resuspender gjÃƒÂ¦r forsiktig og vurder restart eller nÃƒÂ¦ring ut fra batchtype.',
         proActions: [
-          'Verifiser med en ny gravitymaaling og bygg en kontrollert restartstarter dersom batchen faktisk har stoppet.',
-          'Ved sen stuck fermentering: bruk acclimatisert restartgjær fremfor å pitche tørr gjær direkte.'
+          'Verifiser med en ny gravitym?ling og bygg en kontrollert restartstarter dersom batchen faktisk har stoppet.',
+          'Ved sen stuck fermentering: bruk acclimatisert restartgjÃƒÂ¦r fremfor ÃƒÂ¥ pitche tÃƒÂ¸rr gjÃƒÂ¦r direkte.'
         ],
         hobbyActions: [
-          'Sving fermentoren forsiktig for å løfte gjær opp igjen hvis du fortsatt er i aktiv fase.',
-          'Se etter 12–24 timer med ekte platå før du griper hardt inn.'
+          'Sving fermentoren forsiktig for ÃƒÂ¥ lÃƒÂ¸fte gjÃƒÂ¦r opp igjen hvis du fortsatt er i aktiv fase.',
+          'Se etter 12Ã¢â‚¬â€œ24 timer med ekte platÃƒÂ¥ fÃƒÂ¸r du griper hardt inn.'
         ],
         links: [SOURCE_LIBRARY.scottTroubleshooting, SOURCE_LIBRARY.stillSpiritsStuck]
       });
@@ -721,16 +721,16 @@
     if (context.isLowNutrientSugar && looksStalled) {
       alerts.push({
         severity: 'warning',
-        title: context.isSats ? 'Satsen kan mangle nitrogen og mikronæring' : 'Sukkerbasen kan mangle nitrogen og mikronæring',
-        summary: 'Lav-nærings sukkerfermenter er næringsfattige sammenlignet med maltbasert vørter. Hvis gravity stanser før forventet sluttpunkt, er nitrogenmangel og generell gjærstress en av de mest sannsynlige forklaringene.',
-        actionSummary: 'Proff: organisk gjærnæring eller styrt DAP-tilførsel. Hobby: restartstarter med enkel næringskilde som tomatpure, heller enn å la batchen sulte videre.',
+        title: context.isSats ? 'Satsen kan mangle nitrogen og mikronÃƒÂ¦ring' : 'Sukkerbasen kan mangle nitrogen og mikronÃƒÂ¦ring',
+        summary: 'Lav-nÃƒÂ¦rings sukkerfermenter er nÃƒÂ¦ringsfattige sammenlignet med maltbasert vÃƒÂ¸rter. Hvis gravity stanser fÃƒÂ¸r forventet sluttpunkt, er nitrogenmangel og generell gjÃƒÂ¦rstress en av de mest sannsynlige forklaringene.',
+        actionSummary: 'Proff: organisk gjÃƒÂ¦rnÃƒÂ¦ring eller styrt DAP-tilfÃƒÂ¸rsel. Hobby: restartstarter med enkel nÃƒÂ¦ringskilde som tomatpure, heller enn ÃƒÂ¥ la batchen sulte videre.',
         proActions: [
-          'Fermaid O er en kontrollert organisk næringskilde for treg eller krevende fermentering.',
-          'DAP kan brukes som direkte nitrogenkilde naar du faktisk mistenker nitrogenunderskudd og vil korrigere mer maalrettet.'
+          'Fermaid O er en kontrollert organisk nÃƒÂ¦ringskilde for treg eller krevende fermentering.',
+          'DAP kan brukes som direkte nitrogenkilde n?r du faktisk mistenker nitrogenunderskudd og vil korrigere mer m?lrettet.'
         ],
         hobbyActions: [
-          'Tomatpure er en kjent husholdningsløsning i sukkerfermenter fordi den bidrar med næring i en ellers næringsfattig base.',
-          'I en enkel ginger-batch nevnes hakkede rosiner som en nødløsning dersom du ikke har kommersiell gjærnæring.'
+          'Tomatpure er en kjent husholdningslÃƒÂ¸sning i sukkerfermenter fordi den bidrar med nÃƒÂ¦ring i en ellers nÃƒÂ¦ringsfattig base.',
+          'I en enkel ginger-batch nevnes hakkede rosiner som en nÃƒÂ¸dlÃƒÂ¸sning dersom du ikke har kommersiell gjÃƒÂ¦rnÃƒÂ¦ring.'
         ],
         links: [
           SOURCE_LIBRARY.scottSugarGuide,
@@ -748,11 +748,11 @@
     if (Number.isFinite(currentTemp) && ((Number.isFinite(styleTempMax) && currentTemp > styleTempMax + 2.0) || (!Number.isFinite(styleTempMax) && currentTemp > 28))) {
       alerts.push({
         severity: 'warning',
-        title: 'Høy gjæringstemperatur',
-        summary: 'Temperaturen ligger klart over et komfortabelt arbeidsvindu. Høy varme kan gi stresset gjær, rask men ujevn drift og tidligere stopp.',
-        actionSummary: 'Senk temperaturen gradvis og unnga at batchen fortsetter oppover.',
-        proActions: ['Bruk aktiv temperaturstyring eller kjølt vannbad for å få batchen tilbake i et smalere vindu.'],
-        hobbyActions: ['Flytt karet kaldere eller bruk vannbad og vått håndkle for å bremse varmeutviklingen.'],
+        title: 'HÃƒÂ¸y gjÃƒÂ¦ringstemperatur',
+        summary: 'Temperaturen ligger klart over et komfortabelt arbeidsvindu. HÃƒÂ¸y varme kan gi stresset gjÃƒÂ¦r, rask men ujevn drift og tidligere stopp.',
+        actionSummary: 'Senk temperaturen gradvis og unng? at batchen fortsetter oppover.',
+        proActions: ['Bruk aktiv temperaturstyring eller kjÃƒÂ¸lt vannbad for ÃƒÂ¥ fÃƒÂ¥ batchen tilbake i et smalere vindu.'],
+        hobbyActions: ['Flytt karet kaldere eller bruk vannbad og vÃƒÂ¥tt hÃƒÂ¥ndkle for ÃƒÂ¥ bremse varmeutviklingen.'],
         links: [SOURCE_LIBRARY.stillSpiritsRange, SOURCE_LIBRARY.stillSpiritsStuck]
       });
     }
@@ -760,10 +760,10 @@
     if (Number.isFinite(currentTemp) && ((Number.isFinite(styleTempMin) && currentTemp < styleTempMin - 2.0) || (!Number.isFinite(styleTempMin) && currentTemp < 16)) && looksStalled) {
       alerts.push({
         severity: 'warning',
-        title: 'For lav temperatur til å holde gjæren i arbeid',
+        title: 'For lav temperatur til ÃƒÂ¥ holde gjÃƒÂ¦ren i arbeid',
         summary: 'Temperaturen ligger lavt samtidig som gravity nesten ikke beveger seg. Dette ligner mer en passiv batch enn en naturlig sluttfase.',
-        actionSummary: 'Varm opp gradvis og få gjæren i bevegelse igjen før sterkere tiltak vurderes.',
-        proActions: ['Hev temperaturen kontrollert i små steg og følg med på om gravity begynner å røre på seg.'],
+        actionSummary: 'Varm opp gradvis og fÃƒÂ¥ gjÃƒÂ¦ren i bevegelse igjen fÃƒÂ¸r sterkere tiltak vurderes.',
+        proActions: ['Hev temperaturen kontrollert i smÃƒÂ¥ steg og fÃƒÂ¸lg med pÃƒÂ¥ om gravity begynner ÃƒÂ¥ rÃƒÂ¸re pÃƒÂ¥ seg.'],
         hobbyActions: ['Sett karet lunere eller bruk varmebelte forsiktig etter den mest intense startfasen.'],
         links: [SOURCE_LIBRARY.stillSpiritsStuck]
       });
@@ -773,10 +773,10 @@
       alerts.push({
         severity: 'info',
         title: 'Urolig temperaturhistorikk',
-        summary: 'Temperaturkurven har flyttet seg mye gjennom perioden. Slike svingninger gjør både gjærtempo og diagnose mindre forutsigbar.',
+        summary: 'Temperaturkurven har flyttet seg mye gjennom perioden. Slike svingninger gjÃƒÂ¸r bÃƒÂ¥de gjÃƒÂ¦rtempo og diagnose mindre forutsigbar.',
         actionSummary: 'Les alltid gravity sammen med temperatur, ikke alene.',
         proActions: ['Hold fermentoren tettere rundt et definert temperaturvindu.'],
-        hobbyActions: ['Unngå trekk, direkte sol og raske romskifter.'],
+        hobbyActions: ['UnngÃƒÂ¥ trekk, direkte sol og raske romskifter.'],
         links: [SOURCE_LIBRARY.scottTroubleshooting]
       });
     }
@@ -784,11 +784,11 @@
     if (Number.isFinite(startGravity) && startGravity >= 1.110 && looksStalled) {
       alerts.push({
         severity: 'warning',
-        title: 'Høy startstyrke kan ha stresset gjæren',
-        summary: 'Batchen startet tungt nok til at osmotisk stress og senere alkoholtoleranse kan være en del av bildet, selv om temperaturen ellers virker akseptabel.',
-        actionSummary: 'Ved restart: bygg opp ny gjær i et gradvis sterkere miljø i stedet for å pitche rett i hele batchen.',
-        proActions: ['Bruk acclimatisert restartgjær dersom batchen må reddes videre.'],
-        hobbyActions: ['Planlegg heller trinnvis sukkeradding i neste tilsvarende sats enn å starte altfor høyt.'],
+        title: 'HÃƒÂ¸y startstyrke kan ha stresset gjÃƒÂ¦ren',
+        summary: 'Batchen startet tungt nok til at osmotisk stress og senere alkoholtoleranse kan vÃƒÂ¦re en del av bildet, selv om temperaturen ellers virker akseptabel.',
+        actionSummary: 'Ved restart: bygg opp ny gjÃƒÂ¦r i et gradvis sterkere miljÃƒÂ¸ i stedet for ÃƒÂ¥ pitche rett i hele batchen.',
+        proActions: ['Bruk acclimatisert restartgjÃƒÂ¦r dersom batchen mÃƒÂ¥ reddes videre.'],
+        hobbyActions: ['Planlegg heller trinnvis sukkeradding i neste tilsvarende sats enn ÃƒÂ¥ starte altfor hÃƒÂ¸yt.'],
         links: [SOURCE_LIBRARY.scottTroubleshooting, SOURCE_LIBRARY.stillSpiritsStuck]
       });
     }
@@ -797,10 +797,10 @@
       alerts.push({
         severity: 'info',
         title: 'Turbo-/satsferment bygger egenvarme',
-        summary: 'Denne typen sukkerferment kan produsere betydelig egenvarme. Kombinasjonen av høy varme og svak næring gir ofte hardere stress enn kurven først ser ut til å vise.',
-        actionSummary: 'Bruk temperaturkurven aktivt som styrepinne, spesielt tidlig i forløpet.',
-        proActions: ['Mål faktisk væsketemperatur, ikke bare romtemperatur.'],
-        hobbyActions: ['Ikke legg på ekstra varme tidlig hvis satsen allerede bygger temperatur selv.'],
+        summary: 'Denne typen sukkerferment kan produsere betydelig egenvarme. Kombinasjonen av hÃƒÂ¸y varme og svak nÃƒÂ¦ring gir ofte hardere stress enn kurven fÃƒÂ¸rst ser ut til ÃƒÂ¥ vise.',
+        actionSummary: 'Bruk temperaturkurven aktivt som styrepinne, spesielt tidlig i forlÃƒÂ¸pet.',
+        proActions: ['MÃƒÂ¥l faktisk vÃƒÂ¦sketemperatur, ikke bare romtemperatur.'],
+        hobbyActions: ['Ikke legg pÃƒÂ¥ ekstra varme tidlig hvis satsen allerede bygger temperatur selv.'],
         links: [SOURCE_LIBRARY.stillSpiritsRange, SOURCE_LIBRARY.stillSpiritsStuck]
       });
     }

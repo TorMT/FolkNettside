@@ -427,7 +427,7 @@ function brewing_example_drive_image_svg(array $log): string {
         . '<text x="128" y="388" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.76)">Visning: ' . $periodLabel . '</text>'
         . '<text x="128" y="500" font-family="Segoe UI, Arial, sans-serif" font-size="28" fill="#ffffff">Dette er et automatisk eksempelbilde.</text>'
         . '<text x="128" y="548" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.82)">Legg egne bryggebilder i bilder-mappen i Google Drive,</text>'
-        . '<text x="128" y="588" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.82)">sa vises de her sammen med loggen.</text>'
+        . '<text x="128" y="588" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.82)">s? vises de her sammen med loggen.</text>'
         . '<g transform="translate(820 190)">'
         . '<rect x="0" y="0" width="540" height="520" rx="34" fill="rgba(255,255,255,0.92)"/>'
         . '<path d="M86 370 L210 250 L310 330 L396 210 L486 370 Z" fill="#9c64ff" opacity="0.92"/>'
@@ -614,6 +614,15 @@ function brewing_persist_log_folder(array $log, string $html, string $csv, ?stri
     $root = brewing_ensure_logs_root();
     $existingLog = [];
     $safeTargetSlug = $targetSlug !== null ? brewing_safe_folder_name($targetSlug) : '';
+    $duplicate = brewing_find_duplicate_rapt_log($root, $log, $safeTargetSlug);
+    if ($duplicate !== null) {
+        brewing_error(
+            'Det samme RAPT-datasettet fra denne Pillen er allerede knyttet til bryggeloggen "'
+            . ($duplicate['batchName'] ?: $duplicate['slug'])
+            . '" (' . $duplicate['firstAt'] . ' til ' . $duplicate['lastAt'] . '). Velg den loggen og oppdater den i stedet.',
+            409
+        );
+    }
 
     if ($safeTargetSlug !== '') {
         $dir = brewing_safe_join($root, basename($safeTargetSlug));
@@ -875,6 +884,85 @@ function brewing_drive_image_files(array $storage): array {
     return $images;
 }
 
+function brewing_log_has_rapt_data(array $log): bool {
+    $history = is_array($log['history'] ?? null) ? $log['history'] : [];
+    $deviceId = trim((string)($log['deviceId'] ?? ''));
+    return $deviceId !== '' && count($history) > 0;
+}
+
+function brewing_extract_rapt_signature(array $log): ?array {
+    if (!brewing_log_has_rapt_data($log)) {
+        return null;
+    }
+
+    $history = array_values(is_array($log['history'] ?? null) ? $log['history'] : []);
+    $first = $history[0] ?? [];
+    $last = $history ? $history[count($history) - 1] : [];
+    $firstAt = trim((string)($first['createdOn'] ?? ''));
+    $lastAt = trim((string)($last['createdOn'] ?? ''));
+    if ($firstAt === '' || $lastAt === '') {
+        return null;
+    }
+
+    return [
+        'deviceId' => trim((string)($log['deviceId'] ?? '')),
+        'historyCount' => count($history),
+        'firstAt' => $firstAt,
+        'lastAt' => $lastAt,
+    ];
+}
+
+function brewing_find_duplicate_rapt_log(string $root, array $log, string $ignoreSlug = ''): ?array {
+    $signature = brewing_extract_rapt_signature($log);
+    if ($signature === null) {
+        return null;
+    }
+
+    $items = @scandir($root);
+    if (!is_array($items)) {
+        return null;
+    }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        if ($ignoreSlug !== '' && strcasecmp($item, $ignoreSlug) === 0) {
+            continue;
+        }
+        $full = $root . DIRECTORY_SEPARATOR . $item;
+        if (!is_dir($full)) {
+            continue;
+        }
+        $jsonPath = brewing_find_log_json($full);
+        if ($jsonPath === null) {
+            continue;
+        }
+        $existing = brewing_read_json_file($jsonPath);
+        $existingSignature = brewing_extract_rapt_signature($existing);
+        if ($existingSignature === null) {
+            continue;
+        }
+        if (
+            $existingSignature['deviceId'] === $signature['deviceId']
+            && $existingSignature['historyCount'] === $signature['historyCount']
+            && $existingSignature['firstAt'] === $signature['firstAt']
+            && $existingSignature['lastAt'] === $signature['lastAt']
+        ) {
+            return [
+                'slug' => basename($full),
+                'batchName' => (string)($existing['batchName'] ?? basename($full)),
+                'deviceId' => $existingSignature['deviceId'],
+                'firstAt' => $existingSignature['firstAt'],
+                'lastAt' => $existingSignature['lastAt'],
+                'historyCount' => $existingSignature['historyCount'],
+            ];
+        }
+    }
+
+    return null;
+}
+
 function brewing_collect_log_folders(): array {
     $root = brewing_ensure_logs_root();
     $entries = [];
@@ -895,13 +983,18 @@ function brewing_collect_log_folders(): array {
             $full
         );
         $driveImages = brewing_drive_image_files($storage);
+        $hasRaptData = brewing_log_has_rapt_data($log);
+        $updatedAt = (string)($log['updatedAt'] ?? ($log['exportedAt'] ?? ''));
         $entries[] = [
             'slug' => basename($full),
             'folderName' => $log['folderName'] ?? basename($full),
             'batchName' => $log['batchName'] ?? basename($full),
             'exportedAt' => $log['exportedAt'] ?? null,
+            'updatedAt' => $updatedAt !== '' ? $updatedAt : null,
+            'createdAt' => $log['createdAt'] ?? null,
             'styleName' => $log['styleName'] ?? null,
             'deviceName' => $log['deviceName'] ?? null,
+            'deviceId' => $log['deviceId'] ?? null,
             'recipeRef' => $recipeRef,
             'imageCount' => count($images) + count($driveImages),
             'coverImage' => $images[0]['url'] ?? null,
@@ -909,11 +1002,20 @@ function brewing_collect_log_folders(): array {
             'metrics' => $log['metrics'] ?? [],
             'storage' => $storage,
             'folderUrl' => brewing_path_to_url($full),
+            'logMode' => $log['logMode'] ?? ($hasRaptData ? 'hydrometer' : 'draft'),
+            'hasRaptData' => $hasRaptData,
+            'statusLabel' => $hasRaptData ? 'Ferdig' : 'Mangler RAPT-logg',
+            'raptWindow' => is_array($log['raptWindow'] ?? null) ? $log['raptWindow'] : [],
         ];
     }
 
     usort($entries, static function ($a, $b) {
-        return strcmp((string)($b['exportedAt'] ?? ''), (string)($a['exportedAt'] ?? ''));
+        $aDone = !empty($a['hasRaptData']) ? 1 : 0;
+        $bDone = !empty($b['hasRaptData']) ? 1 : 0;
+        if ($aDone !== $bDone) {
+            return $bDone <=> $aDone;
+        }
+        return strcmp((string)($b['updatedAt'] ?? $b['exportedAt'] ?? ''), (string)($a['updatedAt'] ?? $a['exportedAt'] ?? ''));
     });
 
     return $entries;
@@ -924,12 +1026,19 @@ function brewing_render_log_html(array $log): string {
     $folderName = brewing_escape_html((string)($log['folderName'] ?? 'Brygglogg'));
     $styleName = brewing_escape_html((string)($log['styleName'] ?? 'Ukjent stil'));
     $exportedAt = brewing_escape_html((string)($log['exportedAt'] ?? ''));
+    $createdAt = brewing_escape_html((string)($log['createdAt'] ?? ''));
+    $updatedAt = brewing_escape_html((string)($log['updatedAt'] ?? ($log['exportedAt'] ?? '')));
     $summary = is_array($log['summary'] ?? null) ? $log['summary'] : [];
     $metrics = is_array($log['metrics'] ?? null) ? $log['metrics'] : [];
     $alerts = is_array($log['alerts'] ?? null) ? $log['alerts'] : [];
     $history = is_array($log['history'] ?? null) ? $log['history'] : [];
     $recipeRef = brewing_normalize_recipe_ref($log['recipeRef'] ?? null);
     $storage = brewing_normalize_storage_payload($log['storage'] ?? null);
+    $hasRaptData = brewing_log_has_rapt_data($log);
+    $raptWindow = is_array($log['raptWindow'] ?? null) ? $log['raptWindow'] : [];
+    $raptStart = brewing_escape_html((string)($raptWindow['historyStart'] ?? ''));
+    $raptEnd = brewing_escape_html((string)($raptWindow['historyEnd'] ?? ''));
+    $statusLabel = $hasRaptData ? 'Ferdig' : 'Mangler RAPT-logg';
 
     $metricCards = '';
     foreach ($metrics as $label => $value) {
@@ -1007,7 +1116,7 @@ function brewing_render_log_html(array $log): string {
     <section class="hero">
       <p>Eksportert bryggelogg</p>
       <h1>' . $batchName . '</h1>
-      <p>Mappe: ' . $folderName . '<br>Stil: ' . $styleName . '<br>Eksportert: ' . $exportedAt . ($recipeRef !== null ? '<br>Oppskrift: ' . brewing_escape_html((string)($recipeRef['name'] ?? 'Oppskrift')) : '') . '</p>
+      <p>Status: ' . $statusLabel . '<br>Mappe: ' . $folderName . '<br>Stil: ' . $styleName . '<br>Opprettet: ' . $createdAt . '<br>Sist oppdatert: ' . $updatedAt . '<br>Eksportert: ' . $exportedAt . ($recipeRef !== null ? '<br>Oppskrift: ' . brewing_escape_html((string)($recipeRef['name'] ?? 'Oppskrift')) : '') . ($raptStart !== '' ? '<br>RAPT start: ' . $raptStart : '') . ($raptEnd !== '' ? '<br>RAPT slutt: ' . $raptEnd : '') . '</p>
       <section class="metrics">' . $metricCards . '</section>
     </section>
     <section class="layout">

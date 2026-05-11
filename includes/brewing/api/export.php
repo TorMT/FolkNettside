@@ -31,6 +31,7 @@ $log = [
     'createdAt' => $createdAt !== '' ? $createdAt : null,
     'logMode' => in_array($logMode, ['draft', 'hydrometer'], true) ? $logMode : null,
     'exportedAt' => $exportedAt !== '' ? $exportedAt : gmdate(DATE_ATOM),
+    'raptWindow' => is_array($input['raptWindow'] ?? null) ? $input['raptWindow'] : [],
     'summary' => is_array($input['summary'] ?? null) ? $input['summary'] : [],
     'metrics' => is_array($input['metrics'] ?? null) ? $input['metrics'] : [],
     'alerts' => is_array($input['alerts'] ?? null) ? $input['alerts'] : [],
