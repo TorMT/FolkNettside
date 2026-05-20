@@ -22,3 +22,19 @@ secrets/
 # VS Code local-only secrets/config
 .vscode/settings.json
 .vscode/launch.json
+
+
+# Portfolio template: keep generic template tracked, keep personal variants ignored
+!diverse/
+!diverse/portfolio-template/
+!diverse/portfolio-template/**
+diverse/portfolio-template/portfolio-data.local.json
+diverse/portfolio-template/portfolio-data.private.json
+diverse/portfolio-template/portfolio-linkedin.local.json
+diverse/portfolio-template/portfolio-linkedin.private.json
+diverse/portfolio-template/linkedin-token.json
+diverse/portfolio-template/linkedin-refresh-token.json
+diverse/portfolio-template/.env.linkedin
+diverse/portfolio-template/.env.portfolio
+diverse/portfolio-template/private/
+diverse/portfolio-template/secrets/

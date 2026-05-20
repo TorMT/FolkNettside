@@ -1,0 +1,12 @@
+portfolio-data.local.json
+portfolio-data.private.json
+portfolio-linkedin.local.json
+portfolio-linkedin.private.json
+linkedin-token.json
+linkedin-refresh-token.json
+.env.linkedin
+.env.portfolio
+private/
+secrets/
+*.local.json
+*.private.json
