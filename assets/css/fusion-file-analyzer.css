@@ -51,6 +51,8 @@ html, body {
   height: calc(100vh - 28px);
 }
 
+
+
 .viewer-topbar {
   display: flex;
   justify-content: space-between;
