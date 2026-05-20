@@ -17,6 +17,12 @@
     catch { return null; }
   };
 
+  const isRealValue = (value) => {
+    if (!value || typeof value !== 'string') return false;
+    const v = value.trim();
+    return v.length > 0 && !(v.startsWith('{{') && v.endsWith('}}'));
+  };
+
   const bindText = (key, value) => document.querySelectorAll(`[data-bind="${key}"]`).forEach(n => n.textContent = value || n.textContent);
   const bindHref = (key, value) => document.querySelectorAll(`[data-bind-href="${key}"]`).forEach(n => { if (value) n.href = value; });
 
@@ -61,7 +67,7 @@
     const base = await readJson('portfolio-data.example.json') || {};
     const local = await readJson('portfolio-data.local.json') || {};
     const linkedin = await readJson('portfolio-linkedin.local.json') || {};
-    const merged = deepMerge(deepMerge(base, local), {
+    let merged = deepMerge(deepMerge(base, local), {
       profile: {
         title: linkedin?.profile?.headline,
         location: linkedin?.profile?.location,
@@ -71,6 +77,15 @@
       experience: linkedin?.experience,
       skills: linkedin?.skills
     });
+
+    const safePublicDataUrl = merged?.integrations?.safePublicDataUrl;
+    const integrationsEnabled = merged?.integrations?.enabled === true && isRealValue(safePublicDataUrl);
+    if (integrationsEnabled) {
+      const serverData = await readJson(safePublicDataUrl);
+      if (serverData && typeof serverData === 'object') {
+        merged = deepMerge(merged, serverData);
+      }
+    }
 
     bindText('profile.name', merged?.profile?.name);
     bindText('profile.title', merged?.profile?.title);

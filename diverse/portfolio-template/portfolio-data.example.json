@@ -18,6 +18,18 @@
     "trackOutboundClicks": true,
     "trackProjectClicks": true
   },
+  "integrations": {
+    "enabled": false,
+    "safePublicDataUrl": "{{SAFE_PUBLIC_DATA_URL}}",
+    "github": {
+      "enabled": false,
+      "source": "server-public-json"
+    },
+    "linkedin": {
+      "enabled": false,
+      "source": "server-public-json"
+    }
+  },
   "projects": [
     {
       "title": "Engineering Tool Platform",

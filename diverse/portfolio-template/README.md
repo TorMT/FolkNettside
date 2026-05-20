@@ -39,6 +39,24 @@ The template tracks only generic click events and does not send name, email, pho
 - Manual/local sync via `portfolio-linkedin.local.json` is the recommended safe fallback.
 - LinkedIn API usage from a static frontend with secrets is not supported.
 
+## Direct server-connected GitHub/LinkedIn (no token sync to Git)
+
+This template now supports a clean server-connected mode where frontend reads **only a safe public JSON**.
+
+- Configure `integrations.enabled = true` in `portfolio-data.local.json`.
+- Set `integrations.safePublicDataUrl` to a server endpoint or static JSON generated server-side.
+- Keep all API tokens/secrets on the server only (never in repo, never in browser JS).
+- The portfolio page only consumes sanitized public data (projects/profile text), not raw API tokens/scopes.
+
+Recommended local/private server files (already ignored):
+
+- `private/` or `secrets/`
+- `.env.linkedin`, `.env.github`, `.env.portfolio`
+- `linkedin-token.json`, `linkedin-refresh-token.json`
+- `github-token.json`, `github-refresh-token.json`
+
+This approach ensures GitHub/LinkedIn API credentials and sync internals are not committed, indexed, or synced into the generic site structure.
+
 ### Optional future LinkedIn API integration
 
 If needed later, use backend/serverless architecture:
@@ -68,4 +86,3 @@ python -m http.server 8000
 Open:
 
 - `http://localhost:8000/diverse/portfolio-template/`
-

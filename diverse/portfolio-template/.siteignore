@@ -4,8 +4,11 @@ portfolio-linkedin.local.json
 portfolio-linkedin.private.json
 linkedin-token.json
 linkedin-refresh-token.json
+github-token.json
+github-refresh-token.json
 .env.linkedin
 .env.portfolio
+.env.github
 private/
 secrets/
 *.local.json
