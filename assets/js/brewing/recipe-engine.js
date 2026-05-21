@@ -2,6 +2,9 @@
   'use strict';
 
   const renderApi = global.BrewingHydrometerRender;
+  const normalizeUiText = typeof global.normalizeUiText === 'function'
+    ? global.normalizeUiText
+    : function (value) { return String(value == null ? '' : value); };
 
   function escapeHtml(value) {
     return renderApi.escapeHtml(value);
@@ -89,7 +92,7 @@
 
   function parseInventoryList(text, kind) {
     return String(text || '')
-      .split(/\r?\n|;/)
+      .split(/\r?\n|;|,/)
       .map(function (rawLine) {
         return rawLine.trim();
       })
@@ -99,13 +102,20 @@
         const name = match ? String(match[1] || '').trim() : line;
         const amount = match ? parseDecimal(match[2]) : NaN;
         const unit = match ? normalizeUnit(match[3], kind === 'volume' ? 'l' : '') : '';
+        const detectedKind = kind === 'volume'
+          ? 'volume'
+          : kind === 'solid'
+            ? 'solid'
+            : (unit === 'l' || unit === 'ml'
+              ? 'volume'
+              : (unit === 'kg' || unit === 'hg' || unit === 'g' || unit === 'oz' || unit === 'lb' ? 'solid' : 'generic'));
         return {
           raw: line,
           name: name,
           key: normalizeToken(name),
           amount: amount,
           unit: unit,
-          baseAmount: convertToBaseAmount(amount, unit, kind)
+          baseAmount: detectedKind === 'generic' ? NaN : convertToBaseAmount(amount, unit, detectedKind)
         };
       })
       .filter(function (entry) {
@@ -116,7 +126,12 @@
   function parseRecipeItemAmount(item, kind) {
     const amount = Number(item && item.amount);
     const unit = normalizeUnit(item && item.unit, kind === 'volume' ? 'l' : '');
-    return convertToBaseAmount(amount, unit, kind);
+    const detectedKind = kind === 'generic'
+      ? (unit === 'l' || unit === 'ml'
+        ? 'volume'
+        : (unit === 'kg' || unit === 'hg' || unit === 'g' || unit === 'oz' || unit === 'lb' ? 'solid' : 'generic'))
+      : kind;
+    return detectedKind === 'generic' ? NaN : convertToBaseAmount(amount, unit, detectedKind);
   }
 
   function inferAmountKind(unit) {
@@ -421,6 +436,125 @@
     return uniqueByKey(suggestions, 'title').slice(0, 3);
   }
 
+  function tokenizeName(value) {
+    return normalizeToken(value).split(' ').filter(Boolean);
+  }
+
+  function sharedTokenCount(left, right) {
+    const leftTokens = new Set(tokenizeName(left));
+    const rightTokens = tokenizeName(right);
+    let score = 0;
+    rightTokens.forEach(function (token) {
+      if (leftTokens.has(token)) score += 1;
+    });
+    return score;
+  }
+
+  function buildTokenMatchSuggestions(itemName, inventoryItems, detail, limit) {
+    const safeItems = Array.isArray(inventoryItems) ? inventoryItems : [];
+    const safeDetail = detail || 'Nærmeste match fra lagerlisten din.';
+    return safeItems
+      .map(function (item) {
+        const score = sharedTokenCount(itemName, item && (item.name || item.raw));
+        return score > 0
+          ? {
+            mode: 'substitute',
+            source: 'lager',
+            title: item.name || item.raw,
+            detail: safeDetail,
+            score: score
+          }
+          : null;
+      })
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return b.score - a.score;
+      })
+      .slice(0, limit || 3)
+      .map(function (entry) {
+        delete entry.score;
+        return entry;
+      });
+  }
+
+  function classifyYeast(name) {
+    const key = normalizeToken(name);
+    if (/(us 05|us05|safale us 05|chico|american ale|wlp001|1056)/.test(key)) return 'american-ale';
+    if (/(s 04|s04|english ale|windsor|nottingham|verdant)/.test(key)) return 'english-ale';
+    if (/(lager|34 70|3470|w 34 70|w34 70|s 23|s23|diamond lager)/.test(key)) return 'lager';
+    if (/(saison|belle saison|french saison|dupont)/.test(key)) return 'saison';
+    if (/(kveik|hornindal|voss|lutra|verdal)/.test(key)) return 'kveik';
+    if (/(wit|weizen|wb 06|wb06|hefe|wheat)/.test(key)) return 'wheat';
+    if (/(abbey|belgian|trappist|be 256|be256|t 58|t58)/.test(key)) return 'belgian';
+    if (/(ec 1118|ec1118|champagne|wine yeast|vin gjaer|vingjaer|turbo)/.test(key)) return 'wine-spirit';
+    return 'other';
+  }
+
+  function buildYeastSubstitutions(name, inventoryItems) {
+    const targetFamily = classifyYeast(name);
+    const exact = findInventoryByName(name, inventoryItems);
+    if (exact) {
+      return [{
+        mode: 'substitute',
+        source: 'lager',
+        title: exact.name || exact.raw,
+        detail: 'Direkte eller svært nær gjærmatch fra lagerlisten din.'
+      }];
+    }
+
+    const familyMatches = uniqueByKey((Array.isArray(inventoryItems) ? inventoryItems : []).filter(function (item) {
+      return classifyYeast(item && (item.name || item.raw)) === targetFamily;
+    }).map(function (item) {
+      return {
+        mode: 'substitute',
+        source: 'lager',
+        title: item.name || item.raw,
+        detail: 'Samme gjærfamilie fra lagerlisten din, foreslått som nærmeste erstatning.'
+      };
+    }), 'title');
+
+    if (familyMatches.length) return familyMatches.slice(0, 3);
+    return buildTokenMatchSuggestions(name, inventoryItems, 'Nærmeste gjærmatch fra lagerlisten din.', 3);
+  }
+
+  function classifyMisc(name) {
+    const key = normalizeToken(name);
+    if (/(sukker|dextrose|glucose|candi|honning|honey|sirup)/.test(key)) return 'sugar';
+    if (/(yeast nutrient|nutrient|fermaid|dap|naring|naering|næring)/.test(key)) return 'nutrient';
+    if (/(irish moss|whirlfloc|protofloc|klarning|clarifier)/.test(key)) return 'clarifier';
+    if (/(ingefaer|ginger|koriander|coriander|appelsinskall|orange peel|sitron|lemon|lime|zest)/.test(key)) return 'spice-citrus';
+    if (/(gypsum|kalsium|calcium|epsom|chloride|klorid|salt)/.test(key)) return 'water-salt';
+    if (/(syre|acid|lactic|phosphoric)/.test(key)) return 'acid';
+    return 'other';
+  }
+
+  function buildMiscSubstitutions(name, inventoryItems) {
+    const exact = findInventoryByName(name, inventoryItems);
+    if (exact) {
+      return [{
+        mode: 'substitute',
+        source: 'lager',
+        title: exact.name || exact.raw,
+        detail: 'Direkte eller svært nær match fra lagerlisten din.'
+      }];
+    }
+
+    const targetFamily = classifyMisc(name);
+    const familyMatches = uniqueByKey((Array.isArray(inventoryItems) ? inventoryItems : []).filter(function (item) {
+      return classifyMisc(item && (item.name || item.raw)) === targetFamily;
+    }).map(function (item) {
+      return {
+        mode: 'substitute',
+        source: 'lager',
+        title: item.name || item.raw,
+        detail: 'Samme ingrediensfamilie fra lagerlisten din, foreslått som nærmeste erstatning.'
+      };
+    }), 'title');
+
+    if (familyMatches.length) return familyMatches.slice(0, 3);
+    return buildTokenMatchSuggestions(name, inventoryItems, 'Nærmeste fritekstmatch fra lagerlisten din.', 3);
+  }
+
   function buildReplacementSuggestions(kind, itemName, filters, state) {
     if (kind === 'hop') {
       return buildHopSubstitutions(itemName, filters.hops, shopEntries(state, 'hops'), hopDatabaseEntries(state));
@@ -428,7 +562,13 @@
     if (kind === 'malt') {
       return buildMaltSubstitutions(itemName, filters.malts, shopEntries(state, 'malts'));
     }
-    return [];
+    if (kind === 'yeast') {
+      return buildYeastSubstitutions(itemName, filters.otherIngredients);
+    }
+    if (kind === 'misc') {
+      return buildMiscSubstitutions(itemName, filters.otherIngredients);
+    }
+    return buildTokenMatchSuggestions(itemName, filters.otherIngredients, 'Nærmeste match fra lagerlisten din.', 3);
   }
 
   function buildInventoryFilters(els) {
@@ -436,6 +576,7 @@
       malts: parseInventoryList(els.recipeMaltInput && els.recipeMaltInput.value, 'solid'),
       hops: parseInventoryList(els.recipeHopInput && els.recipeHopInput.value, 'solid'),
       miscQuery: String((els.recipeIngredientInput && els.recipeIngredientInput.value) || '').trim(),
+      otherIngredients: parseInventoryList(els.recipeIngredientInput && els.recipeIngredientInput.value, 'generic'),
       desiredVolumeLiters: parseVolumeLiters(els.recipeVolumeInput && els.recipeVolumeInput.value)
     };
   }
@@ -445,6 +586,9 @@
       return normalizeToken(item && item.name) !== '';
     });
     const activeInventory = Array.isArray(inventoryItems) ? inventoryItems : [];
+    const catalogKey = groupName === 'malt' ? 'malts' : (groupName === 'hop' ? 'hops' : '');
+    const catalogItems = catalogKey ? shopEntries(state, catalogKey) : [];
+    const amountKind = groupName === 'malt' || groupName === 'hop' ? 'solid' : 'generic';
 
     if (!safeRecipeItems.length) {
       return {
@@ -465,14 +609,17 @@
     let sufficientCount = 0;
 
     safeRecipeItems.forEach(function (item) {
-      const inventoryMatch = findBestInventoryMatch(item.name, activeInventory, shopEntries(state, groupName === 'malt' ? 'malts' : 'hops'));
-      const neededBase = parseRecipeItemAmount(item, 'solid');
+      const inventoryMatch = findBestInventoryMatch(item.name, activeInventory, catalogItems);
+      const neededBase = parseRecipeItemAmount(item, amountKind);
       const scaledNeededBase = Number.isFinite(neededBase) && Number.isFinite(scaleFactor) ? neededBase * scaleFactor : neededBase;
+      const neededText = Number.isFinite(scaledNeededBase)
+        ? formatBaseAmount(scaledNeededBase, amountKind === 'volume' ? 'volume' : 'solid')
+        : ((item && item.amount) ? [item.amount, item.unit].filter(Boolean).join(' ').trim() : 'oppgitt uten mengde');
 
       if (!inventoryMatch) {
         missing.push({
           name: item.name || 'Ingrediens',
-          needed: formatBaseAmount(scaledNeededBase, 'solid'),
+          needed: neededText,
           group: groupName,
           suggestions: buildReplacementSuggestions(groupName, item.name || '', filters, state)
         });
@@ -488,8 +635,10 @@
       } else {
         missing.push({
           name: item.name || 'Ingrediens',
-          needed: formatBaseAmount(scaledNeededBase, 'solid'),
-          available: formatBaseAmount(inventoryMatch.baseAmount, 'solid'),
+          needed: neededText,
+          available: Number.isFinite(inventoryMatch.baseAmount)
+            ? formatBaseAmount(inventoryMatch.baseAmount, amountKind === 'volume' ? 'volume' : 'solid')
+            : (inventoryMatch.raw || inventoryMatch.name || 'oppgitt uten mengde'),
           group: groupName,
           suggestions: buildReplacementSuggestions(groupName, item.name || '', filters, state)
         });
@@ -498,8 +647,10 @@
       matched.push({
         name: item.name || 'Ingrediens',
         available: inventoryMatch.name || inventoryMatch.raw,
-        needed: formatBaseAmount(scaledNeededBase, 'solid'),
-        availableAmount: Number.isFinite(inventoryMatch.baseAmount) ? formatBaseAmount(inventoryMatch.baseAmount, 'solid') : 'oppgitt uten mengde',
+        needed: neededText,
+        availableAmount: Number.isFinite(inventoryMatch.baseAmount)
+          ? formatBaseAmount(inventoryMatch.baseAmount, amountKind === 'volume' ? 'volume' : 'solid')
+          : 'oppgitt uten mengde',
         sufficient: sufficient
       });
     });
@@ -525,8 +676,10 @@
 
     const maltFit = summarizeInventoryGroup('malt', recipe && recipe.ingredients && recipe.ingredients.malts, filters && filters.malts, scaleFactor, filters, state);
     const hopFit = summarizeInventoryGroup('hop', recipe && recipe.ingredients && recipe.ingredients.hops, filters && filters.hops, scaleFactor, filters, state);
-    const activeGroups = [maltFit, hopFit].filter(function (group) {
-      return group.active || group.requiredCount > 0;
+    const yeastFit = summarizeInventoryGroup('yeast', recipe && recipe.ingredients && recipe.ingredients.yeast, filters && filters.otherIngredients, scaleFactor, filters, state);
+    const miscFit = summarizeInventoryGroup('misc', recipe && recipe.ingredients && recipe.ingredients.misc, filters && filters.otherIngredients, scaleFactor, filters, state);
+    const activeGroups = [maltFit, hopFit, yeastFit, miscFit].filter(function (group) {
+      return group.active;
     });
     const requiredCount = activeGroups.reduce(function (sum, group) { return sum + group.requiredCount; }, 0);
     const sufficientCount = activeGroups.reduce(function (sum, group) { return sum + group.sufficientCount; }, 0);
@@ -553,7 +706,7 @@
     }
 
     return {
-      active: (filters && (filters.malts.length > 0 || filters.hops.length > 0 || Number.isFinite(filters.desiredVolumeLiters))) || false,
+      active: (filters && (filters.malts.length > 0 || filters.hops.length > 0 || filters.otherIngredients.length > 0 || Number.isFinite(filters.desiredVolumeLiters))) || false,
       label: label,
       requiredCount: requiredCount,
       sufficientCount: sufficientCount,
@@ -565,7 +718,9 @@
       desiredVolumeLiters: desiredVolumeLiters,
       missing: missing,
       maltFit: maltFit,
-      hopFit: hopFit
+      hopFit: hopFit,
+      yeastFit: yeastFit,
+      miscFit: miscFit
     };
   }
 
@@ -581,7 +736,7 @@
         suffix += ' · ' + hopCount + ' humleprofiler';
       }
       return '<div class="provider-pill ' + (provider.active ? '' : 'off') + '">'
-        + escapeHtml(provider.label) + ' · ' + escapeHtml(suffix)
+        + escapeHtml(normalizeUiText(provider.label)) + ' · ' + escapeHtml(normalizeUiText(suffix))
         + '</div>';
     }).join('');
   }
@@ -592,9 +747,14 @@
     const activeFits = safeRecipes.filter(function (recipe) {
       return recipe && recipe.inventoryFit && recipe.inventoryFit.active;
     });
+    const integratedApiCount = safeRecipes.filter(function (recipe) {
+      return recipe && recipe.integrated;
+    }).length;
 
     if (!activeFits.length) {
-      els.recipeSearchMeta.textContent = 'Viser oppskrifter fra den lokale basen, med eksterne stil- og bryggerireferanser i høyre kolonne.';
+      els.recipeSearchMeta.textContent = integratedApiCount
+        ? ('Viser lokale, Brewfather- og ' + integratedApiCount + ' integrerte API-oppskrift(er) i samme liste. Rene bryggeri- og stilreferanser ligger til høyre.')
+        : 'Viser oppskrifter fra den lokale basen. Skriv stil eller navn i fritekstfeltet for å hente inn API-oppskrifter i samme liste, mens bryggeri- og stilreferanser fortsatt vises til høyre.';
       return;
     }
 
@@ -609,6 +769,34 @@
     }
 
     els.recipeSearchMeta.textContent = 'Ingen fulltreff akkurat nå. Viser nærmeste oppskrifter først, med mangelliste, innkjøpsforslag og mulige erstatninger.';
+  }
+
+  function recipeSourceVariant(recipe) {
+    if (!recipe) return 'local';
+    if (recipe.integrated || recipe.sourceType === 'api') return 'api';
+    if (recipe.source === 'brewfather') return 'brewfather';
+    return 'local';
+  }
+
+  function recipeSourceLabel(recipe) {
+    const label = recipe && (recipe.providerLabel || recipe.source || 'Lokal');
+    if (recipe && (recipe.integrated || recipe.sourceType === 'api')) {
+      return 'API · ' + label;
+    }
+    return label;
+  }
+
+  function renderRecipeSourceBadge(recipe) {
+    return '<span class="source-badge source-badge--' + escapeHtml(recipeSourceVariant(recipe)) + '">'
+      + escapeHtml(recipeSourceLabel(recipe))
+      + '</span>';
+  }
+
+  function buildRecipeContextQuery(recipe) {
+    if (!recipe) return '';
+    const style = String(recipe.style || '').split('/')[0].trim();
+    const name = String(recipe.name || '').trim();
+    return style || name;
   }
 
   function renderRecipeList(els, state) {
@@ -639,12 +827,17 @@
         : '';
 
       return ''
-        + '<button class="list-tab ' + (recipe.id === state.selectedRecipeId ? 'active' : '') + '" type="button" data-id="' + escapeHtml(recipe.id) + '">'
-        + '<strong>' + escapeHtml(recipe.name || 'Oppskrift') + '</strong>'
-        + '<span>' + escapeHtml(recipe.style || 'Ukjent stil') + ' · rating ' + escapeHtml(String(recipe.rating || 0)) + escapeHtml(volumeText) + '</span>'
+        + '<button class="list-tab ' + (recipe.id === state.selectedRecipeId ? 'active' : '') + (state.linkedRecipe && recipeMatchesRef(recipe, state.linkedRecipe) ? ' linked-active' : '') + '" type="button" data-id="' + escapeHtml(recipe.id) + '">'
+        + '<strong>' + escapeHtml(normalizeUiText(recipe.name || 'Oppskrift')) + '</strong>'
+        + '<span>' + escapeHtml(normalizeUiText(recipe.style || 'Ukjent stil')) + ' · rating ' + escapeHtml(String(recipe.rating || 0)) + escapeHtml(volumeText) + '</span>'
+        + '<div class="recipe-list-meta">'
+        + renderRecipeSourceBadge(recipe)
+        + (recipe.integrated ? '<span class="recipe-inline-note">Vises som innebygd API-oppskrift</span>' : '')
+        + (state.linkedRecipe && recipeMatchesRef(recipe, state.linkedRecipe) ? '<span class="recipe-inline-note">Koblet til aktivt brygg</span>' : '')
+        + '</div>'
         + '<small>' + escapeHtml(inventoryFit && inventoryFit.active ? (inventoryFit.label + ' · ' + fitPct) : ('Match ' + String(Math.round((recipe.matchRatio || 0) * 100)) + '%'))
         + (missingCount ? (' · mangler ' + missingCount) : '')
-        + ' · ' + escapeHtml(recipe.providerLabel || recipe.source || '') + '</small>'
+        + '</small>'
         + '</button>';
     }).join('');
   }
@@ -756,16 +949,20 @@
       const storageLabel = entry && entry.storage && entry.storage.label ? entry.storage.label : 'Lokal';
       return ''
         + '<button class="list-tab relation-link" type="button" data-log-slug="' + escapeHtml(entry.slug || '') + '">'
-        + '<strong>' + escapeHtml(entry.folderName || entry.batchName || 'Bryggelogg') + '</strong>'
-        + '<span>' + escapeHtml(entry.styleName || 'Ukjent stil') + '</span>'
-        + '<small>' + escapeHtml(entry.exportedAt ? renderApi.fmtTime(entry.exportedAt) : 'Ukjent eksporttid') + ' · ' + escapeHtml(storageLabel) + '</small>'
+        + '<strong>' + escapeHtml(normalizeUiText(entry.folderName || entry.batchName || 'Bryggelogg')) + '</strong>'
+        + '<span>' + escapeHtml(normalizeUiText(entry.styleName || 'Ukjent stil')) + '</span>'
+        + '<small>' + escapeHtml(entry.exportedAt ? renderApi.fmtTime(entry.exportedAt) : 'Ukjent eksporttid') + ' · ' + escapeHtml(normalizeUiText(storageLabel)) + '</small>'
         + '</button>';
     }).join('') + '</div>';
   }
 
   function renderInventorySummaryLine(groupLabel, fit) {
-    if (!fit || (!fit.active && !fit.requiredCount)) {
-      return '<p><span class="log-label">' + escapeHtml(groupLabel) + '</span>Ingen lagerliste oppgitt for denne gruppen.</p>';
+    if (!fit || !fit.active) {
+      return '';
+    }
+
+    if (!fit.requiredCount) {
+      return '<p><span class="log-label">' + escapeHtml(groupLabel) + '</span>Oppskriften bruker ingen ingredienser i denne gruppen.</p>';
     }
 
     return '<p><span class="log-label">' + escapeHtml(groupLabel) + '</span>'
@@ -808,7 +1005,7 @@
   function renderInventoryFitSection(recipe) {
     const fit = recipe && recipe.inventoryFit ? recipe.inventoryFit : null;
     if (!fit || !fit.active) {
-      return '<section class="detail-section"><h3>Lagerfit</h3><div class="empty-state">Legg inn malter, humler og ønsket batchstørrelse for å se hvilke oppskrifter som faktisk passer lageret ditt.</div></section>';
+      return '<section class="detail-section"><h3>Lagerfit</h3><div class="empty-state">Legg inn malter, humler, gjær, annet utstyr og ønsket batchstørrelse for å se hvilke oppskrifter som faktisk passer lageret ditt.</div></section>';
     }
 
     const volumeLine = Number.isFinite(fit.desiredVolumeLiters)
@@ -824,6 +1021,8 @@
       + volumeLine
       + renderInventorySummaryLine('Malter', fit.maltFit)
       + renderInventorySummaryLine('Humle', fit.hopFit)
+      + renderInventorySummaryLine('Gjær', fit.yeastFit)
+      + renderInventorySummaryLine('Annet', fit.miscFit)
       + '<div class="detail-section"><h3>Mangler, innkjøp og erstatninger</h3>' + renderMissingInventoryList(fit.missing) + '</div>'
       + '</section>';
   }
@@ -838,6 +1037,32 @@
           : '';
         return '<article class="recipe-step"><strong>' + escapeHtml(option.label || 'Lagring') + '</strong><p>' + escapeHtml(option.summary || '') + '</p><p>' + escapeHtml('Status: ' + (option.status || 'ukjent')) + '</p>' + link + '</article>';
       }).join('') + '</div></section>';
+  }
+
+  function renderSourceSection(recipe) {
+    if (!recipe) return '';
+    const sourceLabel = recipeSourceLabel(recipe);
+    const lines = [
+      '<p><span class="log-label">Kilde</span>' + escapeHtml(sourceLabel) + '</p>'
+    ];
+
+    if (recipe.integrated) {
+      lines.push('<p><span class="log-label">Visning</span>Integrert i Brygging som en innebygd API-oppskrift, men merket tydelig med opprinnelig kilde.</p>');
+    } else if (recipe.source === 'brewfather') {
+      lines.push('<p><span class="log-label">Visning</span>Synket inn fra Brewfather og vist i samme oppskriftsviewer som de lokale oppskriftene.</p>');
+    } else {
+      lines.push('<p><span class="log-label">Visning</span>Lokal oppskrift fra din egen oppskriftsmappe.</p>');
+    }
+
+    if (recipe.sourceDescription) {
+      lines.push('<p><span class="log-label">Om kilden</span>' + escapeHtml(recipe.sourceDescription) + '</p>');
+    }
+
+    if (recipe.sourceUrl) {
+      lines.push('<p><a class="reference-action" href="' + escapeHtml(recipe.sourceUrl) + '" target="_blank" rel="noopener noreferrer">Åpne originalkilden</a></p>');
+    }
+
+    return '<section class="detail-section"><h3>Kilde og integrasjon</h3>' + lines.join('') + '</section>';
   }
 
   function renderActiveBrewLinkSection(recipe, isLinkedSelection) {
@@ -882,9 +1107,11 @@
       : 1;
     const scaled = Number.isFinite(recipeVolume) && Number.isFinite(desiredVolume) && Math.abs(scaleFactor - 1) >= 0.01;
 
-    els.recipeTitle.textContent = recipe.name || 'Oppskrift';
-    els.recipeSubtitle.textContent = (recipe.style || 'Ukjent stil') + ' · ' + (recipe.providerLabel || recipe.source || 'Lokal kilde');
+    els.recipeTitle.textContent = normalizeUiText(recipe.name || 'Oppskrift');
+    els.recipeSubtitle.textContent = normalizeUiText((recipe.style || 'Ukjent stil') + ' · ' + (recipe.providerLabel || recipe.source || 'Lokal kilde'));
     els.recipePills.innerHTML = ''
+      + '<div class="info-pill subtle">Kilde: ' + escapeHtml(normalizeUiText(recipeSourceLabel(recipe))) + '</div>'
+      + (recipe.integrated ? '<div class="info-pill subtle">API-integrert</div>' : '')
       + '<div class="info-pill subtle">Rating: ' + escapeHtml(String(recipe.rating || 0)) + '</div>'
       + '<div class="info-pill subtle">Match: ' + escapeHtml(String(Math.round((recipe.matchRatio || 0) * 100))) + '%</div>'
       + (Number.isFinite(recipeVolume) ? '<div class="info-pill subtle">Laget for: ' + escapeHtml(formatBaseAmount(recipeVolume, "volume")) + '</div>' : (recipe.batchVolume ? '<div class="info-pill subtle">Batch: ' + escapeHtml(String(recipe.batchVolume)) + '</div>' : ''))
@@ -895,6 +1122,7 @@
       + '<div class="info-pill subtle">Brygget som: ' + escapeHtml(String((linkedLogs || []).length)) + ' logg(er)</div>';
     els.recipeText.innerHTML = ''
       + renderActiveBrewLinkSection(recipe, isLinkedSelection)
+      + renderSourceSection(recipe)
       + '<section class="detail-section"><h3>Knyttede bryggelogger</h3>' + renderLinkedLogCards(linkedLogs) + '</section>'
       + renderScalingSection(recipe)
       + renderInventoryFitSection(recipe)
@@ -1014,9 +1242,9 @@
       return ''
         + '<article class="reference-card">'
         + '<div class="reference-body">'
-        + '<strong>' + escapeHtml(entry.title || 'Treff') + '</strong>'
-        + '<span>' + escapeHtml(entry.provider || '') + '</span>'
-        + '<span>' + escapeHtml(entry.subtitle || '') + '</span>'
+        + '<strong>' + escapeHtml(normalizeUiText(entry.title || 'Treff')) + '</strong>'
+        + '<span>' + escapeHtml(normalizeUiText(entry.provider || '')) + '</span>'
+        + '<span>' + escapeHtml(normalizeUiText(entry.subtitle || '')) + '</span>'
         + renderReferenceMetaChips(entry)
         + renderReferenceDetails(entry)
         + (entry.url ? '<a class="reference-action" href="' + escapeHtml(entry.url) + '" target="_blank" rel="noopener noreferrer">Åpne kilde</a>' : '')
@@ -1097,12 +1325,45 @@
       state.linkedRecipe = canonical;
     }
 
+    function scrollSelectedRecipeIntoView() {
+      const activeButton = els.recipeList.querySelector('.list-tab.active');
+      if (activeButton && typeof activeButton.scrollIntoView === 'function') {
+        activeButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+
+    function recipeStateKey(recipe) {
+      if (!recipe) return '';
+      return String(recipe.source || 'local') + ':' + String(recipe.id || '');
+    }
+
+    function mergeIntegratedRecipes(recipes) {
+      const current = Array.isArray(state.recipes) ? state.recipes.slice() : [];
+      const seen = new Set(current.map(recipeStateKey));
+      let changed = false;
+
+      (Array.isArray(recipes) ? recipes : []).forEach(function (recipe) {
+        const key = recipeStateKey(recipe);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        current.push(recipe);
+        changed = true;
+      });
+
+      if (changed) {
+        state.recipes = current;
+      }
+
+      return changed;
+    }
+
     function wireRecipeButtons() {
       Array.from(els.recipeList.querySelectorAll('[data-id]')).forEach(function (button) {
         button.addEventListener('click', function () {
           const recipe = resolveRecipeById(button.getAttribute('data-id') || '');
-          setLinkedRecipe(recipe);
+          state.selectedRecipeId = recipe && recipe.id ? recipe.id : '';
           renderRecipeList(els, state);
+          scrollSelectedRecipeIntoView();
           loadSelectedRecipe();
         });
       });
@@ -1124,6 +1385,7 @@
         const recipe = resolveRecipeById(button.getAttribute('data-link-active-recipe') || state.selectedRecipeId);
         setLinkedRecipe(recipe);
         renderRecipeList(els, state);
+        scrollSelectedRecipeIntoView();
         loadSelectedRecipe();
         onRecipeChange();
       });
@@ -1178,6 +1440,7 @@
         if ((bFit.sufficientCount || 0) !== (aFit.sufficientCount || 0)) return (bFit.sufficientCount || 0) - (aFit.sufficientCount || 0);
         if ((aFit.missing || []).length !== (bFit.missing || []).length) return (aFit.missing || []).length - (bFit.missing || []).length;
         if ((b.matchRatio || 0) !== (a.matchRatio || 0)) return (b.matchRatio || 0) - (a.matchRatio || 0);
+        if ((a.sourcePriority || 999) !== (b.sourcePriority || 999)) return (a.sourcePriority || 999) - (b.sourcePriority || 999);
         if ((a.sortIndex || 999999) !== (b.sortIndex || 999999)) return (a.sortIndex || 999999) - (b.sortIndex || 999999);
         if ((b.rating || 0) !== (a.rating || 0)) return (b.rating || 0) - (a.rating || 0);
         return String(a.name || '').localeCompare(String(b.name || ''), 'nb');
@@ -1199,9 +1462,16 @@
         ? forceSearch
         : { forceSearch: !!forceSearch };
       const currentFilters = buildInventoryFilters(els);
-      const query = Object.prototype.hasOwnProperty.call(options, 'queryOverride')
+      const selectedRecipe = (state.recipeResults || []).find(function (entry) { return entry.id === state.selectedRecipeId; })
+        || (state.recipes || []).find(function (entry) { return entry.id === state.selectedRecipeId; })
+        || state.linkedRecipe
+        || null;
+      let query = Object.prototype.hasOwnProperty.call(options, 'queryOverride')
         ? String(options.queryOverride || '')
         : (options.forceSearch ? buildServerQuery(currentFilters) : (state.recipeQuery || ''));
+      if (options.forceSearch && query === '' && selectedRecipe) {
+        query = buildRecipeContextQuery(selectedRecipe);
+      }
       state.recipeQuery = query;
       els.recipeList.innerHTML = '<div class="loading">Laster oppskrifter...</div>';
 
@@ -1209,6 +1479,7 @@
         const payload = await fetchJson('/includes/brewing/api/recipes.php?ingredients=' + encodeURIComponent(query));
         state.recipeProviders = Array.isArray(payload.providers) ? payload.providers : [];
         state.recipes = Array.isArray(payload.recipes) ? payload.recipes : [];
+        state.integratedApiRecipeQuery = '';
         state.recipeCatalogs = payload.catalogs || null;
         state.storageOptions = Array.isArray(payload.storageOptions) ? payload.storageOptions : [];
 
@@ -1233,6 +1504,7 @@
         applyRecipeFilters();
         renderProviderPills(els.recipeProviderPills, state.recipeProviders, state);
         renderRecipeList(els, state);
+        scrollSelectedRecipeIntoView();
         wireRecipeButtons();
         await loadSelectedRecipe();
         onRecipeChange();
@@ -1270,16 +1542,37 @@
         return;
       }
 
-      const query = (recipe.style || recipe.name || '').trim();
+      const query = buildRecipeContextQuery(recipe);
+      if (query && state.integratedApiRecipeQuery !== query) {
+        try {
+          const apiRecipePayload = await fetchJson('/includes/brewing/api/recipes.php?q=' + encodeURIComponent(query));
+          const integratedRecipes = (Array.isArray(apiRecipePayload.recipes) ? apiRecipePayload.recipes : []).filter(function (entry) {
+            return entry && entry.integrated;
+          });
+          if (mergeIntegratedRecipes(integratedRecipes)) {
+            applyRecipeFilters();
+            renderRecipeList(els, state);
+            wireRecipeButtons();
+          }
+          state.integratedApiRecipeQuery = query;
+        } catch (error) {
+          // keep current recipe view even if API recipe enrichment fails
+        }
+      }
+
       try {
         const referencePayload = await fetchJson('/includes/brewing/api/reference.php?q=' + encodeURIComponent(query));
-        renderReferences(els, referencePayload.references || []);
+        const rawReferences = Array.isArray(referencePayload.references) ? referencePayload.references : [];
+        const filteredReferences = rawReferences.filter(function (entry) {
+          return String(entry && entry.provider || '') !== 'Punk API';
+        });
+        renderReferences(els, filteredReferences);
         renderProviderPills(els.recipeProviderPills, referencePayload.providers || state.recipeProviders, state);
         if (Array.isArray(referencePayload.storageOptions) && referencePayload.storageOptions.length) {
           state.storageOptions = referencePayload.storageOptions;
         }
         els.referenceMeta.textContent = query
-          ? ('Eksterne treff for ' + query + ' vises under som innebygde kort.')
+          ? ('API-oppskrifter vises i hovedlisten. Under ser du ekstra bryggeri-, stil- og verktøyreferanser for ' + query + '.')
           : 'Ingen eksterne treff ennå.';
       } catch (error) {
         els.referenceMeta.textContent = 'Klarte ikke laste eksterne treff: ' + error.message;
@@ -1304,6 +1597,7 @@
       } else {
         state.selectedRecipeId = recipe.id;
         renderRecipeList(els, state);
+        scrollSelectedRecipeIntoView();
         wireRecipeButtons();
         await loadSelectedRecipe();
       }
@@ -1319,6 +1613,7 @@
 
       applyRecipeFilters();
       renderRecipeList(els, state);
+      scrollSelectedRecipeIntoView();
       wireRecipeButtons();
       await loadSelectedRecipe();
     }
@@ -1329,6 +1624,7 @@
       }
       applyRecipeFilters();
       renderRecipeList(els, state);
+      scrollSelectedRecipeIntoView();
       wireRecipeButtons();
       await loadSelectedRecipe();
     }

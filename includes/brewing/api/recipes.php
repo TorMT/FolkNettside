@@ -6,7 +6,8 @@ $id = trim((string)($_GET['id'] ?? ''));
 
 $localRecipes = brewing_read_local_recipes($query);
 $brewfatherRecipes = brewing_fetch_brewfather_recipes($query);
-$recipes = array_merge($localRecipes, $brewfatherRecipes);
+$punkRecipes = brewing_fetch_punk_recipes($query);
+$recipes = array_merge($localRecipes, $brewfatherRecipes, $punkRecipes);
 $catalogs = brewing_recipe_catalogs();
 $storageOptions = brewing_storage_recommendations();
 

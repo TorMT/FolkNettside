@@ -150,19 +150,58 @@ function brewing_match_score(array $recipe, array $queryIngredients): array {
     ];
 }
 
+function brewing_recipe_provider_label(string $source): string {
+    switch ($source) {
+        case 'brewfather':
+            return 'Brewfather';
+        case 'punkapi':
+            return 'Punk API';
+        case 'catalogbeer':
+            return 'Catalog.beer';
+        case 'local':
+        default:
+            return 'Lokal';
+    }
+}
+
+function brewing_recipe_source_priority(string $source): int {
+    switch ($source) {
+        case 'local':
+            return 10;
+        case 'brewfather':
+            return 20;
+        case 'punkapi':
+            return 40;
+        case 'catalogbeer':
+            return 50;
+        default:
+            return 90;
+    }
+}
+
 function brewing_normalize_recipe(array $recipe, string $source, string $slug): array {
     $match = $recipe['_match'] ?? ['score' => 0, 'ratio' => 0, 'matched' => []];
     $targets = is_array($recipe['targets'] ?? null) ? $recipe['targets'] : [];
     $steps = array_values(array_filter((array)($recipe['steps'] ?? []), static function ($step) {
         return is_array($step) && trim((string)($step['title'] ?? $step['details'] ?? '')) !== '';
     }));
+    $sourceUrl = trim((string)($recipe['sourceUrl'] ?? ''));
+    $sourceDescription = trim((string)($recipe['sourceDescription'] ?? ''));
+    $providerLabel = brewing_recipe_provider_label($source);
+    $sourceType = trim((string)($recipe['sourceType'] ?? '')) !== ''
+        ? trim((string)$recipe['sourceType'])
+        : ($source === 'local' || $source === 'brewfather' ? 'internal' : 'api');
 
     return [
         'schemaVersion' => (int)($recipe['schemaVersion'] ?? 1),
         'id' => $slug,
         'slug' => $slug,
         'source' => $source,
-        'providerLabel' => $source === 'brewfather' ? 'Brewfather' : 'Lokal',
+        'providerLabel' => $providerLabel,
+        'sourceType' => $sourceType,
+        'integrated' => $sourceType !== 'internal',
+        'sourceUrl' => $sourceUrl !== '' ? $sourceUrl : null,
+        'sourceDescription' => $sourceDescription !== '' ? $sourceDescription : null,
         'name' => (string)($recipe['name'] ?? 'Uten navn'),
         'style' => (string)($recipe['style'] ?? ''),
         'rating' => (float)($recipe['rating'] ?? 0),
@@ -176,6 +215,7 @@ function brewing_normalize_recipe(array $recipe, string $source, string $slug): 
         'matchRatio' => (float)($match['ratio'] ?? 0),
         'matchedIngredients' => array_values((array)($match['matched'] ?? [])),
         'sortIndex' => isset($recipe['_sortIndex']) ? (int)$recipe['_sortIndex'] : 999999,
+        'sourcePriority' => brewing_recipe_source_priority($source),
     ];
 }
 
@@ -314,6 +354,162 @@ function brewing_fetch_brewfather_recipes(string $query = ''): array {
         if ($score !== 0) return $score;
         $rating = ($b['rating'] <=> $a['rating']);
         if ($rating !== 0) return $rating;
+        return strnatcasecmp((string)$a['name'], (string)$b['name']);
+    });
+
+    return $recipes;
+}
+
+function brewing_fetch_punk_recipes(string $query = ''): array {
+    $query = trim($query);
+    if ($query === '') {
+        return [];
+    }
+
+    $url = 'https://punkapi-alxiw.amvera.io/v3/beers?page=1&per_page=8&beer_name=' . rawurlencode($query);
+    $response = brewing_http_json($url, ['Accept: application/json']);
+    if (isset($response['_error'])) {
+        return [];
+    }
+
+    $items = array_values((array)$response);
+    $queryIngredients = brewing_parse_query_ingredients($query);
+    $recipes = [];
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $mashSteps = [];
+        foreach ((array)($item['method']['mash_temp'] ?? []) as $index => $step) {
+            if (!is_array($step)) {
+                continue;
+            }
+            $tempValue = $step['temp']['value'] ?? null;
+            $tempUnit = $step['temp']['unit'] ?? 'C';
+            $duration = $step['duration'] ?? null;
+            $details = [];
+            if ($tempValue !== null) {
+                $details[] = 'Hold ' . $tempValue . ' ' . $tempUnit;
+            }
+            if ($duration !== null) {
+                $details[] = 'i ' . $duration . ' min';
+            }
+            if (!empty($details)) {
+                $mashSteps[] = [
+                    'title' => 'Mesk ' . ($index + 1),
+                    'details' => implode(' ', $details),
+                ];
+            }
+        }
+
+        $hopIngredients = [];
+        foreach ((array)($item['ingredients']['hops'] ?? []) as $hop) {
+            if (!is_array($hop)) {
+                continue;
+            }
+            $name = trim((string)($hop['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $add = trim((string)($hop['add'] ?? ''));
+            $attribute = trim((string)($hop['attribute'] ?? ''));
+            $hopIngredients[] = [
+                'name' => $add !== '' || $attribute !== ''
+                    ? trim($name . ' (' . implode(', ', array_filter([$add, $attribute])) . ')')
+                    : $name,
+                'amount' => $hop['amount']['value'] ?? null,
+                'unit' => $hop['amount']['unit'] ?? 'g',
+            ];
+        }
+
+        $steps = array_merge(
+            $mashSteps,
+            [[
+                'title' => 'Kok',
+                'details' => 'Kok ca. ' . (string)($item['boil_volume']['value'] ?? $item['volume']['value'] ?? '?') . ' '
+                    . (string)($item['boil_volume']['unit'] ?? $item['volume']['unit'] ?? 'L')
+                    . ' og følg hopptilsetningene i ingredienslisten.',
+            ]],
+            [[
+                'title' => 'Gjæring',
+                'details' => 'Gjær med ' . trim((string)($item['ingredients']['yeast'] ?? 'anbefalt gjær'))
+                    . (($item['method']['fermentation']['temp']['value'] ?? null) !== null
+                        ? (' rundt ' . $item['method']['fermentation']['temp']['value'] . ' ' . (string)($item['method']['fermentation']['temp']['unit'] ?? 'C'))
+                        : ''),
+            ]]
+        );
+
+        if (trim((string)($item['brewers_tips'] ?? '')) !== '') {
+            $steps[] = [
+                'title' => 'Bryggertips',
+                'details' => trim((string)$item['brewers_tips']),
+            ];
+        }
+
+        if (!empty($item['food_pairing']) && is_array($item['food_pairing'])) {
+            $steps[] = [
+                'title' => 'Passer til',
+                'details' => implode(' · ', array_filter(array_map('strval', (array)$item['food_pairing']))),
+            ];
+        }
+
+        $recipe = [
+            'schemaVersion' => 1,
+            'name' => $item['name'] ?? 'Punk API-oppskrift',
+            'style' => trim((string)($item['tagline'] ?? 'API-oppskrift')),
+            'rating' => 0,
+            'batchVolume' => isset($item['volume']['value'])
+                ? ((string)$item['volume']['value'] . ' ' . (string)($item['volume']['unit'] ?? 'L'))
+                : null,
+            'ingredients' => [
+                'malts' => array_map(static function ($malt) {
+                    return [
+                        'name' => (string)($malt['name'] ?? ''),
+                        'amount' => $malt['amount']['value'] ?? null,
+                        'unit' => $malt['amount']['unit'] ?? 'kg',
+                    ];
+                }, (array)($item['ingredients']['malt'] ?? [])),
+                'hops' => $hopIngredients,
+                'yeast' => trim((string)($item['ingredients']['yeast'] ?? '')) !== ''
+                    ? [[
+                        'name' => (string)$item['ingredients']['yeast'],
+                        'amount' => 1,
+                        'unit' => 'pakke',
+                    ]]
+                    : [],
+                'misc' => [],
+            ],
+            'steps' => $steps,
+            'targets' => [
+                'og' => $item['target_og'] ?? null,
+                'fg' => $item['target_fg'] ?? null,
+                'abv' => $item['abv'] ?? null,
+                'ibu' => $item['ibu'] ?? null,
+                'srm' => $item['ebc'] ?? null,
+                'ph' => $item['ph'] ?? null,
+                'attenuation' => $item['attenuation_level'] ?? null,
+            ],
+            'notes' => trim((string)($item['description'] ?? '')),
+            'sourceType' => 'api',
+            'sourceUrl' => isset($item['id'])
+                ? ('https://punkapi-alxiw.amvera.io/v3/beers/' . rawurlencode((string)$item['id']))
+                : 'https://punkapi-alxiw.amvera.io/docs',
+            'sourceDescription' => 'Integrert fra Punk API og vist i samme oppskriftsviewer som de lokale oppskriftene.',
+        ];
+
+        $recipe['_match'] = brewing_match_score($recipe, $queryIngredients);
+        $recipe['_sortIndex'] = 120000 + count($recipes);
+        $slug = 'punk-api-' . brewing_slugify((string)($item['id'] ?? $recipe['name']));
+        $recipes[] = brewing_normalize_recipe($recipe, 'punkapi', $slug);
+    }
+
+    usort($recipes, static function ($a, $b) {
+        $score = ($b['matchRatio'] <=> $a['matchRatio']);
+        if ($score !== 0) return $score;
+        $priority = (($a['sourcePriority'] ?? 999) <=> ($b['sourcePriority'] ?? 999));
+        if ($priority !== 0) return $priority;
         return strnatcasecmp((string)$a['name'], (string)$b['name']);
     });
 

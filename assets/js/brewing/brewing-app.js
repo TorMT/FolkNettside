@@ -6,6 +6,7 @@
   const renderApi = global.BrewingHydrometerRender;
   const logApi = global.BrewingLogViewer;
   const recipeApi = global.BrewingRecipeEngine;
+  const rawMaterialApi = global.BrewingRawMaterialViewer;
   const toolsApi = global.SandalenToolsViewer;
   const filterApi = global.BrewingHydrometerFilter;
 
@@ -37,7 +38,11 @@
     storageConfig: null,
     linkedRecipe: null,
     selectedRecipeId: '',
-    recipeQuery: ''
+    recipeQuery: '',
+    rawMaterialType: 'malt',
+    rawMaterialQuery: '',
+    selectedRawMaterialKey: '',
+    compareRawMaterialKey: ''
   };
 
   const els = {
@@ -104,12 +109,24 @@
     referenceList: document.getElementById('referenceList'),
     referenceMeta: document.getElementById('referenceMeta'),
     recipeSearchMeta: document.getElementById('recipeSearchMeta'),
+    rawMaterialTypeSelect: document.getElementById('rawMaterialTypeSelect'),
+    rawMaterialSearchInput: document.getElementById('rawMaterialSearchInput'),
+    rawMaterialCompareSelect: document.getElementById('rawMaterialCompareSelect'),
+    rawMaterialMeta: document.getElementById('rawMaterialMeta'),
+    rawMaterialList: document.getElementById('rawMaterialList'),
+    rawMaterialTitle: document.getElementById('rawMaterialTitle'),
+    rawMaterialSubtitle: document.getElementById('rawMaterialSubtitle'),
+    rawMaterialPills: document.getElementById('rawMaterialPills'),
+    rawMaterialDetail: document.getElementById('rawMaterialDetail'),
+    rawMaterialCompareMeta: document.getElementById('rawMaterialCompareMeta'),
+    rawMaterialCompareGrid: document.getElementById('rawMaterialCompareGrid'),
     openToolsBtn: document.getElementById('openToolsBtn'),
     toolsViewerSlot: document.getElementById('toolsViewerSlot')
   };
 
   let logModule;
   let recipeModule;
+  let rawMaterialModule;
 
   async function ensureLogsLoaded() {
     if (Array.isArray(state.logs) && state.logs.length) {
@@ -158,6 +175,18 @@
       if (state.devices.length) {
         renderHydrometer();
       }
+    }
+  });
+
+  rawMaterialModule = rawMaterialApi.createModule({
+    elements: els,
+    state: state,
+    ensureCatalogs: async function () {
+      if (state.recipeCatalogs && state.recipeCatalogs.shop) {
+        return state.recipeCatalogs;
+      }
+      await recipeModule.refreshRecipes(false);
+      return state.recipeCatalogs;
     }
   });
 
@@ -371,6 +400,9 @@
       if (state.activeView === 'recipes') {
         recipeModule.refreshRecipes(false);
       }
+      if (state.activeView === 'raw-materials') {
+        rawMaterialModule.refresh();
+      }
     });
   });
 
@@ -426,6 +458,7 @@
   loadDashboard({ force: forceFromQuery });
   recipeModule.refreshRecipes(false);
   logModule.refreshList();
+  rawMaterialModule.refresh();
 
   global.BrewingApp = {
     state: state,

@@ -13,28 +13,24 @@
     return renderApi.fmtTime(value);
   }
   function normalizeLegacyNorwegianText(value) {
-    return String(value || '')
-      .replace(/??/g, '\u00E6')
-      .replace(/??/g, '\u00F8')
-      .replace(/??/g, '\u00E5')
-      .replace(/??/g, '\u00C6')
-      .replace(/??/g, '\u00D8')
-      .replace(/??/g, '\u00C5')
-      .replace(/??/g, '\u00B7')
-      .replace(/?/g, '')
-      .replace(/\bStoy\b/g, 'St\\u00F8y')
-      .replace(/\bmaaleutliggere\b/g, 'm\\u00E5leutliggere')
-      .replace(/\bboer\b/g, 'b\\u00F8r')
-      .replace(/\bVaer\b/g, 'V\\u00E6r')
-      .replace(/\bforelopige\b/g, 'forel\\u00F8pige')
-      .replace(/\bsluttomraade\b/g, 'sluttomr\\u00E5de')
-      .replace(/\brestsodme\b/g, 'rests\\u00F8dme')
-      .replace(/\bgravitymaaling\b/g, 'gravitym\\u00E5ling')
-      .replace(/\bnaar\b/g, 'n\\u00E5r')
-      .replace(/\bmaalrettet\b/g, 'm\\u00E5lrettet')
-      .replace(/\bunnga\b/g, 'unng\\u00E5')
-      .replace(/\bennaa\b/g, 'enn\\u00E5')
-      .replace(/\bogsaa\b/g, 'ogs\\u00E5');
+    const normalizeUiText = typeof global.normalizeUiText === 'function'
+      ? global.normalizeUiText
+      : function (input) { return String(input == null ? '' : input); };
+
+    return normalizeUiText(value)
+      .replace(/Ã¦/g, 'æ')
+      .replace(/Ã¸/g, 'ø')
+      .replace(/Ã¥/g, 'å')
+      .replace(/Ã†/g, 'Æ')
+      .replace(/Ã˜/g, 'Ø')
+      .replace(/Ã…/g, 'Å')
+      .replace(/â€“/g, '–')
+      .replace(/â€”/g, '—')
+      .replace(/â€˜|â€™/g, "'")
+      .replace(/â€œ|â€�/g, '"')
+      .replace(/Â·/g, '·')
+      .replace(/Â /g, ' ')
+      .replace(/Â/g, '');
   }
 
   function normalizeStorageMode(mode) {
@@ -156,12 +152,39 @@
     return /^image\//i.test(String(file.mimeType || '')) || isImageName(file.name || '');
   }
 
+  function isExampleImageName(name) {
+    return String(name || '').toLowerCase() === 'eksempel-brygging.svg';
+  }
+
+  function buildExampleDriveImageDataUrl(file) {
+    const safeName = escapeHtml(file && file.name ? file.name : 'eksempel-brygging.svg');
+    const svg = ''
+      + '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720">'
+      + '<defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#0f405c"/><stop offset="55%" stop-color="#2f79b8"/><stop offset="100%" stop-color="#7e36ff"/></linearGradient></defs>'
+      + '<rect width="1200" height="720" rx="28" fill="url(#bg)"/>'
+      + '<circle cx="1010" cy="130" r="90" fill="rgba(255,255,255,0.16)"/>'
+      + '<rect x="72" y="78" width="360" height="520" rx="24" fill="rgba(255,255,255,0.13)" stroke="rgba(255,255,255,0.25)"/>'
+      + '<text x="112" y="160" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700" fill="#ffffff">Brygging</text>'
+      + '<text x="112" y="230" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="800" fill="#ffffff">Eksempel</text>'
+      + '<text x="112" y="286" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.84)">Automatisk Drive-forhåndsvisning</text>'
+      + '<text x="112" y="410" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="#ffffff">Når ekte bryggebilder legges inn,</text>'
+      + '<text x="112" y="448" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="#ffffff">skjules dette eksempelbildet automatisk.</text>'
+      + '<g transform="translate(560 150)">'
+      + '<rect x="0" y="0" width="450" height="420" rx="28" fill="rgba(255,255,255,0.92)"/>'
+      + '<path d="M70 300 L180 190 L270 250 L350 150 L420 300 Z" fill="#9c64ff" opacity="0.95"/>'
+      + '<circle cx="350" cy="105" r="36" fill="#f7b94a"/>'
+      + '<rect x="64" y="334" width="300" height="14" rx="7" fill="#d6e7f4"/>'
+      + '<rect x="64" y="364" width="216" height="14" rx="7" fill="#d6e7f4"/>'
+      + '</g>'
+      + '<text x="72" y="668" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="rgba(255,255,255,0.82)">' + safeName + '</text>'
+      + '</svg>';
+
+    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  }
+
   function drivePreviewUrl(file) {
     if (!file) return '';
-    const mimeType = String(file.mimeType || '').toLowerCase();
-    if ((mimeType === 'image/svg+xml' || /\.svg$/i.test(String(file.name || ''))) && file.webContentLink) {
-      return String(file.webContentLink);
-    }
+    if (isExampleImageName(file.name || '')) return buildExampleDriveImageDataUrl(file);
     if (file.thumbnailLink) return String(file.thumbnailLink);
     if (file.id) return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(file.id) + '&sz=w1600';
     return file.webContentLink || file.webViewLink || '';
@@ -174,7 +197,8 @@
         name: file.name || 'Drive-bilde',
         url: drivePreviewUrl(file),
         href: file.webViewLink || file.webContentLink || '',
-        source: 'drive'
+        source: 'drive',
+        isExample: isExampleImageName(file.name || '')
       };
     }).filter(function (image) {
       return !!image.url;
@@ -199,12 +223,22 @@
     );
   }
 
+  function filterPreferredImages(images) {
+    const safeImages = Array.isArray(images) ? images : [];
+    const hasRealImages = safeImages.some(function (image) {
+      return !image || !image.isExample;
+    });
+    return hasRealImages
+      ? safeImages.filter(function (image) { return image && !image.isExample; })
+      : safeImages;
+  }
+
   function buildImageGrid(images, storage, liveDriveImages) {
     const localImages = Array.isArray(images) ? images : [];
     const driveImages = Array.isArray(liveDriveImages) && liveDriveImages.length
       ? buildDriveImagesFromFiles(liveDriveImages)
       : buildDriveImages(storage);
-    const mergedImages = mergeImages(localImages, driveImages);
+    const mergedImages = filterPreferredImages(mergeImages(localImages, driveImages));
     const driveUrl = storage && storage.googleDrive && storage.googleDrive.shareUrl ? storage.googleDrive.shareUrl : '';
 
     if (!mergedImages.length) {
@@ -334,9 +368,9 @@
       const whenLabel = entry && (entry.updatedAt || entry.exportedAt) ? fmtTime(entry.updatedAt || entry.exportedAt) : 'Ukjent eksporttid';
       return ''
         + '<button class="list-tab ' + (entry.slug === state.selectedLogSlug ? 'active' : '') + '" type="button" data-slug="' + escapeHtml(entry.slug) + '">'
-        + '<strong>' + escapeHtml(entry.folderName || entry.batchName || 'Bryggelogg') + '</strong>'
+        + '<strong>' + escapeHtml(normalizeLegacyNorwegianText(entry.folderName || entry.batchName || 'Bryggelogg')) + '</strong>'
         + '<span>' + escapeHtml(normalizeLegacyNorwegianText(entry.styleName || 'Ukjent stil')) + ' \u00B7 ' + escapeHtml(normalizeLegacyNorwegianText(statusLabel)) + '</span>'
-        + '<small>' + escapeHtml(whenLabel) + ' \u00B7 ' + Number(entry.imageCount || 0) + ' bilder \u00B7 ' + normalizeLegacyNorwegianText(storageLabel) + '</small>'
+        + '<small>' + escapeHtml(whenLabel) + ' \u00B7 ' + Number(entry.imageCount || 0) + ' bilder \u00B7 ' + escapeHtml(normalizeLegacyNorwegianText(storageLabel)) + '</small>'
         + '</button>';
     }).join('');
   }
@@ -352,7 +386,7 @@
       els.brewLogSubtitle.textContent = 'Ingen logg er valgt enn\u00E5.';
       els.brewLogPills.innerHTML = '';
       els.brewLogText.innerHTML = '<div class="empty-state">Ingen bryggelogg valgt enn\u00E5.</div>';
-      els.brewLogImages.innerHTML = '<div class="empty-state">Ingen bilder funnet enn?.</div>';
+      els.brewLogImages.innerHTML = '<div class="empty-state">Ingen bilder funnet enn\u00E5.</div>';
       els.brewLogImageMeta.textContent = 'Legg bilder i samme bryggemappe for \u00E5 f\u00E5 dem vist her.';
       return;
     }
@@ -383,17 +417,25 @@
       + '<section class="detail-section"><h3>Varsler</h3>' + buildAlertSection(log.alerts) + '</section>';
     els.brewLogImages.innerHTML = buildImageGrid(images, storage, liveDriveImages);
 
-    const driveImageCount = (Array.isArray(liveDriveImages) && liveDriveImages.length)
-      ? buildDriveImagesFromFiles(liveDriveImages).length
-      : buildDriveImages(storage).length;
-    const totalImageCount = images.length + driveImageCount;
+    const localImages = Array.isArray(images) ? images : [];
+    const driveImageList = (Array.isArray(liveDriveImages) && liveDriveImages.length)
+      ? buildDriveImagesFromFiles(liveDriveImages)
+      : buildDriveImages(storage);
+    const mergedVisibleImages = filterPreferredImages(mergeImages(localImages, driveImageList));
+    const visibleLocalCount = mergedVisibleImages.filter(function (image) {
+      return image && image.source !== 'drive';
+    }).length;
+    const visibleDriveCount = mergedVisibleImages.filter(function (image) {
+      return image && image.source === 'drive';
+    }).length;
+    const totalImageCount = mergedVisibleImages.length;
     if (totalImageCount) {
       els.brewLogImageMeta.textContent = totalImageCount + ' bilder funnet'
-        + (images.length ? (' lokalt: ' + images.length + '.') : '.')
-        + (driveImageCount ? (' Drive: ' + driveImageCount + '.') : '')
+        + (visibleLocalCount ? (' lokalt: ' + visibleLocalCount + '.') : '.')
+        + (visibleDriveCount ? (' Drive: ' + visibleDriveCount + '.') : '')
         + (driveUrl ? ' Drive-mappe er ogs\u00E5 koblet.' : '');
     } else if (driveUrl) {
-      els.brewLogImageMeta.textContent = 'Ingen bilder funnet enn?. Denne loggen er koblet til Google Drive for media.';
+      els.brewLogImageMeta.textContent = 'Ingen bilder funnet enn\u00E5. Denne loggen er koblet til Google Drive for media.';
     } else {
       els.brewLogImageMeta.textContent = 'Ingen bilder funnet i bryggemappen.';
     }
@@ -428,6 +470,13 @@
       );
     }
 
+    function scrollSelectedLogIntoView() {
+      const activeButton = els.brewLogList.querySelector('.list-tab.active');
+      if (activeButton && typeof activeButton.scrollIntoView === 'function') {
+        activeButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+
     async function loadStorageConfig() {
       try {
         const payload = await tools.fetchStorageConfig();
@@ -457,10 +506,12 @@
           state.selectedLogSlug = state.logs[0].slug || '';
         }
         renderLogList(els, state, state.logs);
+        scrollSelectedLogIntoView();
         Array.from(els.brewLogList.querySelectorAll('[data-slug]')).forEach(function (button) {
           button.addEventListener('click', function () {
             state.selectedLogSlug = button.getAttribute('data-slug') || '';
             renderLogList(els, state, state.logs);
+            scrollSelectedLogIntoView();
             loadSelectedLog();
           });
         });
@@ -501,10 +552,12 @@
               if (matchedEntry) {
                 matchedEntry.imageCount = (Array.isArray(detail.images) ? detail.images.length : 0) + liveDriveImages.length;
                 renderLogList(els, state, state.logs);
+                scrollSelectedLogIntoView();
                 Array.from(els.brewLogList.querySelectorAll('[data-slug]')).forEach(function (button) {
                   button.addEventListener('click', function () {
                     state.selectedLogSlug = button.getAttribute('data-slug') || '';
                     renderLogList(els, state, state.logs);
+                    scrollSelectedLogIntoView();
                     loadSelectedLog();
                   });
                 });
@@ -532,6 +585,7 @@
         await refreshList();
       } else {
         renderLogList(els, state, state.logs);
+        scrollSelectedLogIntoView();
         await loadSelectedLog();
       }
 

@@ -48,6 +48,72 @@
     }).format(date);
   }
 
+  function fmtRemainingHours(value) {
+    const hours = Number(value);
+    if (!Number.isFinite(hours)) return '--';
+    if (hours <= 1) return 'Under 1 t';
+    if (hours < 36) return Math.round(hours) + ' t';
+    if (hours < 24 * 10) return (hours / 24).toFixed(1) + ' d';
+    return Math.round(hours / 24) + ' d';
+  }
+
+  function forecastIsFinished(estimate) {
+    if (!estimate) return false;
+    const finishTs = estimate.estimatedFinishAt ? new Date(estimate.estimatedFinishAt).getTime() : NaN;
+    return !!estimate.isNearComplete
+      || Number(estimate.remainingHours) <= 0.5
+      || (Number.isFinite(finishTs) && finishTs <= Date.now());
+  }
+
+  function forecastTemperatureText(estimate) {
+    const tempEstimate = estimate && estimate.temperatureEstimate ? estimate.temperatureEstimate : null;
+    if (!tempEstimate || !Number.isFinite(Number(tempEstimate.predictedTemperature))) {
+      return '';
+    }
+    const direction = tempEstimate.direction && tempEstimate.direction !== 'stabil'
+      ? (' (' + tempEstimate.direction + ')')
+      : ' (stabil)';
+    return 'Forventet temperatur nær slutt: ' + fmtTemp(Number(tempEstimate.predictedTemperature)) + direction + '.';
+  }
+
+  function buildForecastPresentation(estimate) {
+    if (!estimate) {
+      return {
+        eta: 'For lite data',
+        detail: 'Prognosen trenger mer trend- eller stilgrunnlag før sluttid kan anslås.',
+        remaining: '--',
+        predictedFg: '--',
+        temperatureText: '',
+        finished: false
+      };
+    }
+
+    const finished = forecastIsFinished(estimate);
+    const temperatureText = forecastTemperatureText(estimate);
+    if (finished) {
+      return {
+        eta: 'Ferdig',
+        detail: temperatureText
+          ? ('Batchen ser ut til å være praktisk ferdig i valgt vindu. ' + temperatureText)
+          : 'Batchen ser ut til å være praktisk ferdig i valgt vindu.',
+        remaining: '0 t',
+        predictedFg: Number.isFinite(Number(estimate.predictedGravity)) ? fmtSg(Number(estimate.predictedGravity)) : '--',
+        temperatureText: temperatureText,
+        finished: true
+      };
+    }
+
+    return {
+      eta: estimate.estimatedFinishAt ? fmtTime(estimate.estimatedFinishAt) : 'For lite data',
+      detail: 'Ca. ' + fmtRemainingHours(estimate.remainingHours) + ' igjen med predikert FG rundt ' + fmtSg(Number(estimate.predictedGravity)) + '.'
+        + (temperatureText ? (' ' + temperatureText) : ''),
+      remaining: fmtRemainingHours(estimate.remainingHours),
+      predictedFg: Number.isFinite(Number(estimate.predictedGravity)) ? fmtSg(Number(estimate.predictedGravity)) : '--',
+      temperatureText: temperatureText,
+      finished: false
+    };
+  }
+
   function fmtRelative(value) {
     if (!value) return 'Ukjent aktivitet';
     const date = new Date(value);
@@ -112,13 +178,13 @@
 
   function fermentationSummary(rows) {
     if (!Array.isArray(rows) || rows.length < 3) {
-      return 'For lite filtrert data i valgt periode til å vurdere gjæringsforløpet.';
+      return 'For lite filtrert data i valgt periode til Ã¥ vurdere gjÃ¦ringsforlÃ¸pet.';
     }
 
     const gravities = rows.map((row) => Number(row.gravity)).filter(Number.isFinite);
     const temperatures = rows.map((row) => Number(row.temperature)).filter(Number.isFinite);
     if (gravities.length < 2 || temperatures.length < 2) {
-      return 'For lite gravity- eller temperaturdata til å lage en trygg oppsummering.';
+      return 'For lite gravity- eller temperaturdata til Ã¥ lage en trygg oppsummering.';
     }
 
     const gravityDrop = gravities[0] - gravities[gravities.length - 1];
@@ -140,23 +206,23 @@
     const processVerySmooth = avgGravityStep <= 0.35 && avgTempStep <= 0.2;
 
     const phaseText = activeStage
-      ? 'Kurven peker mot en tydelig aktiv hovedgjæring med markant ekstraktreduksjon.'
+      ? 'Kurven peker mot en tydelig aktiv hovedgjÃ¦ring med markant ekstraktreduksjon.'
       : lateStage
-        ? 'Datasettet peker mot sen fase eller nær ferdig utgjæring.'
-        : 'Gjæringen ser ut til å være i en rolig arbeidende mellomfase.';
+        ? 'Datasettet peker mot sen fase eller nÃ¦r ferdig utgjÃ¦ring.'
+        : 'GjÃ¦ringen ser ut til Ã¥ vÃ¦re i en rolig arbeidende mellomfase.';
     const tempText = tempStable
-      ? 'Temperaturen har vært svært stabil rundt ' + fmtTemp(tempAvg) + '.'
-      : 'Temperaturbildet har hatt merkbare svingninger som kan ha påvirket tempoet.';
+      ? 'Temperaturen har vÃ¦rt svÃ¦rt stabil rundt ' + fmtTemp(tempAvg) + '.'
+      : 'Temperaturbildet har hatt merkbare svingninger som kan ha pÃ¥virket tempoet.';
     const flowText = processVerySmooth
-      ? 'Målepunktene ser glatte og konsistente ut, med jevnt prosessbilde.'
-      : 'Kurvene har noen sprang, men danner fortsatt et lesbart fermenteringsforløp.';
+      ? 'MÃ¥lepunktene ser glatte og konsistente ut, med jevnt prosessbilde.'
+      : 'Kurvene har noen sprang, men danner fortsatt et lesbart fermenteringsforlÃ¸p.';
 
     return phaseText + ' ' + tempText + ' ' + flowText;
   }
 
   function buildRiskAssessment(rows, device) {
     if (!Array.isArray(rows) || rows.length < 3) {
-      return 'Datagrunnlaget er for tynt til å gjøre en faglig trygg risikovurdering.';
+      return 'Datagrunnlaget er for tynt til Ã¥ gjÃ¸re en faglig trygg risikovurdering.';
     }
 
     const temps = rows.map((row) => Number(row.temperature)).filter(Number.isFinite);
@@ -170,7 +236,7 @@
     const notes = [];
 
     if (Number.isFinite(tempSwing) && tempSwing > 2.5) {
-      notes.push('Temperatursvingningene er store nok til å kunne gi ujevn gjæraktivitet.');
+      notes.push('Temperatursvingningene er store nok til Ã¥ kunne gi ujevn gjÃ¦raktivitet.');
     } else if (Number.isFinite(tempSwing) && tempSwing > 1.3) {
       notes.push('Det finnes moderat termisk uro i perioden.');
     }
@@ -182,24 +248,24 @@
     if (Number.isFinite(tempSlope) && tempSlope > 0.08) {
       notes.push('Temperaturen er stigende i siste del av serien, noe som ofte samsvarer med aktiv metabolisme eller aktiv temperaturstyring.');
     } else if (Number.isFinite(tempSlope) && tempSlope < -0.08) {
-      notes.push('Temperaturen faller i siste del av perioden og kan dempe videre gjærtempo.');
+      notes.push('Temperaturen faller i siste del av perioden og kan dempe videre gjÃ¦rtempo.');
     }
 
     if (Number.isFinite(currentBattery) && currentBattery < 20) {
-      notes.push('Batterinivået er lavt nok til at videre overvåking bør følges opp.');
+      notes.push('BatterinivÃ¥et er lavt nok til at videre overvÃ¥king bÃ¸r fÃ¸lges opp.');
     }
 
     if (Number.isFinite(device && device.filteredOutCount) && Number(device.filteredOutCount) >= 3) {
-      notes.push('Flere utliggere er filtrert bort, så sensoren eller overføringen har trolig hatt støy.');
+      notes.push('Flere utliggere er filtrert bort, sÃ¥ sensoren eller overfÃ¸ringen har trolig hatt stÃ¸y.');
     }
 
     if (Number.isFinite(startGravity) && Number.isFinite(currentGravity) && (startGravity - currentGravity) > 0.020 && Number.isFinite(attenuation) && attenuation > 75) {
-      notes.push('Utgjæringsbildet ser godt etablert ut, og risikoen virker nå mer knyttet til overmodning enn manglende fremdrift.');
+      notes.push('UtgjÃ¦ringsbildet ser godt etablert ut, og risikoen virker nÃ¥ mer knyttet til overmodning enn manglende fremdrift.');
     }
 
     return notes.length
       ? notes.slice(0, 3).join(' ')
-      : 'Det er ingen tydelige røde flagg i den viste perioden. Måleserien ser prosessmessig sunn ut.';
+      : 'Det er ingen tydelige rÃ¸de flagg i den viste perioden. MÃ¥leserien ser prosessmessig sunn ut.';
   }
 
   function buildModelForecast(rows, device, styleMatch) {
@@ -218,7 +284,102 @@
         }
       });
     }
-    return 'Det finnes ikke nok modellstøtte til å beregne en trygg prognose akkurat nå.';
+    return 'Det finnes ikke nok modellstÃ¸tte til Ã¥ beregne en trygg prognose akkurat nÃ¥.';
+  }
+
+  function renderForecastInfoFlyout(analysis) {
+    const estimate = analysis && analysis.forecastEstimate ? analysis.forecastEstimate : null;
+    const presentation = buildForecastPresentation(estimate);
+    const sourceLabel = estimate
+      ? (estimate.source === 'model' ? 'Numerisk modell' : 'Stilbasert fallback')
+      : 'Ikke tilgjengelig';
+    const confidenceLabel = estimate && estimate.confidenceLabel ? estimate.confidenceLabel : 'Lav';
+    const predictedFg = presentation.predictedFg;
+    const remaining = presentation.remaining;
+    const eta = presentation.eta;
+
+    return ''
+      + '<div class="metric-flyout" hidden data-forecast-info-panel>'
+      + '<strong>Hvordan estimeringen er gjort</strong>'
+      + '<p>Estimatet bruker bare filtrerte data fra valgt Pill og aktivt tidsvindu. Det betyr at støyspikes er luket bort f\u00F8r modellen leser trend og sluttpunkt.</p>'
+      + '<p><span class="log-label">Modus</span>' + escapeHtml(normalizeUiText(sourceLabel)) + ' \u00B7 ' + escapeHtml(normalizeUiText(confidenceLabel)) + '</p>'
+      + '<p><span class="log-label">Tid igjen</span>' + escapeHtml(normalizeUiText(remaining)) + '</p>'
+      + '<p><span class="log-label">Estimert ferdig</span>' + escapeHtml(normalizeUiText(eta)) + '</p>'
+      + '<p><span class="log-label">Predikert FG</span>' + escapeHtml(normalizeUiText(predictedFg)) + '</p>'
+      + (presentation.temperatureText ? '<p><span class="log-label">Temperatur</span>' + escapeHtml(normalizeUiText(presentation.temperatureText)) + '</p>' : '')
+      + '<div class="metric-equations">'
+      + '<code>&mu; = &mu;<sub>max</sub> \u00D7 S / (K + S)</code>'
+      + '<code>&mu;<sub>eff</sub> = &mu;<sub>max</sub> \u00D7 exp(0.055 \u00D7 (T - 20))</code>'
+      + '<code>ABV \u2248 (OG - FG) \u00D7 131.25</code>'
+      + '<code>fallback tid \u2248 (SG<sub>n\u00E5</sub> - FG<sub>typisk</sub>) / |slope|</code>'
+      + '</div>'
+      + '<p>Kort fortalt: sukkerrest og gj\u00E6raktivitet integreres framover i sm\u00E5 tidssteg, temperatur justerer fartleddet, og hvis datagrunnlaget er tynt faller estimeringen tilbake til stilvindu og observert SG-hastighet.</p>'
+      + '<p class="metric-flyout-note">Dette er et prosessanslag, ikke en eksakt sluttdato.</p>'
+      + '</div>';
+  }
+
+  function closeForecastFlyouts(els) {
+    if (!els || !els.metricsGrid) return;
+    els.metricsGrid.querySelectorAll('[data-forecast-card]').forEach(function (card) {
+      card.classList.remove('flyout-open');
+      const panel = card.querySelector('[data-forecast-info-panel]');
+      const toggle = card.querySelector('[data-forecast-info-toggle]');
+      if (panel) panel.hidden = true;
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function bindMetricFlyouts(els) {
+    if (!els || !els.metricsGrid || els.metricsGrid.__forecastFlyoutBound) return;
+    els.metricsGrid.__forecastFlyoutBound = true;
+
+    els.metricsGrid.addEventListener('click', function (event) {
+      const toggle = event.target.closest('[data-forecast-info-toggle]');
+      if (toggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        const card = toggle.closest('[data-forecast-card]');
+        const panel = card ? card.querySelector('[data-forecast-info-panel]') : null;
+        const shouldOpen = !!(panel && panel.hidden);
+        closeForecastFlyouts(els);
+        if (card && panel && shouldOpen) {
+          card.classList.add('flyout-open');
+          panel.hidden = false;
+          toggle.setAttribute('aria-expanded', 'true');
+        }
+      }
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!els.metricsGrid.contains(event.target)) {
+        closeForecastFlyouts(els);
+      }
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        closeForecastFlyouts(els);
+      }
+    });
+  }
+
+  function buildModelForecastEstimate(rows, device, styleMatch) {
+    const intelligence = global.HydrometerIntelligence;
+    if (intelligence && typeof intelligence.buildForecastEstimate === 'function') {
+      return intelligence.buildForecastEstimate({
+        rows: rows,
+        device: device,
+        styleMatch: styleMatch,
+        helpers: {
+          average: average,
+          calculateSlopePerHour: calculateSlopePerHour,
+          estimateAbvFromRows: estimateAbvFromRows,
+          fmtSg: fmtSg,
+          parseGravityToSpecific: parseGravityToSpecific
+        }
+      });
+    }
+    return null;
   }
 
   function beerMacros(styleName) {
@@ -353,7 +514,7 @@
         + ((Array.isArray(alert.links) && alert.links.length)
           ? '<div class="alert-links">' + alert.links.map(function (link) {
             return link && link.url
-              ? '<a class="alert-link" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(link.label || link.url) + '</a>'
+              ? '<a class="alert-link" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(normalizeUiText(link.label || link.url)) + '</a>'
               : '';
           }).join('') + '</div>'
           : '')
@@ -419,7 +580,7 @@
           estimateAbvFromRows: estimateAbvFromRows
         }
       })
-      : 'Ingen stilmodul tilgjengelig akkurat nå.';
+      : 'Ingen stilmodul tilgjengelig akkurat nÃ¥.';
     const currentRecipe = selectedRecipe(state);
     const alerts = intelligence && typeof intelligence.buildAlerts === 'function'
       ? intelligence.buildAlerts({
@@ -463,6 +624,7 @@
       beerOverview: beerOverview,
       summary: fermentationSummary(displayRows),
       riskAssessment: buildRiskAssessment(displayRows, device),
+      forecastEstimate: buildModelForecastEstimate(displayRows, device, styleMatch),
       forecast: buildModelForecast(displayRows, device, styleMatch)
     };
   }
@@ -477,6 +639,237 @@
       + '<article class="brew-card stat-card"><strong>Siste temperatur</strong><span>' + fmtTemp(Number(analysis && analysis.currentTemp)) + '</span><small>Batteri ' + fmtPct(Number(analysis && analysis.currentBattery)) + '</small></article>';
   }
 
+  function forecastTemperatureText(estimate) {
+    const tempEstimate = estimate && estimate.temperatureEstimate ? estimate.temperatureEstimate : null;
+    if (!tempEstimate || !Number.isFinite(Number(tempEstimate.predictedTemperature))) {
+      return '';
+    }
+    const direction = tempEstimate.direction && tempEstimate.direction !== 'stabil'
+      ? (' (' + tempEstimate.direction + ')')
+      : ' (stabil)';
+    return 'Forventet temperatur nær slutt: ' + fmtTemp(Number(tempEstimate.predictedTemperature)) + direction + '.';
+  }
+
+  function buildForecastPresentation(estimate) {
+    if (!estimate) {
+      return {
+        eta: 'For lite data',
+        detail: 'Prognosen trenger mer trend- eller stilgrunnlag før sluttid kan anslås.',
+        remaining: '--',
+        predictedFg: '--',
+        temperatureText: '',
+        finished: false
+      };
+    }
+
+    const finished = forecastIsFinished(estimate);
+    const temperatureText = forecastTemperatureText(estimate);
+    if (finished) {
+      return {
+        eta: 'Ferdig',
+        detail: temperatureText
+          ? ('Batchen ser ut til å være praktisk ferdig i valgt vindu. ' + temperatureText)
+          : 'Batchen ser ut til å være praktisk ferdig i valgt vindu.',
+        remaining: '0 t',
+        predictedFg: Number.isFinite(Number(estimate.predictedGravity)) ? fmtSg(Number(estimate.predictedGravity)) : '--',
+        temperatureText: temperatureText,
+        finished: true
+      };
+    }
+
+    return {
+      eta: estimate.estimatedFinishAt ? fmtTime(estimate.estimatedFinishAt) : 'For lite data',
+      detail: 'Ca. ' + fmtRemainingHours(estimate.remainingHours) + ' igjen med predikert FG rundt ' + fmtSg(Number(estimate.predictedGravity)) + '.'
+        + (temperatureText ? (' ' + temperatureText) : ''),
+      remaining: fmtRemainingHours(estimate.remainingHours),
+      predictedFg: Number.isFinite(Number(estimate.predictedGravity)) ? fmtSg(Number(estimate.predictedGravity)) : '--',
+      temperatureText: temperatureText,
+      finished: false
+    };
+  }
+
+  function renderDeviceList(els, state) {
+    if (!Array.isArray(state.devices) || !state.devices.length) {
+      els.deviceList.innerHTML = '<div class="empty-state">Ingen hydrometere funnet for denne kontoen.</div>';
+      return;
+    }
+
+    els.deviceList.innerHTML = state.devices.map(function (device) {
+      return ''
+        + '<button class="device-tab ' + (device.id === state.selectedId ? 'active' : '') + '" type="button" data-id="' + escapeHtml(device.id) + '">'
+        + '<strong>' + escapeHtml(device.name || 'Uten navn') + '</strong>'
+        + '<span>Gravity ' + fmtGravity(Number(device.gravity)) + ' Â· ' + fmtTemp(Number(device.temperature)) + '</span>'
+        + '<small>' + escapeHtml(device.activeProfileName || 'Ingen aktiv profil') + '</small>'
+        + '</button>';
+    }).join('');
+  }
+
+  function renderBeerOverview(els, analysis) {
+    const beer = analysis && analysis.beerOverview ? analysis.beerOverview : {};
+    els.beerOverviewGrid.innerHTML = ''
+      + '<article class="overview-card"><strong>Kcal</strong><span>' + fmtNumber(Number(beer.kcalPer400ml), 0) + '</span><small>Estimert energi per 0.4 glass.</small></article>'
+      + '<article class="overview-card"><strong>Karbohydrat</strong><span>' + fmtNumber(Number(beer.carbsGPer400ml), 1) + ' g</span><small>Grovt anslag fra filtrert sluttgravity.</small></article>'
+      + '<article class="overview-card"><strong>Protein</strong><span>' + fmtNumber(Number(beer.proteinGPer400ml), 1) + ' g</span><small>Stilbasert standardestimat.</small></article>'
+      + '<article class="overview-card"><strong>Fett</strong><span>' + fmtNumber(Number(beer.fatGPer400ml), 1) + ' g</span><small>Nesten alltid nÃ¦r null i Ã¸l og sats.</small></article>';
+  }
+
+  function renderDetails(els, state, analysis) {
+    if (!analysis) {
+      els.deviceTitle.textContent = 'Ingen hydrometer valgt';
+      els.deviceSubtitle.textContent = 'Ingen data tilgjengelig akkurat nÃ¥.';
+      els.devicePills.innerHTML = '';
+      els.metricsGrid.innerHTML = '';
+      els.beerOverviewGrid.innerHTML = '';
+      els.alertStack.innerHTML = '<div class="empty-state">Ingen varsler Ã¥ vise.</div>';
+      els.chartGrid.innerHTML = '<div class="empty-state">Ingen telemetridata Ã¥ vise.</div>';
+      els.fermentationLog.innerHTML = '<h3>GjÃ¦ringslogg</h3><p>Ingen data tilgjengelig for Ã¥ lage en oppsummering ennÃ¥.</p>';
+      return;
+    }
+
+    const device = analysis.device;
+    const rows = analysis.rows;
+    const forecastEstimate = analysis.forecastEstimate;
+    const forecastEta = forecastEstimate && forecastEstimate.estimatedFinishAt
+      ? fmtTime(forecastEstimate.estimatedFinishAt)
+      : 'For lite data';
+    const forecastEtaDetail = forecastEstimate
+      ? (forecastEstimate.remainingHours <= 1
+        ? 'Modellen leser batchen som nÃ¦r praktisk ferdig nÃ¥.'
+        : 'Ca. ' + fmtRemainingHours(forecastEstimate.remainingHours) + ' igjen med predikert FG rundt ' + fmtSg(forecastEstimate.predictedGravity) + '.')
+      : 'Prognosen trenger mer trend- eller stilgrunnlag fÃ¸r sluttid kan anslÃ¥s.';
+    els.deviceTitle.textContent = device.name || 'Uten navn';
+    els.deviceSubtitle.textContent = rows.length
+      ? 'Viser ' + rows.length + ' filtrerte av ' + analysis.windowRows.length + ' telemetripunkter i aktivt tidsvindu.'
+      : 'Ingen filtrerte telemetripunkter i aktivt tidsvindu.';
+    els.devicePills.innerHTML = ''
+      + (analysis.styleMatch ? '<div class="info-pill subtle">Stil: ' + escapeHtml(analysis.styleMatch.name) + '</div>' : '')
+      + (state.linkedRecipe ? '<div class="info-pill subtle">Oppskrift: ' + escapeHtml(state.linkedRecipe.name || 'Koblet oppskrift') + '</div>' : '')
+      + ((device.activeProfileName) ? '<div class="info-pill subtle">Profil: ' + escapeHtml(device.activeProfileName) + '</div>' : '')
+      + '<div class="info-pill">MAC: ' + escapeHtml(device.macAddress || '--') + '</div>'
+      + '<div class="info-pill">RSSI: ' + fmtNumber(Number(device.rssi), 0) + '</div>'
+      + '<div class="info-pill">' + (device.isLatestFirmware ? 'Siste firmware' : 'Firmware kan oppdateres') + '</div>'
+      + '<div class="info-pill">Filtrert bort: ' + Number(device.filteredOutCount || 0) + ' + ' + Number(analysis.displayFilteredOutCount || 0) + '</div>';
+
+    els.metricsGrid.innerHTML = ''
+      + '<article class="metric-card"><strong>Gravity</strong><span>' + fmtGravity(Number(analysis.currentGravity)) + '</span><small>Siste filtrerte tetthet i valgt visning.</small></article>'
+      + '<article class="metric-card"><strong>Temperatur</strong><span>' + fmtTemp(Number(analysis.currentTemp)) + '</span><small>Siste filtrerte temperatur i valgt visning.</small></article>'
+      + '<article class="metric-card"><strong>Gravity Velocity</strong><span>' + fmtSigned(Number(analysis.currentGravityVelocity), 3) + '</span><small>Rapportert SG-trend fra siste punkt i visningen.</small></article>'
+      + '<article class="metric-card"><strong>Batteri</strong><span>' + fmtPct(Number(analysis.currentBattery)) + '</span><small>Sist aktivitet ' + escapeHtml(fmtTime(device.lastActivityTime)) + '.</small></article>'
+      + '<article class="metric-card"><strong>Estimert alkohol</strong><span>' + fmtAbv(analysis.abvEstimate) + '</span><small>Beregnet fra fÃ¸rste og siste filtrerte gravity i valgt periode.</small></article>'
+      + '<article class="metric-card"><strong>OG / FG</strong><span>' + fmtSg(analysis.ogEstimate) + ' / ' + fmtSg(analysis.fgEstimate) + '</span><small>FÃ¸rste og siste filtrerte gravity i perioden.</small></article>'
+      + '<article class="metric-card"><strong>Attenuation</strong><span>' + fmtAttenuation(analysis.attenuationEstimate) + '</span><small>Apparent attenuation basert pÃ¥ filtrert kurve.</small></article>'
+      + '<article class="metric-card metric-card-action" data-forecast-card>'
+      + '<div class="metric-card-head"><strong>Estimert ferdig</strong><button class="metric-info-btn" type="button" data-forecast-info-toggle aria-expanded="false" aria-label="Forklar estimert ferdig">Hvordan?</button></div>'
+      + '<span>' + escapeHtml(forecastEta) + '</span><small>' + escapeHtml(forecastEtaDetail) + '</small>'
+      + renderForecastInfoFlyout(analysis)
+      + '</article>'
+      + '<article class="metric-card"><strong>Stiltreff</strong><span>' + escapeHtml((analysis.styleMatch && analysis.styleMatch.name) || 'Ukjent') + '</span><small>'
+      + escapeHtml(analysis.styleMatch ? ('Tolket fra navn/profil med ' + analysis.styleMatch.confidenceLabel.toLowerCase() + ' sikkerhet.') : 'Ingen tydelige stilord funnet i navn eller aktiv profil.')
+      + '</small></article>';
+
+    renderBeerOverview(els, analysis);
+    els.alertStack.innerHTML = renderAlertCards(analysis.alerts);
+
+    if (!rows.length) {
+      els.chartGrid.innerHTML = '<div class="empty-state">Ingen historiske telemetripunkter i valgt periode.</div>';
+      els.fermentationLog.innerHTML = ''
+        + '<h3>GjÃ¦ringslogg</h3>'
+        + '<p><span class="log-label">Prosessbilde</span>Det finnes forelÃ¸pig ingen filtrerte punkter i valgt periode.</p>'
+        + '<p><span class="log-label">Risikobilde</span>' + escapeHtml(normalizeUiText(analysis.riskAssessment)) + '</p>'
+        + '<p><span class="log-label">Stilvurdering</span>' + escapeHtml(normalizeUiText(analysis.styleAssessment)) + '</p>'
+        + '<p><span class="log-label">Estimert ferdig</span>' + escapeHtml(forecastEta) + ' \u00B7 ' + escapeHtml(forecastEtaDetail) + '</p>'
+        + '<p><span class="log-label">Modellprognose</span>' + escapeHtml(normalizeUiText(analysis.forecast)) + '</p>';
+      return;
+    }
+
+    els.chartGrid.innerHTML = [
+      renderChart('Gravity', analysis.windowMeta.label, rows, 'gravity', 'var(--chart-gravity)', function (value) { return fmtGravity(Number(value)); }),
+      renderChart('Temperatur', 'Utvikling over tid', rows, 'temperature', 'var(--chart-temp)', function (value) { return fmtTemp(Number(value)).replace(' C', ''); }),
+      renderChart('Battery', 'BatterinivÃ¥', rows, 'battery', 'var(--chart-battery)', function (value) { return fmtPct(Number(value)).replace('%', ''); }),
+      renderChart('Gravity Velocity', 'Fermenteringstrend', rows, 'gravityVelocity', '#8959b8', function (value) { return fmtSigned(Number(value), 3); })
+    ].join('');
+
+    els.fermentationLog.innerHTML = ''
+      + '<h3>GjÃ¦ringslogg</h3>'
+      + '<p><span class="log-label">Prosessbilde</span>' + escapeHtml(normalizeUiText(analysis.summary)) + '</p>'
+      + '<p><span class="log-label">Risikobilde</span>' + escapeHtml(normalizeUiText(analysis.riskAssessment)) + '</p>'
+      + '<p><span class="log-label">Stilvurdering</span>' + escapeHtml(normalizeUiText(analysis.styleAssessment)) + '</p>'
+      + '<p><span class="log-label">Estimert ferdig</span>' + escapeHtml(forecastEta) + ' \u00B7 ' + escapeHtml(forecastEtaDetail) + '</p>'
+      + '<p><span class="log-label">Modellprognose</span>' + escapeHtml(normalizeUiText(analysis.forecast)) + '</p>'
+      + (analysis.alerts.length ? '<p><span class="log-label">Aktive varsler</span>' + escapeHtml(analysis.alerts.map(function (alert) { return normalizeUiText(alert.title); }).join(', ')) + '</p>' : '');
+  }
+
+  function renderHydrometerView(els, state) {
+    bindMetricFlyouts(els);
+    const analysis = buildAnalysis(selectedDevice(state), state);
+    renderTopStats(els, state, analysis);
+    renderDeviceList(els, state);
+    renderDetails(els, state, analysis);
+    return analysis;
+  }
+
+  function buildExportPayload(analysis, state) {
+    if (!analysis || !analysis.device) return null;
+
+    const recipeRef = buildRecipeReference(state);
+
+    return {
+      batchName: state.batchName || analysis.device.activeProfileName || analysis.device.name || 'Brygg',
+      folderName: state.folderName || '',
+      styleName: analysis.styleMatch ? analysis.styleMatch.name : '',
+      deviceId: analysis.device.id || '',
+      deviceName: analysis.device.name || '',
+      profileName: analysis.device.activeProfileName || '',
+      periodLabel: analysis.windowMeta.label,
+      recipeRef: recipeRef,
+      exportedAt: new Date().toISOString(),
+      summary: {
+        'Prosessbilde': normalizeUiText(analysis.summary),
+        'Risikobilde': normalizeUiText(analysis.riskAssessment),
+        'Stilvurdering': normalizeUiText(analysis.styleAssessment),
+        'Estimert ferdig': analysis.forecastEstimate && analysis.forecastEstimate.estimatedFinishAt
+          ? (fmtTime(analysis.forecastEstimate.estimatedFinishAt) + ' Â· ' + (analysis.forecastEstimate.remainingHours <= 1
+            ? 'nÃ¦r praktisk ferdig'
+            : ('ca. ' + fmtRemainingHours(analysis.forecastEstimate.remainingHours) + ' igjen')))
+          : 'For lite data til Ã¥ anslÃ¥ sluttid',
+        'Modellprognose': normalizeUiText(analysis.forecast),
+        'Tidsvindu': analysis.windowMeta.label + ' Â· ' + fmtTime(analysis.windowMeta.fromIso) + ' - ' + fmtTime(analysis.windowMeta.toIso),
+        'Filtrering': 'Backend ' + Number(analysis.device.filteredOutCount || 0) + ' Â· Visning ' + Number(analysis.displayFilteredOutCount || 0)
+      },
+      metrics: {
+        'Gravity': fmtGravity(Number(analysis.currentGravity)),
+        'Temperatur': fmtTemp(Number(analysis.currentTemp)),
+        'ABV': fmtAbv(analysis.abvEstimate),
+        'OG': fmtSg(analysis.ogEstimate),
+        'FG': fmtSg(analysis.fgEstimate),
+        'Estimert ferdig': analysis.forecastEstimate && analysis.forecastEstimate.estimatedFinishAt ? fmtTime(analysis.forecastEstimate.estimatedFinishAt) : 'For lite data',
+        'Tid igjen': analysis.forecastEstimate ? fmtRemainingHours(analysis.forecastEstimate.remainingHours) : '--',
+        'Predikert FG': analysis.forecastEstimate ? fmtSg(analysis.forecastEstimate.predictedGravity) : '--',
+        'Attenuation': fmtAttenuation(analysis.attenuationEstimate),
+        'Kcal / 0.4': fmtNumber(Number(analysis.beerOverview.kcalPer400ml), 0),
+        'Karbohydrat / 0.4': fmtNumber(Number(analysis.beerOverview.carbsGPer400ml), 1) + ' g'
+      },
+      alerts: analysis.alerts,
+      history: analysis.rows,
+      raptWindow: {
+        deviceId: analysis.device.id || '',
+        deviceName: analysis.device.name || '',
+        profileName: analysis.device.activeProfileName || '',
+        rangeLabel: analysis.windowMeta.label,
+        windowStart: analysis.windowMeta.fromIso || null,
+        windowEnd: analysis.windowMeta.toIso || null,
+        historyStart: analysis.rows.length ? (analysis.rows[0].createdOn || null) : null,
+        historyEnd: analysis.rows.length ? (analysis.rows[analysis.rows.length - 1].createdOn || null) : null,
+        historyCount: Array.isArray(analysis.rows) ? analysis.rows.length : 0
+      },
+      source: {
+        usedCache: !!state.usedCache,
+        generatedAt: state.generatedAt || null,
+        datakilde: state.usedCache ? 'lokal cache' : 'live henting'
+      }
+    };
+  }
+
   function renderDeviceList(els, state) {
     if (!Array.isArray(state.devices) || !state.devices.length) {
       els.deviceList.innerHTML = '<div class="empty-state">Ingen hydrometere funnet for denne kontoen.</div>';
@@ -488,7 +881,7 @@
         + '<button class="device-tab ' + (device.id === state.selectedId ? 'active' : '') + '" type="button" data-id="' + escapeHtml(device.id) + '">'
         + '<strong>' + escapeHtml(device.name || 'Uten navn') + '</strong>'
         + '<span>Gravity ' + fmtGravity(Number(device.gravity)) + ' · ' + fmtTemp(Number(device.temperature)) + '</span>'
-        + '<small>' + escapeHtml(device.activeProfileName || 'Ingen aktiv profil') + '</small>'
+        + '<small>' + escapeHtml(normalizeUiText(device.activeProfileName || 'Ingen aktiv profil')) + '</small>'
         + '</button>';
     }).join('');
   }
@@ -517,14 +910,25 @@
 
     const device = analysis.device;
     const rows = analysis.rows;
+    const forecastPresentation = buildForecastPresentation(analysis.forecastEstimate);
+    const forecastPrimaryValue = forecastPresentation.predictedFg !== '--'
+      ? normalizeUiText(forecastPresentation.predictedFg)
+      : normalizeUiText(forecastPresentation.eta);
+    const forecastPrimaryLabel = forecastPresentation.predictedFg !== '--'
+      ? 'Predikert FG'
+      : 'Estimert ferdig';
+    const styleConfidence = analysis.styleMatch && analysis.styleMatch.confidenceLabel
+      ? normalizeUiText(analysis.styleMatch.confidenceLabel).toLowerCase()
+      : '';
+
     els.deviceTitle.textContent = device.name || 'Uten navn';
     els.deviceSubtitle.textContent = rows.length
-      ? 'Viser ' + rows.length + ' filtrerte av ' + analysis.windowRows.length + ' telemetripunkter i aktivt tidsvindu.'
+      ? ('Viser ' + rows.length + ' filtrerte av ' + analysis.windowRows.length + ' telemetripunkter i aktivt tidsvindu.')
       : 'Ingen filtrerte telemetripunkter i aktivt tidsvindu.';
     els.devicePills.innerHTML = ''
-      + (analysis.styleMatch ? '<div class="info-pill subtle">Stil: ' + escapeHtml(analysis.styleMatch.name) + '</div>' : '')
-      + (state.linkedRecipe ? '<div class="info-pill subtle">Oppskrift: ' + escapeHtml(state.linkedRecipe.name || 'Koblet oppskrift') + '</div>' : '')
-      + ((device.activeProfileName) ? '<div class="info-pill subtle">Profil: ' + escapeHtml(device.activeProfileName) + '</div>' : '')
+      + (analysis.styleMatch ? '<div class="info-pill subtle">Stil: ' + escapeHtml(normalizeUiText(analysis.styleMatch.name)) + '</div>' : '')
+      + (state.linkedRecipe ? '<div class="info-pill subtle">Oppskrift: ' + escapeHtml(normalizeUiText(state.linkedRecipe.name || 'Koblet oppskrift')) + '</div>' : '')
+      + (device.activeProfileName ? '<div class="info-pill subtle">Profil: ' + escapeHtml(normalizeUiText(device.activeProfileName)) + '</div>' : '')
       + '<div class="info-pill">MAC: ' + escapeHtml(device.macAddress || '--') + '</div>'
       + '<div class="info-pill">RSSI: ' + fmtNumber(Number(device.rssi), 0) + '</div>'
       + '<div class="info-pill">' + (device.isLatestFirmware ? 'Siste firmware' : 'Firmware kan oppdateres') + '</div>'
@@ -538,8 +942,13 @@
       + '<article class="metric-card"><strong>Estimert alkohol</strong><span>' + fmtAbv(analysis.abvEstimate) + '</span><small>Beregnet fra første og siste filtrerte gravity i valgt periode.</small></article>'
       + '<article class="metric-card"><strong>OG / FG</strong><span>' + fmtSg(analysis.ogEstimate) + ' / ' + fmtSg(analysis.fgEstimate) + '</span><small>Første og siste filtrerte gravity i perioden.</small></article>'
       + '<article class="metric-card"><strong>Attenuation</strong><span>' + fmtAttenuation(analysis.attenuationEstimate) + '</span><small>Apparent attenuation basert på filtrert kurve.</small></article>'
-      + '<article class="metric-card"><strong>Stiltreff</strong><span>' + escapeHtml((analysis.styleMatch && analysis.styleMatch.name) || 'Ukjent') + '</span><small>'
-      + escapeHtml(analysis.styleMatch ? ('Tolket fra navn/profil med ' + analysis.styleMatch.confidenceLabel.toLowerCase() + ' sikkerhet.') : 'Ingen tydelige stilord funnet i navn eller aktiv profil.')
+      + '<article class="metric-card metric-card-action" data-forecast-card>'
+      + '<div class="metric-card-head"><strong>' + escapeHtml(forecastPrimaryLabel) + '</strong><button class="metric-info-btn" type="button" data-forecast-info-toggle aria-expanded="false" aria-label="Forklar prognosen">Hvordan?</button></div>'
+      + '<span>' + escapeHtml(forecastPrimaryValue) + '</span><small>' + escapeHtml(normalizeUiText(forecastPresentation.detail)) + '</small>'
+      + renderForecastInfoFlyout(analysis)
+      + '</article>'
+      + '<article class="metric-card"><strong>Stiltreff</strong><span>' + escapeHtml(analysis.styleMatch ? normalizeUiText(analysis.styleMatch.name) : 'Ukjent') + '</span><small>'
+      + escapeHtml(analysis.styleMatch ? ('Tolket fra navn/profil med ' + styleConfidence + ' sikkerhet.') : 'Ingen tydelige stilord funnet i navn eller aktiv profil.')
       + '</small></article>';
 
     renderBeerOverview(els, analysis);
@@ -552,6 +961,9 @@
         + '<p><span class="log-label">Prosessbilde</span>Det finnes foreløpig ingen filtrerte punkter i valgt periode.</p>'
         + '<p><span class="log-label">Risikobilde</span>' + escapeHtml(normalizeUiText(analysis.riskAssessment)) + '</p>'
         + '<p><span class="log-label">Stilvurdering</span>' + escapeHtml(normalizeUiText(analysis.styleAssessment)) + '</p>'
+        + '<p><span class="log-label">Predikert FG</span>' + escapeHtml(normalizeUiText(forecastPresentation.predictedFg)) + '</p>'
+        + '<p><span class="log-label">Estimert ferdig</span>' + escapeHtml(normalizeUiText(forecastPresentation.eta)) + ' · ' + escapeHtml(normalizeUiText(forecastPresentation.detail)) + '</p>'
+        + (forecastPresentation.temperatureText ? '<p><span class="log-label">Temperatur mot slutt</span>' + escapeHtml(normalizeUiText(forecastPresentation.temperatureText)) + '</p>' : '')
         + '<p><span class="log-label">Modellprognose</span>' + escapeHtml(normalizeUiText(analysis.forecast)) + '</p>';
       return;
     }
@@ -568,27 +980,29 @@
       + '<p><span class="log-label">Prosessbilde</span>' + escapeHtml(normalizeUiText(analysis.summary)) + '</p>'
       + '<p><span class="log-label">Risikobilde</span>' + escapeHtml(normalizeUiText(analysis.riskAssessment)) + '</p>'
       + '<p><span class="log-label">Stilvurdering</span>' + escapeHtml(normalizeUiText(analysis.styleAssessment)) + '</p>'
+      + '<p><span class="log-label">Predikert FG</span>' + escapeHtml(normalizeUiText(forecastPresentation.predictedFg)) + '</p>'
+      + '<p><span class="log-label">Estimert ferdig</span>' + escapeHtml(normalizeUiText(forecastPresentation.eta)) + ' · ' + escapeHtml(normalizeUiText(forecastPresentation.detail)) + '</p>'
+      + (forecastPresentation.temperatureText ? '<p><span class="log-label">Temperatur mot slutt</span>' + escapeHtml(normalizeUiText(forecastPresentation.temperatureText)) + '</p>' : '')
       + '<p><span class="log-label">Modellprognose</span>' + escapeHtml(normalizeUiText(analysis.forecast)) + '</p>'
       + (analysis.alerts.length ? '<p><span class="log-label">Aktive varsler</span>' + escapeHtml(analysis.alerts.map(function (alert) { return normalizeUiText(alert.title); }).join(', ')) + '</p>' : '');
-  }
-
-  function renderHydrometerView(els, state) {
-    const analysis = buildAnalysis(selectedDevice(state), state);
-    renderTopStats(els, state, analysis);
-    renderDeviceList(els, state);
-    renderDetails(els, state, analysis);
-    return analysis;
   }
 
   function buildExportPayload(analysis, state) {
     if (!analysis || !analysis.device) return null;
 
     const recipeRef = buildRecipeReference(state);
+    const forecastPresentation = buildForecastPresentation(analysis.forecastEstimate);
+    const forecastEtaText = normalizeUiText(forecastPresentation.eta);
+    const forecastDetailText = normalizeUiText(forecastPresentation.detail);
+    const forecastTemperatureTextValue = normalizeUiText(forecastPresentation.temperatureText || '');
+    const forecastTemperatureMetric = forecastTemperatureTextValue
+      ? forecastTemperatureTextValue.replace(/^Forventet temperatur[^:]*:\s*/, '').replace(/\.$/, '')
+      : '--';
 
     return {
       batchName: state.batchName || analysis.device.activeProfileName || analysis.device.name || 'Brygg',
       folderName: state.folderName || '',
-      styleName: analysis.styleMatch ? analysis.styleMatch.name : '',
+      styleName: analysis.styleMatch ? normalizeUiText(analysis.styleMatch.name) : '',
       deviceId: analysis.device.id || '',
       deviceName: analysis.device.name || '',
       profileName: analysis.device.activeProfileName || '',
@@ -599,6 +1013,10 @@
         'Prosessbilde': normalizeUiText(analysis.summary),
         'Risikobilde': normalizeUiText(analysis.riskAssessment),
         'Stilvurdering': normalizeUiText(analysis.styleAssessment),
+        'Estimert ferdig': forecastPresentation.finished
+          ? 'Ferdig'
+          : (forecastEtaText + ' · ' + forecastDetailText),
+        'Temperatur mot slutt': forecastTemperatureTextValue || 'Ingen tydelig temperaturprognose tilgjengelig',
         'Modellprognose': normalizeUiText(analysis.forecast),
         'Tidsvindu': analysis.windowMeta.label + ' · ' + fmtTime(analysis.windowMeta.fromIso) + ' - ' + fmtTime(analysis.windowMeta.toIso),
         'Filtrering': 'Backend ' + Number(analysis.device.filteredOutCount || 0) + ' · Visning ' + Number(analysis.displayFilteredOutCount || 0)
@@ -609,6 +1027,10 @@
         'ABV': fmtAbv(analysis.abvEstimate),
         'OG': fmtSg(analysis.ogEstimate),
         'FG': fmtSg(analysis.fgEstimate),
+        'Estimert ferdig': forecastEtaText,
+        'Tid igjen': normalizeUiText(forecastPresentation.remaining),
+        'Predikert FG': normalizeUiText(forecastPresentation.predictedFg),
+        'Temperatur mot slutt': forecastTemperatureMetric,
         'Attenuation': fmtAttenuation(analysis.attenuationEstimate),
         'Kcal / 0.4': fmtNumber(Number(analysis.beerOverview.kcalPer400ml), 0),
         'Karbohydrat / 0.4': fmtNumber(Number(analysis.beerOverview.carbsGPer400ml), 1) + ' g'

@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   'use strict';
 
   const STYLE_LIBRARY = [
@@ -156,7 +156,7 @@
       url: 'https://help.stillspirits.com/hc/en-us/articles/360005510257-Turbo-Yeast-Range'
     },
     stillSpiritsNutrient: {
-      label: 'Still Spirits: DistillerÃ¢â‚¬â„¢s Nutrient Light Spirits',
+      label: 'Still Spirits: DistillerÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢s Nutrient Light Spirits',
       url: 'https://www.stillspirits.com/products/nutrient-light-spirits'
     },
     scottNutrition: {
@@ -180,11 +180,11 @@
       url: 'https://www.audeamusdistilling.com/blogs/news/tomato-paste-wash'
     },
     bryggolDAP: {
-      label: 'Brygg ÃƒËœl: DAP',
+      label: 'Brygg ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œl: DAP',
       url: 'https://bryggol.no/produkt/diammonium-phosphate-dap-500g/'
     },
     bryggolFermaidO: {
-      label: 'Brygg ÃƒËœl: Fermaid O',
+      label: 'Brygg ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œl: Fermaid O',
       url: 'https://bryggol.no/produkt/fermaid-o-yeast-nutrient-50g/'
     }
   };
@@ -267,7 +267,7 @@
     if (!Array.isArray(range) || range.length < 2) return '--';
     const useDigits = Number.isFinite(digits) ? digits : 3;
     const end = suffix || '';
-    return range[0].toFixed(useDigits) + 'Ã¢â‚¬â€œ' + range[1].toFixed(useDigits) + end;
+    return range[0].toFixed(useDigits) + 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ' + range[1].toFixed(useDigits) + end;
   }
 
   function classifyRangeFit(value, range, tolerance) {
@@ -341,7 +341,7 @@
           ...style,
           score,
           matchedAliases,
-          confidenceLabel: matchedAliases.length >= 2 ? 'HÃƒÂ¸y' : 'Moderat'
+          confidenceLabel: matchedAliases.length >= 2 ? 'HÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸y' : 'Moderat'
         };
       }
     });
@@ -368,14 +368,14 @@
     };
 
     if (!styleMatch) {
-      return 'Navn og aktiv profil gir ikke et tydelig stiltreff ennÃƒÂ¥, sÃƒÂ¥ denne delen holder seg bevisst konservativ og beskriver prosessen uten ÃƒÂ¥ lÃƒÂ¥se batchen til en bestemt ÃƒÂ¸lstil.';
+      return 'Navn og aktiv profil gir ikke et tydelig stiltreff ennÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥, sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ denne delen holder seg bevisst konservativ og beskriver prosessen uten ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ lÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥se batchen til en bestemt ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸lstil.';
     }
 
     const seed = styleMatch.id + ':' + (device && device.name ? device.name : '') + ':' + rows.length;
     const intro = pickVariant(seed, [
       'Navn og profil peker tydelig mot ' + styleMatch.name + '.',
       'Ordvalget i enhetsnavn og profil leses mest plausibelt som ' + styleMatch.name + '.',
-      'Batchen ser ut til ÃƒÂ¥ vÃƒÂ¦re ment som ' + styleMatch.name + ', basert pÃƒÂ¥ navnet og den aktive profilen.'
+      'Batchen ser ut til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦re ment som ' + styleMatch.name + ', basert pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ navnet og den aktive profilen.'
     ]);
 
     const og = rows.length > 1 ? parseGravityToSpecific(rows[0] && rows[0].gravity) : NaN;
@@ -390,16 +390,16 @@
       const currentGravity = parseGravityToSpecific(rows.length ? rows[rows.length - 1] && rows[rows.length - 1].gravity : device && device.gravity);
       const ogMid = midpoint(styleMatch.ogRange);
       const fgMid = midpoint(styleMatch.fgRange);
-      let phaseText = 'Det finnes forelÃƒÂ¸pig for lite gjÃƒÂ¦ringshistorikk til ÃƒÂ¥ vurdere utgjÃƒÂ¦ringen mot stilvinduet.';
+      let phaseText = 'Det finnes forelÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸pig for lite gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringshistorikk til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ vurdere utgjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringen mot stilvinduet.';
 
       if (Number.isFinite(currentGravity) && Number.isFinite(ogMid) && Number.isFinite(fgMid) && ogMid > fgMid) {
         const progress = clamp(1 - ((currentGravity - fgMid) / (ogMid - fgMid)), 0, 1);
         if (progress < 0.25) {
-          phaseText = 'Den observerte gravityen pÃƒÂ¥ ' + formatSg(currentGravity) + ' plasserer batchen tidlig i et typisk forlÃƒÂ¸p for denne stilen.';
+          phaseText = 'Den observerte gravityen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(currentGravity) + ' plasserer batchen tidlig i et typisk forlÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸p for denne stilen.';
         } else if (progress < 0.8) {
-          phaseText = 'NÃƒÂ¥vÃƒÂ¦rende gravity pÃƒÂ¥ ' + formatSg(currentGravity) + ' ligger mellom stilens vanlige start- og sluttomrÃƒÂ¥de, noe som peker mot en arbeidende mellomfase.';
+          phaseText = 'NÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rende gravity pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(currentGravity) + ' ligger mellom stilens vanlige start- og sluttomrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de, noe som peker mot en arbeidende mellomfase.';
         } else {
-          phaseText = 'Gravityen pÃƒÂ¥ ' + formatSg(currentGravity) + ' ligger nÃƒÂ¦r et vanlig sluttomrÃƒÂ¥de for denne stilen og tyder pÃƒÂ¥ sen fase eller nÃƒÂ¦r stabilisering.';
+          phaseText = 'Gravityen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(currentGravity) + ' ligger nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r et vanlig sluttomrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de for denne stilen og tyder pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ sen fase eller nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r stabilisering.';
         }
       }
 
@@ -411,36 +411,36 @@
     }
 
     const ogTextMap = {
-      within: 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' ligger pent innenfor stilens vanlige startstyrke.',
-      'near-low': 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' ligger like under det klassiske stilvinduet, men fortsatt tett pÃƒÂ¥ en plausibel tolkning.',
-      'near-high': 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' ligger i overkant av stilens kjerne, men ikke sÃƒÂ¥ langt at stiltreffet bryter sammen.',
-      low: 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' er merkbart lavere enn det som er typisk for denne stilen.',
-      high: 'OG-en pÃƒÂ¥ ' + formatSg(og) + ' er tydelig sterkere enn det som normalt forventes i denne stilen.',
+      within: 'OG-en pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(og) + ' ligger pent innenfor stilens vanlige startstyrke.',
+      'near-low': 'OG-en pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(og) + ' ligger like under det klassiske stilvinduet, men fortsatt tett pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ en plausibel tolkning.',
+      'near-high': 'OG-en pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(og) + ' ligger i overkant av stilens kjerne, men ikke sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ langt at stiltreffet bryter sammen.',
+      low: 'OG-en pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(og) + ' er merkbart lavere enn det som er typisk for denne stilen.',
+      high: 'OG-en pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(og) + ' er tydelig sterkere enn det som normalt forventes i denne stilen.',
       unknown: 'OG-en kan ikke vurderes sikkert mot stilvinduet.'
     };
 
     const fgTextMap = {
-      within: 'Sluttgravityen som vises nÃƒÂ¥, ' + formatSg(fg) + ', stemmer godt med et stilriktig sluttpunkt.',
-      'near-low': 'Sluttgravityen pÃƒÂ¥ ' + formatSg(fg) + ' ligger litt tÃƒÂ¸rrere enn kjernen, men fortsatt innenfor et troverdig utfall.',
-      'near-high': 'Sluttgravityen pÃƒÂ¥ ' + formatSg(fg) + ' ligger litt fyldigere enn kjernen, men fortsatt innenfor et forsvarlig spenn.',
-      low: 'Sluttgravityen pÃƒÂ¥ ' + formatSg(fg) + ' peker mot et tÃƒÂ¸rrere og mer utgjÃƒÂ¦ret resultat enn det som vanligvis forbindes med stilen.',
-      high: 'Sluttgravityen pÃƒÂ¥ ' + formatSg(fg) + ' peker mot mer restsÃƒÂ¸dme og mer kropp enn det stilen normalt tilsier.',
+      within: 'Sluttgravityen som vises nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥, ' + formatSg(fg) + ', stemmer godt med et stilriktig sluttpunkt.',
+      'near-low': 'Sluttgravityen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(fg) + ' ligger litt tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rrere enn kjernen, men fortsatt innenfor et troverdig utfall.',
+      'near-high': 'Sluttgravityen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(fg) + ' ligger litt fyldigere enn kjernen, men fortsatt innenfor et forsvarlig spenn.',
+      low: 'Sluttgravityen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(fg) + ' peker mot et tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rrere og mer utgjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ret resultat enn det som vanligvis forbindes med stilen.',
+      high: 'Sluttgravityen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(fg) + ' peker mot mer restsÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸dme og mer kropp enn det stilen normalt tilsier.',
       unknown: 'Sluttgravityen kan ikke vurderes sikkert mot stilvinduet.'
     };
 
     const abvTextMap = {
-      within: 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' samsvarer godt med stilens normalomrÃƒÂ¥de.',
-      'near-low': 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' ligger marginalt i nedre kant, men fortsatt innenfor et naturlig uttrykk.',
-      'near-high': 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' ligger marginalt i ÃƒÂ¸vre kant, men fortsatt innenfor et rimelig stiluttrykk.',
-      low: 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' havner lavere enn det som normalt er typisk for stilen.',
-      high: 'Estimert alkohol pÃƒÂ¥ ' + formatAbv(abvEstimate) + ' havner hÃƒÂ¸yere enn det som normalt er typisk for stilen.',
-      unknown: 'AlkoholnivÃƒÂ¥et kan ikke vurderes sikkert mot stilvinduet ennÃƒÂ¥.'
+      within: 'Estimert alkohol pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatAbv(abvEstimate) + ' samsvarer godt med stilens normalomrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de.',
+      'near-low': 'Estimert alkohol pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatAbv(abvEstimate) + ' ligger marginalt i nedre kant, men fortsatt innenfor et naturlig uttrykk.',
+      'near-high': 'Estimert alkohol pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatAbv(abvEstimate) + ' ligger marginalt i ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸vre kant, men fortsatt innenfor et rimelig stiluttrykk.',
+      low: 'Estimert alkohol pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatAbv(abvEstimate) + ' havner lavere enn det som normalt er typisk for stilen.',
+      high: 'Estimert alkohol pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatAbv(abvEstimate) + ' havner hÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸yere enn det som normalt er typisk for stilen.',
+      unknown: 'AlkoholnivÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥et kan ikke vurderes sikkert mot stilvinduet ennÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥.'
     };
 
     let verdict = '';
     if (fitScore >= 5) {
       verdict = pickVariant(seed + ':verdict', [
-        'Helhetsbildet ligger derfor tett pÃƒÂ¥ et klassisk stiluttrykk.',
+        'Helhetsbildet ligger derfor tett pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ et klassisk stiluttrykk.',
         'Samlet sett ser batchen stilfaglig godt kalibrert ut.',
         'Tallene samsvarer overraskende godt med stilreferansen og gir et troverdig stiltreff.'
       ]);
@@ -453,8 +453,8 @@
     } else {
       verdict = pickVariant(seed + ':verdict', [
         'Samlet peker tallene mot en mer fri tolkning enn en stilren skolebokversjon.',
-        'Det er fortsatt mulig ÃƒÂ¥ lese intensjonen, men batchen ligger et godt stykke fra den typiske statistikken.',
-        'Tallene avviker sÃƒÂ¥ mye at stilen bÃƒÂ¸r behandles som en lÃƒÂ¸s referanse heller enn en presis mal.'
+        'Det er fortsatt mulig ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ lese intensjonen, men batchen ligger et godt stykke fra den typiske statistikken.',
+        'Tallene avviker sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ mye at stilen bÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸r behandles som en lÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸s referanse heller enn en presis mal.'
       ]);
     }
 
@@ -483,7 +483,7 @@
     };
 
     if (!styleMatch) {
-      return 'Det finnes forelÃƒÂ¸pig for lite gjÃƒÂ¦ringsdata til ÃƒÂ¥ kjÃƒÂ¸re den numeriske modellen med trygghet, og uten et tydelig stiltreff blir reserveestimatet med vilje holdt tilbake til flere mÃƒÂ¥linger er inne.';
+      return 'Det finnes forelÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸pig for lite gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringsdata til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ kjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸re den numeriske modellen med trygghet, og uten et tydelig stiltreff blir reserveestimatet med vilje holdt tilbake til flere mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥linger er inne.';
     }
 
     const safeRows = rows.map((row) => ({
@@ -502,17 +502,17 @@
     const recentSlope = safeRows.length >= 2 ? calculateSlopePerHour(safeRows, 'gravity', Math.min(6, safeRows.length)) : NaN;
     const currentAbv = estimateAbvFromRows(safeRows);
 
-    let stageText = 'Reserveprognosen hviler derfor pÃƒÂ¥ stilreferansen alene.';
+    let stageText = 'Reserveprognosen hviler derfor pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ stilreferansen alene.';
     let remainingDays = Number.isFinite(typicalDays) ? typicalDays : 7;
 
     if (Number.isFinite(currentGravity) && Number.isFinite(typicalOg) && Number.isFinite(typicalFg) && typicalOg > typicalFg) {
       const progress = clamp(1 - ((currentGravity - typicalFg) / (typicalOg - typicalFg)), 0, 1);
       if (progress < 0.2) {
-        stageText = 'Dagens gravity pÃƒÂ¥ ' + formatSg(currentGravity) + ' ligner en tidlig fase i et typisk ' + styleMatch.name + '-forlÃƒÂ¸p.';
+        stageText = 'Dagens gravity pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(currentGravity) + ' ligner en tidlig fase i et typisk ' + styleMatch.name + '-forlÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸p.';
       } else if (progress < 0.75) {
-        stageText = 'Dagens gravity pÃƒÂ¥ ' + formatSg(currentGravity) + ' peker mot en arbeidende mellomfase der det fortsatt er meningsfull fremdrift igjen.';
+        stageText = 'Dagens gravity pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(currentGravity) + ' peker mot en arbeidende mellomfase der det fortsatt er meningsfull fremdrift igjen.';
       } else {
-        stageText = 'Dagens gravity pÃƒÂ¥ ' + formatSg(currentGravity) + ' ligger nÃƒÂ¦r et normalt sluttomrÃƒÂ¥de for stilen, sÃƒÂ¥ batchen ser ut til ÃƒÂ¥ vÃƒÂ¦re sent i forlÃƒÂ¸pet.';
+        stageText = 'Dagens gravity pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatSg(currentGravity) + ' ligger nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r et normalt sluttomrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de for stilen, sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ batchen ser ut til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦re sent i forlÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸pet.';
       }
       remainingDays = Math.max(0.5, typicalDays * (1 - progress));
     }
@@ -525,13 +525,13 @@
     let tempText = '';
     if (Array.isArray(styleMatch.tempRangeC) && styleMatch.tempRangeC.length === 2 && Number.isFinite(currentTemp)) {
       if (currentTemp < styleMatch.tempRangeC[0] - 0.5) {
-        tempText = 'Temperaturen pÃƒÂ¥ ' + formatTemp(currentTemp) + ' ligger under det som ofte brukes for denne stilen, sÃƒÂ¥ tempoet kan vÃƒÂ¦re mer dempet enn normalt.';
+        tempText = 'Temperaturen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatTemp(currentTemp) + ' ligger under det som ofte brukes for denne stilen, sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ tempoet kan vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦re mer dempet enn normalt.';
         remainingDays *= 1.15;
       } else if (currentTemp > styleMatch.tempRangeC[1] + 0.5) {
-        tempText = 'Temperaturen pÃƒÂ¥ ' + formatTemp(currentTemp) + ' ligger over et vanlig arbeidsomrÃƒÂ¥de for stilen, noe som ofte gir raskere drift men ogsÃƒÂ¥ mer sensorisk risiko.';
+        tempText = 'Temperaturen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatTemp(currentTemp) + ' ligger over et vanlig arbeidsomrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de for stilen, noe som ofte gir raskere drift men ogsÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ mer sensorisk risiko.';
         remainingDays *= 0.9;
       } else {
-        tempText = 'Temperaturen pÃƒÂ¥ ' + formatTemp(currentTemp) + ' ligger innenfor et ganske plausibelt arbeidsomrÃƒÂ¥de for denne stilen.';
+        tempText = 'Temperaturen pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ' + formatTemp(currentTemp) + ' ligger innenfor et ganske plausibelt arbeidsomrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de for denne stilen.';
       }
     }
 
@@ -540,11 +540,11 @@
       : 'Stilreferansen som brukes her er omtrent OG ' + formatRange(styleMatch.ogRange, 3, '') + ', FG ' + formatRange(styleMatch.fgRange, 3, '') + ' og ABV ' + formatRange(styleMatch.abvRange, 1, '%') + '.';
 
     return [
-      'Det finnes ennÃƒÂ¥ ikke nok filtrert historikk til ÃƒÂ¥ la den numeriske modellen stÃƒÂ¥ alene, sÃƒÂ¥ prognosen faller tilbake pÃƒÂ¥ en modulbasert stilreferanse for ' + styleMatch.name + '.',
+      'Det finnes ennÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ikke nok filtrert historikk til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ la den numeriske modellen stÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ alene, sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ prognosen faller tilbake pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ en modulbasert stilreferanse for ' + styleMatch.name + '.',
       stageText,
       tempText,
       abvText,
-      'Som arbeidsanslag ligger det igjen omtrent ' + remainingDays.toFixed(1) + ' dÃƒÂ¸gn til et sannsynlig sluttomrÃƒÂ¥de rundt ' + formatSg(typicalFg) + ', gitt at utviklingen fortsetter uten et nytt prosesskifte.'
+      'Som arbeidsanslag ligger det igjen omtrent ' + remainingDays.toFixed(1) + ' dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸gn til et sannsynlig sluttomrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de rundt ' + formatSg(typicalFg) + ', gitt at utviklingen fortsetter uten et nytt prosesskifte.'
     ].filter(Boolean).join(' ');
   }
 
@@ -586,9 +586,9 @@
 
     if (!Number.isFinite(recentSlopeSgPerHour) || recentSlopeSgPerHour >= -0.0002) {
       if (styleMatch && Number.isFinite(styleFgMid) && currentGravity <= styleFgRange[1] + 0.002) {
-        return 'Den modulare fermenteringsmodellen leser forlÃƒÂ¸pet som nÃƒÂ¦r praktisk stabilt. Gravityen ligger allerede tett pÃƒÂ¥ et normalt sluttomrÃƒÂ¥de for ' + styleMatch.name + ', sÃƒÂ¥ videre endring ventes ÃƒÂ¥ bli beskjeden uten et nytt temperatur- eller gjÃƒÂ¦rskifte.';
+        return 'Den modulare fermenteringsmodellen leser forlÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸pet som nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r praktisk stabilt. Gravityen ligger allerede tett pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ et normalt sluttomrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de for ' + styleMatch.name + ', sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ videre endring ventes ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ bli beskjeden uten et nytt temperatur- eller gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rskifte.';
       }
-      return 'Den modulare fermenteringsmodellen leser forlÃƒÂ¸pet som nÃƒÂ¦r praktisk stabilt. Videre endring ventes ÃƒÂ¥ bli liten uten et nytt temperatur- eller gjÃƒÂ¦rskifte.';
+      return 'Den modulare fermenteringsmodellen leser forlÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸pet som nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r praktisk stabilt. Videre endring ventes ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ bli liten uten et nytt temperatur- eller gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rskifte.';
     }
 
     let sugar = Math.max((currentGravity - fgFloor) * 1000, 0.2);
@@ -624,19 +624,19 @@
       if (fgFit === 'within' || fgFit === 'near-low' || fgFit === 'near-high') {
         styleTail = ' Det predikerte sluttpunktet ligger fortsatt innenfor et plausibelt stilvindu for ' + styleMatch.name + '.';
       } else if (fgFit === 'low') {
-        styleTail = ' Prognosen peker mot et tÃƒÂ¸rrere sluttpunkt enn stilens kjerne tilsier.';
+        styleTail = ' Prognosen peker mot et tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rrere sluttpunkt enn stilens kjerne tilsier.';
       } else if (fgFit === 'high') {
         styleTail = ' Prognosen peker mot mer rests?dme enn stilens kjerne normalt tilsier.';
       }
     }
 
     if (days <= 1.2) {
-      return 'Den modulare prognosen, bygget videre pÃƒÂ¥ Monod-inspirert vekstlogikk og enkel midtpunktsintegrasjon, antyder at batchen kan vÃƒÂ¦re nÃƒÂ¦r praktisk slutt innen omtrent ' + hours.toFixed(0) + ' timer med estimert sluttgravity rundt ' + fmtSg(predictedGravity) + ' dersom dagens trend holder seg.' + styleTail;
+      return 'Den modulare prognosen, bygget videre pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ Monod-inspirert vekstlogikk og enkel midtpunktsintegrasjon, antyder at batchen kan vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦re nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r praktisk slutt innen omtrent ' + hours.toFixed(0) + ' timer med estimert sluttgravity rundt ' + fmtSg(predictedGravity) + ' dersom dagens trend holder seg.' + styleTail;
     }
     if (days <= 7) {
-      return 'Den modulare fermenteringsmodellen antyder cirka ' + days.toFixed(1) + ' dÃƒÂ¸gn til tilnÃƒÂ¦rmet stabil gravity, med mulig sluttpunkt rundt ' + fmtSg(predictedGravity) + ' dersom temperaturbildet og gjÃƒÂ¦raktiviteten fortsetter omtrent som nÃƒÂ¥.' + styleTail;
+      return 'Den modulare fermenteringsmodellen antyder cirka ' + days.toFixed(1) + ' dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸gn til tilnÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rmet stabil gravity, med mulig sluttpunkt rundt ' + fmtSg(predictedGravity) + ' dersom temperaturbildet og gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦raktiviteten fortsetter omtrent som nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥.' + styleTail;
     }
-    return 'Modellprognosen peker mot et roligere og seigere sluttforlÃƒÂ¸p, med omtrent ' + days.toFixed(1) + ' dÃƒÂ¸gn til nÃƒÂ¦r stabil gravity og beregnet sluttpunkt rundt ' + fmtSg(predictedGravity) + '. Dette bÃƒÂ¸r fortsatt leses som prosessindikasjon, ikke som eksakt sluttdato.' + styleTail;
+    return 'Modellprognosen peker mot et roligere og seigere sluttforlÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸p, med omtrent ' + days.toFixed(1) + ' dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸gn til nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r stabil gravity og beregnet sluttpunkt rundt ' + fmtSg(predictedGravity) + '. Dette bÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸r fortsatt leses som prosessindikasjon, ikke som eksakt sluttdato.' + styleTail;
   }
 
   function buildAlerts(options) {
@@ -703,16 +703,16 @@
     if (looksStalled) {
       alerts.push({
         severity: 'warning',
-        title: 'Tegn til treg eller stoppende gjÃƒÂ¦ring',
-        summary: 'Gravitykurven har flatet merkbart ut mens det fortsatt ser ut til ÃƒÂ¥ vÃƒÂ¦re gjÃƒÂ¦rbart ekstrakt igjen. Dette ligner en treg eller delvis stuck fermentering.',
-        actionSummary: 'Bekreft temperatur og gravity, resuspender gjÃƒÂ¦r forsiktig og vurder restart eller nÃƒÂ¦ring ut fra batchtype.',
+        title: 'Tegn til treg eller stoppende gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring',
+        summary: 'Gravitykurven har flatet merkbart ut mens det fortsatt ser ut til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦re gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rbart ekstrakt igjen. Dette ligner en treg eller delvis stuck fermentering.',
+        actionSummary: 'Bekreft temperatur og gravity, resuspender gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r forsiktig og vurder restart eller nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring ut fra batchtype.',
         proActions: [
           'Verifiser med en ny gravitym?ling og bygg en kontrollert restartstarter dersom batchen faktisk har stoppet.',
-          'Ved sen stuck fermentering: bruk acclimatisert restartgjÃƒÂ¦r fremfor ÃƒÂ¥ pitche tÃƒÂ¸rr gjÃƒÂ¦r direkte.'
+          'Ved sen stuck fermentering: bruk acclimatisert restartgjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r fremfor ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ pitche tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rr gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r direkte.'
         ],
         hobbyActions: [
-          'Sving fermentoren forsiktig for ÃƒÂ¥ lÃƒÂ¸fte gjÃƒÂ¦r opp igjen hvis du fortsatt er i aktiv fase.',
-          'Se etter 12Ã¢â‚¬â€œ24 timer med ekte platÃƒÂ¥ fÃƒÂ¸r du griper hardt inn.'
+          'Sving fermentoren forsiktig for ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ lÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸fte gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r opp igjen hvis du fortsatt er i aktiv fase.',
+          'Se etter 12ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ24 timer med ekte platÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸r du griper hardt inn.'
         ],
         links: [SOURCE_LIBRARY.scottTroubleshooting, SOURCE_LIBRARY.stillSpiritsStuck]
       });
@@ -721,16 +721,16 @@
     if (context.isLowNutrientSugar && looksStalled) {
       alerts.push({
         severity: 'warning',
-        title: context.isSats ? 'Satsen kan mangle nitrogen og mikronÃƒÂ¦ring' : 'Sukkerbasen kan mangle nitrogen og mikronÃƒÂ¦ring',
-        summary: 'Lav-nÃƒÂ¦rings sukkerfermenter er nÃƒÂ¦ringsfattige sammenlignet med maltbasert vÃƒÂ¸rter. Hvis gravity stanser fÃƒÂ¸r forventet sluttpunkt, er nitrogenmangel og generell gjÃƒÂ¦rstress en av de mest sannsynlige forklaringene.',
-        actionSummary: 'Proff: organisk gjÃƒÂ¦rnÃƒÂ¦ring eller styrt DAP-tilfÃƒÂ¸rsel. Hobby: restartstarter med enkel nÃƒÂ¦ringskilde som tomatpure, heller enn ÃƒÂ¥ la batchen sulte videre.',
+        title: context.isSats ? 'Satsen kan mangle nitrogen og mikronÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring' : 'Sukkerbasen kan mangle nitrogen og mikronÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring',
+        summary: 'Lav-nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rings sukkerfermenter er nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringsfattige sammenlignet med maltbasert vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rter. Hvis gravity stanser fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸r forventet sluttpunkt, er nitrogenmangel og generell gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rstress en av de mest sannsynlige forklaringene.',
+        actionSummary: 'Proff: organisk gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rnÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring eller styrt DAP-tilfÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rsel. Hobby: restartstarter med enkel nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringskilde som tomatpure, heller enn ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ la batchen sulte videre.',
         proActions: [
-          'Fermaid O er en kontrollert organisk nÃƒÂ¦ringskilde for treg eller krevende fermentering.',
+          'Fermaid O er en kontrollert organisk nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringskilde for treg eller krevende fermentering.',
           'DAP kan brukes som direkte nitrogenkilde n?r du faktisk mistenker nitrogenunderskudd og vil korrigere mer m?lrettet.'
         ],
         hobbyActions: [
-          'Tomatpure er en kjent husholdningslÃƒÂ¸sning i sukkerfermenter fordi den bidrar med nÃƒÂ¦ring i en ellers nÃƒÂ¦ringsfattig base.',
-          'I en enkel ginger-batch nevnes hakkede rosiner som en nÃƒÂ¸dlÃƒÂ¸sning dersom du ikke har kommersiell gjÃƒÂ¦rnÃƒÂ¦ring.'
+          'Tomatpure er en kjent husholdningslÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸sning i sukkerfermenter fordi den bidrar med nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring i en ellers nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringsfattig base.',
+          'I en enkel ginger-batch nevnes hakkede rosiner som en nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸dlÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸sning dersom du ikke har kommersiell gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rnÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring.'
         ],
         links: [
           SOURCE_LIBRARY.scottSugarGuide,
@@ -748,11 +748,11 @@
     if (Number.isFinite(currentTemp) && ((Number.isFinite(styleTempMax) && currentTemp > styleTempMax + 2.0) || (!Number.isFinite(styleTempMax) && currentTemp > 28))) {
       alerts.push({
         severity: 'warning',
-        title: 'HÃƒÂ¸y gjÃƒÂ¦ringstemperatur',
-        summary: 'Temperaturen ligger klart over et komfortabelt arbeidsvindu. HÃƒÂ¸y varme kan gi stresset gjÃƒÂ¦r, rask men ujevn drift og tidligere stopp.',
+        title: 'HÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸y gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringstemperatur',
+        summary: 'Temperaturen ligger klart over et komfortabelt arbeidsvindu. HÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸y varme kan gi stresset gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r, rask men ujevn drift og tidligere stopp.',
         actionSummary: 'Senk temperaturen gradvis og unng? at batchen fortsetter oppover.',
-        proActions: ['Bruk aktiv temperaturstyring eller kjÃƒÂ¸lt vannbad for ÃƒÂ¥ fÃƒÂ¥ batchen tilbake i et smalere vindu.'],
-        hobbyActions: ['Flytt karet kaldere eller bruk vannbad og vÃƒÂ¥tt hÃƒÂ¥ndkle for ÃƒÂ¥ bremse varmeutviklingen.'],
+        proActions: ['Bruk aktiv temperaturstyring eller kjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸lt vannbad for ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ batchen tilbake i et smalere vindu.'],
+        hobbyActions: ['Flytt karet kaldere eller bruk vannbad og vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥tt hÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ndkle for ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ bremse varmeutviklingen.'],
         links: [SOURCE_LIBRARY.stillSpiritsRange, SOURCE_LIBRARY.stillSpiritsStuck]
       });
     }
@@ -760,10 +760,10 @@
     if (Number.isFinite(currentTemp) && ((Number.isFinite(styleTempMin) && currentTemp < styleTempMin - 2.0) || (!Number.isFinite(styleTempMin) && currentTemp < 16)) && looksStalled) {
       alerts.push({
         severity: 'warning',
-        title: 'For lav temperatur til ÃƒÂ¥ holde gjÃƒÂ¦ren i arbeid',
+        title: 'For lav temperatur til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ holde gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ren i arbeid',
         summary: 'Temperaturen ligger lavt samtidig som gravity nesten ikke beveger seg. Dette ligner mer en passiv batch enn en naturlig sluttfase.',
-        actionSummary: 'Varm opp gradvis og fÃƒÂ¥ gjÃƒÂ¦ren i bevegelse igjen fÃƒÂ¸r sterkere tiltak vurderes.',
-        proActions: ['Hev temperaturen kontrollert i smÃƒÂ¥ steg og fÃƒÂ¸lg med pÃƒÂ¥ om gravity begynner ÃƒÂ¥ rÃƒÂ¸re pÃƒÂ¥ seg.'],
+        actionSummary: 'Varm opp gradvis og fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ren i bevegelse igjen fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸r sterkere tiltak vurderes.',
+        proActions: ['Hev temperaturen kontrollert i smÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ steg og fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸lg med pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ om gravity begynner ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ rÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸re pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ seg.'],
         hobbyActions: ['Sett karet lunere eller bruk varmebelte forsiktig etter den mest intense startfasen.'],
         links: [SOURCE_LIBRARY.stillSpiritsStuck]
       });
@@ -773,10 +773,10 @@
       alerts.push({
         severity: 'info',
         title: 'Urolig temperaturhistorikk',
-        summary: 'Temperaturkurven har flyttet seg mye gjennom perioden. Slike svingninger gjÃƒÂ¸r bÃƒÂ¥de gjÃƒÂ¦rtempo og diagnose mindre forutsigbar.',
+        summary: 'Temperaturkurven har flyttet seg mye gjennom perioden. Slike svingninger gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸r bÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥de gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rtempo og diagnose mindre forutsigbar.',
         actionSummary: 'Les alltid gravity sammen med temperatur, ikke alene.',
         proActions: ['Hold fermentoren tettere rundt et definert temperaturvindu.'],
-        hobbyActions: ['UnngÃƒÂ¥ trekk, direkte sol og raske romskifter.'],
+        hobbyActions: ['UnngÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ trekk, direkte sol og raske romskifter.'],
         links: [SOURCE_LIBRARY.scottTroubleshooting]
       });
     }
@@ -784,11 +784,11 @@
     if (Number.isFinite(startGravity) && startGravity >= 1.110 && looksStalled) {
       alerts.push({
         severity: 'warning',
-        title: 'HÃƒÂ¸y startstyrke kan ha stresset gjÃƒÂ¦ren',
-        summary: 'Batchen startet tungt nok til at osmotisk stress og senere alkoholtoleranse kan vÃƒÂ¦re en del av bildet, selv om temperaturen ellers virker akseptabel.',
-        actionSummary: 'Ved restart: bygg opp ny gjÃƒÂ¦r i et gradvis sterkere miljÃƒÂ¸ i stedet for ÃƒÂ¥ pitche rett i hele batchen.',
-        proActions: ['Bruk acclimatisert restartgjÃƒÂ¦r dersom batchen mÃƒÂ¥ reddes videre.'],
-        hobbyActions: ['Planlegg heller trinnvis sukkeradding i neste tilsvarende sats enn ÃƒÂ¥ starte altfor hÃƒÂ¸yt.'],
+        title: 'HÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸y startstyrke kan ha stresset gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ren',
+        summary: 'Batchen startet tungt nok til at osmotisk stress og senere alkoholtoleranse kan vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦re en del av bildet, selv om temperaturen ellers virker akseptabel.',
+        actionSummary: 'Ved restart: bygg opp ny gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r i et gradvis sterkere miljÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸ i stedet for ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ pitche rett i hele batchen.',
+        proActions: ['Bruk acclimatisert restartgjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r dersom batchen mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ reddes videre.'],
+        hobbyActions: ['Planlegg heller trinnvis sukkeradding i neste tilsvarende sats enn ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ starte altfor hÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸yt.'],
         links: [SOURCE_LIBRARY.scottTroubleshooting, SOURCE_LIBRARY.stillSpiritsStuck]
       });
     }
@@ -797,10 +797,10 @@
       alerts.push({
         severity: 'info',
         title: 'Turbo-/satsferment bygger egenvarme',
-        summary: 'Denne typen sukkerferment kan produsere betydelig egenvarme. Kombinasjonen av hÃƒÂ¸y varme og svak nÃƒÂ¦ring gir ofte hardere stress enn kurven fÃƒÂ¸rst ser ut til ÃƒÂ¥ vise.',
-        actionSummary: 'Bruk temperaturkurven aktivt som styrepinne, spesielt tidlig i forlÃƒÂ¸pet.',
-        proActions: ['MÃƒÂ¥l faktisk vÃƒÂ¦sketemperatur, ikke bare romtemperatur.'],
-        hobbyActions: ['Ikke legg pÃƒÂ¥ ekstra varme tidlig hvis satsen allerede bygger temperatur selv.'],
+        summary: 'Denne typen sukkerferment kan produsere betydelig egenvarme. Kombinasjonen av hÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸y varme og svak nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring gir ofte hardere stress enn kurven fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rst ser ut til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ vise.',
+        actionSummary: 'Bruk temperaturkurven aktivt som styrepinne, spesielt tidlig i forlÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸pet.',
+        proActions: ['MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥l faktisk vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦sketemperatur, ikke bare romtemperatur.'],
+        hobbyActions: ['Ikke legg pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ ekstra varme tidlig hvis satsen allerede bygger temperatur selv.'],
         links: [SOURCE_LIBRARY.stillSpiritsRange, SOURCE_LIBRARY.stillSpiritsStuck]
       });
     }
@@ -808,12 +808,215 @@
     return alerts;
   }
 
+  function latestTimestamp(rows, device) {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    const latestRow = safeRows.length ? safeRows[safeRows.length - 1] : null;
+    const candidate = latestRow && latestRow.createdOn
+      ? latestRow.createdOn
+      : (device && device.lastActivityTime ? device.lastActivityTime : '');
+    const ts = new Date(candidate).getTime();
+    return Number.isFinite(ts) ? ts : Date.now();
+  }
+
+  function buildTemperatureTailEstimate(rows, device, styleMatch, remainingHours, helpers) {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    const calculateSlopePerHour = helpers && helpers.calculateSlopePerHour ? helpers.calculateSlopePerHour : defaultSlopePerHour;
+    const latestRow = safeRows.length ? safeRows[safeRows.length - 1] : null;
+    const currentTemperature = Number(latestRow && latestRow.temperature);
+    const deviceTemperature = Number(device && device.temperature);
+    const baseTemperature = Number.isFinite(currentTemperature) ? currentTemperature : deviceTemperature;
+    if (!Number.isFinite(baseTemperature)) {
+      return null;
+    }
+
+    const rawSlope = calculateSlopePerHour(safeRows, 'temperature', Math.min(8, safeRows.length || 8));
+    const slopePerHour = Number.isFinite(rawSlope) ? rawSlope : 0;
+    const projectedHours = clamp(Number.isFinite(remainingHours) ? remainingHours : 0, 0, 12);
+    let predictedTemperature = baseTemperature + (slopePerHour * projectedHours);
+
+    if (Array.isArray(styleMatch && styleMatch.tempRangeC) && styleMatch.tempRangeC.length === 2) {
+      predictedTemperature = clamp(predictedTemperature, styleMatch.tempRangeC[0] - 4, styleMatch.tempRangeC[1] + 4);
+    }
+
+    predictedTemperature = clamp(predictedTemperature, baseTemperature - 5, baseTemperature + 5);
+
+    let direction = 'stabil';
+    if (slopePerHour > 0.05) {
+      direction = 'svakt stigende';
+    } else if (slopePerHour < -0.05) {
+      direction = 'svakt fallende';
+    }
+
+    return {
+      currentTemperature: baseTemperature,
+      predictedTemperature: predictedTemperature,
+      slopePerHour: slopePerHour,
+      direction: direction,
+      projectedHours: projectedHours
+    };
+  }
+
+  function buildStyleFallbackForecastEstimate(options) {
+    const rows = Array.isArray(options && options.rows) ? options.rows : [];
+    const device = options && options.device;
+    const styleMatch = options && options.styleMatch;
+    const helpers = options && options.helpers ? options.helpers : {};
+    const parseGravityToSpecific = helpers.parseGravityToSpecific || defaultParseGravityToSpecific;
+    const calculateSlopePerHour = helpers.calculateSlopePerHour || defaultSlopePerHour;
+
+    if (!styleMatch) {
+      return null;
+    }
+
+    const safeRows = rows.map((row) => ({
+      ...row,
+      gravity: parseGravityToSpecific(row && row.gravity)
+    }));
+    const currentGravity = safeRows.length
+      ? Number(safeRows[safeRows.length - 1] && safeRows[safeRows.length - 1].gravity)
+      : parseGravityToSpecific(device && device.gravity);
+    const currentTemp = safeRows.length
+      ? Number(safeRows[safeRows.length - 1] && safeRows[safeRows.length - 1].temperature)
+      : Number(device && device.temperature);
+    const typicalOg = midpoint(styleMatch.ogRange);
+    const typicalFg = midpoint(styleMatch.fgRange);
+    const typicalDays = midpoint(styleMatch.typicalDays);
+    const recentSlope = safeRows.length >= 2 ? calculateSlopePerHour(safeRows, 'gravity', Math.min(6, safeRows.length)) : NaN;
+    let remainingDays = Number.isFinite(typicalDays) ? typicalDays : 7;
+
+    if (Number.isFinite(currentGravity) && Number.isFinite(typicalOg) && Number.isFinite(typicalFg) && typicalOg > typicalFg) {
+      const progress = clamp(1 - ((currentGravity - typicalFg) / (typicalOg - typicalFg)), 0, 1);
+      remainingDays = Math.max(0.5, typicalDays * (1 - progress));
+    }
+
+    if (Number.isFinite(recentSlope) && recentSlope < -0.0001 && Number.isFinite(currentGravity) && Number.isFinite(typicalFg)) {
+      const remainingSg = Math.max(currentGravity - typicalFg, 0);
+      remainingDays = clamp((remainingSg / Math.abs(recentSlope)) / 24, 0.4, (styleMatch.typicalDays[1] || 10) * 2);
+    }
+
+    if (Array.isArray(styleMatch.tempRangeC) && styleMatch.tempRangeC.length === 2 && Number.isFinite(currentTemp)) {
+      if (currentTemp < styleMatch.tempRangeC[0] - 0.5) {
+        remainingDays *= 1.15;
+      } else if (currentTemp > styleMatch.tempRangeC[1] + 0.5) {
+        remainingDays *= 0.9;
+      }
+    }
+
+    const remainingHours = Math.max(6, remainingDays * 24);
+    const baseTs = latestTimestamp(rows, device);
+    const temperatureEstimate = buildTemperatureTailEstimate(rows, device, styleMatch, remainingHours, helpers);
+    return {
+      source: 'style-fallback',
+      confidenceLabel: rows.length >= 3 ? 'Moderat' : 'Lav',
+      remainingHours: remainingHours,
+      remainingDays: remainingHours / 24,
+      estimatedFinishAt: new Date(baseTs + (remainingHours * 36e5)).toISOString(),
+      predictedGravity: Number.isFinite(typicalFg) ? typicalFg : NaN,
+      isNearComplete: remainingHours <= 18,
+      basis: styleMatch ? styleMatch.name : '',
+      temperatureEstimate: temperatureEstimate
+    };
+  }
+
+  function buildForecastEstimate(options) {
+    const rows = Array.isArray(options && options.rows) ? options.rows : [];
+    const device = options && options.device;
+    const styleMatch = options && options.styleMatch;
+    const helpers = options && options.helpers ? options.helpers : {};
+    const parseGravityToSpecific = helpers.parseGravityToSpecific || defaultParseGravityToSpecific;
+    const calculateSlopePerHour = helpers.calculateSlopePerHour || defaultSlopePerHour;
+    const average = helpers.average || defaultAverage;
+
+    if (rows.length < 6) {
+      return buildStyleFallbackForecastEstimate(options);
+    }
+
+    const gravities = rows.map((row) => parseGravityToSpecific(row && row.gravity)).filter(Number.isFinite);
+    const temps = rows.map((row) => Number(row && row.temperature)).filter(Number.isFinite);
+    if (gravities.length < 6 || temps.length < 3) {
+      return buildStyleFallbackForecastEstimate(options);
+    }
+
+    const slopeRows = rows.map((row) => ({
+      ...row,
+      gravity: parseGravityToSpecific(row && row.gravity)
+    }));
+    const currentGravity = gravities[gravities.length - 1];
+    const startGravity = gravities[0];
+    const gravityDropObserved = startGravity - currentGravity;
+    const recentSlopeSgPerHour = calculateSlopePerHour(slopeRows, 'gravity', 12);
+    const avgTemp = average(temps);
+    const styleFgRange = styleMatch && Array.isArray(styleMatch.fgRange) ? styleMatch.fgRange : null;
+    const styleFgMid = midpoint(styleFgRange);
+    let fgFloor = Math.max(0.998, currentGravity - Math.max(0.0015, gravityDropObserved * 0.12));
+
+    if (Number.isFinite(styleFgMid) && currentGravity > styleFgMid) {
+      fgFloor = clamp(fgFloor, styleFgRange[0] - 0.002, styleFgRange[1] + 0.003);
+    }
+
+    const baseTs = latestTimestamp(rows, device);
+    if (!Number.isFinite(recentSlopeSgPerHour) || recentSlopeSgPerHour >= -0.0002) {
+      const temperatureEstimate = buildTemperatureTailEstimate(rows, device, styleMatch, 0, helpers);
+      return {
+        source: 'model',
+        confidenceLabel: 'Høy',
+        remainingHours: 0,
+        remainingDays: 0,
+        estimatedFinishAt: new Date(baseTs).toISOString(),
+        predictedGravity: currentGravity,
+        isNearComplete: true,
+        basis: styleMatch ? styleMatch.name : '',
+        temperatureEstimate: temperatureEstimate
+      };
+    }
+
+    let sugar = Math.max((currentGravity - fgFloor) * 1000, 0.2);
+    let yeast = 1;
+    const K = 5.0;
+    const yx = 0.1;
+    const umaxBase = 0.5;
+    const tempFactor = Math.exp(0.055 * ((Number.isFinite(avgTemp) ? avgTemp : 20) - 20));
+    const effectiveUmax = umaxBase * tempFactor;
+    const observedRatePtsPerHour = Math.max(0.0001, -recentSlopeSgPerHour * 1000);
+    yeast = observedRatePtsPerHour / Math.max(0.0001, effectiveUmax * (sugar / (K + sugar)));
+    yeast = clamp(yeast, 0.05, 25);
+
+    const dt = 0.25;
+    const maxHours = 24 * 21;
+    let hours = 0;
+
+    while (hours < maxHours && sugar > 0.35) {
+      const rate = effectiveUmax * (sugar / (K + sugar)) * yeast;
+      const sugarMid = sugar - (rate * dt * 0.5);
+      const yeastMid = yeast + (yx * rate * dt * 0.5);
+      const rateMid = effectiveUmax * (Math.max(sugarMid, 0) / (K + Math.max(sugarMid, 0))) * yeastMid;
+      sugar = Math.max(0, sugar - rateMid * dt);
+      yeast = Math.max(0, yeast + yx * rateMid * dt);
+      hours += dt;
+    }
+
+    const predictedGravity = fgFloor + (sugar / 1000);
+    const remainingHours = Math.max(0, hours);
+    const temperatureEstimate = buildTemperatureTailEstimate(rows, device, styleMatch, remainingHours, helpers);
+    return {
+      source: 'model',
+      confidenceLabel: hours >= maxHours ? 'Moderat' : 'Høy',
+      remainingHours: remainingHours,
+      remainingDays: Math.max(0, remainingHours / 24),
+      estimatedFinishAt: new Date(baseTs + (remainingHours * 36e5)).toISOString(),
+      predictedGravity: predictedGravity,
+      isNearComplete: hours <= 18,
+      basis: styleMatch ? styleMatch.name : '',
+      temperatureEstimate: temperatureEstimate
+    };
+  }
   global.HydrometerIntelligence = {
     STYLE_LIBRARY: STYLE_LIBRARY.slice(),
     inferStyle,
     inferProcessContext,
     buildStyleAssessment,
     buildStyleFallbackForecast,
+    buildForecastEstimate,
     buildForecast,
     buildAlerts,
     SOURCE_LIBRARY

@@ -701,7 +701,7 @@ function parseStructuredLectureTitle(title){
     if (!payload || !Array.isArray(payload.items) || !payload.items.length){ document.body.innerHTML = `<p>${TEXT.noVideos}</p>`; throw new Error('Empty playlist payload'); }
     if (payload.title) document.getElementById('title').textContent = prettifyViewerTitle(payload.title);
     const normalized = payload.items
-      .map((item, index) => ({ index, title: cleanLabelPart(item.title || 'Video'), description: cleanLabelPart(item.description || ''), themes: cleanThemeList(Array.isArray(item.themes) ? item.themes.map(t => String(t || '').trim()).filter(Boolean) : []), url: item.url || '', group: cleanLabelPart(item.group || item.group_title || ''), part: cleanLabelPart(item.part || item.part_label || '') }))
+      .map((item, index) => ({ index, title: cleanLabelPart(item.title || 'Video'), description: cleanLabelPart(item.description || ''), themes: cleanThemeList(Array.isArray(item.themes) ? item.themes.map(t => String(t || '').trim()).filter(Boolean) : []), url: item.url || '', group: cleanLabelPart(item.group || item.group_title || ''), part: cleanLabelPart(item.part || item.part_label || ''), group_description: cleanLabelPart(item.group_description || '') }))
       .sort(compareItems);
     const grouped = groupItems(normalized);
 

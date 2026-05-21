@@ -580,7 +580,8 @@ function parseVideoListJson(text){
       const themes = Array.isArray(v.themes) ? v.themes.map(x => String(x).trim()).filter(Boolean) : [];
       const group = String(v.group || v.group_title || '').trim();
       const part = String(v.part || v.part_label || '').trim();
-      return { title, description, themes, group, part, url };
+      const group_description = String(v.group_description || '').trim();
+      return { title, description, themes, group, part, group_description, url };
     }).filter(Boolean);
   }catch(e){
     return [];

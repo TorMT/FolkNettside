@@ -482,6 +482,10 @@
               <option value="fcc">Face Centered Cubic (FCC)</option>
               <option value="diamond">Diamond (Si/C)</option>
               <option value="hcp">Hexagonal Close-Packed (HCP)</option>
+              <option value="tetragonal_p">Tetragonal (P)</option>
+              <option value="orthorhombic_p">Orthorhombic (P)</option>
+              <option value="monoclinic_p">Monoclinic (P)</option>
+              <option value="triclinic_p">Triclinic (P)</option>
               <option value="nacl">NaCl (Rock Salt)</option>
               <option value="cscl">CsCl (Cesium Chloride)</option>
               <option value="zns">ZnS (Zinc Blende)</option>
@@ -515,12 +519,35 @@
             </div>
           </div>
 
+          <div class="field">
+            <label>Gitterparametre</label>
+            <div class="row">
+              <input id="latA" type="number" value="1.00" min="0.1" step="0.05" />
+              <input id="latB" type="number" value="1.00" min="0.1" step="0.05" />
+              <input id="latC" type="number" value="1.00" min="0.1" step="0.05" />
+            </div>
+            <div class="row" style="margin-top:8px;">
+              <input id="alpha" type="number" value="90" min="30" max="150" step="1" />
+              <input id="beta" type="number" value="90" min="30" max="150" step="1" />
+              <input id="gamma" type="number" value="90" min="30" max="150" step="1" />
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:4px; color:var(--text-muted); font-size:.82rem;">
+              <div>a b c</div>
+              <div>α β γ</div>
+              <div id="latticeFreedom">Kubisk: a</div>
+            </div>
+          </div>
+
           <div class="btnRow">
             <button id="build" class="btnPrimary">Bygg</button>
             <button id="toggleUnitCell" class="btnToggle" data-on="0">Vis kun enhetscelle</button>
             <button id="autoRebuild" class="btnToggle" data-on="1">Auto</button>
             <button id="toggleGrid" class="btnToggle" data-on="1">Grid</button>
             <button id="toggleAxes" class="btnToggle" data-on="1">Aksene</button>
+            <button id="toggleStackingColors" class="btnToggle" data-on="0">Lagpakking</button>
+          </div>
+          <div id="stackingInfo" style="color:var(--text-muted); font-size:.88rem; line-height:1.35; margin-top:8px;">
+            Lagpakking av viser fargede A/B/C-lag når strukturen støtter det.
           </div>
         </div>
       </div>
@@ -891,6 +918,111 @@ window.THREE = THREE;
 /* ---------- helpers ---------- */
 const $ = (id)=>document.getElementById(id);
 
+function degToRad(v){ return v * Math.PI / 180; }
+
+function clampNum(v, min, max, fallback){
+  const n = parseFloat(v);
+  if(!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function getStructureFamily(type){
+  if(["sc","bcc","fcc","diamond","nacl","cscl","zns","caf2","spinel"].includes(type)) return "cubic";
+  if(type==="hcp") return "hcp";
+  if(type==="tetragonal_p") return "tetragonal";
+  if(type==="orthorhombic_p") return "orthorhombic";
+  if(type==="monoclinic_p") return "monoclinic";
+  if(type==="triclinic_p") return "triclinic";
+  return "cubic";
+}
+
+function getLatticeParams(){
+  const type = $("structure").value;
+  let a = clampNum($("latA").value, 0.1, 20, 1);
+  let b = clampNum($("latB").value, 0.1, 20, a);
+  let c = clampNum($("latC").value, 0.1, 20, a);
+  let alpha = clampNum($("alpha").value, 30, 150, 90);
+  let beta = clampNum($("beta").value, 30, 150, 90);
+  let gamma = clampNum($("gamma").value, 30, 150, 90);
+
+  const family = getStructureFamily(type);
+  if(family==="cubic"){
+    b = a; c = a; alpha = 90; beta = 90; gamma = 90;
+  }else if(family==="hcp"){
+    b = a; if(Math.abs(c - 1) < 1e-6) c = a * 1.633; alpha = 90; beta = 90; gamma = 120;
+  }else if(family==="tetragonal"){
+    b = a; alpha = 90; beta = 90; gamma = 90;
+  }else if(family==="orthorhombic"){
+    alpha = 90; beta = 90; gamma = 90;
+  }else if(family==="monoclinic"){
+    alpha = 90; gamma = 90;
+  }
+
+  return { a, b, c, alpha, beta, gamma };
+}
+
+function writeLatticeParams(params){
+  $("latA").value = params.a.toFixed(2);
+  $("latB").value = params.b.toFixed(2);
+  $("latC").value = params.c.toFixed(2);
+  $("alpha").value = params.alpha.toFixed(0);
+  $("beta").value = params.beta.toFixed(0);
+  $("gamma").value = params.gamma.toFixed(0);
+}
+
+function syncLatticeControls(){
+  const type = $("structure").value;
+  const family = getStructureFamily(type);
+  const params = getLatticeParams();
+  writeLatticeParams(params);
+
+  const lockB = family==="cubic" || family==="hcp" || family==="tetragonal";
+  const lockC = family==="cubic";
+  const lockAlpha = family==="cubic" || family==="hcp" || family==="tetragonal" || family==="orthorhombic" || family==="monoclinic";
+  const lockBeta = family==="cubic" || family==="hcp" || family==="tetragonal" || family==="orthorhombic";
+  const lockGamma = family==="cubic" || family==="hcp" || family==="tetragonal" || family==="orthorhombic" || family==="monoclinic";
+
+  $("latB").disabled = lockB;
+  $("latC").disabled = lockC;
+  $("alpha").disabled = lockAlpha;
+  $("beta").disabled = lockBeta;
+  $("gamma").disabled = lockGamma;
+
+  const freedomText = {
+    cubic: "Kubisk: a",
+    hcp: "Heksagonal: a, c",
+    tetragonal: "Tetragonal: a, c",
+    orthorhombic: "Ortorombisk: a, b, c",
+    monoclinic: "Monoklin: a, b, c, β",
+    triclinic: "Triklin: a, b, c, α, β, γ"
+  };
+  $("latticeFreedom").textContent = freedomText[family] || "Tilpasset celle";
+}
+
+function getLatticeVectors(params = getLatticeParams()){
+  const { a, b, c, alpha, beta, gamma } = params;
+  const ar = degToRad(alpha);
+  const br = degToRad(beta);
+  const gr = degToRad(gamma);
+
+  const va = new THREE.Vector3(a, 0, 0);
+  const vb = new THREE.Vector3(b * Math.cos(gr), 0, b * Math.sin(gr));
+
+  const cx = c * Math.cos(br);
+  const czDen = Math.sin(gr);
+  const cz = Math.abs(czDen) < 1e-8 ? 0 : c * (Math.cos(ar) - Math.cos(br) * Math.cos(gr)) / czDen;
+  const cySq = Math.max(0, c*c - cx*cx - cz*cz);
+  const vc = new THREE.Vector3(cx, Math.sqrt(cySq), cz);
+  return { va, vb, vc };
+}
+
+function fractionalToCartesian(fx, fy, fz, vectors){
+  return new THREE.Vector3()
+    .add(vectors.va.clone().multiplyScalar(fx))
+    .add(vectors.vb.clone().multiplyScalar(fy))
+    .add(vectors.vc.clone().multiplyScalar(fz));
+}
+
 function toast(title, body, ms=2200){
   $("toastTitle").textContent = title;
   $("toastBody").textContent = body || "";
@@ -1012,6 +1144,7 @@ function resetActionHistory(){
 function refreshDerivedVisuals(){
   if($("toggleBonds").dataset.on==="1") rebuildBonds();
   rebuildSnapPoints();
+  applyStackingColors();
   rebuildClosePackedPlanes();
   updatePlanePresentation();
   if($("toggleUnitCell").dataset.on==="1"){
@@ -1214,14 +1347,57 @@ function pointInHcpUnitCell(p, a, c, origin = new THREE.Vector3(0, 0, 0)){
   return xLimit >= 0 && Math.abs(local.x) <= xLimit + eps;
 }
 
+function addParallelepipedWireframe(va, vb, vc, origin = new THREE.Vector3(0,0,0)){
+  const corners = [
+    origin.clone(),
+    origin.clone().add(va),
+    origin.clone().add(vb),
+    origin.clone().add(vc),
+    origin.clone().add(va).add(vb),
+    origin.clone().add(va).add(vc),
+    origin.clone().add(vb).add(vc),
+    origin.clone().add(va).add(vb).add(vc),
+  ];
+  const edgePairs = [
+    [0,1],[0,2],[0,3],
+    [1,4],[1,5],
+    [2,4],[2,6],
+    [3,5],[3,6],
+    [4,7],[5,7],[6,7]
+  ];
+  const arr = [];
+  edgePairs.forEach(([i,j])=>{
+    arr.push(corners[i].x, corners[i].y, corners[i].z, corners[j].x, corners[j].y, corners[j].z);
+  });
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.Float32BufferAttribute(arr, 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0x22c55e, transparent:true, opacity:0.95 });
+  unitCellGroup.add(new THREE.LineSegments(geom, mat));
+}
+
+function pointInParallelepiped(p, origin, va, vb, vc){
+  const basis = new THREE.Matrix3().set(
+    va.x, vb.x, vc.x,
+    va.y, vb.y, vc.y,
+    va.z, vb.z, vc.z
+  );
+  const inv = basis.clone().invert();
+  const local = p.clone().sub(origin).applyMatrix3(inv);
+  const eps = 1e-6;
+  return local.x >= -eps && local.x <= 1+eps &&
+         local.y >= -eps && local.y <= 1+eps &&
+         local.z >= -eps && local.z <= 1+eps;
+}
+
 function rebuildUnitCellPreview(){
   clearUnitCellPreview();
   if($("toggleUnitCell").dataset.on!=="1") return;
 
   const type = $("structure").value;
+  const params = getLatticeParams();
   if(type==="hcp"){
-    const a = 1.0;
-    const c = a * 1.633;
+    const a = params.a;
+    const c = params.c;
     const cellOrigin = getHcpCellOrigin(0, 0, 0, a, c);
     addHcpUnitCellWireframe(a, c, cellOrigin);
 
@@ -1239,6 +1415,34 @@ function rebuildUnitCellPreview(){
         transparent: false,
         opacity: 1.0,
         side: THREE.DoubleSide
+      });
+      const s = new THREE.Mesh(g, m);
+      s.position.copy(p);
+      unitCellGroup.add(s);
+    });
+    unitCellGroup.visible = true;
+    return;
+  }
+
+  const family = getStructureFamily(type);
+  if(family!=="cubic"){
+    const { va, vb, vc } = getLatticeVectors(params);
+    const origin = new THREE.Vector3(0,0,0);
+    addParallelepipedWireframe(va, vb, vc, origin);
+
+    atomPositions.forEach((p, idx)=>{
+      if(!p || p.x > 1e8) return;
+      if(!pointInParallelepiped(p, origin, va, vb, vc)) return;
+      const src = atomMeshes[idx];
+      const baseColor = (src && src.material && src.material.color) ? src.material.color.getHex() : 0x94a3b8;
+      const radius = (src && src.geometry && src.geometry.parameters && src.geometry.parameters.radius) ? src.geometry.parameters.radius : 0.15;
+      const g = new THREE.SphereGeometry(radius, 24, 24);
+      const m = new THREE.MeshStandardMaterial({
+        color: baseColor,
+        roughness: 0.35,
+        metalness: 0.08,
+        transparent: false,
+        opacity: 1.0
       });
       const s = new THREE.Mesh(g, m);
       s.position.copy(p);
@@ -1309,8 +1513,10 @@ function makeAtomMaterial(color){
 }
 
 function addAtom(x,y,z, mat){
-  const s = new THREE.Mesh(atomGeom, mat);
+  const atomMat = mat.clone ? mat.clone() : mat;
+  const s = new THREE.Mesh(atomGeom, atomMat);
   s.position.set(x,y,z);
+  s.userData.baseColor = atomMat.color ? atomMat.color.getHex() : 0x94a3b8;
   crystalGroup.add(s);
   atomPositions.push(new THREE.Vector3(x,y,z));
   atomMeshes.push(s);
@@ -1349,6 +1555,21 @@ function buildConventionalCells(nx, ny, nz, sites){
           seen.add(key);
           addAtom(x, y, z, site.mat);
         });
+      }
+    }
+  }
+}
+
+function buildPrimitiveLattice(nx, ny, nz, vectors, matA){
+  const seen = new Set();
+  for(let i=0; i<=nx; i++){
+    for(let j=0; j<=ny; j++){
+      for(let k=0; k<=nz; k++){
+        const pos = fractionalToCartesian(i, j, k, vectors);
+        const key = `${pos.x.toFixed(4)}|${pos.y.toFixed(4)}|${pos.z.toFixed(4)}`;
+        if(seen.has(key)) continue;
+        seen.add(key);
+        addAtom(pos.x, pos.y, pos.z, matA);
       }
     }
   }
@@ -1444,50 +1665,70 @@ function buildSpinel(nx,ny,nz, matO, matA, matB){
 }
 
 function buildHCP(nx,ny,nz, matA){
-  const a = 1.0;
-  const c = a * 1.633; // ideal c/a ratio
-  const v1 = new THREE.Vector3(a, 0, 0);
-  const v2 = new THREE.Vector3(a/2, 0, Math.sqrt(3)*a/2);
-  const v3 = new THREE.Vector3(0, c, 0);
-  const basis = [
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(2/3, 1/2, 1/3),
-  ];
+  const { a, c } = getLatticeParams();
   const seen = new Set();
+  const h = Math.sqrt(3) * a / 2;
+  const midZ = Math.sqrt(3) * a / 6;
+  const sites = [
+    new THREE.Vector3( a,   0,  0),
+    new THREE.Vector3( a/2, 0,  h),
+    new THREE.Vector3(-a/2, 0,  h),
+    new THREE.Vector3(-a,   0,  0),
+    new THREE.Vector3(-a/2, 0, -h),
+    new THREE.Vector3( a/2, 0, -h),
+    new THREE.Vector3( 0,   0,  0),
+
+    new THREE.Vector3( a,   c,  0),
+    new THREE.Vector3( a/2, c,  h),
+    new THREE.Vector3(-a/2, c,  h),
+    new THREE.Vector3(-a,   c,  0),
+    new THREE.Vector3(-a/2, c, -h),
+    new THREE.Vector3( a/2, c, -h),
+    new THREE.Vector3( 0,   c,  0),
+
+    new THREE.Vector3(-a/2, c/2, -midZ),
+    new THREE.Vector3( a/2, c/2, -midZ),
+    new THREE.Vector3( 0,   c/2,  2*midZ),
+  ];
 
   for(let ix=0; ix<nx; ix++){
     for(let iy=0; iy<ny; iy++){
       for(let iz=0; iz<nz; iz++){
         const cellOrigin = getHcpCellOrigin(ix, iy, iz, a, c);
-        const cellOffset = new THREE.Vector3(cellOrigin.x, 0, cellOrigin.z);
-
-        for(let i=-2; i<=2; i++){
-          for(let j=-2; j<=2; j++){
-            for(let k=-1; k<=1; k++){
-              const latticeOrigin = new THREE.Vector3()
-                .add(cellOffset)
-                .add(v1.clone().multiplyScalar(i))
-                .add(v2.clone().multiplyScalar(j))
-                .add(v3.clone().multiplyScalar(iy + k));
-
-              basis.forEach(b => {
-                const pos = latticeOrigin.clone()
-                  .add(v1.clone().multiplyScalar(b.x))
-                  .add(v2.clone().multiplyScalar(b.z))
-                  .add(v3.clone().multiplyScalar(b.y));
-
-                if(!pointInHcpUnitCell(pos, a, c, cellOrigin)) return;
-                const key = `${pos.x.toFixed(4)}|${pos.y.toFixed(4)}|${pos.z.toFixed(4)}`;
-                if(seen.has(key)) return;
-                seen.add(key);
-                addAtom(pos.x, pos.y, pos.z, matA);
-              });
-            }
-          }
-        }
+        sites.forEach(site => {
+          const pos = site.clone().add(cellOrigin);
+          const key = `${pos.x.toFixed(4)}|${pos.y.toFixed(4)}|${pos.z.toFixed(4)}`;
+          if(seen.has(key)) return;
+          seen.add(key);
+          addAtom(pos.x, pos.y, pos.z, matA);
+        });
       }
     }
   }
+}
+
+function buildTetragonalPrimitive(nx, ny, nz, matA){
+  const params = getLatticeParams();
+  const vectors = getLatticeVectors(params);
+  buildPrimitiveLattice(nx, ny, nz, vectors, matA);
+}
+
+function buildOrthorhombicPrimitive(nx, ny, nz, matA){
+  const params = getLatticeParams();
+  const vectors = getLatticeVectors(params);
+  buildPrimitiveLattice(nx, ny, nz, vectors, matA);
+}
+
+function buildMonoclinicPrimitive(nx, ny, nz, matA){
+  const params = getLatticeParams();
+  const vectors = getLatticeVectors(params);
+  buildPrimitiveLattice(nx, ny, nz, vectors, matA);
+}
+
+function buildTriclinicPrimitive(nx, ny, nz, matA){
+  const params = getLatticeParams();
+  const vectors = getLatticeVectors(params);
+  buildPrimitiveLattice(nx, ny, nz, vectors, matA);
 }
 
 function buildNaCl(nx,ny,nz, matA, matB){
@@ -1667,14 +1908,14 @@ function rebuildSnapPoints(){
   }
 
   if(type==="hcp"){
-    const a = 1.0;
-    const c = a * 1.633;
+    const { a, c } = getLatticeParams();
     for(let i=0; i<nx; i++){
       for(let j=0; j<ny; j++){
         for(let k=0; k<nz; k++){
-          const x0 = i * a;
-          const y0 = k * c;
-          const z0 = j * a * Math.sqrt(3);
+          const cellOrigin = getHcpCellOrigin(i, j, k, a, c);
+          const x0 = cellOrigin.x;
+          const y0 = cellOrigin.y;
+          const z0 = cellOrigin.z;
           addSnapPoint(
             new THREE.Vector3(x0 + 0.5*a, y0 + c/4, z0 + (1/3)*a*Math.sqrt(3)),
             "hole",
@@ -1765,6 +2006,70 @@ function getVisibleAtomPositions(){
   return atomPositions.filter(p => p && p.x < 1e8);
 }
 
+function getStackingDefinition(type){
+  if(["fcc","diamond","nacl","zns","caf2","spinel"].includes(type)){
+    return {
+      name: "ABCABC",
+      normal: new THREE.Vector3(1,1,1),
+      labels: ["A","B","C"],
+      colors: [0xef4444, 0x3b82f6, 0x22c55e]
+    };
+  }
+  if(type==="hcp"){
+    return {
+      name: "ABAB",
+      normal: new THREE.Vector3(0,1,0),
+      labels: ["A","B"],
+      colors: [0xf59e0b, 0xa855f7]
+    };
+  }
+  if(type==="bcc"){
+    return {
+      name: "AABBAABB",
+      normal: new THREE.Vector3(1,1,0),
+      labels: ["A","A","B","B"],
+      colors: [0x06b6d4, 0x06b6d4, 0xec4899, 0xec4899]
+    };
+  }
+  return null;
+}
+
+function applyStackingColors(){
+  const info = $("stackingInfo");
+  const def = getStackingDefinition($("structure").value);
+  if($("toggleStackingColors").dataset.on!=="1" || !def){
+    atomMeshes.forEach(mesh => {
+      if(mesh && mesh.material && mesh.material.color){
+        mesh.material.color.setHex(mesh.userData.baseColor ?? 0x94a3b8);
+      }
+    });
+    if(info) info.textContent = def
+      ? `Lagpakking av viser ${def.name}-lag når bryteren er på.`
+      : "Lagpakking er ikke definert for denne strukturen ennå.";
+    return;
+  }
+
+  const groups = clusterPlaneOffsetsAlongNormal(def.normal);
+  const normal = def.normal.clone().normalize();
+  const layerForOffset = groups.map(g => g.offset);
+  atomMeshes.forEach((mesh, idx) => {
+    const pos = atomPositions[idx];
+    if(!mesh || !mesh.material || !pos || pos.x > 1e8) return;
+    const offset = normal.dot(pos);
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    layerForOffset.forEach((v, i) => {
+      const d = Math.abs(v - offset);
+      if(d < bestDist){
+        bestDist = d;
+        bestIdx = i;
+      }
+    });
+    mesh.material.color.setHex(def.colors[bestIdx % def.colors.length]);
+  });
+  if(info) info.textContent = `Lagpakking: ${def.name} langs normal ${formatNormalLabel(def.normal)}.`;
+}
+
 function clusterPlaneOffsetsAlongNormal(rawNormal, tolerance = 0.08){
   const atoms = getVisibleAtomPositions();
   if(!atoms.length) return [];
@@ -1811,6 +2116,9 @@ function createRepresentativePlaneSpecFromAtomLayers(rawNormal, label){
   const centerOffset = n.dot(center);
   const best = groups.reduce((closest, group) => {
     if(!closest) return group;
+    if(group.points.length !== closest.points.length){
+      return group.points.length > closest.points.length ? group : closest;
+    }
     return Math.abs(group.offset - centerOffset) < Math.abs(closest.offset - centerOffset) ? group : closest;
   }, null);
   return [{
@@ -1818,6 +2126,39 @@ function createRepresentativePlaneSpecFromAtomLayers(rawNormal, label){
     normal: rawNormal.clone(),
     point: n.clone().multiplyScalar(best.offset)
   }];
+}
+
+function getMillerPlaneDefinition(h, k, l){
+  const vectors = getLatticeVectors();
+  const { va, vb, vc } = vectors;
+  const eps = 1e-9;
+
+  const reciprocalA = vb.clone().cross(vc);
+  const reciprocalB = vc.clone().cross(va);
+  const reciprocalC = va.clone().cross(vb);
+
+  const normal = reciprocalA.multiplyScalar(h)
+    .add(reciprocalB.multiplyScalar(k))
+    .add(reciprocalC.multiplyScalar(l));
+
+  if(normal.length() < eps) return null;
+
+  const intercepts = [];
+  if(Math.abs(h) > eps) intercepts.push(fractionalToCartesian(1 / h, 0, 0, vectors));
+  if(Math.abs(k) > eps) intercepts.push(fractionalToCartesian(0, 1 / k, 0, vectors));
+  if(Math.abs(l) > eps) intercepts.push(fractionalToCartesian(0, 0, 1 / l, vectors));
+
+  let point;
+  if(intercepts.length){
+    point = intercepts.reduce((acc, p) => acc.add(p.clone()), new THREE.Vector3()).multiplyScalar(1 / intercepts.length);
+  }else{
+    point = new THREE.Vector3();
+  }
+
+  return {
+    normal: normal.normalize(),
+    point
+  };
 }
 
 function shouldShowAllClosePackedLayers(){
@@ -1884,6 +2225,7 @@ function addPlaneMeshRecord({ label, normal, point, color = null, opacity = 0.12
   const n = normal.clone().normalize();
   const rawNormal = normal.clone();
   const geom = new THREE.PlaneGeometry(getPlaneVisualSize(), getPlaneVisualSize(), 1, 1);
+  const activeClip = getActiveUnitCellClipPlanes();
   const mat = new THREE.MeshStandardMaterial({
     color: color ?? planeColorForIndex(planes.length),
     transparent: true,
@@ -1891,8 +2233,8 @@ function addPlaneMeshRecord({ label, normal, point, color = null, opacity = 0.12
     side: THREE.DoubleSide,
     roughness: 0.6,
     metalness: 0.0,
-    clippingPlanes: getActiveUnitCellClipPlanes(),
-    clipIntersection: false,
+    clippingPlanes: activeClip,
+    clipIntersection: !!activeClip,
     depthTest: false,
     depthWrite: false
   });
@@ -1924,16 +2266,18 @@ function addMillerPlane(h,k,l){
     toast("Ugyldig plan", "h=k=l=0 gir ikke et plan.");
     return;
   }
-  const n = raw.clone().normalize();
-  const center = new THREE.Vector3(0.5,0.5,0.5);
-  const scale = (1 - raw.dot(center)) / raw.lengthSq();
-  const p0 = center.clone().add(raw.clone().multiplyScalar(scale));
+  const planeDef = getMillerPlaneDefinition(h, k, l);
+  if(!planeDef){
+    toast("Ugyldig plan", "Kunne ikke beregne Miller-planet for denne cellen.");
+    return;
+  }
 
   addPlaneMeshRecord({
     label: formatPlaneFamilyLabel(raw, false),
-    normal: n,
-    point: p0
+    normal: planeDef.normal,
+    point: planeDef.point
   });
+  updatePlanePresentation();
   renderPlaneList();
   rebuildCuts();
 }
@@ -1986,7 +2330,10 @@ function getClosePackedPlaneSpecs(type){
 
 function rebuildClosePackedPlanes(){
   removeAutoPlanes("closePacked");
-  if($("toggleClosePackedPlanes").dataset.on !== "1") return;
+  if($("toggleClosePackedPlanes").dataset.on !== "1"){
+    updatePlanePresentation();
+    return;
+  }
   const specs = getClosePackedPlaneSpecs($("structure").value);
   specs.forEach(spec => {
     addPlaneMeshRecord({
@@ -1997,6 +2344,7 @@ function rebuildClosePackedPlanes(){
       autoFamily: "closePacked"
     });
   });
+  updatePlanePresentation();
   renderPlaneList();
   rebuildCuts();
 }
@@ -2008,6 +2356,7 @@ function updatePlanePresentation(){
     p.mesh.visible = p.visible;
     if(p.mesh.material){
       p.mesh.material.clippingPlanes = clip;
+      p.mesh.material.clipIntersection = !!clip;
       p.mesh.material.needsUpdate = true;
     }
   });
@@ -2137,6 +2486,10 @@ async function buildCrystal(){
   if(type==="fcc") buildFCC(nx,ny,nz, matA, matB);
   if(type==="diamond") buildDiamond(nx,ny,nz, matA, matB);
   if(type==="hcp") buildHCP(nx,ny,nz, matA);
+  if(type==="tetragonal_p") buildTetragonalPrimitive(nx,ny,nz, matA);
+  if(type==="orthorhombic_p") buildOrthorhombicPrimitive(nx,ny,nz, matA);
+  if(type==="monoclinic_p") buildMonoclinicPrimitive(nx,ny,nz, matA);
+  if(type==="triclinic_p") buildTriclinicPrimitive(nx,ny,nz, matA);
   if(type==="nacl") buildNaCl(nx,ny,nz, matA, matB);
   if(type==="cscl") buildCsCl(nx,ny,nz, matA, matB);
   if(type==="zns") buildZnS(nx,ny,nz, matA, matB);
@@ -2569,6 +2922,7 @@ $("clearPlanes").addEventListener("click", ()=>{
   }
   setBtnOn($("toggleClosePackedPlanes"), false);
   setBtnOn($("toggleAllClosePackedLayers"), false);
+  updatePlanePresentation();
   renderPlaneList();
   rebuildCuts();
   toast("Plan", "Tømt.");
@@ -2651,6 +3005,13 @@ $("toggleUnitCell").addEventListener("click", ()=>{
   }
 });
 
+$("toggleStackingColors").addEventListener("click", ()=>{
+  const on = $("toggleStackingColors").dataset.on==="1";
+  setBtnOn($("toggleStackingColors"), !on);
+  applyStackingColors();
+  toast("Lagpakking", (!on) ? "Fargelag vist." : "Fargelag skjult.");
+});
+
 // Measurement tool
 measureMode = false;
 $("toggleMeasure").addEventListener("click", ()=>{
@@ -2723,6 +3084,7 @@ $("bondDist").addEventListener("input", (e)=>{
 function autoOn(){ return $("autoRebuild").dataset.on==="1"; }
 
 function maybeAutoRebuild(){
+  syncLatticeControls();
   if(autoOn()) buildCrystal();
   updateGuess();
 }
@@ -2731,6 +3093,9 @@ $("structure").addEventListener("change", maybeAutoRebuild);
 $("nx").addEventListener("change", maybeAutoRebuild);
 $("ny").addEventListener("change", maybeAutoRebuild);
 $("nz").addEventListener("change", maybeAutoRebuild);
+["latA","latB","latC","alpha","beta","gamma"].forEach(id=>{
+  $(id).addEventListener("change", maybeAutoRebuild);
+});
 
 $("elementPreset").addEventListener("change", (e)=>{
   const v = e.target.value;
@@ -2772,11 +3137,13 @@ setBtnOn($("toggleBonds"), false);
 setBtnOn($("toggleCuts"), true);
 setBtnOn($("toggleUnitCell"), false);
 setBtnOn($("autoRebuild"), true);
+setBtnOn($("toggleStackingColors"), false);
 $("autoRebuildBadge").textContent = "ON";
 
 renderPlaneList();
 setMode("intrinsic");
 $("manualAtomType").dispatchEvent(new Event("change"));
+syncLatticeControls();
 buildCrystal();
 updateGuess();
 
