@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Focused preview mode for selected tools and viewers.">
+  <title>Tool preview</title>
+  <link rel="stylesheet" href="tool-preview.css">
+</head>
+<body>
+  <div class="preview-shell">
+    <header class="preview-header">
+      <div>
+        <p class="preview-kicker">Focused preview mode</p>
+        <h1 id="previewTitle">Tool preview</h1>
+        <p id="previewSubtitle" class="preview-subtitle">Loads one selected tool or file viewer without the rest of the site navigation.</p>
+      </div>
+      <div class="preview-actions">
+        <a class="preview-button" href="/diverse/portfolio/">Back to portfolio</a>
+        <a id="openDirect" class="preview-button preview-button-primary" href="/" target="_blank" rel="noopener">Open direct</a>
+      </div>
+    </header>
+
+    <div class="preview-note">
+      This preview hides surrounding site chrome where possible. It is a presentation link, not access control.
+    </div>
+
+    <main class="preview-stage">
+      <div id="previewFallback" class="preview-fallback" hidden>
+        <h2>Preview unavailable</h2>
+        <p id="fallbackText">The selected preview target could not be loaded here.</p>
+      </div>
+      <iframe id="previewFrame" title="Tool preview" loading="eager"></iframe>
+    </main>
+  </div>
+
+  <script src="tool-preview.js" defer></script>
+</body>
+</html>

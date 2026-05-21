@@ -1,4 +1,4 @@
-﻿/* --------------------------------------------------------------------
+/* --------------------------------------------------------------------
    FolkNettsideFolk Ã¢â‚¬â€œ sidebar-loader.js  v11.15.2
    --------------------------------------------------------------------
    FIKSET: Fil ikoner og CSS/JS-blanding
@@ -171,7 +171,7 @@
       }
       
       .nested-folder-item::after{ 
-        content:'â–¸';
+        content:'▸';
         position:absolute;
         right:8px;
         font-size:1.1em; 
@@ -274,14 +274,14 @@
     }
     
     .file-label.watched::before{
-      content:"âœ“ ";
+      content:"✓ ";
       color:#8BC34A;
       margin-right:6px;
       font-weight:700;
     }
     
     .nested-folder-item.watched>.file-label::after{
-      content:" âœ“";
+      content:" ✓";
       color:#8BC34A;
       margin-left:6px;
     }
@@ -1360,12 +1360,12 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
         const m = anyVid || s.match(/[?&]v=([^&]+)/i);
         if (m) {
           if (labelPart) return labelPart;
-          return 'YouTube Ã¢â‚¬â€œ ' + decodeURIComponent(m[1]);
+          return 'YouTube - ' + decodeURIComponent(m[1]);
         }
         const m2 = s.match(/youtu\.be\/([-_0-9A-Za-z]+)/i);
         if (m2) {
           if (labelPart) return labelPart;
-          return 'YouTube Ã¢â‚¬â€œ ' + decodeURIComponent(m2[1]);
+          return 'YouTube - ' + decodeURIComponent(m2[1]);
         }
         try{
           const u = new URL(s);
@@ -1387,7 +1387,7 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
   rootItems.forEach(item => {
     const f = item.f;
     const href = makeHrefFunc(f);
-    const label = (isPyGroup ? 'Ã°Å¸ÂÂ ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'Ã¢â‚¬Â¦' : item.label);
+    const label = (isPyGroup ? '\uD83D\uDC0D ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'…' : item.label);
     const icon = iconForFile(f);
     html += `<a href="${href}" data-file="${f}">${icon}<span class="file-label">${label}</span></a>`;
   });
@@ -2365,6 +2365,5 @@ document.readyState==='loading'
   b.textContent=txt;
 })();
 /* -------------------------------------------------------------------- */
-
 
 

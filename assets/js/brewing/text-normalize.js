@@ -2,66 +2,48 @@
 (function (global) {
 
   const ATTRIBUTES_TO_NORMALIZE = ['placeholder', 'title', 'aria-label', 'alt'];
-  const DIRECT_REPLACEMENTS = [
-    ['ÃƒÆ’Ã‚Â¥', 'å'],
-    ['ÃƒÂ¥', 'å'],
-    ['Ã¥', 'å'],
-    ['ÃƒÆ’Ã‚Â¸', 'ø'],
-    ['ÃƒÂ¸', 'ø'],
-    ['Ã¸', 'ø'],
-    ['ÃƒÆ’Ã‚Â¦', 'æ'],
-    ['ÃƒÂ¦', 'æ'],
-    ['Ã¦', 'æ'],
-    ['ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥', 'Å'],
-    ['Ãƒâ€¦', 'Å'],
-    ['Ã…', 'Å'],
-    ['ÃƒËœ', 'Ø'],
-    ['Ã˜', 'Ø'],
-    ['Ãƒâ€ ', 'Æ'],
-    ['Ã†', 'Æ'],
-    ['ÃƒÂ©', 'é'],
-    ['Ã©', 'é'],
-    ['ÃƒÂ¼', 'ü'],
-    ['Ã¼', 'ü'],
-    ['Ãƒâ€“', 'Ö'],
-    ['Ã–', 'Ö'],
-    ['ÃƒÂ¶', 'ö'],
-    ['Ã¶', 'ö'],
-    ['Ãƒâ€ž', 'Ä'],
-    ['Ã„', 'Ä'],
-    ['ÃƒÂ¤', 'ä'],
-    ['Ã¤', 'ä'],
-    ['ÃƒÅ¸', 'ß'],
-    ['ÃŸ', 'ß'],
-    ['Ã‚Â·', '·'],
-    ['Â·', '·'],
-    ['Ã‚Â', ''],
-    ['Â', ''],
-    ['â€“', '–'],
-    ['â€”', '—'],
-    ['â€˜', '‘'],
-    ['â€™', '’'],
-    ['â€œ', '“'],
-    ['â€�', '”'],
-    ['â€¦', '…']
+  const MOJIBAKE_HINT = /[\u00c2\u00c3\u00e2]/;
+  const ASCII_NORWEGIAN_REPLACEMENTS = [
+    [/\bingefaer\b/gi, 'ingef\u00e6r'],
+    [/\bmaaleutliggere\b/gi, 'm\u00e5leutliggere'],
+    [/\bmaaling\b/gi, 'm\u00e5ling'],
+    [/\bmaalrettet\b/gi, 'm\u00e5lrettet'],
+    [/\bboer\b/gi, 'b\u00f8r'],
+    [/\bVaer\b/g, 'V\u00e6r'],
+    [/\bvaer\b/g, 'v\u00e6r'],
+    [/\bforelopige\b/gi, 'forel\u00f8pige'],
+    [/\bsluttomraade\b/gi, 'sluttomr\u00e5de'],
+    [/\brestsodme\b/gi, 'rests\u00f8dme'],
+    [/\bgravitymaaling\b/gi, 'gravitym\u00e5ling'],
+    [/\bnaar\b/gi, 'n\u00e5r'],
+    [/\bunnga\b/gi, 'unng\u00e5'],
+    [/\bennaa\b/gi, 'enn\u00e5'],
+    [/\bogsaa\b/gi, 'ogs\u00e5'],
+    [/\bStoy\b/g, 'St\u00f8y']
   ];
-
-  const EXTRA_DIRECT_REPLACEMENTS = [
-    ['Å¥', 'å'],
-    ['Å¸', 'ø'],
-    ['Å¦', 'æ'],
-    ['Å…', 'Å'],
-    ['Å“', 'Ø'],
-    ['ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ', '–'],
-    ['ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…Â', '–']
+  const EXPLICIT_REPAIRS = [
+    ['\u00c3\u00a5', '\u00e5'],
+    ['\u00c3\u00b8', '\u00f8'],
+    ['\u00c3\u00a6', '\u00e6'],
+    ['\u00c3\u2026', '\u00c5'],
+    ['\u00c3\u02dc', '\u00d8'],
+    ['\u00c3\u2020', '\u00c6'],
+    ['\u00c2\u00b7', '\u00b7'],
+    ['\u00e2\u20ac\u201c', '\u2013'],
+    ['\u00e2\u20ac\u201d', '\u2014'],
+    ['\u00e2\u20ac\u02dc', '\u2018'],
+    ['\u00e2\u20ac\u2122', '\u2019'],
+    ['\u00e2\u20ac\u0153', '\u201c'],
+    ['\u00e2\u20ac\ufffd', '\u201d'],
+    ['\u00e2\u20ac\u00a6', '\u2026'],
+    ['\u00c2', '']
   ];
-  const ALL_DIRECT_REPLACEMENTS = DIRECT_REPLACEMENTS.concat(EXTRA_DIRECT_REPLACEMENTS);
 
   function mojibakePenalty(value) {
-    return (String(value || '').match(/[ÃÂâÆ]/g) || []).length;
+    return (String(value || '').match(/[\u00c2\u00c3\u00e2]/g) || []).length;
   }
 
-  function decodeUtf8FromLatin1(value) {
+  function decodeUtf8FromSingleByte(value) {
     if (typeof global.TextDecoder === 'undefined') return String(value || '');
     const source = String(value || '');
     try {
@@ -69,6 +51,20 @@
         return char.charCodeAt(0) & 0xff;
       }));
       return new global.TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    } catch (error) {
+      return source;
+    }
+  }
+
+  function decodeUtf8ViaEncoding(value, encoding) {
+    if (typeof global.TextEncoder === 'undefined' || typeof global.TextDecoder === 'undefined') {
+      return String(value || '');
+    }
+
+    const source = String(value || '');
+    try {
+      const bytes = new global.TextEncoder().encode(source);
+      return new global.TextDecoder(encoding, { fatal: false }).decode(bytes);
     } catch (error) {
       return source;
     }
@@ -85,51 +81,50 @@
     return safeCurrent;
   }
 
-  function applyDirectReplacements(value) {
+  function applyExplicitRepairs(value) {
     let text = String(value == null ? '' : value);
-    ALL_DIRECT_REPLACEMENTS.forEach(function (pair) {
+    EXPLICIT_REPAIRS.forEach(function (pair) {
       text = text.split(pair[0]).join(pair[1]);
     });
     return text;
   }
 
+  function applyAsciiNorwegianRepairs(value) {
+    let text = String(value == null ? '' : value);
+    ASCII_NORWEGIAN_REPLACEMENTS.forEach(function (pair) {
+      text = text.replace(pair[0], pair[1]);
+    });
+    return text;
+  }
+
   function normalizeUiText(value) {
-    const oe = String.fromCharCode(248);
-    const aa = String.fromCharCode(229);
-    const ae = String.fromCharCode(230);
     let text = String(value == null ? '' : value);
 
     for (let attempt = 0; attempt < 4; attempt += 1) {
       let next = text;
 
-      if (/[ÃÂâÆ]/.test(next)) {
+      if (MOJIBAKE_HINT.test(next)) {
         try {
           next = pickBetterRepair(next, decodeURIComponent(escape(next)));
         } catch (error) {
           next = next;
         }
-        next = pickBetterRepair(next, decodeUtf8FromLatin1(next));
+        next = pickBetterRepair(next, decodeUtf8FromSingleByte(next));
+        next = pickBetterRepair(next, decodeUtf8ViaEncoding(next, 'windows-1252'));
       }
 
-      next = applyDirectReplacements(next);
+      next = applyExplicitRepairs(next);
       if (next === text) break;
       text = next;
     }
 
-    return text
-      .replace(/\bStoy\b/g, 'St' + oe + 'y')
-      .replace(/\bmaaleutliggere\b/g, 'm' + aa + 'leutliggere')
-      .replace(/\bboer\b/g, 'b' + oe + 'r')
-      .replace(/\bVaer\b/g, 'V' + ae + 'r')
-      .replace(/\bforelopige\b/g, 'forel' + oe + 'pige')
-      .replace(/\bsluttomraade\b/g, 'sluttomr' + aa + 'de')
-      .replace(/\brestsodme\b/g, 'rests' + oe + 'dme')
-      .replace(/\bgravitymaaling\b/g, 'gravitym' + aa + 'ling')
-      .replace(/\bnaar\b/g, 'n' + aa + 'r')
-      .replace(/\bmaalrettet\b/g, 'm' + aa + 'lrettet')
-      .replace(/\bunnga\b/g, 'unng' + aa)
-      .replace(/\bennaa\b/g, 'enn' + aa)
-      .replace(/\bogsaa\b/g, 'ogs' + aa);
+    text = applyAsciiNorwegianRepairs(text);
+
+    if (typeof text.normalize === 'function') {
+      text = text.normalize('NFC');
+    }
+
+    return text;
   }
 
   function normalizeAttributeText(element) {

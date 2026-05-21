@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Professional engineering portfolio template for static hosting.">
+  <title>{{FULL_NAME}} | Engineering Portfolio</title>
+  <link rel="stylesheet" href="portfolio.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow">Standalone Engineering Portfolio</p>
+        <h1 data-bind="profile.name">{{FULL_NAME}}</h1>
+        <p class="hero-title" data-bind="profile.title">{{TITLE}}</p>
+        <p class="hero-location" data-bind="profile.location">{{LOCATION}}</p>
+        <p class="hero-summary" data-bind="profile.summary">Short professional summary goes here.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#projects" data-ga-event="portfolio_view_projects_click">View projects</a>
+          <a class="button" href="#experience" data-ga-event="portfolio_view_experience_click">Experience</a>
+          <a class="button button-ghost" href="{{LINKEDIN_URL}}" data-bind-href="links.linkedin" target="_blank" rel="noopener" data-ga-event="portfolio_linkedin_click">LinkedIn</a>
+          <a class="button button-ghost" href="{{GITHUB_URL}}" data-bind-href="links.github" target="_blank" rel="noopener" data-ga-event="portfolio_github_click">GitHub</a>
+        </div>
+      </div>
+      <aside class="hero-panel">
+        <p class="panel-kicker">Template notes</p>
+        <ul class="hero-notes">
+          <li>Static and standalone</li>
+          <li>No global navbar or sidebar</li>
+          <li>Noindex and nofollow enabled</li>
+          <li>Local/private data files stay outside index generation</li>
+        </ul>
+      </aside>
+    </header>
+
+    <main class="content">
+      <section class="panel panel-wide" id="about">
+        <div class="section-heading">
+          <p class="section-label">About</p>
+          <h2>Professional focus</h2>
+        </div>
+        <p data-bind="profile.summary">Short professional summary goes here.</p>
+      </section>
+
+      <section class="panel" id="projects">
+        <div class="section-heading">
+          <p class="section-label">Portfolio</p>
+          <h2>Featured projects</h2>
+        </div>
+        <div id="project-grid" class="project-grid">
+          <article class="project-card">
+            <p class="status-pill">Prototype</p>
+            <h3>Engineering Tool Platform</h3>
+            <p>A personal platform for organizing technical resources and engineering tools.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel-grid">
+        <section class="panel" id="experience">
+          <div class="section-heading">
+            <p class="section-label">Background</p>
+            <h2>Experience</h2>
+          </div>
+          <div id="experience-list" class="stack-list"></div>
+        </section>
+
+        <section class="panel" id="skills">
+          <div class="section-heading">
+            <p class="section-label">Capabilities</p>
+            <h2>Skills</h2>
+          </div>
+          <ul id="skills-list" class="tag-list"></ul>
+        </section>
+      </section>
+
+      <section class="panel panel-wide" id="contact">
+        <div class="section-heading">
+          <p class="section-label">Contact</p>
+          <h2>Links</h2>
+        </div>
+        <div class="contact-grid">
+          <a class="contact-card" href="mailto:{{EMAIL}}" data-bind-email="profile.email" data-ga-event="portfolio_contact_click">
+            <span class="contact-label">Email</span>
+            <span class="contact-value">{{EMAIL}}</span>
+          </a>
+          <a class="contact-card" href="{{LINKEDIN_URL}}" data-bind-href="links.linkedin" target="_blank" rel="noopener" data-ga-event="portfolio_linkedin_click">
+            <span class="contact-label">LinkedIn</span>
+            <span class="contact-value">{{LINKEDIN_URL}}</span>
+          </a>
+          <a class="contact-card" href="{{GITHUB_URL}}" data-bind-href="links.github" target="_blank" rel="noopener" data-ga-event="portfolio_github_click">
+            <span class="contact-label">GitHub</span>
+            <span class="contact-value">{{GITHUB_URL}}</span>
+          </a>
+          <a class="contact-card" href="{{PORTFOLIO_URL}}" data-bind-href="links.portfolio" target="_blank" rel="noopener">
+            <span class="contact-label">Website</span>
+            <span class="contact-value">{{PORTFOLIO_URL}}</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>This portfolio template is intended for safe reuse with local/private JSON files.</p>
+    </footer>
+  </div>
+
+  <script src="portfolio.js" defer></script>
+</body>
+</html>

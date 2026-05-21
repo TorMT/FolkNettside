@@ -170,6 +170,19 @@ Hva den gjør:
 - Hentede "AndreKok"-entries får automatisk `studiet: "MTKJ"` (kan overstyres med `--andrekok-studiet`).
 - Med `--sync-only` kan du kjøre bare synk uten vanlig `index.json`-oppdatering.
 
+Ekstra kontroll for synlighet og private filer:
+
+- `.noindex` i en mappe gjør at `SiteUpdater3.py` hopper over mappen.
+- `.siteignore` gjør at matcher ikke tas med i genererte fillister.
+- `beskyttet` er fortsatt separat passord-gating i navigasjonen.
+- `locked=1` er separat visningsmodus for deling av viewer-sider, ikke ekte tilgangskontroll.
+
+Praktiske eksempler:
+
+- `diverse/portfolio-template/` bruker `.noindex` for å unngå automatisk promotering.
+- local/private JSON-filer kan skjules fra indeksering via `.siteignore`.
+- viewer-lenker kan deles som `/includes/kodeLesere/stlview.html?file=/path/model.stl&locked=1`.
+
 ---
 Bruk av `navbarupdater.py`
 ---
@@ -319,6 +332,23 @@ git push origin main
 > Tipset: Documenter alltid endringer i `README.md` og `index.json` slik at både styringsteam og automasjoner har samme referanse.
 
 ---
+
+## Portfolio-template og locked pages
+
+- `diverse/portfolio-template/` er en standalone portefølje-template uten global navbar/sidebar.
+- Template-en bruker `noindex,nofollow`, placeholders og local/private JSON-filer.
+- Google Analytics er støttet, men av som standard.
+- LinkedIn-sync er lagt opp som manuell/local JSON eller server-sanitert public JSON, ikke scraping eller frontend-secrets.
+- `docs/LOCKED_PAGES.md` beskriver forskjellen mellom `beskyttet` og `locked=1`.
+- `docs/ARCHITECTURE.md` gir en kort oversikt over modulansvar i repoet.
+
+Lokal test:
+
+```bash
+python -m http.server 8000
+# /diverse/portfolio-template/
+# /includes/kodeLesere/stlview.html?file=/path/model.stl&locked=1
+```
 
 
 **OpenRouter for video-metadata**

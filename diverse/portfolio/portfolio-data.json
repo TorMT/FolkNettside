@@ -1,0 +1,366 @@
+{
+  "profile": {
+    "name": "Tor T\u00f8nnessen",
+    "title": "M.Sc. Student in Marine Technology at NTNU | Naval Architect @ Njord NTNU | CAD, Hydrostatics, Python & Engineering Tools",
+    "location": "Trondheim, Norway",
+    "summary": "M.Sc. student in Marine Technology at NTNU with interests in naval architecture, hydrodynamics, CAD, hydrostatics and technical software tools.",
+    "email": ""
+  },
+  "links": {
+    "linkedin": "https://www.linkedin.com/in/tor-t%C3%B8nnessen-b9589a210/",
+    "github": "https://github.com/TorMT",
+    "portfolio": "https://tormt.folk.ntnu.no/diverse/portfolio/"
+  },
+  "highlights": [
+    {
+      "title": "Marine Technology @ NTNU",
+      "summary": "M.Sc. studies focused on naval architecture, hydrodynamics, marine structures and hydrostatics."
+    },
+    {
+      "title": "Naval Architect @ Njord NTNU",
+      "summary": "Design and technical development work for autonomous maritime systems."
+    },
+    {
+      "title": "Engineering tool platform",
+      "summary": "Browser-based viewers, workflow pages and automation scripts for technical tasks."
+    },
+    {
+      "title": "Practical / offshore / operational experience",
+      "summary": "Experience shaped by offshore-oriented summer work, safety-focused routines and hands-on practical work."
+    }
+  ],
+  "experience": [
+    {
+      "organization": "Njord NTNU",
+      "role": "Naval Architect",
+      "type": "Organization / student design team experience",
+      "period": "Current",
+      "description": "Design and technical development for autonomous maritime systems with vessel and concept design, CAD modelling, hydrostatic assessments, technical calculations and production-oriented iteration.",
+      "tags": ["Naval architecture", "CAD", "Hydrostatics", "Marine design", "Teamwork", "Prototyping"]
+    },
+    {
+      "organization": "Subsea 7",
+      "role": "Summer worker / Associate",
+      "type": "Summer work / offshore-subsea environment",
+      "period": "Summer 2024 and Summer 2025",
+      "description": "Summer work with exposure to offshore and subsea project environments, logistics and operational workflows.",
+      "tags": ["Offshore", "Logistics", "Safety", "Operations", "Teamwork"]
+    },
+    {
+      "organization": "Norwegian Armed Forces",
+      "role": "Ambulance driver / Vognf\u00f8rer",
+      "type": "Structured operational service",
+      "period": "Aug. 2023 - Jun. 2024",
+      "description": "Operational routines, vehicle handling, first aid readiness and teamwork in structured environments.",
+      "tags": ["Responsibility", "First aid", "Operations", "Teamwork", "Safety"]
+    },
+    {
+      "organization": "Finn\u00f8y og Rennes\u00f8y Avl\u00f8serlag",
+      "role": "Avl\u00f8ser",
+      "type": "Seasonal practical work",
+      "period": "2018 - Present / seasonal",
+      "description": "Seasonal practical work involving farm operations, maintenance, harvesting and physical problem-solving.",
+      "tags": ["Practical work", "Maintenance", "Reliability"]
+    },
+    {
+      "organization": "tormt.folk.ntnu.no",
+      "role": "Independent Project Developer",
+      "type": "Independent technical project work",
+      "period": "2025 - Present",
+      "description": "Designing browser-based engineering tools, custom file viewers, educational interfaces and workflow utilities.",
+      "tags": ["JavaScript", "Python", "Static sites", "Visualization", "Automation", "Engineering tools"]
+    }
+  ],
+  "education": [
+    {
+      "institution": "NTNU",
+      "title": "M.Sc. / Siv.ing. Marine Technology",
+      "period": "Aug. 2024 - Jul. 2029",
+      "description": "M.Sc. student in Marine Technology with interests in naval architecture, hydrodynamics, marine structures, hydrostatics, fluid mechanics, CAD and engineering analysis."
+    },
+    {
+      "institution": "Academic background",
+      "title": "Industrial Chemistry and Biotechnology background",
+      "period": "Additional academic background",
+      "description": "Additional background and coursework giving broader technical understanding in materials, chemistry, thermodynamics and process-related engineering."
+    },
+    {
+      "institution": "St. Olav videreg\u00e5ende skole",
+      "title": "Upper secondary education, science specialization",
+      "period": "Upper secondary education",
+      "description": "Science specialization."
+    }
+  ],
+  "certifications": [],
+  "coursework": [
+    {
+      "title": "Marine technology and naval architecture",
+      "description": "Coursework and project work related to vessel design, hydrostatics, hydrodynamics and marine engineering analysis."
+    },
+    {
+      "title": "Hydrodynamics and fluid mechanics",
+      "description": "Study work around flow behaviour, fluid mechanics and hydrostatic reasoning relevant to marine systems."
+    },
+    {
+      "title": "CAD and engineering design",
+      "description": "CAD-oriented workflow development, concept design iteration and geometry handling."
+    },
+    {
+      "title": "Materials technology",
+      "description": "Materials-related coursework and visualization work connecting chemistry, structures and engineering interpretation."
+    },
+    {
+      "title": "Thermodynamics",
+      "description": "Thermodynamics coursework supported by property-calculation tooling and engineering study workflows."
+    },
+    {
+      "title": "Python / JavaScript tooling",
+      "description": "Independent tooling work focused on scripting, automation, file routing and technical interface development."
+    },
+    {
+      "title": "First aid / operational safety",
+      "description": "Operational routines and first-aid readiness developed through structured service and teamwork."
+    }
+  ],
+  "projects": [
+    {
+      "title": "Engineering Tool Hub / FolkNettside Platform",
+      "status": "Active",
+      "summary": "Personal technical platform for organizing study resources, course files and engineering tools.",
+      "description": "Built with HTML, CSS, JavaScript, Python scripts and static-site tooling.",
+      "tags": ["Python", "JavaScript", "HTML/CSS", "Automation", "Static site", "Tooling"],
+      "imageUrl": "/diverse/portfolio-template/screenshots/folknettside.png",
+      "imageAlt": "Screenshot of the FolkNettside platform",
+      "demoUrl": "/",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Engineering%20Tool%20Hub&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2FSiteUpdater3.py%26locked%3D1",
+      "sourceUrl": "",
+      "can": [
+        "Index and route files across a static site",
+        "Host specialized viewers and workflow pages",
+        "Automate site updates with Python scripts"
+      ],
+      "cannot": [
+        "Replace a full application framework",
+        "Guarantee equal maturity across every tool",
+        "Expose private files safely by default"
+      ],
+      "exampleFiles": [
+        {
+          "label": "Site updater script",
+          "type": "py",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Engineering%20Tool%20Hub&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2FSiteUpdater3.py%26locked%3D1"
+        }
+      ]
+    },
+    {
+      "title": "Hydrostatics / CAD Viewer",
+      "status": "Prototype / active development",
+      "summary": "Experimental browser-based tools for technical 3D and CAD-related files with hydrostatic estimation workflows.",
+      "description": "Used and tested in Njord-related workflows, but presented here as a separate tooling project.",
+      "tags": ["CAD", "Hydrostatics", "JavaScript", "3D visualization", "Marine engineering"],
+      "imageUrl": "/diverse/portfolio-template/screenshots/njord.png",
+      "imageAlt": "Screenshot of the CAD and hydrostatics workspace",
+      "demoUrl": "/diverse/Njord/",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Hydrostatics%20%2F%20CAD%20Viewer&target=%2Fincludes%2FkodeLesere%2Ffusionview.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNJ26_MUN_HULL_ASM_MASTER.f3z%26locked%3D1",
+      "sourceUrl": "",
+      "can": [
+        "Inspect selected CAD and mesh files in browser workflows",
+        "Support hydrostatic estimation workflows",
+        "Connect geometry preview with marine-engineering context"
+      ],
+      "cannot": [
+        "Replace full CAD or hydrostatics software",
+        "Guarantee final-grade engineering accuracy",
+        "Handle every proprietary format without fallback"
+      ],
+      "exampleFiles": []
+    },
+    {
+      "title": "Code and File Viewer System",
+      "status": "Active",
+      "summary": "Browser-based viewer system for code, notebooks, documents and selected technical formats.",
+      "description": "Intended for quick inspection and workflow use, not as a full IDE.",
+      "tags": ["Code viewing", "Notebook preview", "Document routing", "Workflow support"],
+      "imageUrl": "/diverse/portfolio-template/screenshots/folknettside.png",
+      "imageAlt": "Screenshot representing the code and file viewer system",
+      "demoUrl": "/includes/kodeLesere/codeview.html?file=/Tools/find_maring.py",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Code%20and%20File%20Viewer&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2FTools%2Ffind_maring.py%26locked%3D1",
+      "sourceUrl": "",
+      "can": [
+        "Preview code and selected document formats",
+        "Route files to specialized viewers",
+        "Support quick study and project inspection"
+      ],
+      "cannot": [
+        "Replace a full IDE",
+        "Handle every large or proprietary file equally well",
+        "Expose private files safely by default"
+      ],
+      "exampleFiles": [
+        {
+          "label": "Python example",
+          "type": "py",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Python%20viewer%20example&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2FTools%2Ffind_maring.py%26locked%3D1"
+        },
+        {
+          "label": "JSON example",
+          "type": "json",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=JSON%20viewer%20example&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2Fdiverse%2Fportfolio%2Fportfolio-data.json%26locked%3D1"
+        },
+        {
+          "label": "HTML render example",
+          "type": "html",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=HTML%20viewer%20example&target=%2Fincludes%2FkodeLesere%2Fhtmlview.html%3Ffile%3D%2FTools%2FPeriodicTable%2Fperiodic-table.html%26locked%3D1"
+        },
+        {
+          "label": "Notebook example",
+          "type": "ipynb",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Notebook%20viewer%20example&target=%2Fincludes%2FkodeLesere%2Fnbview.html%3Ffile%3D%2Fsemestre%2F1%2Fitgk%2Ffiler%2F%25C3%2598ving1%2FIntro%2520til%2520jupyter.ipynb%26locked%3D1"
+        }
+      ]
+    },
+    {
+      "title": "KrystallStrukturer 3D Viewer",
+      "status": "Active",
+      "summary": "Interactive 3D viewer for crystal structures and geometric inspection.",
+      "description": "Used as a learning tool for materials and chemistry concepts.",
+      "tags": ["3D", "Chemistry", "Materials", "Education", "Visualization"],
+      "imageUrl": "/diverse/portfolio-template/screenshots/krystallstrukturer.png",
+      "imageAlt": "Screenshot of the crystal structure viewer",
+      "demoUrl": "/Tools/KrystallStrukturer/krystall-viewer.html",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=KrystallStrukturer%203D%20Viewer&target=%2FTools%2FKrystallStrukturer%2Fkrystall-viewer.html",
+      "sourceUrl": "",
+      "can": [
+        "Visualize crystal structures",
+        "Inspect geometry and coordination",
+        "Support materials learning"
+      ],
+      "cannot": [
+        "Replace crystallography refinement packages",
+        "Guarantee research-grade structural workflows"
+      ],
+      "exampleFiles": []
+    },
+    {
+      "title": "CoolProp Browser Workbench",
+      "status": "Prototype / active development",
+      "summary": "Web interface for thermodynamic property calculations powered by CoolProp-related logic.",
+      "description": "Intended for fast property lookup and engineering study workflows.",
+      "tags": ["Thermodynamics", "CoolProp", "Engineering study", "WebAssembly"],
+      "imageUrl": "/diverse/portfolio-template/screenshots/coolprop.png",
+      "imageAlt": "Screenshot of the CoolProp browser workbench",
+      "demoUrl": "/Tools/Coolprop/CoolPropForbedretKanksje2.html",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=CoolProp%20Browser%20Workbench&target=%2FTools%2FCoolprop%2FCoolPropForbedretKanksje2.html",
+      "sourceUrl": "",
+      "can": [
+        "Look up thermodynamic properties",
+        "Convert common engineering units",
+        "Support fast study-oriented calculations"
+      ],
+      "cannot": [
+        "Guarantee stable engine loading in every case",
+        "Replace report-level validation of calculations",
+        "Accept physically invalid inputs"
+      ],
+      "exampleFiles": []
+    },
+    {
+      "title": "Interactive Periodic Table",
+      "status": "Active",
+      "summary": "Responsive periodic table and chemistry/materials reference with filters and property views.",
+      "description": "Quick lookup interface for chemistry and materials workflows.",
+      "tags": ["Chemistry", "Materials", "Reference", "UI"],
+      "imageUrl": "/diverse/portfolio-template/screenshots/periodictable.png",
+      "imageAlt": "Screenshot of the interactive periodic table",
+      "demoUrl": "/Tools/PeriodicTable/periodic-table.html",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Interactive%20Periodic%20Table&target=%2FTools%2FPeriodicTable%2Fperiodic-table.html",
+      "sourceUrl": "",
+      "can": [
+        "Filter elements and properties",
+        "Provide quick chemistry and materials lookup"
+      ],
+      "cannot": [
+        "Replace authoritative reference checks for reports",
+        "Cover every chemistry workflow beyond reference use"
+      ],
+      "exampleFiles": []
+    },
+    {
+      "title": "Brygging / Hydrometer Dashboard",
+      "status": "Prototype / active development",
+      "summary": "Dashboard prototype for hydrometer data, brew logs and measurement-oriented workflows.",
+      "description": "Used to test filtering, local caching and dashboard UI patterns.",
+      "tags": ["Dashboard", "Data filtering", "Local cache", "Prototype"],
+      "imageUrl": "/diverse/portfolio-template/screenshots/brygging.png",
+      "imageAlt": "Screenshot of the brewing and hydrometer dashboard",
+      "demoUrl": "/diverse/Brygging/",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Brygging%20%2F%20Hydrometer%20Dashboard&target=%2Fdiverse%2FBrygging%2F",
+      "sourceUrl": "",
+      "can": [
+        "Prototype dashboard for hydrometer and log data",
+        "Test filtering, cache and visualization patterns"
+      ],
+      "cannot": [
+        "Claim stable production readiness",
+        "Guarantee healthy data endpoints at all times",
+        "Act as engineering analysis software"
+      ],
+      "exampleFiles": []
+    },
+    {
+      "title": "MedisinTimer",
+      "status": "Prototype / personal utility",
+      "summary": "Personal routine and timer prototype for time-based reminders and calculator-style workflows.",
+      "description": "Presented as a personal utility prototype, not medical advice.",
+      "tags": ["Reminder UI", "Timer logic", "Workflow prototype"],
+      "imageUrl": "/diverse/portfolio-template/screenshots/medisintimer.png",
+      "imageAlt": "Screenshot of the MedisinTimer prototype",
+      "demoUrl": "/diverse/MedisinTimer/",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=MedisinTimer&target=%2Fdiverse%2FMedisinTimer%2F",
+      "sourceUrl": "",
+      "can": [
+        "Support timer and reminder prototype workflows",
+        "Test time-based workflow UI"
+      ],
+      "cannot": [
+        "Provide medical advice",
+        "Act as a medical device",
+        "Replace user verification for real-world use"
+      ],
+      "exampleFiles": []
+    }
+  ],
+  "skillCategories": [
+    {
+      "title": "Marine engineering",
+      "skills": ["Naval architecture", "Hydrostatics", "Hydrodynamics", "Marine design", "Technical calculations"]
+    },
+    {
+      "title": "CAD and visualization",
+      "skills": ["CAD workflows", "3D visualization", "Browser viewers", "Geometry inspection", "Technical UI"]
+    },
+    {
+      "title": "Programming and tooling",
+      "skills": ["Python", "JavaScript", "HTML/CSS", "Automation", "JSON workflows", "Static-site tooling"]
+    },
+    {
+      "title": "Practical and team skills",
+      "skills": ["Cross-disciplinary teamwork", "Operations", "Safety awareness", "Reliability", "Prototyping", "Maintenance"]
+    }
+  ],
+  "analytics": {
+    "enabled": true,
+    "provider": "google-analytics",
+    "measurementId": "G-BJ41MZJP0L",
+    "events": [
+      "portfolio_tab_click",
+      "portfolio_project_demo_click",
+      "portfolio_project_preview_click",
+      "portfolio_project_source_click",
+      "portfolio_example_file_click",
+      "portfolio_linkedin_click",
+      "portfolio_github_click",
+      "portfolio_contact_click"
+    ]
+  }
+}

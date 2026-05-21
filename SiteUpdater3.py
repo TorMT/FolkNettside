@@ -19,7 +19,7 @@ Tilpasninger:
 """
 
 from __future__ import annotations
-import argparse, json, re, os, hashlib, subprocess, sys, shutil
+import argparse, json, re, os, hashlib, subprocess, sys, shutil, unicodedata, fnmatch
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
@@ -35,6 +35,7 @@ OVING_RE     = re.compile(r"^(?:\u00f8ving|oving|ving)0*(\d+)$", re.IGNORECASE)
 OVING_KEY    = re.compile(r"^oving(\d{2})$", re.IGNORECASE)
 CLEAN_RE     = re.compile(r"^[^0-9A-Za-z\u00c6\u00d8\u00c5\u00e6\u00f8\u00e5]+")
 BESKYTTET_RE = re.compile(r"beskyttet|hemmelig", re.IGNORECASE)
+MOJIBAKE_SEQUENCES = ("Ãƒ", "Ã‚", "Ã¢â‚¬", "Ã…")
 
 # âœ… Endring: lagt til ".html"
 ALLOWED_EXT = {
@@ -64,6 +65,8 @@ PREFERRED_SIDECAR_EXT = ".json"
 SKIP_IF_JSON_EXISTS_EXT = {".txt", ".md", ".list", ".links"}
 FUSION_ARCHIVE_EXTS = {".f3d", ".f3z", ".3fz", ".fbm"}
 FUSION_FALLBACK_HIDE_EXTS = {".3mf", ".3fm", ".fm3", ".step", ".stp"}
+NOINDEX_MARKER = ".noindex"
+SITEIGNORE_MARKER = ".siteignore"
 
 # Global cache
 _quiz_normalized: Set[Path] = set()
@@ -102,7 +105,7 @@ def sort_strings_natural(items: List[str]) -> None:
 
 def should_skip_index_file(name: str) -> bool:
     name_lower = name.lower()
-    if name_lower in {"index.html", "index.json", "aps-config.json"}:
+    if name_lower in {"index.html", "index.json", "aps-config.json", NOINDEX_MARKER, SITEIGNORE_MARKER}:
         return True
     if name_lower.endswith("_inview.html"):
         return True
@@ -196,6 +199,49 @@ def write_sidecar_bak(path: Path) -> None:
         return
     bak = path.with_name(path.name + ".bak")
     shutil.copy2(path, bak)
+
+@lru_cache(maxsize=2048)
+def has_noindex_marker(path_str: str) -> bool:
+    return (Path(path_str) / NOINDEX_MARKER).exists()
+
+@lru_cache(maxsize=2048)
+def load_siteignore_patterns(path_str: str) -> Tuple[str, ...]:
+    marker = Path(path_str) / SITEIGNORE_MARKER
+    if not marker.exists():
+        return ()
+    patterns: List[str] = []
+    try:
+        for raw_line in marker.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            patterns.append(line.replace("\\", "/"))
+    except Exception:
+        return ()
+    return tuple(patterns)
+
+def matches_siteignore(rel_path: str, patterns: Tuple[str, ...], is_dir: bool = False) -> bool:
+    rel = str(rel_path or "").replace("\\", "/").lstrip("./")
+    if not rel or not patterns:
+        return False
+    name = Path(rel).name
+    rel_lower = rel.lower()
+    name_lower = name.lower()
+    for pattern in patterns:
+        normalized = pattern.replace("\\", "/").strip()
+        if not normalized:
+            continue
+        normalized_lower = normalized.lower()
+        if normalized_lower.endswith("/"):
+            prefix = normalized_lower.rstrip("/")
+            if rel_lower == prefix or rel_lower.startswith(prefix + "/"):
+                return True
+            continue
+        if fnmatch.fnmatch(rel_lower, normalized_lower) or fnmatch.fnmatch(name_lower, normalized_lower):
+            return True
+        if is_dir and (rel_lower == normalized_lower or rel_lower.startswith(normalized_lower + "/")):
+            return True
+    return False
 
 def rollback_backup(root: Path, backup_root: Path, backup_id: str) -> int:
     if backup_id == "latest":
@@ -329,7 +375,7 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
     out: List[str] = []
     visited: Set[str] = set()
 
-    def scan_dir(d: str, prefix: str = "") -> None:
+    def scan_dir(d: str, prefix: str = "", inherited_patterns: Tuple[str, ...] = ()) -> None:
         # Resolve real path for loop detection
         try:
             real_path = os.path.realpath(d)
@@ -341,11 +387,18 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
         visited.add(real_path)
 
         try:
+            local_patterns = load_siteignore_patterns(d)
+            active_patterns = inherited_patterns + local_patterns
             with os.scandir(d) as it:
                 entries_in_dir = list(it)
                 sibling_names = {entry.name.lower() for entry in entries_in_dir}
                 for entry in entries_in_dir:
                     try:
+                        is_dir = entry.is_dir(follow_symlinks=True)
+                        rel_path = prefix + entry.name
+                        if matches_siteignore(rel_path, active_patterns, is_dir=is_dir):
+                            continue
+
                         if entry.is_file(follow_symlinks=True):
                             suf = os.path.splitext(entry.name)[1].lower() if entry.name else ""
                             if suf in ALLOWED_EXT:
@@ -368,10 +421,12 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
                                 else:
                                     out.append(prefix + entry.name)
 
-                        elif entry.is_dir(follow_symlinks=True):
+                        elif is_dir:
                             if entry.name.lower() in DEFAULT_BLACKLIST:
                                 continue
-                            scan_dir(entry.path, prefix + entry.name + "/")
+                            if has_noindex_marker(entry.path):
+                                continue
+                            scan_dir(entry.path, prefix + entry.name + "/", active_patterns)
                     except (PermissionError, OSError):
                         pass
         except (PermissionError, OSError):
@@ -729,6 +784,11 @@ def update_directory(
         return {}
     _visited_paths.add(real_path)
 
+    if has_noindex_marker(str(dir_path)):
+        print(f"[SKIP] {format_path(dir_path)} er merket med {NOINDEX_MARKER}")
+        _visited_paths.discard(real_path)
+        return {}
+
     index: Dict[str, object] = {}
 
     # Bruk os.scandir for maksimal ytelse
@@ -747,6 +807,7 @@ def update_directory(
     # Les lokalt blacklist fra eksisterende index.json (hvis finnes)
     idx_file = dir_path / "index.json"
     local_blacklist: Set[str] = set()
+    local_siteignore = load_siteignore_patterns(str(dir_path))
     try:
         if idx_file.exists():
             with open(idx_file, "r", encoding="utf-8") as f:
@@ -766,6 +827,8 @@ def update_directory(
 
     # 1) Velkomst
     for name, _is_dir, is_file in entries:
+        if matches_siteignore(name, local_siteignore, is_dir=False):
+            continue
         if should_use_as_welcome(name, is_file):
             index["welcome"] = name
             break
@@ -798,6 +861,8 @@ def update_directory(
     subdirs_to_process: List[Tuple[str, str, str]] = []
 
     for name, is_dir, is_file in entries:
+        if matches_siteignore(name, local_siteignore, is_dir=is_dir):
+            continue
         if name.lower() == "index.json":
             continue
         if is_dir and name.lower() == "quiz":
@@ -805,6 +870,8 @@ def update_directory(
 
         # Permanent blacklist: hopp over mapper som er listet i index.json -> "blacklist"
         if is_dir and name.lower() in combined_blacklist:
+            continue
+        if is_dir and has_noindex_marker(str(dir_path / name)):
             continue
 
         beskyttet = is_beskyttet(name)
@@ -1009,6 +1076,8 @@ def main(argv: Optional[List[str]] = None) -> None:
     clean_beskyttet.cache_clear()
     is_beskyttet.cache_clear()
     is_python_oving.cache_clear()
+    has_noindex_marker.cache_clear()
+    load_siteignore_patterns.cache_clear()
 
     # Bestem rekursjonsdybde
     max_depth = None

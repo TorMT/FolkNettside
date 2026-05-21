@@ -1,4 +1,4 @@
-﻿(function (global) {
+(function (global) {
   'use strict';
 
   const STYLE_LIBRARY = [
@@ -156,7 +156,7 @@
       url: 'https://help.stillspirits.com/hc/en-us/articles/360005510257-Turbo-Yeast-Range'
     },
     stillSpiritsNutrient: {
-      label: 'Still Spirits: DistillerÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢s Nutrient Light Spirits',
+      label: "Still Spirits: Distiller's Nutrient Light Spirits",
       url: 'https://www.stillspirits.com/products/nutrient-light-spirits'
     },
     scottNutrition: {
@@ -180,11 +180,11 @@
       url: 'https://www.audeamusdistilling.com/blogs/news/tomato-paste-wash'
     },
     bryggolDAP: {
-      label: 'Brygg ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œl: DAP',
+      label: 'Brygg \u00D8l: DAP',
       url: 'https://bryggol.no/produkt/diammonium-phosphate-dap-500g/'
     },
     bryggolFermaidO: {
-      label: 'Brygg ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œl: Fermaid O',
+      label: 'Brygg \u00D8l: Fermaid O',
       url: 'https://bryggol.no/produkt/fermaid-o-yeast-nutrient-50g/'
     }
   };
@@ -267,7 +267,7 @@
     if (!Array.isArray(range) || range.length < 2) return '--';
     const useDigits = Number.isFinite(digits) ? digits : 3;
     const end = suffix || '';
-    return range[0].toFixed(useDigits) + 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ' + range[1].toFixed(useDigits) + end;
+    return range[0].toFixed(useDigits) + '\u2013' + range[1].toFixed(useDigits) + end;
   }
 
   function classifyRangeFit(value, range, tolerance) {
@@ -341,7 +341,7 @@
           ...style,
           score,
           matchedAliases,
-          confidenceLabel: matchedAliases.length >= 2 ? 'HÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸y' : 'Moderat'
+          confidenceLabel: matchedAliases.length >= 2 ? 'H\u00F8y' : 'Moderat'
         };
       }
     });
@@ -536,7 +536,7 @@
     }
 
     const abvText = Number.isFinite(currentAbv)
-      ? 'Den forel?pige alkoholdannelsen ligger rundt ' + formatAbv(currentAbv) + ', mens et typisk sluttomr?de for stilen ofte ender rundt ' + formatRange(styleMatch.abvRange, 1, '%') + '.'
+      ? 'Den foreløpige alkoholdannelsen ligger rundt ' + formatAbv(currentAbv) + ', mens et typisk sluttområde for stilen ofte ender rundt ' + formatRange(styleMatch.abvRange, 1, '%') + '.'
       : 'Stilreferansen som brukes her er omtrent OG ' + formatRange(styleMatch.ogRange, 3, '') + ', FG ' + formatRange(styleMatch.fgRange, 3, '') + ' og ABV ' + formatRange(styleMatch.abvRange, 1, '%') + '.';
 
     return [
@@ -626,7 +626,7 @@
       } else if (fgFit === 'low') {
         styleTail = ' Prognosen peker mot et tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rrere sluttpunkt enn stilens kjerne tilsier.';
       } else if (fgFit === 'high') {
-        styleTail = ' Prognosen peker mot mer rests?dme enn stilens kjerne normalt tilsier.';
+        styleTail = ' Prognosen peker mot mer restsødme enn stilens kjerne normalt tilsier.';
       }
     }
 
@@ -691,11 +691,11 @@
     if (Number(device && device.filteredOutCount) >= 3) {
       alerts.push({
         severity: 'info',
-        title: 'St?y i m?leserien',
-        summary: 'Flere m?leutliggere er filtrert bort i perioden. Det styrker trenden, men tilsier at enkelthopp ikke b?r tolkes som prosessendring.',
+        title: 'Støy i måleserien',
+        summary: 'Flere måleutliggere er filtrert bort i perioden. Det styrker trenden, men tilsier at enkelthopp ikke bør tolkes som prosessendring.',
         actionSummary: 'Bruk filtrerte trendlinjer som hovedgrunnlag.',
         proActions: ['Kontroller kalibrering og fysisk plassering av Pillen.'],
-        hobbyActions: ['V?r forsiktig med enkeltspikes som ikke gjenfinnes i nabom?lingene.'],
+        hobbyActions: ['Vær forsiktig med enkeltspikes som ikke gjenfinnes i nabomålingene.'],
         links: []
       });
     }
@@ -707,7 +707,7 @@
         summary: 'Gravitykurven har flatet merkbart ut mens det fortsatt ser ut til ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦re gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rbart ekstrakt igjen. Dette ligner en treg eller delvis stuck fermentering.',
         actionSummary: 'Bekreft temperatur og gravity, resuspender gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r forsiktig og vurder restart eller nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring ut fra batchtype.',
         proActions: [
-          'Verifiser med en ny gravitym?ling og bygg en kontrollert restartstarter dersom batchen faktisk har stoppet.',
+          'Verifiser med en ny gravitymåling og bygg en kontrollert restartstarter dersom batchen faktisk har stoppet.',
           'Ved sen stuck fermentering: bruk acclimatisert restartgjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r fremfor ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ pitche tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rr gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r direkte.'
         ],
         hobbyActions: [
@@ -726,7 +726,7 @@
         actionSummary: 'Proff: organisk gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦rnÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring eller styrt DAP-tilfÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rsel. Hobby: restartstarter med enkel nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringskilde som tomatpure, heller enn ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ la batchen sulte videre.',
         proActions: [
           'Fermaid O er en kontrollert organisk nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringskilde for treg eller krevende fermentering.',
-          'DAP kan brukes som direkte nitrogenkilde n?r du faktisk mistenker nitrogenunderskudd og vil korrigere mer m?lrettet.'
+          'DAP kan brukes som direkte nitrogenkilde når du faktisk mistenker nitrogenunderskudd og vil korrigere mer målrettet.'
         ],
         hobbyActions: [
           'Tomatpure er en kjent husholdningslÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸sning i sukkerfermenter fordi den bidrar med nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ring i en ellers nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringsfattig base.',
@@ -750,7 +750,7 @@
         severity: 'warning',
         title: 'HÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸y gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ringstemperatur',
         summary: 'Temperaturen ligger klart over et komfortabelt arbeidsvindu. HÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸y varme kan gi stresset gjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦r, rask men ujevn drift og tidligere stopp.',
-        actionSummary: 'Senk temperaturen gradvis og unng? at batchen fortsetter oppover.',
+        actionSummary: 'Senk temperaturen gradvis og unngå at batchen fortsetter oppover.',
         proActions: ['Bruk aktiv temperaturstyring eller kjÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸lt vannbad for ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ batchen tilbake i et smalere vindu.'],
         hobbyActions: ['Flytt karet kaldere eller bruk vannbad og vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥tt hÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ndkle for ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥ bremse varmeutviklingen.'],
         links: [SOURCE_LIBRARY.stillSpiritsRange, SOURCE_LIBRARY.stillSpiritsStuck]

@@ -92,10 +92,14 @@
       return `/diverse/${h.replace(/^\.?\//, "")}`;
     };
 
+    const normalizeLabel = typeof window.normalizeUiText === 'function'
+      ? window.normalizeUiText
+      : function (value) { return String(value || ''); };
+
     const out = [];
     const seen = new Set();
     const pushLink = (label, href) => {
-      const cleanLabel = String(label || "").trim();
+      const cleanLabel = normalizeLabel(label).trim();
       const cleanHref = String(href || "").trim();
       const key = `${cleanLabel}::${cleanHref}`;
       if (!cleanLabel || !cleanHref || seen.has(key)) return;

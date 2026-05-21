@@ -1,0 +1,31 @@
+{
+  "source": "linkedin-manual",
+  "lastUpdated": "{{YYYY-MM-DD}}",
+  "profile": {
+    "headline": "{{LINKEDIN_HEADLINE}}",
+    "about": "{{LINKEDIN_ABOUT}}",
+    "location": "{{LOCATION}}",
+    "profileUrl": "{{LINKEDIN_URL}}"
+  },
+  "experience": [
+    {
+      "role": "{{ROLE_TITLE}}",
+      "organization": "{{ORGANIZATION}}",
+      "start": "{{START_DATE}}",
+      "end": "{{END_DATE_OR_PRESENT}}",
+      "location": "{{LOCATION}}",
+      "description": "{{SHORT_DESCRIPTION}}",
+      "skills": ["{{SKILL_1}}", "{{SKILL_2}}"]
+    }
+  ],
+  "education": [
+    {
+      "school": "{{SCHOOL}}",
+      "degree": "{{DEGREE}}",
+      "start": "{{START_DATE}}",
+      "end": "{{END_DATE}}",
+      "description": "{{DESCRIPTION}}"
+    }
+  ],
+  "skills": ["{{SKILL_1}}", "{{SKILL_2}}", "{{SKILL_3}}"]
+}

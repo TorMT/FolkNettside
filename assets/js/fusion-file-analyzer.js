@@ -118,7 +118,7 @@
   };
   let currentSidebarTab = "overview";
   const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410f";
-  const REPORT_CACHE_VERSION = "20260412e";
+  const REPORT_CACHE_VERSION = "20260521b";
   const MATERIAL_OVERRIDE_STORAGE_VERSION = "20260412g";
 
   function invalidateHydroReportState() {
@@ -268,6 +268,7 @@
   const FUSION_ARCHIVE_EXTS = new Set(["f3d", "f3z", "3fz", "fbm"]);
   const MESH_PREVIEW_EXTS = new Set(["3mf", "3fm", "fm3", "stl"]);
   const CAD_PREVIEW_EXTS = new Set(["step", "stp", "iges", "igs", "obj", "ply", "fbx", "gltf", "glb", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm", "slddrw"]);
+  const FUSION_HEAVY_ANALYSIS_LIMIT_BYTES = 24 * 1024 * 1024;
   let stlCandidate = (() => {
     const m = decodedFile.match(/^([^?#]+)([?#].*)?$/);
     const base = m?.[1] || decodedFile;
@@ -277,6 +278,7 @@
   let resolvedStlCandidate = "";
   let resolvedStepCandidate = "";
   let resolvedPreviewCandidate = "";
+  let sourceFileSizeBytes = null;
 
   btnRaw.href = decodedFile;
   headline.textContent = `Fil: ${displayFileName || fileName} (.${ext || "ukjent"})`;
@@ -348,6 +350,22 @@
   function fileExtFromUrl(value) {
     return (cleanUrlPath(value).match(/\.([^.\/]+)$/)?.[1] || "").toLowerCase();
   }
+  function indexedDirPrefix(value) {
+    const dir = String(value || "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+    return dir ? `${dir}/` : "";
+  }
+  function buildIndexedEntryUrl(basePath, dirName, entry) {
+    const raw = String(entry || "").trim();
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    const rel = raw.split("|")[0].replace(/^\.?\//, "");
+    return `${basePath}${indexedDirPrefix(dirName)}${rel}`;
+  }
+  function indexedDirNamesFromData(data) {
+    return [...new Set(Object.values(data || {})
+      .map((value) => typeof value?.dir === "string" ? value.dir : "")
+      .filter(Boolean))];
+  }
   function previewExtWeight(name) {
     const lower = String(name || "").toLowerCase();
     return (
@@ -382,6 +400,24 @@
       `${stem}.ply${suffix}`,
       `${stem}.stl${suffix}`
     ];
+  }
+  function sameStemMeshPreviewCandidates(url) {
+    return sameStemCandidates(url).filter((candidate) => MESH_PREVIEW_EXTS.has(fileExtFromUrl(candidate)));
+  }
+  function sameStemCandidatesInIndexedDirs(url, dirNames, extNames = [".3mf", ".3fm", ".fm3", ".stl"]) {
+    const cleanUrl = cleanUrlPath(url);
+    const slash = cleanUrl.lastIndexOf("/");
+    if (slash < 0) return [];
+    const basePath = cleanUrl.slice(0, slash + 1);
+    const fileBase = cleanUrl.slice(slash + 1).replace(/\.[^.\/?#]+$/i, "");
+    const suffix = String(url || "").slice(cleanUrl.length);
+    const candidates = [];
+    [...new Set((dirNames || []).map(indexedDirPrefix).filter(Boolean))].forEach((dirPrefix) => {
+      extNames.forEach((extName) => {
+        candidates.push(`${basePath}${dirPrefix}${fileBase}${extName}${suffix}`);
+      });
+    });
+    return candidates;
   }
   async function firstExistingCandidateByOrder(candidates) {
     const unique = [...new Set((candidates || []).filter(Boolean))];
@@ -459,9 +495,11 @@
       const candidates = [];
       Object.values(data || {}).forEach((value) => {
         if (!value || !Array.isArray(value.files)) return;
+        const dirName = typeof value?.dir === "string" ? value.dir : "";
         value.files.forEach((file) => {
           if (typeof file !== "string") return;
-          const fullUrl = /^https?:\/\//i.test(file) ? file : `${basePath}${file}`;
+          const fullUrl = buildIndexedEntryUrl(basePath, dirName, file);
+          if (!fullUrl) return;
           const extName = fileExtFromUrl(fullUrl);
           if (!allowedExts.has(extName)) return;
           const lowerBase = stripExt(basename(decodeDisplayText(fullUrl))).toLowerCase();
@@ -490,12 +528,34 @@
     );
     if (target) btnBambu.title = `Apner ${basenameFromUrl(target)} i Bambu Studio.`;
   }
+  function sourceStemTokens(sourceStem) {
+    return [...new Set(String(sourceStem || "").toLowerCase().split(/[_\-\s]+/).filter(Boolean))];
+  }
+  function candidateStem(name) {
+    return cleanUrlPath(name).split("/").pop()?.replace(/\.[^.]+$/i, "").toLowerCase() || "";
+  }
+  function candidateTokenMatchCount(name, sourceStem) {
+    const stem = candidateStem(name);
+    return sourceStemTokens(sourceStem)
+      .filter((token) => token.length >= 3)
+      .filter((token) => stem.includes(token)).length;
+  }
+  function hasStrongFusionStemMatch(name, sourceStem) {
+    const stem = candidateStem(name);
+    if (!stem || !sourceStem) return false;
+    if (stem === sourceStem) return true;
+    if (stem.includes(sourceStem) || sourceStem.includes(stem)) return true;
+    const tokens = sourceStemTokens(sourceStem).filter((token) => token.length >= 3);
+    if (!tokens.length) return false;
+    const matches = tokens.filter((token) => stem.includes(token)).length;
+    return tokens.length >= 3 ? matches >= 3 : matches === tokens.length;
+  }
   function candidateScore(name, sourceStem) {
-    const stem = String(name).replace(/\.[^.]+$/i, "").toLowerCase();
-    const tokens = [...new Set(sourceStem.split(/[_\-\s]+/).filter(Boolean))];
+    const stem = candidateStem(name);
+    const tokens = sourceStemTokens(sourceStem);
     return (
       (stem === sourceStem ? 100 : 0) +
-      ((stem.includes(sourceStem) || sourceStem.includes(stem)) ? 80 : 0) +
+      ((sourceStem && (stem.includes(sourceStem) || sourceStem.includes(stem))) ? 80 : 0) +
       tokens.filter((token) => stem.includes(token)).length
     );
   }
@@ -516,10 +576,13 @@
       const data = await fetchJsonCached(indexUrl);
       if (!data) return preferred;
       const siblingFiles = [];
-      Object.entries(data || {}).forEach(([key, value]) => {
+      Object.entries(data || {}).forEach(([, value]) => {
         if (!value || !Array.isArray(value.files)) return;
+        const dirName = typeof value?.dir === "string" ? value.dir : "";
         value.files.forEach((file) => {
-          if (typeof file === "string" && /\.stl(?:$|[?#])/i.test(file)) siblingFiles.push(file);
+          if (typeof file !== "string") return;
+          const fullUrl = buildIndexedEntryUrl(basePath, dirName, file);
+          if (fullUrl && /\.stl(?:$|[?#])/i.test(fullUrl)) siblingFiles.push(fullUrl);
         });
       });
       const unique = [...new Set(siblingFiles)];
@@ -527,7 +590,7 @@
 
       const sourceStem = (fileName || "").replace(/\.[^.]+$/i, "").toLowerCase();
       const normalized = unique.map((name) => {
-        const stem = String(name).replace(/\.[^.]+$/i, "").toLowerCase();
+        const stem = candidateStem(name);
         const score =
           stem === sourceStem ? 100 :
           stem.includes(sourceStem) || sourceStem.includes(stem) ? 80 :
@@ -537,8 +600,11 @@
 
       const chosen = normalized[0];
       if (!chosen) return preferred;
-      if (chosen.score > 0 || unique.length === 1) {
-        resolvedStlCandidate = `${basePath}${chosen.name}`;
+      if (FUSION_ARCHIVE_EXTS.has(ext) && !hasStrongFusionStemMatch(chosen.name, sourceStem)) {
+        return getActiveStlCandidate();
+      }
+      if (chosen.score > 0 || (!FUSION_ARCHIVE_EXTS.has(ext) && unique.length === 1)) {
+        resolvedStlCandidate = chosen.name;
       }
     } catch {}
     return getActiveStlCandidate();
@@ -561,8 +627,11 @@
       const siblingFiles = [];
       Object.entries(data || {}).forEach(([, value]) => {
         if (!value || !Array.isArray(value.files)) return;
+        const dirName = typeof value?.dir === "string" ? value.dir : "";
         value.files.forEach((file) => {
-          if (typeof file === "string" && /\.(step|stp)(?:$|[?#])/i.test(file)) siblingFiles.push(file);
+          if (typeof file !== "string") return;
+          const fullUrl = buildIndexedEntryUrl(basePath, dirName, file);
+          if (fullUrl && /\.(step|stp)(?:$|[?#])/i.test(fullUrl)) siblingFiles.push(fullUrl);
         });
       });
       const unique = [...new Set(siblingFiles)];
@@ -576,12 +645,15 @@
 
       const chosen = ranked[0];
       if (!chosen || chosen.score <= 0) return getActiveStepCandidate();
-      resolvedStepCandidate = `${basePath}${chosen.name}`;
+      resolvedStepCandidate = chosen.name;
     } catch {}
     return getActiveStepCandidate();
   }
   async function resolveSiblingPreviewCandidate() {
-    const existingSameStem = await firstExistingCandidateByOrder(sameStemCandidates(decodedFile));
+    const probeCandidates = FUSION_ARCHIVE_EXTS.has(ext)
+      ? sameStemMeshPreviewCandidates(decodedFile)
+      : sameStemCandidates(decodedFile);
+    const existingSameStem = await firstExistingCandidateByOrder(probeCandidates);
     if (existingSameStem) {
       resolvedPreviewCandidate = existingSameStem;
       if (/\.stl(?:$|[?#])/i.test(existingSameStem)) resolvedStlCandidate = existingSameStem;
@@ -593,12 +665,24 @@
       const indexUrl = `${basePath}index.json`;
       const data = await fetchJsonCached(indexUrl);
       if (!data) return getActivePreviewCandidate();
+      if (FUSION_ARCHIVE_EXTS.has(ext)) {
+        const nestedSameStem = await firstExistingCandidateByOrder(
+          sameStemCandidatesInIndexedDirs(decodedFile, indexedDirNamesFromData(data), [".3mf", ".3fm", ".fm3", ".stl"])
+        );
+        if (nestedSameStem) {
+          resolvedPreviewCandidate = nestedSameStem;
+          if (/\.stl(?:$|[?#])/i.test(nestedSameStem)) resolvedStlCandidate = nestedSameStem;
+          return resolvedPreviewCandidate;
+        }
+      }
       const siblingFiles = [];
       Object.entries(data || {}).forEach(([, value]) => {
         if (!value || !Array.isArray(value.files)) return;
+        const dirName = typeof value?.dir === "string" ? value.dir : "";
         value.files.forEach((file) => {
           if (typeof file !== "string") return;
-          if (/\.(3mf|3fm|fm3|step|stp|iges|igs|obj|glb|gltf|fbx|ply|stl|sat|smt|x_t|x_b|sldprt|sldasm|slddrw)(?:$|[?#])/i.test(file)) siblingFiles.push(file);
+          const fullUrl = buildIndexedEntryUrl(basePath, dirName, file);
+          if (fullUrl && /\.(3mf|3fm|fm3|step|stp|iges|igs|obj|glb|gltf|fbx|ply|stl|sat|smt|x_t|x_b|sldprt|sldasm|slddrw)(?:$|[?#])/i.test(fullUrl)) siblingFiles.push(fullUrl);
         });
       });
       const unique = [...new Set(siblingFiles)];
@@ -606,12 +690,18 @@
 
       const sourceStem = (fileName || "").replace(/\.[^.]+$/i, "").toLowerCase();
       const ranked = unique.map((name) => {
-        return { name, score: previewExtWeight(name) + candidateScore(name, sourceStem) };
+        const extName = fileExtFromUrl(name);
+        const matchScore = candidateScore(name, sourceStem);
+        return { name, extName, matchScore, score: previewExtWeight(name) + matchScore };
+      }).filter((entry) => {
+        if (!FUSION_ARCHIVE_EXTS.has(ext)) return true;
+        if (!MESH_PREVIEW_EXTS.has(entry.extName)) return false;
+        return hasStrongFusionStemMatch(entry.name, sourceStem);
       }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "nb"));
 
       const chosen = ranked[0];
       if (!chosen || chosen.score <= 0) return getActivePreviewCandidate();
-      resolvedPreviewCandidate = `${basePath}${chosen.name}`;
+      resolvedPreviewCandidate = chosen.name;
       if (/\.stl(?:$|[?#])/i.test(chosen.name)) resolvedStlCandidate = resolvedPreviewCandidate;
     } catch {}
     return getActivePreviewCandidate();
@@ -798,6 +888,19 @@
       applyHydroControlsToViewer({ includeDraftPose: true, silentEstimate: true });
     };
       viewerFrame.src = buildViewerTarget();
+  }
+
+  function renderDeferredViewerState(message = "3D-viewer er klar til å åpnes manuelt.") {
+    if (viewerLoading) viewerLoading.classList.add("is-hidden");
+    if (!viewerFrame) return;
+    viewerFrame.removeAttribute("src");
+    viewerFrame.srcdoc = `<!doctype html><html lang="no"><meta charset="utf-8"><style>body{margin:0;display:grid;place-items:center;min-height:100vh;background:#f5f7fb;color:#162033;font:16px/1.5 Segoe UI,Arial,sans-serif}.card{max-width:640px;margin:24px;padding:24px;border:1px solid rgba(15,35,75,.14);border-radius:18px;background:#fff;box-shadow:0 16px 38px rgba(14,30,58,.10)}h2{margin:0 0 10px;font-size:24px}p{margin:0;color:#51607a}</style><body><div class="card"><h2>Viewer pa vent</h2><p>${String(message).replace(/[&<>"]/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[ch]))}</p></div></body></html>`;
+  }
+
+  function canAutoLoadIntegratedViewer() {
+    if (!FUSION_ARCHIVE_EXTS.has(ext)) return true;
+    const previewCandidate = getActivePreviewCandidate();
+    return MESH_PREVIEW_EXTS.has(fileExtFromUrl(previewCandidate));
   }
 
   function setDisabled(el, disabled, titleWhenDisabled = "") {
@@ -4317,6 +4420,24 @@
     const extra = [];
     items.push(`<li>Formatstøtte: <span class="ok">${["stl", "step", "stp", "iges", "igs", "obj", "3mf", "3fm", "f3d", "f3z", "fbm", "fm3", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm"].includes(ext) ? "Forventet CAD/mesh-format" : "Ukjent format"}</span></li>`);
 
+    const isHeavyFusionArchive =
+      FUSION_ARCHIVE_EXTS.has(ext) &&
+      Number.isFinite(sourceFileSizeBytes) &&
+      sourceFileSizeBytes >= FUSION_HEAVY_ANALYSIS_LIMIT_BYTES;
+    if (isHeavyFusionArchive) {
+      items.push(`<li>Stor Fusion-container oppdaget: <b>${fmtBytes(sourceFileSizeBytes)}</b>.</li>`);
+      items.push("<li>Dyp containeranalyse er hoppet over ved første lasting for å unngå at siden fryser.</li>");
+      items.push("<li>Åpne 3D-viewer manuelt hvis du faktisk vil laste tung modellvisning.</li>");
+      if (getActivePreviewCandidate()) items.push(`<li>3D-kandidat: ${escapeHtml(basenameFromUrl(getActivePreviewCandidate()))}</li>`);
+      if (getActiveStepCandidate()) items.push(`<li>STEP-kandidat: ${escapeHtml(basenameFromUrl(getActiveStepCandidate()))}</li>`);
+      if (getActiveStlCandidate()) items.push(`<li>STL-kandidat: ${escapeHtml(basenameFromUrl(getActiveStlCandidate()))}</li>`);
+      renderComponentList([], "cad");
+      checks.innerHTML = listToHtml(items);
+      details.innerHTML = buildExtraDetailsHtml(extra);
+      buildHydroReport();
+      return;
+    }
+
     let ab = null;
     try {
       ab = await fetchArrayBufferCached(decodedFile);
@@ -4489,6 +4610,7 @@
     const headRes = await fetchHeadCached(decodedFile);
     if (headRes && headRes.ok) {
       const size = Number(headRes.headers.contentLength);
+      sourceFileSizeBytes = Number.isFinite(size) ? size : null;
       const type = headRes.headers.contentType || "ukjent";
       const mod = headRes.headers.lastModified;
       addMeta("Størrelse", fmtBytes(size));
@@ -4498,6 +4620,7 @@
         ? `Timeline: siste registrerte endring ${new Date(mod).toLocaleString("nb-NO")} (fra HTTP Last-Modified).`
         : "Timeline: ingen Last-Modified tilgjengelig for denne filen.";
     } else {
+      sourceFileSizeBytes = null;
       addMeta("Metadata", "HEAD ikke tilgjengelig");
       timeline.textContent = "Timeline: serveren ga ikke metadata via HEAD.";
     }
@@ -4620,6 +4743,12 @@
     resolveSiblingPreviewCandidate(),
     resolveSiblingStlCandidate(),
     resolveSiblingStepCandidate(),
-  ]).finally(() => loadIntegratedViewer());
+  ]).finally(() => {
+    if (canAutoLoadIntegratedViewer()) {
+      loadIntegratedViewer();
+      return;
+    }
+    renderDeferredViewerState("Denne Fusion-containeren autolastes ikke fordi det kan låse hele siden. Bruk 'Åpne i 3D-viewer' når du faktisk vil laste den.");
+  });
   run();
 })();

@@ -11,6 +11,13 @@
 
 (function() {
   'use strict';
+
+  if (!window.normalizeUiText && !document.querySelector('script[data-text-normalize-loader]')) {
+    const normalizeScript = document.createElement('script');
+    normalizeScript.src = '/assets/js/brewing/text-normalize.js?v=2';
+    normalizeScript.dataset.textNormalizeLoader = 'true';
+    (document.head || document.documentElement).appendChild(normalizeScript);
+  }
   
   // ============ FORHINDRE DUPLIKATER ============
   

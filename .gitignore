@@ -4,9 +4,19 @@ export/
 
 semestre/
 temp/
-diverse/
+diverse/*
+!diverse/portfolio-template/
+!diverse/portfolio-template/**
+!diverse/portfolio/
+!diverse/portfolio/**
 *.bak
 index.json
+__pycache__/
+*.pyc
+tmp_*
+temp_*
+*.orig
+*.backup_*
 
 # Personal or local folders not to push
 kontakt/
@@ -22,3 +32,18 @@ secrets/
 # VS Code local-only secrets/config
 .vscode/settings.json
 .vscode/launch.json
+
+# Local/private portfolio data
+diverse/portfolio-template/*.local.json
+diverse/portfolio-template/*.private.json
+diverse/portfolio-template/linkedin-token.json
+diverse/portfolio-template/linkedin-refresh-token.json
+diverse/portfolio-template/github-token.json
+diverse/portfolio-template/github-refresh-token.json
+diverse/portfolio-template/.env.linkedin
+diverse/portfolio-template/.env.portfolio
+diverse/portfolio-template/.env.github
+diverse/portfolio-template/private/
+diverse/portfolio-template/secrets/
+diverse/portfolio/**/*.local.json
+diverse/portfolio/**/*.private.json

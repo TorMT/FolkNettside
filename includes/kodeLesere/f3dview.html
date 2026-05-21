@@ -345,24 +345,53 @@
       return URL.createObjectURL(blob);
     }
 
+    const MESH_PREVIEW_EXTS = new Set(["3mf", "3fm", "fm3", "stl"]);
+
+    function cleanUrlPath(value) {
+      return String(value || "").split("?")[0].split("#")[0];
+    }
+
+    function previewExtWeight(url) {
+      const lower = cleanUrlPath(url).toLowerCase();
+      if (/\.(3mf|3fm|fm3)$/i.test(lower)) return 500;
+      if (/\.(step|stp)$/i.test(lower)) return 420;
+      if (/\.(iges|igs)$/i.test(lower)) return 390;
+      if (/\.(obj|glb|gltf|fbx|ply)$/i.test(lower)) return 340;
+      if (/\.stl$/i.test(lower)) return 300;
+      if (/\.(sat|smt|x_t|x_b|sldprt|sldasm|slddrw)$/i.test(lower)) return 260;
+      return 0;
+    }
+
+    function candidateStem(url) {
+      return cleanUrlPath(url).split("/").pop().replace(/\.[^/.]+$/, "").toLowerCase();
+    }
+
+    function sourceStemTokens(sourceStem = "") {
+      return [...new Set(String(sourceStem || "").toLowerCase().split(/[_\-\s]+/).filter(Boolean))];
+    }
+
+    function hasStrongFusionStemMatch(url, sourceStem = "") {
+      const stem = candidateStem(url);
+      if (!stem || !sourceStem) return false;
+      if (stem === sourceStem) return true;
+      if (stem.includes(sourceStem) || sourceStem.includes(stem)) return true;
+      const tokens = sourceStemTokens(sourceStem).filter((token) => token.length >= 3);
+      if (!tokens.length) return false;
+      const matches = tokens.filter((token) => stem.includes(token)).length;
+      return tokens.length >= 3 ? matches >= 3 : matches === tokens.length;
+    }
+
     function candidateScore(url, sourceStem = "") {
-      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
-      const lower = cleanUrl.toLowerCase();
-      const stem = cleanUrl.split("/").pop().replace(/\.[^/.]+$/, "").toLowerCase();
-      let score = 0;
-      if (/\.(3mf|3fm|fm3)$/i.test(lower)) score += 500;
-      else if (/\.(step|stp)$/i.test(lower)) score += 420;
-      else if (/\.(iges|igs)$/i.test(lower)) score += 390;
-      else if (/\.(obj|glb|gltf|fbx|ply)$/i.test(lower)) score += 340;
-      else if (/\.stl$/i.test(lower)) score += 300;
-      else if (/\.(sat|smt|x_t|x_b|sldprt|sldasm|slddrw)$/i.test(lower)) score += 260;
+      const stem = candidateStem(url);
+      let score = previewExtWeight(url);
       if (sourceStem && stem === sourceStem) score += 120;
       else if (sourceStem && (stem.includes(sourceStem) || sourceStem.includes(stem))) score += 60;
+      else score += sourceStemTokens(sourceStem).filter((token) => token.length >= 3 && stem.includes(token)).length * 10;
       return score;
     }
 
     function sameStemCandidates(url) {
-      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
+      const cleanUrl = cleanUrlPath(url);
       const match = cleanUrl.match(/^(.*?)(\.[^./?#]+)$/);
       if (!match) return [];
       const stem = match[1];
@@ -384,6 +413,45 @@
       ];
     }
 
+    function sameStemMeshPreviewCandidates(url) {
+      return sameStemCandidates(url).filter((candidate) => MESH_PREVIEW_EXTS.has(cleanUrlPath(candidate).match(/\.([^.\/?#]+)$/)?.[1]?.toLowerCase() || ""));
+    }
+
+    function indexedDirPrefix(value) {
+      const dir = String(value || "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+      return dir ? `${dir}/` : "";
+    }
+
+    function buildIndexedEntryUrl(baseDir, dirName, entry) {
+      const raw = String(entry || "").trim();
+      if (!raw) return "";
+      if (/^https?:\/\//i.test(raw)) return raw;
+      const rel = raw.split("|")[0].replace(/^\.?\//, "");
+      return `${baseDir}${indexedDirPrefix(dirName)}${rel}`;
+    }
+
+    function indexedDirNamesFromData(data) {
+      return [...new Set(Object.values(data || {})
+        .map((value) => typeof value?.dir === "string" ? value.dir : "")
+        .filter(Boolean))];
+    }
+
+    function sameStemCandidatesInIndexedDirs(url, dirNames, extNames = [".3mf", ".3fm", ".fm3", ".stl"]) {
+      const cleanUrl = cleanUrlPath(url);
+      const slash = cleanUrl.lastIndexOf("/");
+      if (slash < 0) return [];
+      const baseDir = cleanUrl.slice(0, slash + 1);
+      const fileBase = cleanUrl.slice(slash + 1).replace(/\.[^.\/?#]+$/i, "");
+      const suffix = String(url || "").slice(cleanUrl.length);
+      const candidates = [];
+      [...new Set((dirNames || []).map(indexedDirPrefix).filter(Boolean))].forEach((dirPrefix) => {
+        extNames.forEach((extName) => {
+          candidates.push(`${baseDir}${dirPrefix}${fileBase}${extName}${suffix}`);
+        });
+      });
+      return candidates;
+    }
+
     async function resolveSameStemPreview(url) {
       const candidates = sameStemCandidates(url);
       for (const candidate of candidates) {
@@ -392,8 +460,16 @@
       return "";
     }
 
-    async function resolveSiblingPreviewCandidateFromIndex(url) {
-      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
+    async function resolveSameStemMeshPreview(url) {
+      const candidates = sameStemMeshPreviewCandidates(url);
+      for (const candidate of candidates) {
+        if (await exists(candidate)) return candidate;
+      }
+      return "";
+    }
+
+    async function resolveSiblingPreviewCandidateFromIndex(url, { fusionMeshOnly = false } = {}) {
+      const cleanUrl = cleanUrlPath(url);
       const slash = cleanUrl.lastIndexOf("/");
       if (slash < 0) return "";
       const baseDir = cleanUrl.slice(0, slash + 1);
@@ -407,15 +483,27 @@
         }
         const data = await jsonCache.get(indexUrl);
         if (!data) return "";
+        if (fusionMeshOnly) {
+          const nestedSameStem = sameStemCandidatesInIndexedDirs(url, indexedDirNamesFromData(data));
+          for (const candidate of nestedSameStem) {
+            if (await exists(candidate)) return candidate;
+          }
+        }
         const candidates = [];
         Object.entries(data || {}).forEach(([key, value]) => {
           if (key === "welcome") return;
-          if (value && typeof value === "object" && value.dir) return;
           const files = Array.isArray(value?.files) ? value.files : [];
+          const dirName = typeof value?.dir === "string" ? value.dir : "";
           files.forEach((file) => {
             const entry = String(file || "").trim();
             if (!entry) return;
-            const fullUrl = /^https?:\/\//i.test(entry) ? entry : `${baseDir}${entry}`;
+            const fullUrl = buildIndexedEntryUrl(baseDir, dirName, entry);
+            if (!fullUrl) return;
+            if (fusionMeshOnly) {
+              const ext = cleanUrlPath(fullUrl).match(/\.([^.\/?#]+)$/)?.[1]?.toLowerCase() || "";
+              if (!MESH_PREVIEW_EXTS.has(ext)) return;
+              if (!hasStrongFusionStemMatch(fullUrl, sourceStem)) return;
+            }
             const score = candidateScore(fullUrl, sourceStem);
             if (score > 0) candidates.push({ url: fullUrl, score });
           });
@@ -428,7 +516,7 @@
     }
 
     function previewViewerUrl(url) {
-      const cleanUrl = String(url || "").split("?")[0].split("#")[0].toLowerCase();
+      const cleanUrl = cleanUrlPath(url).toLowerCase();
       const viewerPath = /\.(3mf|3fm|fm3)$/i.test(cleanUrl)
         ? "/includes/kodeLesere/3mfhydro.html"
         : "/includes/kodeLesere/stlview.html";
@@ -436,7 +524,7 @@
         ? "&fallback=1"
         : "";
       const hostFlag = hostMode ? `&host=${encodeURIComponent(hostMode)}` : "";
-      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260412j${fallbackFlag}${hostFlag}`;
+      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260521b${fallbackFlag}${hostFlag}`;
     }
 
     function isBrowserRenderablePreview(url) {
@@ -687,11 +775,16 @@
     });
 
     async function choosePreviewForFusion() {
+      const sourceStem = cleanUrlPath(sourceFile).split("/").pop().replace(/\.[^/.]+$/, "").toLowerCase();
       const [exact, explicitPreview, sibling, stl] = await Promise.all([
-        sourceFile ? resolveSameStemPreview(sourceFile) : Promise.resolve(""),
-        previewFile ? exists(previewFile).then((ok) => ok ? previewFile : "") : Promise.resolve(""),
-        sourceFile ? resolveSiblingPreviewCandidateFromIndex(sourceFile) : Promise.resolve(""),
-        stlCandidate ? exists(stlCandidate).then((ok) => ok ? stlCandidate : "") : Promise.resolve(""),
+        sourceFile ? resolveSameStemMeshPreview(sourceFile) : Promise.resolve(""),
+        previewFile && MESH_PREVIEW_EXTS.has(cleanUrlPath(previewFile).match(/\.([^.\/?#]+)$/)?.[1]?.toLowerCase() || "")
+          ? exists(previewFile).then((ok) => ok ? previewFile : "")
+          : Promise.resolve(""),
+        sourceFile ? resolveSiblingPreviewCandidateFromIndex(sourceFile, { fusionMeshOnly: true }) : Promise.resolve(""),
+        stlCandidate && hasStrongFusionStemMatch(stlCandidate, sourceStem)
+          ? exists(stlCandidate).then((ok) => ok ? stlCandidate : "")
+          : Promise.resolve(""),
       ]);
       if (exact) return exact;
       if (explicitPreview) return explicitPreview;
@@ -783,6 +876,6 @@
     });
   </script>
 
-<script type="module" src="../three/hydro-lab/HydroLabIntegration.js"></script>
+<script src="locked-view.js"></script>
 </body>
 </html>
