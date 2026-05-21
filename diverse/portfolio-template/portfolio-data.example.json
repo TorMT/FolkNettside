@@ -1,0 +1,81 @@
+{
+  "profile": {
+    "name": "{{FULL_NAME}}",
+    "title": "{{TITLE}}",
+    "location": "{{LOCATION}}",
+    "summary": "Short professional summary goes here.",
+    "email": "{{EMAIL}}"
+  },
+  "links": {
+    "linkedin": "{{LINKEDIN_URL}}",
+    "github": "{{GITHUB_URL}}",
+    "portfolio": "{{PORTFOLIO_URL}}"
+  },
+  "analytics": {
+    "enabled": false,
+    "provider": "google-analytics",
+    "measurementId": "{{GA_MEASUREMENT_ID}}",
+    "trackOutboundClicks": true,
+    "trackProjectClicks": true
+  },
+  "integrations": {
+    "enabled": false,
+    "safePublicDataUrl": "{{SAFE_PUBLIC_DATA_URL}}",
+    "github": {
+      "enabled": false,
+      "source": "server-public-json"
+    },
+    "linkedin": {
+      "enabled": false,
+      "source": "server-public-json"
+    }
+  },
+  "projects": [
+    {
+      "title": "Engineering Tool Platform",
+      "status": "Prototype",
+      "summary": "A personal platform for organizing technical resources and engineering tools.",
+      "description": "Dummy description. Replace this with a concrete project description.",
+      "tags": ["Python", "JavaScript", "Automation"],
+      "demoUrl": "{{DEMO_URL}}",
+      "sourceUrl": "{{SOURCE_URL}}"
+    },
+    {
+      "title": "CAD / Hydrostatics Viewer",
+      "status": "In development",
+      "summary": "Interactive viewer concept for CAD and hydrostatics learning assets.",
+      "description": "Dummy description. Replace this with a concrete project description.",
+      "tags": ["CAD", "Visualization", "Engineering"],
+      "demoUrl": "{{DEMO_URL}}",
+      "sourceUrl": "{{SOURCE_URL}}"
+    },
+    {
+      "title": "Student Design Team",
+      "status": "Active",
+      "summary": "Template entry for a multidisciplinary engineering collaboration project.",
+      "description": "Dummy description. Replace this with a concrete project description.",
+      "tags": ["Teamwork", "Systems", "Documentation"],
+      "demoUrl": "{{DEMO_URL}}",
+      "sourceUrl": "{{SOURCE_URL}}"
+    },
+    {
+      "title": "Data / Automation Tool",
+      "status": "Archived",
+      "summary": "Template entry for a data processing and automation utility.",
+      "description": "Dummy description. Replace this with a concrete project description.",
+      "tags": ["Data", "Automation", "Python"],
+      "demoUrl": "{{DEMO_URL}}",
+      "sourceUrl": "{{SOURCE_URL}}"
+    }
+  ],
+  "experience": [
+    {
+      "role": "{{ROLE_TITLE}}",
+      "organization": "{{ORGANIZATION}}",
+      "period": "{{START}} – {{END}}",
+      "description": "{{EXPERIENCE_DESCRIPTION}}",
+      "tags": ["{{SKILL_1}}", "{{SKILL_2}}"]
+    }
+  ],
+  "skills": ["CAD", "Python", "JavaScript", "Engineering analysis", "Technical documentation"]
+}

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>{{FULL_NAME}} — Engineering Portfolio</title>
+  <link rel="stylesheet" href="portfolio.css">
+</head>
+<body>
+  <header class="hero" id="top">
+    <div class="container">
+      <p class="eyebrow">Engineering Portfolio</p>
+      <h1 data-bind="profile.name">{{FULL_NAME}}</h1>
+      <p class="subtitle" data-bind="profile.title">{{TITLE}}</p>
+      <p class="meta" data-bind="profile.location">{{LOCATION}}</p>
+      <p class="summary" data-bind="profile.summary">Short professional summary goes here.</p>
+      <div class="hero-actions">
+        <a href="#projects" class="button primary" data-ga-event="portfolio_view_projects_click">View projects</a>
+        <a href="#contact" class="button" data-ga-event="portfolio_contact_click">Contact</a>
+        <a href="{{GITHUB_URL}}" data-bind-href="links.github" class="button ghost" target="_blank" rel="noopener" data-ga-event="portfolio_github_click">GitHub</a>
+        <a href="{{LINKEDIN_URL}}" data-bind-href="links.linkedin" class="button ghost" target="_blank" rel="noopener" data-ga-event="portfolio_linkedin_click">LinkedIn</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="about" class="panel">
+      <h2>About</h2>
+      <p data-bind="profile.summary">Short professional summary goes here.</p>
+    </section>
+
+    <section id="projects" class="panel">
+      <h2>Featured projects</h2>
+      <div id="project-grid" class="project-grid">
+        <article class="project-card">
+          <h3>Engineering Tool Platform</h3>
+          <p class="status">Prototype</p>
+          <p>A personal platform for organizing technical resources and engineering tools.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="experience" class="panel">
+      <h2>Engineering experience</h2>
+      <div id="experience-list" class="stack"></div>
+    </section>
+
+    <section id="skills" class="panel">
+      <h2>Skills</h2>
+      <ul id="skills-list" class="tag-list"></ul>
+    </section>
+
+    <section id="contact" class="panel">
+      <h2>Contact / links</h2>
+      <ul class="contact-list">
+        <li>Email: <a href="mailto:{{EMAIL}}" data-bind-email="profile.email" data-ga-event="portfolio_contact_click">{{EMAIL}}</a></li>
+        <li>LinkedIn: <a href="{{LINKEDIN_URL}}" data-bind-href="links.linkedin" target="_blank" rel="noopener" data-ga-event="portfolio_linkedin_click">{{LINKEDIN_URL}}</a></li>
+        <li>GitHub: <a href="{{GITHUB_URL}}" data-bind-href="links.github" target="_blank" rel="noopener" data-ga-event="portfolio_github_click">{{GITHUB_URL}}</a></li>
+        <li>Portfolio: <a href="{{PORTFOLIO_URL}}" data-bind-href="links.portfolio" target="_blank" rel="noopener">{{PORTFOLIO_URL}}</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="footer container">
+    <p>Portfolio template for professional use. Replace placeholders using local/private JSON files.</p>
+  </footer>
+
+  <script src="portfolio.js" defer></script>
+</body>
+</html>

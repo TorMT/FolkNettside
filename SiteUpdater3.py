@@ -19,7 +19,7 @@ Tilpasninger:
 """
 
 from __future__ import annotations
-import argparse, json, re, os, hashlib, subprocess, sys, shutil
+import argparse, json, re, os, hashlib, subprocess, sys, shutil, fnmatch
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
@@ -344,8 +344,11 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
             with os.scandir(d) as it:
                 entries_in_dir = list(it)
                 sibling_names = {entry.name.lower() for entry in entries_in_dir}
+                local_siteignore_patterns = load_siteignore_patterns(Path(d))
                 for entry in entries_in_dir:
                     try:
+                        if matches_siteignore(entry.name, local_siteignore_patterns):
+                            continue
                         if entry.is_file(follow_symlinks=True):
                             suf = os.path.splitext(entry.name)[1].lower() if entry.name else ""
                             if suf in ALLOWED_EXT:
@@ -371,6 +374,8 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
                         elif entry.is_dir(follow_symlinks=True):
                             if entry.name.lower() in DEFAULT_BLACKLIST:
                                 continue
+                            if (Path(entry.path) / ".noindex").exists():
+                                continue
                             scan_dir(entry.path, prefix + entry.name + "/")
                     except (PermissionError, OSError):
                         pass
@@ -382,6 +387,31 @@ def files_in_dir_for_index(dir_root: Path) -> List[str]:
     _file_cache[dir_root] = out
     return out
 
+
+
+def load_siteignore_patterns(dir_path: Path) -> List[str]:
+    file = dir_path / ".siteignore"
+    if not file.exists():
+        return []
+    patterns: List[str] = []
+    try:
+        for line in file.read_text(encoding="utf-8", errors="ignore").splitlines():
+            t = line.strip()
+            if t and not t.startswith("#"):
+                patterns.append(t)
+    except Exception:
+        return []
+    return patterns
+
+
+def matches_siteignore(name: str, patterns: List[str]) -> bool:
+    if not patterns:
+        return False
+    for pattern in patterns:
+        normalized = pattern.rstrip("/")
+        if fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(name, normalized):
+            return True
+    return False
 
 def _normalize_url(url: str) -> str:
     """Normaliser URL slik at duplikater oppdages bedre."""
@@ -744,6 +774,13 @@ def update_directory(
         _visited_paths.discard(real_path)
         return {}
 
+    # .noindex: hopp over mappe helt fra index/sidebar-generering
+    if (dir_path / ".noindex").exists():
+        _visited_paths.discard(real_path)
+        return {}
+
+    siteignore_patterns = load_siteignore_patterns(dir_path)
+
     # Les lokalt blacklist fra eksisterende index.json (hvis finnes)
     idx_file = dir_path / "index.json"
     local_blacklist: Set[str] = set()
@@ -799,6 +836,8 @@ def update_directory(
 
     for name, is_dir, is_file in entries:
         if name.lower() == "index.json":
+            continue
+        if matches_siteignore(name, siteignore_patterns):
             continue
         if is_dir and name.lower() == "quiz":
             continue
