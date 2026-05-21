@@ -311,7 +311,10 @@ class ThreeMFLoader extends Loader {
 
   _extractMetadataMap(node) {
     const map = {};
-    Array.from(node.querySelectorAll(':scope > metadata')).forEach((metaNode) => {
+    const directMetadata = Array.from(node.children || []).filter(
+      (child) => String(child?.tagName || '').toLowerCase() === 'metadata'
+    );
+    directMetadata.forEach((metaNode) => {
       const key = String(metaNode.getAttribute('name') || metaNode.getAttribute('key') || '').trim();
       if (!key) return;
       map[key] = (metaNode.textContent || '').trim();
