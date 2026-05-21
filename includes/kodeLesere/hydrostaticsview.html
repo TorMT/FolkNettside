@@ -164,7 +164,9 @@
       #container{ flex-direction:column; }
       #tableSection, #chartSection{ flex:0 1 300px; }
     }
+
   </style>
+  <script src="/includes/kodeLesere/locked-view.js" defer></script>
 </head>
 <body>
   <div id="hud">
@@ -400,8 +402,9 @@
       if (reportData) renderChart();
     });
 
-    // Håndter URL-parameter for filinnlasting
     const urlParams = new URLSearchParams(window.location.search);
+
+    // Håndter URL-parameter for filinnlasting
     const fileParam = urlParams.get('file');
     if (fileParam) {
       fetch(fileParam)

@@ -95,6 +95,22 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 - Implementasjonen ligger i `includes/sidebar-loader.js` og åpner Karakterweb i viewer når brukeren klikker knappen.
 - For at dette skal virke godt i egne kurssider, sett `{{COURSE_CODE}}` i `course-template.html`/genererte sider.
 
+
+### Låst visning (`locked=1`) for viewer/verktøy
+
+- Ja: med `?locked=1` (eller `locked=true`/`locked=yes`) maksimeres viewer/verktøy til hele fanen og vanlig UI (navbar/sidebar/toolbar/HUD) skjules.
+- Dette styres sentralt av `includes/kodeLesere/locked-view.js`, og er nå standard inkludert både i viewer-sidene under `includes/kodeLesere/` (inkl. Office/Word/Excel/PowerPoint-viewere) og i relevante verktøysider under `Tools/`.
+- Delte lenker beholder låst modus automatisk fordi scriptet propagere `locked=1` videre til interne lenker og iframes (samme origin).
+
+Eksempler:
+
+```
+/includes/kodeLesere/pdfview.html?file=/docs/eksempel.pdf&locked=1
+/includes/kodeLesere/stlview.html?file=/modeller/del.stl&locked=true
+/Tools/KrystallStrukturer/krystall-viewer.html?locked=1
+/Tools/Coolprop/CoolProp2.html?locked=1
+```
+
 ### Ekstra tools og verktøy (ikke nødvendig for grunnoppsett)
 
 Disse er valgfrie tillegg. Du trenger dem ikke for å kjøre en enkel kursside med navbar + sidebar:
