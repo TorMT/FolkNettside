@@ -941,9 +941,12 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
 .component-toolbar { margin-bottom: 8px; display:grid; gap:8px; }
 .explode-toolbar {
   display:grid;
-  grid-template-columns:auto minmax(0,1fr) auto auto;
+  grid-template-columns:auto auto minmax(0,1fr) auto auto;
   gap:8px;
   align-items:center;
+}
+.explode-toolbar select {
+  min-width: 160px;
 }
 .explode-toolbar input[type="range"] {
   width:100%;

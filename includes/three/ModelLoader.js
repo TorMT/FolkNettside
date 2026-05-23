@@ -41,6 +41,17 @@ async function fetchArrayBufferCached(url) {
   return ARRAY_BUFFER_CACHE.get(key);
 }
 
+function noop() {}
+
+async function defaultYieldControl() {
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+function throwIfAborted(signal) {
+  if (!signal?.aborted) return;
+  throw signal.reason || new DOMException("Aborted", "AbortError");
+}
+
 export class ModelLoader {
   constructor() {
     this.stlLoader = new STLLoader();
@@ -156,10 +167,14 @@ export class ModelLoader {
    * Last STL eller 3MF via fetch() og returner:
    * { mesh, geometry, volume, centroidLocal }
    */
-  async load(url) {
+  async load(url, options = {}) {
     if (!url) throw new Error("ModelLoader: url mangler");
+    const onProgress = typeof options.onProgress === "function" ? options.onProgress : noop;
+    const yieldControl = typeof options.yieldControl === "function" ? options.yieldControl : defaultYieldControl;
+    const signal = options.signal || null;
 
     console.info("[ModelLoader] Starter lasting:", url);
+    onProgress({ progress: 0.06, title: "Laster modell", message: "Henter modellbytes...", detail: url });
 
     const cleanUrl = String(url).split('?')[0].split('#')[0].toLowerCase();
     const is3MF = cleanUrl.endsWith('.3mf') || cleanUrl.endsWith('.3fm') || cleanUrl.endsWith('.fm3');
@@ -173,9 +188,11 @@ export class ModelLoader {
     const warmupOcct = (isStep || isIges) ? this.stepLoader.prewarm().catch(() => null) : null;
 
     const buf = await fetchArrayBufferCached(url);
+    throwIfAborted(signal);
     const cadText = (isStep || isIges) ? this._decodeTextBuffer(buf) : "";
     const cadSourceLengthUnit = (isStep || isIges) ? this._detectCadLengthUnit(cadText) : null;
     console.info("[ModelLoader] Bytes mottatt:", buf.byteLength);
+    onProgress({ progress: 0.12, title: "Laster modell", message: "Tolker filtype og parser geometri...", detail: `${buf.byteLength} bytes mottatt` });
 
     const isZip = buf.byteLength >= 4 && new DataView(buf).getUint32(0, true) === 0x04034b50;
     console.info("[ModelLoader] Filtypedeteksjon:", { cleanUrl, is3MF, isFusionArchive, isStep, isIges, isZip });
@@ -185,7 +202,18 @@ export class ModelLoader {
     if (is3MF || isFusionArchive || isZip || isStep || isIges) {
       // 3MF/Fusion loaders return arrays of components
       if (is3MF) {
-        components = await this.threeMFLoader.parse(buf);
+        components = await this.threeMFLoader.parse(buf, {
+          signal,
+          yieldControl,
+          onProgress: ({ progress = null, message = "", detail = "" } = {}) => {
+            onProgress({
+              progress: Number.isFinite(progress) ? 0.12 + (progress * 0.24) : 0.2,
+              title: "Parser 3MF",
+              message: message || "Tolker 3MF-mesh og objekter...",
+              detail,
+            });
+          },
+        });
       } else if (isStep) {
         await warmupOcct;
         components = await this.stepLoader.parse(buf, { format: 'step' });
@@ -206,6 +234,7 @@ export class ModelLoader {
       // STL loader is synchronous
       geometry = this.stlLoader.parse(buf);
     }
+    throwIfAborted(signal);
 
     let mesh;
     let componentNames = [];
@@ -218,7 +247,9 @@ export class ModelLoader {
       const normalizedComponents = [];
       const componentMassProps = [];
 
-      for (const comp of components) {
+      for (let compIndex = 0; compIndex < components.length; compIndex += 1) {
+        throwIfAborted(signal);
+        const comp = components[compIndex];
         const geometry = this._normalizeComponentGeometry(comp);
         if (!geometry) {
           console.warn("[ModelLoader] Hopper over ugyldig komponent:", comp);
@@ -288,12 +319,24 @@ export class ModelLoader {
             materialHint: derivedMaterialHint,
           },
         });
+
+        if ((compIndex + 1) % 18 === 0 && compIndex + 1 < components.length) {
+          onProgress({
+            progress: 0.42 + ((compIndex + 1) / components.length) * 0.26,
+            title: "Bygger modell",
+            message: "Normaliserer komponenter og masseegenskaper...",
+            detail: `${compIndex + 1} / ${components.length} komponenter`,
+          });
+          await yieldControl();
+        }
       }
 
       if (!group.children.length) {
         throw new Error("Fant ingen gyldig geometri i 3MF/Fusion-arkivet.");
       }
 
+      onProgress({ progress: 0.76, title: "Bygger modell", message: "Fletter aggregert geometri...", detail: `${group.children.length} deler klare` });
+      await yieldControl();
       const mergedGeometry = this._mergeComponentGeometries(normalizedComponents.map(c => c.geometry));
       if (mergedGeometry) {
         group.geometry = mergedGeometry;
@@ -322,6 +365,8 @@ export class ModelLoader {
       for (let i = 0; i < group.children.length; i++) {
         group.children[i].material = Array.isArray(material) ? material[i] : material;
       }
+      onProgress({ progress: 0.9, title: "Bygger modell", message: "Ferdigstiller materialer og metadata...", detail: `${componentNames.length} komponentnavn registrert` });
+      await yieldControl();
 
       mesh.userData.modelMeta = {
         ...meta,

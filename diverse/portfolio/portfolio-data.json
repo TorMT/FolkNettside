@@ -3,7 +3,7 @@
     "name": "Tor T\u00f8nnessen",
     "title": "M.Sc. Student in Marine Technology at NTNU | Naval Architect @ Njord NTNU | CAD, Hydrostatics, Python & Engineering Tools",
     "location": "Trondheim, Norway",
-    "summary": "M.Sc. student in Marine Technology at NTNU with interests in naval architecture, hydrodynamics, CAD, hydrostatics and technical software tools.",
+    "summary": "M.Sc. student in Marine Technology at NTNU with a particular interest in naval architecture, hydrodynamics, CAD, hydrostatics and technical software tools, combining Munin-related design work in Njord NTNU with browser-based engineering viewers and utilities.",
     "email": ""
   },
   "links": {
@@ -18,7 +18,7 @@
     },
     {
       "title": "Naval Architect @ Njord NTNU",
-      "summary": "Design and technical development work for autonomous maritime systems."
+      "summary": "Naval architecture team work around Munin with CAD iteration, geometry review and hydrostatics-oriented reasoning."
     },
     {
       "title": "Engineering tool platform",
@@ -35,7 +35,7 @@
       "role": "Naval Architect",
       "type": "Organization / student design team experience",
       "period": "Current",
-      "description": "Design and technical development for autonomous maritime systems with vessel and concept design, CAD modelling, hydrostatic assessments, technical calculations and production-oriented iteration.",
+      "description": "Part of the naval architecture team working on design and build workflows around Munin, combining CAD modelling, geometry iteration, hydrostatic reasoning and production-oriented design decisions.",
       "tags": ["Naval architecture", "CAD", "Hydrostatics", "Marine design", "Teamwork", "Prototyping"]
     },
     {
@@ -124,13 +124,47 @@
   ],
   "projects": [
     {
+      "title": "Munin Catamaran Preview",
+      "status": "Active preview",
+      "summary": "Direct preview entry for the Munin catamaran model used in my Njord-related CAD and geometry review workflow.",
+      "description": "Focused preview of the Munin catamaran in browser-based 3MF and Fusion/F3Z viewers.",
+      "tags": ["Munin", "3MF", "F3Z", "CAD", "Marine design"],
+      "imageUrl": "",
+      "imageAlt": "Focused previews of the Munin catamaran are available in 3MF and F3Z viewers",
+      "demoUrl": "/diverse/portfolio/preview/tool-preview.html?title=Munin%203MF%20Preview&subtitle=Focused%20preview%20of%20the%20Munin%20catamaran%203MF%20model.&target=%2Fincludes%2FkodeLesere%2F3mfhydro.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FForeldet%2FNJ26_MUN_HULL_ASM_MASTER.3mf%26locked%3D1",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Munin%203MF%20Preview&subtitle=Focused%20preview%20of%20the%20Munin%20catamaran%203MF%20model.&target=%2Fincludes%2FkodeLesere%2F3mfhydro.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FForeldet%2FNJ26_MUN_HULL_ASM_MASTER.3mf%26locked%3D1",
+      "sourceUrl": "",
+      "can": [
+        "Open the Munin catamaran directly in focused preview mode",
+        "Show a browser-based geometry view without the full Njord page",
+        "Switch between mesh-style and Fusion-style previews"
+      ],
+      "cannot": [
+        "Replace full CAD editing",
+        "Guarantee light performance for every assembly size",
+        "Act as access control"
+      ],
+      "exampleFiles": [
+        {
+          "label": "Munin 3MF viewer",
+          "type": "3mf",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Munin%203MF%20Preview&subtitle=Focused%20preview%20of%20the%20Munin%20catamaran%203MF%20model.&target=%2Fincludes%2FkodeLesere%2F3mfhydro.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FForeldet%2FNJ26_MUN_HULL_ASM_MASTER.3mf%26locked%3D1"
+        },
+        {
+          "label": "Munin Fusion viewer",
+          "type": "f3z",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Munin%20Fusion%20Preview&subtitle=Focused%20preview%20of%20the%20Munin%20catamaran%20Fusion%20assembly.&target=%2Fincludes%2FkodeLesere%2Ffusionview.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNJ26_MUN_HULL_ASM_MASTER.f3z%26locked%3D1"
+        }
+      ]
+    },
+    {
       "title": "Engineering Tool Hub / FolkNettside Platform",
       "status": "Active",
       "summary": "Personal technical platform for organizing study resources, course files and engineering tools.",
       "description": "Built with HTML, CSS, JavaScript, Python scripts and static-site tooling.",
       "tags": ["Python", "JavaScript", "HTML/CSS", "Automation", "Static site", "Tooling"],
-      "imageUrl": "/diverse/portfolio-template/screenshots/folknettside.png",
-      "imageAlt": "Screenshot of the FolkNettside platform",
+      "imageUrl": "/diverse/portfolio/screenshots/platform-home.png",
+      "imageAlt": "Screenshot of the FolkNettside platform home page",
       "demoUrl": "/",
       "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Engineering%20Tool%20Hub&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2FSiteUpdater3.py%26locked%3D1",
       "sourceUrl": "",
@@ -155,13 +189,13 @@
     {
       "title": "Hydrostatics / CAD Viewer",
       "status": "Prototype / active development",
-      "summary": "Experimental browser-based tools for technical 3D and CAD-related files with hydrostatic estimation workflows.",
-      "description": "Used and tested in Njord-related workflows, but presented here as a separate tooling project.",
+      "summary": "Browser-based mesh and CAD viewer workflow used to inspect Munin geometry and prototype hydrostatics-oriented calculations.",
+      "description": "Used in Munin-related design and review workflows, but presented here as a separate tooling project rather than organization experience.",
       "tags": ["CAD", "Hydrostatics", "JavaScript", "3D visualization", "Marine engineering"],
-      "imageUrl": "/diverse/portfolio-template/screenshots/njord.png",
-      "imageAlt": "Screenshot of the CAD and hydrostatics workspace",
-      "demoUrl": "/diverse/Njord/",
-      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Hydrostatics%20%2F%20CAD%20Viewer&target=%2Fincludes%2FkodeLesere%2Ffusionview.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNJ26_MUN_HULL_ASM_MASTER.f3z%26locked%3D1",
+      "imageUrl": "",
+      "imageAlt": "Focused Munin viewer previews are available through direct links",
+      "demoUrl": "/diverse/portfolio/#panel-munin-files",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Hydrostatics%20%2F%20CAD%20Viewer&subtitle=Focused%20preview%20of%20the%20Munin%203MF%20viewer.&target=%2Fincludes%2FkodeLesere%2F3mfhydro.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FForeldet%2FNJ26_MUN_HULL_ASM_MASTER.3mf%26locked%3D1",
       "sourceUrl": "",
       "can": [
         "Inspect selected CAD and mesh files in browser workflows",
@@ -173,18 +207,29 @@
         "Guarantee final-grade engineering accuracy",
         "Handle every proprietary format without fallback"
       ],
-      "exampleFiles": []
+      "exampleFiles": [
+        {
+          "label": "Munin STL preview",
+          "type": "stl",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Munin%20STL%20Preview&subtitle=Focused%20preview%20of%20an%20STL%20representation%20of%20Munin.&target=%2Fincludes%2FkodeLesere%2Fstlview.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FFusion360%C3%98ving%2FNjord26KatamaranMuninAssemblyV1.stl%26locked%3D1"
+        },
+        {
+          "label": "Munin Fusion preview",
+          "type": "f3z",
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Munin%20Fusion%20Preview&subtitle=Focused%20preview%20of%20the%20Munin%20Fusion%20assembly%20viewer.&target=%2Fincludes%2FkodeLesere%2Ffusionview.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2FMuninTing%2FNJ26_MUN_HULL_ASM_MASTER.f3z%26locked%3D1"
+        }
+      ]
     },
     {
       "title": "Code and File Viewer System",
       "status": "Active",
-      "summary": "Browser-based viewer system for code, notebooks, documents and selected technical formats.",
+      "summary": "Browser-based viewers for source files, notebooks, generated index data and selected technical HTML pages.",
       "description": "Intended for quick inspection and workflow use, not as a full IDE.",
       "tags": ["Code viewing", "Notebook preview", "Document routing", "Workflow support"],
-      "imageUrl": "/diverse/portfolio-template/screenshots/folknettside.png",
-      "imageAlt": "Screenshot representing the code and file viewer system",
-      "demoUrl": "/includes/kodeLesere/codeview.html?file=/Tools/find_maring.py",
-      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Code%20and%20File%20Viewer&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2FTools%2Ffind_maring.py%26locked%3D1",
+      "imageUrl": "/diverse/portfolio/screenshots/code-viewer.png",
+      "imageAlt": "Screenshot of the code viewer showing a marine-engineering Python file",
+      "demoUrl": "/includes/kodeLesere/codeview.html?file=/semestre/4/marin-Hydro/filer/%C3%98ving10/Holtrop.py",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Code%20and%20File%20Viewer&subtitle=Focused%20preview%20of%20a%20marine-engineering%20Python%20source%20file.&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2Fsemestre%2F4%2Fmarin-Hydro%2Ffiler%2F%C3%98ving10%2FHoltrop.py%26locked%3D1",
       "sourceUrl": "",
       "can": [
         "Preview code and selected document formats",
@@ -198,24 +243,63 @@
       ],
       "exampleFiles": [
         {
-          "label": "Python example",
+          "label": "Holtrop source",
           "type": "py",
-          "url": "/diverse/portfolio/preview/tool-preview.html?title=Python%20viewer%20example&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2FTools%2Ffind_maring.py%26locked%3D1"
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Python%20viewer%20example&subtitle=Focused%20preview%20of%20a%20marine-engineering%20Python%20source%20file.&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2Fsemestre%2F4%2Fmarin-Hydro%2Ffiler%2F%C3%98ving10%2FHoltrop.py%26locked%3D1"
         },
         {
-          "label": "JSON example",
+          "label": "Njord file index",
           "type": "json",
-          "url": "/diverse/portfolio/preview/tool-preview.html?title=JSON%20viewer%20example&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2Fdiverse%2Fportfolio%2Fportfolio-data.json%26locked%3D1"
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=JSON%20viewer%20example&subtitle=Focused%20preview%20of%20generated%20file-index%20data%20from%20the%20Njord%20tool%20area.&target=%2Fincludes%2FkodeLesere%2Fcodeview.html%3Ffile%3D%2Fdiverse%2FNjord%2Ffiler%2Findex.json%26locked%3D1"
         },
         {
-          "label": "HTML render example",
+          "label": "CoolProp page",
           "type": "html",
-          "url": "/diverse/portfolio/preview/tool-preview.html?title=HTML%20viewer%20example&target=%2Fincludes%2FkodeLesere%2Fhtmlview.html%3Ffile%3D%2FTools%2FPeriodicTable%2Fperiodic-table.html%26locked%3D1"
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=HTML%20viewer%20example&subtitle=Focused%20preview%20of%20an%20engineering%20tool%20HTML%20page.&target=%2Fincludes%2FkodeLesere%2Fhtmlview.html%3Ffile%3D%2FTools%2FCoolprop%2FCoolPropForbedretKanksje2.html%26locked%3D1"
         },
         {
-          "label": "Notebook example",
+          "label": "Marine hydro notebook",
           "type": "ipynb",
-          "url": "/diverse/portfolio/preview/tool-preview.html?title=Notebook%20viewer%20example&target=%2Fincludes%2FkodeLesere%2Fnbview.html%3Ffile%3D%2Fsemestre%2F1%2Fitgk%2Ffiler%2F%25C3%2598ving1%2FIntro%2520til%2520jupyter.ipynb%26locked%3D1"
+          "url": "/diverse/portfolio/preview/tool-preview.html?title=Notebook%20viewer%20example&subtitle=Focused%20preview%20of%20a%20marine-hydrodynamics%20notebook.&target=%2Fincludes%2FkodeLesere%2Fnbview.html%3Ffile%3D%2Fsemestre%2F4%2Fmarin-Hydro%2Ffiler%2FForelseningKode%2FForelsening2Kode.ipynb%26locked%3D1"
+        }
+      ]
+    },
+    {
+      "title": "Quiz and Leaderboard Module",
+      "status": "Active",
+      "summary": "Reusable browser-based quiz module with chapter filters, study mode, wrong-question mode and optional shared leaderboard support.",
+      "description": "Built as reusable site functionality for course-style pages with JSON-defined question sets, local persistence and optional PHP/SQLite leaderboard support.",
+      "tags": ["JavaScript", "Quiz engine", "Leaderboard", "JSON", "Course tools"],
+      "imageUrl": "/diverse/portfolio/screenshots/quiz-module-demo.png",
+      "imageAlt": "Screenshot of the portfolio quiz module demo",
+      "demoUrl": "/diverse/portfolio/preview/quiz-module-demo.html",
+      "previewUrl": "/diverse/portfolio/preview/quiz-module-demo.html",
+      "sourceUrl": "",
+      "can": [
+        "Render quizzes from JSON question sets",
+        "Support study mode, wrong-question mode and chapter filtering",
+        "Persist local progress and connect to an optional leaderboard backend"
+      ],
+      "cannot": [
+        "Replace a full LMS or exam platform",
+        "Work without curated question data and page wiring",
+        "Provide shared leaderboard features without the backend enabled"
+      ],
+      "exampleFiles": [
+        {
+          "label": "Focused quiz demo",
+          "type": "html",
+          "url": "/diverse/portfolio/preview/quiz-module-demo.html"
+        },
+        {
+          "label": "Quiz template",
+          "type": "json",
+          "url": "/includes/kodeLesere/codeview.html?file=/Quiz/templates/quiz.example.json&locked=1"
+        },
+        {
+          "label": "Leaderboard backend",
+          "type": "php",
+          "url": "/includes/kodeLesere/codeview.html?file=/Quiz/leaderboard.php&locked=1"
         }
       ]
     },
@@ -225,8 +309,8 @@
       "summary": "Interactive 3D viewer for crystal structures and geometric inspection.",
       "description": "Used as a learning tool for materials and chemistry concepts.",
       "tags": ["3D", "Chemistry", "Materials", "Education", "Visualization"],
-      "imageUrl": "/diverse/portfolio-template/screenshots/krystallstrukturer.png",
-      "imageAlt": "Screenshot of the crystal structure viewer",
+      "imageUrl": "/diverse/portfolio/screenshots/krystall-viewer.png",
+      "imageAlt": "Screenshot of the KrystallStrukturer 3D viewer",
       "demoUrl": "/Tools/KrystallStrukturer/krystall-viewer.html",
       "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=KrystallStrukturer%203D%20Viewer&target=%2FTools%2FKrystallStrukturer%2Fkrystall-viewer.html",
       "sourceUrl": "",
@@ -247,7 +331,7 @@
       "summary": "Web interface for thermodynamic property calculations powered by CoolProp-related logic.",
       "description": "Intended for fast property lookup and engineering study workflows.",
       "tags": ["Thermodynamics", "CoolProp", "Engineering study", "WebAssembly"],
-      "imageUrl": "/diverse/portfolio-template/screenshots/coolprop.png",
+      "imageUrl": "/diverse/portfolio/screenshots/coolprop-workbench.png",
       "imageAlt": "Screenshot of the CoolProp browser workbench",
       "demoUrl": "/Tools/Coolprop/CoolPropForbedretKanksje2.html",
       "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=CoolProp%20Browser%20Workbench&target=%2FTools%2FCoolprop%2FCoolPropForbedretKanksje2.html",
@@ -265,12 +349,35 @@
       "exampleFiles": []
     },
     {
+      "title": "Fluid Property Calculator",
+      "status": "Active",
+      "summary": "Browser-based calculator for fluid-property lookups and quick unit-aware study checks in a compact engineering workflow.",
+      "description": "Used as a lightweight study and reference tool for engineering workflows where quick fluid-property lookups are useful.",
+      "tags": ["Fluid mechanics", "Thermodynamics", "Engineering study", "Units"],
+      "imageUrl": "/diverse/portfolio/screenshots/fluid-property-calculator.png",
+      "imageAlt": "Screenshot of the fluid property calculator",
+      "demoUrl": "/Tools/FluidKalkulator.html",
+      "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Fluid%20Property%20Calculator&subtitle=Focused%20preview%20of%20the%20fluid-property%20calculator.&target=%2FTools%2FFluidKalkulator.html",
+      "sourceUrl": "",
+      "can": [
+        "Look up selected fluid properties in the browser",
+        "Support quick temperature and pressure comparison workflows",
+        "Provide fast unit-aware study checks"
+      ],
+      "cannot": [
+        "Replace verified engineering calculations",
+        "Remove the need to validate input ranges",
+        "Act as a full simulation environment"
+      ],
+      "exampleFiles": []
+    },
+    {
       "title": "Interactive Periodic Table",
       "status": "Active",
       "summary": "Responsive periodic table and chemistry/materials reference with filters and property views.",
       "description": "Quick lookup interface for chemistry and materials workflows.",
       "tags": ["Chemistry", "Materials", "Reference", "UI"],
-      "imageUrl": "/diverse/portfolio-template/screenshots/periodictable.png",
+      "imageUrl": "/diverse/portfolio/screenshots/periodic-table-viewer.png",
       "imageAlt": "Screenshot of the interactive periodic table",
       "demoUrl": "/Tools/PeriodicTable/periodic-table.html",
       "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Interactive%20Periodic%20Table&target=%2FTools%2FPeriodicTable%2Fperiodic-table.html",
@@ -291,8 +398,8 @@
       "summary": "Dashboard prototype for hydrometer data, brew logs and measurement-oriented workflows.",
       "description": "Used to test filtering, local caching and dashboard UI patterns.",
       "tags": ["Dashboard", "Data filtering", "Local cache", "Prototype"],
-      "imageUrl": "/diverse/portfolio-template/screenshots/brygging.png",
-      "imageAlt": "Screenshot of the brewing and hydrometer dashboard",
+      "imageUrl": "/diverse/portfolio/screenshots/brygging-dashboard.png",
+      "imageAlt": "Screenshot of the Brygging dashboard prototype",
       "demoUrl": "/diverse/Brygging/",
       "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=Brygging%20%2F%20Hydrometer%20Dashboard&target=%2Fdiverse%2FBrygging%2F",
       "sourceUrl": "",
@@ -313,7 +420,7 @@
       "summary": "Personal routine and timer prototype for time-based reminders and calculator-style workflows.",
       "description": "Presented as a personal utility prototype, not medical advice.",
       "tags": ["Reminder UI", "Timer logic", "Workflow prototype"],
-      "imageUrl": "/diverse/portfolio-template/screenshots/medisintimer.png",
+      "imageUrl": "/diverse/portfolio/screenshots/medisintimer-viewer.png",
       "imageAlt": "Screenshot of the MedisinTimer prototype",
       "demoUrl": "/diverse/MedisinTimer/",
       "previewUrl": "/diverse/portfolio/preview/tool-preview.html?title=MedisinTimer&target=%2Fdiverse%2FMedisinTimer%2F",

@@ -43,6 +43,7 @@
   const components = document.getElementById("components");
   const componentFilter = document.getElementById("componentFilter");
   const inpExplode = document.getElementById("inpExplode");
+  const selExplodeScope = document.getElementById("selExplodeScope");
   const txtExplodePct = document.getElementById("txtExplodePct");
   const txtExplodeHint = document.getElementById("txtExplodeHint");
   const btnExplodeReset = document.getElementById("btnExplodeReset");
@@ -71,6 +72,8 @@
     explode: 0,
     explodeSupported: false,
     explodeCount: 0,
+    explodeScope: "none",
+    explodeEnabled: false,
   };
   const selectionToolState = {
     isolateChosen: false,
@@ -453,8 +456,68 @@
       .map((token) => findComponentItem(token)?.key || "")
       .filter(Boolean);
   }
+
+  function normalizeExplodeScopeState() {
+    const chosenKeys = getResolvedChosenKeys();
+    if (!chosenKeys.length && viewerVisualState.explodeScope === "selected") {
+      viewerVisualState.explodeScope = (viewerVisualState.explode || 0) > 0.001 ? "all" : "none";
+    }
+    viewerVisualState.explodeEnabled = viewerVisualState.explodeScope !== "none" && (viewerVisualState.explode || 0) > 0.001;
+    selectionToolState.explodeChosen = viewerVisualState.explodeScope === "selected";
+    return viewerVisualState.explodeScope;
+  }
+
+  function getEffectiveExplodeScope() {
+    return normalizeExplodeScopeState();
+  }
+
   function getSelectionScopeKeys() {
-    return selectionToolState.explodeChosen ? getResolvedChosenKeys() : [];
+    return getEffectiveExplodeScope() === "selected" ? getResolvedChosenKeys() : [];
+  }
+
+  function sameComponentKeySet(keys, wantedSet) {
+    if (!Array.isArray(keys) || !wantedSet?.size || keys.length !== wantedSet.size) return false;
+    return keys.every((key) => wantedSet.has(key));
+  }
+
+  function describeExplodeSelection(keys = getResolvedChosenKeys()) {
+    if (!keys.length) return null;
+    if (keys.length === 1) {
+      return {
+        type: "item",
+        label: getComponentDisplayName(keys[0]),
+        keys,
+      };
+    }
+    const wantedSet = new Set(keys);
+    const families = buildComponentFamilies(componentState.items || []);
+    for (const family of families) {
+      for (const group of family.groups || []) {
+        const groupKeys = (group.items || []).map((item) => item.key).filter(Boolean);
+        if (sameComponentKeySet(groupKeys, wantedSet)) {
+          return {
+            type: "group",
+            label: group.longLabel || `${family.label} · ${group.label}`,
+            keys: groupKeys,
+          };
+        }
+      }
+    }
+    for (const family of families) {
+      const familyKeys = (family.items || []).map((item) => item.key).filter(Boolean);
+      if (sameComponentKeySet(familyKeys, wantedSet)) {
+        return {
+          type: "family",
+          label: family.label,
+          keys: familyKeys,
+        };
+      }
+    }
+    return {
+      type: "selection",
+      label: `${keys.length} valgte deler`,
+      keys,
+    };
   }
   function getSelectedComponentItems() {
     const keys = new Set(getResolvedChosenKeys());
@@ -793,17 +856,35 @@
     } catch {}
   }
   function postExplodeScopeToViewer() {
+    const scope = getEffectiveExplodeScope();
+    const chosenKeys = getResolvedChosenKeys();
     postViewerCommandToViewer("set-explode-scope", {
-      enabled: selectionToolState.explodeChosen,
-      keys: getSelectionScopeKeys(),
+      scope,
+      enabled: scope !== "none",
+      keys: scope === "selected" ? chosenKeys : [],
+      selectedComponentIds: chosenKeys,
+      explodeEnabled: viewerVisualState.explodeEnabled === true,
       amount: viewerVisualState.explode || 0,
+      showOnlySelected: selectionToolState.isolateChosen,
+      fadeUnselected: chosenKeys.length > 0 && !selectionToolState.isolateChosen,
     });
   }
 
   function updateExplodeUi() {
+    const chosenKeys = getResolvedChosenKeys();
+    const hasChosen = chosenKeys.length > 0;
+    const scope = getEffectiveExplodeScope();
+    const selectedDescriptor = describeExplodeSelection(chosenKeys);
+    const hasPotentialExplode = componentState.items.length > 1;
+    if (selExplodeScope) {
+      const selectedOption = selExplodeScope.querySelector('option[value="selected"]');
+      if (selectedOption) selectedOption.disabled = !hasChosen;
+      selExplodeScope.value = scope;
+      selExplodeScope.disabled = !hasPotentialExplode;
+    }
     if (inpExplode) {
       inpExplode.value = String(viewerVisualState.explode || 0);
-      inpExplode.disabled = !viewerVisualState.explodeSupported;
+      inpExplode.disabled = !hasPotentialExplode;
     }
     if (txtExplodePct) {
       txtExplodePct.textContent = viewerVisualState.explodeSupported
@@ -818,10 +899,27 @@
     if (btnExplodeReset) {
       btnExplodeReset.disabled = !viewerVisualState.explodeSupported && (viewerVisualState.explode || 0) <= 0;
     }
+    if (txtExplodeHint) {
+      if (!hasPotentialExplode) {
+        txtExplodeHint.textContent = "Explode krever minst 2 separate deler i modellen.";
+      } else if (scope === "selected" && !hasChosen) {
+        txtExplodeHint.textContent = "Velg en komponent, gruppe eller familie for lokal explode.";
+      } else if (scope === "selected") {
+        txtExplodeHint.textContent = `${viewerVisualState.explodeCount} valgte deler eksploderes lokalt rundt valgt sentrum. Aktivt scope: ${selectedDescriptor?.label || `${chosenKeys.length} valgte deler`}.`;
+      } else if (scope === "all") {
+        txtExplodeHint.textContent = `${viewerVisualState.explodeCount} deler eksploderes fra sammenstillingens sentrum. Nullstill explode før hydrojusteringer hvis du vil være på den sikre siden.`;
+      } else {
+        txtExplodeHint.textContent = "Explode er av. Velg scope og dra slideren for kontrollert CAD-lignende separasjon.";
+      }
+    }
+    if (btnExplodeReset) {
+      btnExplodeReset.disabled = (viewerVisualState.explode || 0) <= 0 && scope === "none";
+    }
   }
   function updateSelectionActionUi() {
     const chosenKeys = getResolvedChosenKeys();
     const hasChosen = chosenKeys.length > 0;
+    const hasPotentialExplode = componentState.items.length > 1;
     if (!hasChosen) {
       selectionToolState.isolateChosen = false;
       selectionToolState.explodeChosen = false;
@@ -831,8 +929,9 @@
       btnComponentView.textContent = selectionToolState.isolateChosen ? "Component view p\u00e5" : "Component view av";
     }
     if (btnSelectionExplode) {
-      btnSelectionExplode.disabled = !hasChosen || !viewerVisualState.explodeSupported;
+      btnSelectionExplode.disabled = !hasChosen || !hasPotentialExplode;
       btnSelectionExplode.textContent = selectionToolState.explodeChosen ? "Explode valgt p\u00e5" : "Explode valgt av";
+      btnSelectionExplode.textContent = getEffectiveExplodeScope() === "selected" ? "Explode valgt p\u00e5" : "Explode valgt av";
     }
     if (btnExportSelected) {
       btnExportSelected.disabled = !hasChosen;
@@ -883,6 +982,7 @@
       setHydroTaskState(true, "Regner hydrostatikk fra modellen...", "Modellen er lastet; volum, deplasement og stabilitet oppdateres i bakgrunnen.");
       postThemeToViewer();
       postComponentStateToViewer();
+      postExplodeScopeToViewer();
       postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode || 0 });
       postHydroVisibilityToViewer();
       applyHydroControlsToViewer({ includeDraftPose: true, silentEstimate: true });
@@ -1017,17 +1117,20 @@
     if (!getResolvedChosenKeys().length) return;
     selectionToolState.isolateChosen = !selectionToolState.isolateChosen;
     postComponentStateToViewer();
+    postExplodeScopeToViewer();
     updateSelectionActionUi();
   });
   btnSelectionExplode && (btnSelectionExplode.onclick = () => {
     if (!getResolvedChosenKeys().length || !viewerVisualState.explodeSupported) return;
-    selectionToolState.explodeChosen = !selectionToolState.explodeChosen;
-    if (selectionToolState.explodeChosen && (viewerVisualState.explode || 0) <= 0.001) {
+    viewerVisualState.explodeScope = getEffectiveExplodeScope() === "selected"
+      ? ((viewerVisualState.explode || 0) > 0.001 ? "all" : "none")
+      : "selected";
+    if (viewerVisualState.explodeScope === "selected" && (viewerVisualState.explode || 0) <= 0.001) {
       viewerVisualState.explode = 0.12;
-      updateExplodeUi();
-      postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode });
     }
+    updateExplodeUi();
     postExplodeScopeToViewer();
+    postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode });
     updateSelectionActionUi();
   });
   btnExportSelected && (btnExportSelected.onclick = () => {
@@ -1045,17 +1148,28 @@
     if (!toolsCard) return;
     toolsCard.style.display = toolsCard.style.display === "none" ? "" : "none";
   });
+  selExplodeScope?.addEventListener("change", () => {
+    viewerVisualState.explodeScope = selExplodeScope.value || "none";
+    updateExplodeUi();
+    postExplodeScopeToViewer();
+    postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode || 0 });
+    updateSelectionActionUi();
+  });
   inpExplode?.addEventListener("input", () => {
     viewerVisualState.explode = Math.max(0, Math.min(1, Number(inpExplode.value) || 0));
+    if ((viewerVisualState.explode || 0) > 0.001 && getEffectiveExplodeScope() === "none") {
+      viewerVisualState.explodeScope = "all";
+    }
     updateExplodeUi();
-    postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode });
     postExplodeScopeToViewer();
+    postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode });
   });
   btnExplodeReset?.addEventListener("click", () => {
     viewerVisualState.explode = 0;
+    viewerVisualState.explodeScope = "none";
     updateExplodeUi();
-    postViewerCommandToViewer("set-explode", { amount: 0 });
     postExplodeScopeToViewer();
+    postViewerCommandToViewer("set-explode", { amount: 0 });
   });
   selMaterial && (selMaterial.onchange = () => {
     if (selMaterial.value !== "custom") inpRhoMat.value = String(MATERIAL_DENSITY[selMaterial.value] || 7850);
@@ -3759,6 +3873,7 @@
       </div>
     `;
     postComponentStateToViewer();
+    updateExplodeUi();
     updateSelectionActionUi();
     postExplodeScopeToViewer();
   }

@@ -290,6 +290,10 @@ h4 {
   gap: 16px;
 }
 
+.timeline-card .project-links {
+  margin-top: 16px;
+}
+
 .timeline-top {
   display: flex;
   justify-content: space-between;
@@ -323,6 +327,40 @@ h4 {
   margin: 0;
   border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.75);
+}
+
+.project-media-banner {
+  padding: 22px;
+  background:
+    linear-gradient(145deg, rgba(13, 94, 114, 0.12), rgba(29, 125, 143, 0.18)),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.94), rgba(231, 241, 247, 0.82));
+}
+
+.project-banner {
+  min-height: 176px;
+  display: grid;
+  align-content: end;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid rgba(13, 94, 114, 0.14);
+  border-radius: calc(var(--radius) - 6px);
+  background:
+    radial-gradient(circle at top right, rgba(187, 120, 59, 0.18), transparent 30%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.94), rgba(229, 239, 246, 0.88));
+}
+
+.project-banner-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.74rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.project-banner p {
+  margin: 0;
+  color: var(--muted);
 }
 
 .project-image {
@@ -412,6 +450,93 @@ h4 {
 .capability-card {
   padding: 16px;
   background: rgba(255, 255, 255, 0.74);
+}
+
+.library-note {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 8px);
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--muted);
+}
+
+.library-note strong {
+  color: var(--text);
+}
+
+.library-note code,
+.file-path {
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.file-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.file-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(230, 240, 247, 0.74));
+}
+
+.file-card-loading {
+  justify-content: center;
+  min-height: 220px;
+}
+
+.file-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.file-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.74rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.file-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(13, 94, 114, 0.1);
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.file-card h3,
+.file-card p {
+  margin: 0;
+}
+
+.file-path {
+  color: var(--muted);
+  font-size: 0.88rem;
+  word-break: break-word;
+}
+
+.file-empty {
+  color: var(--muted);
 }
 
 .compact-list {
@@ -519,6 +644,7 @@ h4 {
   }
 
   .project-grid,
+  .file-library-grid,
   .highlight-grid,
   .info-grid,
   .skill-grid,

@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Focused preview of the FolkQuiz module with a small demonstration dataset.">
+  <title>Quiz Module Demo</title>
+  <style>
+    :root {
+      --bg: #eef4f8;
+      --panel: rgba(255, 255, 255, 0.9);
+      --panel-soft: rgba(241, 247, 251, 0.88);
+      --text: #182332;
+      --muted: #5d6c7c;
+      --accent: #0d5e72;
+      --accent-2: #1d7d8f;
+      --border: rgba(24, 35, 50, 0.12);
+      --shadow: 0 24px 60px rgba(24, 35, 50, 0.12);
+      --radius: 22px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Aptos", "Segoe UI", sans-serif;
+      line-height: 1.6;
+      background:
+        radial-gradient(circle at top left, rgba(29, 125, 143, 0.14), transparent 24%),
+        linear-gradient(180deg, #f7f2e8 0%, var(--bg) 100%);
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .page {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .panel,
+    .quiz-shell,
+    .mini-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 22px 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: "Bahnschrift", "Trebuchet MS", sans-serif;
+      line-height: 1.08;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 3vw, 2.9rem);
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1.3rem;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+
+    .subtitle,
+    .note,
+    .mini-card p,
+    .mini-card li,
+    .footer-copy {
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(13, 94, 114, 0.18);
+      background: rgba(255, 255, 255, 0.8);
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .button-primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 14px 18px;
+    }
+
+    .mini-grid {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .mini-card {
+      padding: 20px;
+      background: var(--panel-soft);
+    }
+
+    .mini-card ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .quiz-shell {
+      margin-top: 16px;
+      padding: 22px;
+    }
+
+    .quiz-host {
+      min-height: 320px;
+    }
+
+    .status {
+      padding: 18px;
+      border: 1px dashed rgba(13, 94, 114, 0.24);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .footer-copy {
+      margin-top: 18px;
+      font-size: 0.95rem;
+    }
+
+    body.embedded .header,
+    body.embedded .note,
+    body.embedded .mini-grid,
+    body.embedded .footer-copy {
+      display: none;
+    }
+
+    body.embedded .page {
+      max-width: none;
+      padding: 0;
+    }
+
+    body.embedded .quiz-shell {
+      margin-top: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    @media (max-width: 820px) {
+      .page {
+        padding: 12px;
+      }
+
+      .header {
+        flex-direction: column;
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="panel header">
+      <div>
+        <p class="eyebrow">Focused preview mode</p>
+        <h1>Quiz and Leaderboard Module</h1>
+        <p class="subtitle">
+          Demo of the reusable quiz module used on course-style pages, with JSON-defined questions,
+          study mode, wrong-question mode and optional leaderboard support.
+        </p>
+      </div>
+      <div class="actions">
+        <a class="button" href="/diverse/portfolio/">Back to portfolio</a>
+        <a class="button button-primary" href="/includes/kodeLesere/codeview.html?file=/Quiz/templates/quiz.example.json&locked=1" target="_blank" rel="noopener">Open JSON template</a>
+      </div>
+    </header>
+
+    <div class="panel note">
+      This is a focused preview of the quiz module itself rather than a full course page. Shared leaderboard support
+      exists in the codebase, but this preview keeps the backend optional and does not pretend to be a full LMS or exam system.
+    </div>
+
+    <div class="mini-grid">
+      <article class="mini-card">
+        <h2>Can</h2>
+        <ul>
+          <li>Render quizzes from JSON datasets</li>
+          <li>Support study mode, wrong-question mode and chapter filters</li>
+          <li>Reuse the same engine across multiple course-like pages</li>
+        </ul>
+      </article>
+      <article class="mini-card">
+        <h2>Limits</h2>
+        <ul>
+          <li>Depends on curated question sets and page wiring</li>
+          <li>Leaderboard features need the PHP/SQLite backend to be enabled</li>
+          <li>It is not intended as a full learning management system</li>
+        </ul>
+      </article>
+    </div>
+
+    <main class="quiz-shell">
+      <div id="quizStatus" class="status">Loading quiz module preview…</div>
+      <div id="quizHost" class="quiz-host" hidden></div>
+    </main>
+
+    <p class="footer-copy">
+      The buttons inside the quiz are part of the actual module flow. If you want the backend implementation, open the
+      JSON template or inspect <code>/Quiz/leaderboard.php</code> through the file viewer from the portfolio.
+    </p>
+  </div>
+
+  <script src="/includes/quiz-lite.js"></script>
+  <script>
+    (() => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("embedded") === "1") {
+        document.body.classList.add("embedded");
+      }
+
+      const statusEl = document.getElementById("quizStatus");
+      const host = document.getElementById("quizHost");
+
+      const demoData = {
+        id: "portfolio-quiz-module-demo",
+        title: "Quiz Module Demo",
+        description: "Short sample dataset for the portfolio preview.",
+        select: 4,
+        questions: [
+          {
+            type: "single",
+            chapter: "Viewer workflows",
+            text: "What is the main purpose of the focused preview links in the portfolio?",
+            options: [
+              "Hide the whole site permanently",
+              "Open one tool or file with less surrounding site chrome",
+              "Replace the underlying viewer implementation",
+              "Provide server-side access control"
+            ],
+            answer: [1],
+            explanation: "Focused previews are presentation links that open one selected tool or file in a cleaner context."
+          },
+          {
+            type: "multiple",
+            chapter: "Quiz module",
+            text: "Which capabilities are part of the quiz module in this repo?",
+            options: [
+              "JSON-defined questions",
+              "Study mode",
+              "Shared leaderboard backend",
+              "A full proctored exam platform"
+            ],
+            answer: [0, 1, 2],
+            explanation: "The module supports JSON-driven quizzes, multiple learning modes and optional shared leaderboard logic."
+          },
+          {
+            type: "truefalse",
+            chapter: "Engineering tools",
+            text: "The browser-side code/file viewers are meant to replace a full IDE.",
+            options: ["True", "False"],
+            answer: [1],
+            explanation: "They are intended for quick inspection and routing, not as a complete IDE replacement."
+          },
+          {
+            type: "text",
+            chapter: "Marine engineering",
+            text: "Write one keyword related to Munin-related design work shown in the portfolio.",
+            answer: ["cad", "hydrostatics", "geometry", "marine design"],
+            explanation: "Any of the accepted engineering keywords are treated as correct."
+          }
+        ]
+      };
+
+      function init() {
+        if (!window.FolkQuiz || typeof window.FolkQuiz.render !== "function") {
+          statusEl.textContent = "The quiz module could not be loaded in this preview.";
+          return;
+        }
+
+        statusEl.hidden = true;
+        host.hidden = false;
+        window.FolkQuiz.render(host, demoData, {
+          key: "portfolio-quiz-module-demo",
+          quizId: "portfolio-quiz-module-demo",
+          courseId: "portfolio",
+          baseUrl: window.location.href
+        });
+      }
+
+      if (document.readyState === "complete") init();
+      else window.addEventListener("load", init, { once: true });
+    })();
+  </script>
+</body>
+</html>

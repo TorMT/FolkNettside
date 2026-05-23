@@ -1396,12 +1396,19 @@
       const supported = !!core.canExplode?.();
       const count = core.getExplodablePartCount?.() || 0;
       const amount = core.getExplodeFactor?.() || 0;
+      const scope = core.getExplodeScope?.() || "all";
       if (rng) {
         rng.disabled = !supported;
         rng.value = String(amount);
       }
       if (txt) txt.textContent = supported ? `${Math.round(amount * 100)}%` : "av";
-      if (meta) meta.textContent = supported ? `${count} deler separeres visuelt` : "Krever minst 2 separate deler";
+      if (meta) {
+        meta.textContent = supported
+          ? (scope === "selected"
+            ? `${count} valgte deler separeres kontrollert`
+            : `${count} deler separeres kontrollert fra assembly-senter`)
+          : "Krever minst 2 separate deler";
+      }
       if (btn) btn.disabled = !supported && amount <= 0;
     }
 
@@ -1414,6 +1421,7 @@
             supported: !!core.canExplode?.(),
             count: core.getExplodablePartCount?.() || 0,
             amount: core.getExplodeFactor?.() || 0,
+            scope: core.getExplodeScope?.() || "all",
           }
         }, "*");
       } catch {}
@@ -1445,6 +1453,7 @@
     const componentViewState = {
       chosen: new Set(),
       muted: new Set(),
+      isolateChosen: false,
     };
     let pendingExplodeAmount = 0;
     const HYDRO_REPORT_CACHE_VERSION = "20260412a";
@@ -1534,10 +1543,11 @@
       const useChosenFocus = matchedChosen.length > 0;
 
       renderables.forEach((item) => {
-        const { object, key } = item;
+        const { object } = item;
         const isMuted = componentMatchesState(item, componentViewState.muted);
         const isChosen = componentMatchesState(item, componentViewState.chosen);
-        object.visible = !isMuted;
+        const hideUnselected = componentViewState.isolateChosen && useChosenFocus && !isChosen;
+        object.visible = !isMuted && !hideUnselected;
 
         const mats = Array.isArray(object.material) ? object.material : [object.material];
         mats.forEach((mat) => {
@@ -1545,7 +1555,7 @@
           rememberBaseMaterial(mat);
           restoreMaterialState(mat);
 
-          if (isMuted) {
+          if (isMuted || hideUnselected) {
             mat.opacity = 0;
             mat.transparent = true;
             mat.depthWrite = false;
@@ -1567,10 +1577,32 @@
       if (data.type === "viewer-component-state") {
         componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
         componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.isolateChosen = data.isolateChosen === true;
         applyComponentState();
         return;
       }
       if (data.type !== "viewer-command") return;
+
+      if (data.action === "set-explode-scope") {
+        const requestedScope = String(data.scope || "").toLowerCase();
+        const scope = requestedScope === "selected"
+          ? "selected"
+          : requestedScope === "none"
+            ? "none"
+            : (data.enabled === false ? "none" : "all");
+        core.setExplodeScope?.({
+          scope,
+          tokens: Array.isArray(data.keys) ? data.keys : [],
+        });
+        if (core.mesh) {
+          if ((pendingExplodeAmount || 0) > 0 || scope === "none") {
+            core.setExplodeFactor?.(pendingExplodeAmount || 0);
+          }
+          syncExplodeUiFromCore();
+          postExplodeInfoToParent();
+        }
+        return;
+      }
 
       if (data.action === "set-explode") {
         pendingExplodeAmount = Math.max(0, Math.min(1, Number(data.amount) || 0));

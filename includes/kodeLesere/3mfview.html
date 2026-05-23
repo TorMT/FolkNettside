@@ -128,6 +128,42 @@
 
   <script>
     let viewer = null;
+    let pendingUrlLoad = null;
+
+    function loadBlobIntoViewer(blob, fileName) {
+      if (!blob || !viewer) return false;
+      try {
+        if (typeof viewer.loadFromBlob === 'function') {
+          viewer.loadFromBlob(blob, fileName || 'model.3mf');
+          return true;
+        }
+        if (typeof viewer.sendFile === 'function') {
+          viewer.sendFile(new File([blob], fileName || 'model.3mf', { type: 'model/3mf' }));
+          return true;
+        }
+      } catch (error) {
+        console.error('Failed to pass blob to 3MF viewer:', error);
+      }
+      return false;
+    }
+
+    async function queueUrlLoad(fileUrl) {
+      if (!fileUrl) return;
+      try {
+        const response = await fetch(fileUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        const blob = new Blob([buffer]);
+        const fileName = fileUrl.split('/').pop() || 'model.3mf';
+        pendingUrlLoad = { blob, fileName };
+        if (viewer) {
+          loadBlobIntoViewer(blob, fileName);
+          pendingUrlLoad = null;
+        }
+      } catch (err) {
+        console.error('Failed to load file from URL:', err);
+      }
+    }
 
     // Load embed script dynamically
     const script = document.createElement('script');
@@ -142,6 +178,10 @@
           height: '100%',
           transparent: true
         });
+        if (pendingUrlLoad) {
+          const { blob, fileName } = pendingUrlLoad;
+          if (loadBlobIntoViewer(blob, fileName)) pendingUrlLoad = null;
+        }
       } else {
         console.error('3MF Viewer embed script not loaded');
       }
@@ -153,8 +193,11 @@
 
     function handleFileSelect(event) {
       const file = event.target.files[0];
-      if (file && viewer) {
-        viewer.sendFile(file);
+      if (file) {
+        pendingUrlLoad = { blob: file, fileName: file.name || 'model.3mf' };
+        if (viewer && loadBlobIntoViewer(file, file.name || 'model.3mf')) {
+          pendingUrlLoad = null;
+        }
       }
     }
 
@@ -170,15 +213,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     const fileParam = urlParams.get('file');
     if (fileParam) {
-      // Load file from URL
-      fetch(fileParam)
-        .then(response => response.arrayBuffer())
-        .then(buffer => {
-          if (viewer) {
-            viewer.loadFromBlob(new Blob([buffer]), fileParam.split('/').pop());
-          }
-        })
-        .catch(err => console.error('Failed to load file from URL:', err));
+      queueUrlLoad(fileParam);
     }
   </script>
 

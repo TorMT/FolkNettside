@@ -144,7 +144,7 @@
       min-width: 280px;
       display:none;
     }
-    .menu.show{ display:block; }
+    .menu.show, .menu.open{ display:block; }
     .row{ display:flex; gap:8px; align-items:center; margin:4px 0; }
     .row label{ flex:1; font-weight:800; }
     .chk{ display:flex; align-items:center; gap:6px; }
@@ -277,6 +277,29 @@
     }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
+    .report-status{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 12px;
+      margin-bottom:14px;
+      border:1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--bg-alt) 84%, var(--bg-card) 16%);
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .report-status[hidden]{ display:none; }
+    .report-status strong{
+      color: var(--text-main);
+      font-size: 14px;
+    }
+    .report-status small{
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
 
     /* Report table */
     #overviewTable {
@@ -367,6 +390,12 @@
       color: var(--text-muted);
       margin-bottom: 14px;
     }
+    .loading-meta{
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      font-variant-numeric: tabular-nums;
+    }
     .loading-bar{
       position: relative;
       width: 100%;
@@ -376,6 +405,9 @@
       background: color-mix(in srgb, var(--bg-main) 75%, var(--bg-card) 25%);
       border:1px solid var(--border-color);
     }
+    #loadingOverlay{
+      --loading-progress: .18;
+    }
     .loading-bar::before{
       content:"";
       position:absolute;
@@ -384,6 +416,12 @@
       border-radius:inherit;
       background: linear-gradient(90deg, transparent 0%, var(--primary) 28%, color-mix(in srgb, var(--primary) 60%, white 40%) 68%, transparent 100%);
       animation: loading-slide 1.2s ease-in-out infinite;
+    }
+    #loadingOverlay[data-determinate="true"] .loading-bar::before{
+      width: calc(var(--loading-progress) * 100%);
+      animation:none;
+      transform:none;
+      background: linear-gradient(90deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 65%, white 35%) 100%);
     }
     #loadingOverlay[data-tone="error"] .loading-card{
       border-color: rgba(239,68,68,.35);
@@ -401,20 +439,18 @@
     }
   </style>
 </head>
-
 <body>
-
   <div id="canvasHost"></div>
   <div id="hud">Laster 3MF...</div>
   <div id="loadingOverlay" aria-live="polite" aria-busy="true">
     <div class="loading-card">
       <div class="loading-title" id="loadingTitle">Laster modell</div>
       <div class="loading-subtitle" id="loadingText">3MF og hydrodata klargjores...</div>
+      <div class="loading-meta" id="loadingMeta">Starter...</div>
       <div class="loading-bar"></div>
     </div>
   </div>
 
-  <!-- Hydrostatikk-data og komponent-liste -->
   <div id="hydroDataWrap">
     <div id="componentList">
       <div style="margin-bottom: 12px; font-size: 12px; color: var(--text-muted); font-weight: 600;">KOMPONENTER</div>
@@ -436,7 +472,7 @@
           <input type="checkbox" id="toggleComponents" checked> Komponenter
         </label>
         <label style="display: block; margin: 4px 0; font-size: 13px;">
-          <input type="checkbox" id="toggleMarkers" checked> Markører (CB/CG)
+          <input type="checkbox" id="toggleMarkers" checked> Markorer (CB/CG)
         </label>
         <label style="display: block; margin: 4px 0; font-size: 13px;">
           <input type="checkbox" id="toggleWaterline" checked> Vannlinje
@@ -464,6 +500,7 @@
       </table>
     </div>
   </div>
+
   <style>
     #hydroDataWrap {
       margin: 70px auto 0 auto;
@@ -518,7 +555,7 @@
       width: 180px;
     }
     #hydroData td {
-      font-family: 'Consolas', 'Menlo', 'monospace';
+      font-family: 'Consolas', 'Menlo', monospace;
       font-weight: 600;
       color: var(--text-main, #222);
     }
@@ -527,883 +564,6 @@
       #componentList { flex-direction: row; margin-right: 0; gap: 8px; }
     }
   </style>
-    // --- Hydrostatikk-data UI ---
-    function updateHydroDataUI(hydroData) {
-      document.getElementById("hydro-vol").textContent = hydroData?.volume?.toFixed(3) || '?';
-      document.getElementById("hydro-disp").textContent = hydroData?.displacement?.toFixed(3) || '?';
-      document.getElementById("hydro-cb").textContent = hydroData?.cb ? `${hydroData.cb.x.toFixed(3)}, ${hydroData.cb.y.toFixed(3)}, ${hydroData.cb.z.toFixed(3)}` : '?';
-      document.getElementById("hydro-cg").textContent = hydroData?.cg ? `${hydroData.cg.x.toFixed(3)}, ${hydroData.cg.y.toFixed(3)}, ${hydroData.cg.z.toFixed(3)}` : '?';
-      document.getElementById("hydro-draft").textContent = hydroData?.draft?.toFixed(3) || '?';
-      document.getElementById("hydro-trim").textContent = hydroData?.trim?.toFixed(2) || '?';
-      document.getElementById("hydro-heel").textContent = hydroData?.heel?.toFixed(2) || '?';
-      document.getElementById("hydro-gm").textContent = hydroData?.gm?.toFixed(3) || '?';
-      document.getElementById("hydro-bm").textContent = hydroData?.bm?.toFixed(3) || '?';
-      document.getElementById("hydro-wp").textContent = hydroData?.wpArea?.toFixed(3) || '?';
-      document.getElementById("hydro-gz").textContent = hydroData?.gz?.toFixed(3) || '?';
-    }
-
-    // --- Komponent-liste highlight ---
-    let highlightedComponent = null;
-
-    function normalizeComponentName(value) {
-      return String(value || "").trim().toLowerCase();
-    }
-
-    function buildComponentAliasList(...values) {
-      return [...new Set(values
-        .flat()
-        .map((value) => normalizeComponentName(value))
-        .filter(Boolean))];
-    }
-
-    function componentMatchesState(item, tokenSet) {
-      if (!item || !tokenSet?.size) return false;
-      const aliases = Array.isArray(item.aliases) && item.aliases.length
-        ? item.aliases
-        : buildComponentAliasList(item.key, item.label, item.nodePath, item.sourceName);
-      return aliases.some((alias) => tokenSet.has(alias));
-    }
-
-    function roundComponentNumber(value, digits = 4) {
-      const n = Number(value);
-      if (!Number.isFinite(n)) return null;
-      const scale = 10 ** digits;
-      return Math.round(n * scale) / scale;
-    }
-
-    function getComponentSpatialData(object, root) {
-      if (!object?.geometry) return null;
-      try {
-        object.geometry.computeBoundingBox?.();
-        const localBox = object.geometry.boundingBox;
-        if (!localBox) return null;
-        const localCenter = localBox.getCenter(new THREE.Vector3());
-        const worldCenter = object.localToWorld(localCenter.clone());
-        const rootCenter = root?.worldToLocal ? root.worldToLocal(worldCenter.clone()) : worldCenter;
-        const worldBox = new THREE.Box3().setFromObject(object);
-        const worldSize = worldBox.getSize(new THREE.Vector3());
-        return {
-          center: {
-            x: roundComponentNumber(rootCenter.x),
-            y: roundComponentNumber(rootCenter.y),
-            z: roundComponentNumber(rootCenter.z),
-          },
-          size: {
-            x: roundComponentNumber(worldSize.x),
-            y: roundComponentNumber(worldSize.y),
-            z: roundComponentNumber(worldSize.z),
-          },
-        };
-      } catch {
-        return null;
-      }
-    }
-
-    function collectRenderableComponents(root) {
-      if (!root) return [];
-      const items = [];
-      root.traverse?.((child) => {
-        if (!child?.isMesh || !child.material) return;
-        const label = String(child.userData?.componentName || child.userData?.component || child.name || "").trim();
-        if (!label) return;
-        const spatial = getComponentSpatialData(child, root);
-        items.push({
-          object: child,
-          label,
-          key: normalizeComponentName(child.userData?.componentKey || label),
-          nodePath: String(child.userData?.nodePath || "").trim(),
-          sourceName: String(child.userData?.sourceName || "").trim(),
-          brepFaces: Number(child.userData?.brepFaces) || 0,
-          center: spatial?.center || null,
-          size: spatial?.size || null,
-          aliases: buildComponentAliasList(
-            child.userData?.componentKey,
-            label,
-            child.userData?.nodePath,
-            child.userData?.sourceName
-          ),
-        });
-      });
-      return items;
-    }
-
-    function collectComponentPayload(root) {
-      const byKey = new Map();
-      const pushItem = (label, extra = {}) => {
-        const cleanLabel = String(label || "").trim();
-        const key = normalizeComponentName(extra.key || cleanLabel);
-        if (!cleanLabel || !key || byKey.has(key)) return;
-        byKey.set(key, {
-          key,
-          label: cleanLabel,
-          subtitle: extra.subtitle || "",
-          description: extra.description || "",
-          center: extra.center || null,
-          size: extra.size || null,
-        });
-      };
-
-      const renderables = collectRenderableComponents(root);
-      if (renderables.length) {
-        renderables.forEach(({ label, key, nodePath, sourceName, brepFaces, center, size }) => {
-          pushItem(label, {
-            key,
-            subtitle: nodePath || sourceName,
-            description: brepFaces ? `${brepFaces} B-Rep-flater` : "",
-            center,
-            size,
-          });
-        });
-      } else if (Array.isArray(root?.userData?.componentNames)) {
-        root.userData.componentNames.forEach((name) => pushItem(name));
-      }
-      return [...byKey.values()];
-    }
-
-    function postComponentsToParent(root) {
-      try {
-        if (!window.parent || window.parent === window) return;
-        const items = collectComponentPayload(root);
-        if (!items.length) return;
-        window.parent.postMessage({ type: "viewer-components", items, mode: "mesh" }, "*");
-      } catch {}
-    }
-
-    function serializeVector(vec) {
-      if (!vec || !Number.isFinite(vec.x) || !Number.isFinite(vec.y) || !Number.isFinite(vec.z)) return null;
-      return {
-        x: roundComponentNumber(vec.x),
-        y: roundComponentNumber(vec.y),
-        z: roundComponentNumber(vec.z),
-      };
-    }
-
-    function serializeBounds(bounds) {
-      if (!bounds?.min || !bounds?.max) return null;
-      return {
-        min: serializeVector(bounds.min),
-        max: serializeVector(bounds.max),
-      };
-    }
-
-    function serializeMassProperties(massProps) {
-      if (!massProps) return null;
-      const components = Array.isArray(massProps.components) ? massProps.components : [];
-      return {
-        source: massProps.source || "mesh-components",
-        componentCount: Number.isFinite(massProps.componentCount) ? massProps.componentCount : components.length,
-        densityKgM3: roundComponentNumber(massProps.densityKgM3, 3),
-        densityResolved: massProps.densityResolved === true,
-        densityMode: massProps.densityMode || "",
-        densityNote: massProps.densityNote || "",
-        densitySourceCounts: massProps.densitySourceCounts || null,
-        defaultDensityKgM3: roundComponentNumber(massProps.defaultDensityKgM3, 3),
-        defaultDensitySource: massProps.defaultDensitySource || "",
-        massMethod: massProps.massMethod || "",
-        massMethodLabel: massProps.massMethodLabel || "",
-        totalVolumeM3: roundComponentNumber(massProps.totalVolumeM3, 6),
-        totalMassKg: roundComponentNumber(massProps.totalMassKg, 6),
-        totalMassTonnes: roundComponentNumber(massProps.totalMassTonnes, 6),
-        centerOfMassLocal: serializeVector(massProps.centerOfMassLocal),
-        centerOfMassWorld: serializeVector(massProps.centerOfMassWorld),
-        kgWorld: roundComponentNumber(massProps.kgWorld, 6),
-        inertiaCentroid: massProps.inertiaCentroid || null,
-        components: components.map((entry) => ({
-          key: entry?.key || "",
-          name: entry?.name || "",
-          nodePath: entry?.nodePath || "",
-          sourceName: entry?.sourceName || "",
-          volumeM3: roundComponentNumber(entry?.volumeM3, 6),
-          baseDensityKgM3: roundComponentNumber(entry?.baseDensityKgM3, 3),
-          densityKgM3: roundComponentNumber(entry?.densityKgM3, 3),
-          densitySource: entry?.densitySource || "",
-          sourceLabel: entry?.sourceLabel || "",
-          materialSlug: entry?.materialSlug || "",
-          materialLabel: entry?.materialLabel || "",
-          infillPercent: roundComponentNumber(entry?.infillPercent, 3),
-          supportsInfill: entry?.supportsInfill !== false,
-          massMode: entry?.massMode || "",
-          groupMassKg: roundComponentNumber(entry?.groupMassKg, 6),
-          massDistribution: entry?.massDistribution || "",
-          note: entry?.note || "",
-          massKg: roundComponentNumber(entry?.massKg, 6),
-          massTonnes: roundComponentNumber(entry?.massTonnes, 6),
-          centroidLocal: serializeVector(entry?.centroidLocal),
-        })),
-      };
-    }
-
-    function buildHydroPayload() {
-      if (!hydro?.mesh) return { supported: false };
-      const last = hydro.getLastResults?.() || hydro.lastHydro || {};
-      const ref = hydro.getReferenceBoundsNoHydroRot?.() || null;
-      const unitMeta = getViewerUnitMeta();
-      const hasHydroSolution = Number.isFinite(last.subV);
-      const massProps = serializeMassProperties(hydro.getMassProperties?.());
-      const modelMassTonnes = Number.isFinite(massProps?.totalMassTonnes) ? massProps.totalMassTonnes : null;
-      const displacementTonnes = hasHydroSolution ? roundComponentNumber((last.subV * hydro.waterDensity) / 1000, 6) : null;
-      const draftZWorld = Number.isFinite(hydro.draftZWorld) ? hydro.draftZWorld : null;
-      const draftMeters = Number.isFinite(draftZWorld) && Number.isFinite(ref?.min?.z) ? Math.max(0, draftZWorld - ref.min.z) : null;
-      const length = ref ? Math.abs(ref.max.x - ref.min.x) : null;
-      const beam = ref ? Math.abs(ref.max.y - ref.min.y) : null;
-      const depth = ref ? Math.abs(ref.max.z - ref.min.z) : null;
-      return {
-        supported: true,
-        source: "3MF viewer",
-        modelKind: "3MF",
-        length: length == null ? null : roundComponentNumber(length, 6),
-        beam: beam == null ? null : roundComponentNumber(beam, 6),
-        depth: depth == null ? null : roundComponentNumber(depth, 6),
-        hasHydroSolution,
-        pendingHydro: !hasHydroSolution,
-        draftZWorld: draftZWorld == null ? null : roundComponentNumber(draftZWorld),
-        draftMeters: draftMeters == null ? null : roundComponentNumber(draftMeters),
-        trimDeg: roundComponentNumber(hydro.trimDeg, 3),
-        heelDeg: roundComponentNumber(hydro.heelDeg, 3),
-        waterDensity: roundComponentNumber(hydro.waterDensity, 3),
-        units: unitMeta.units,
-        sourceUnits: unitMeta.sourceUnits,
-        unitNote: unitMeta.unitNote,
-        quality: hydro.quality || hydro.userQuality || "low",
-        visibility: {
-          waterline: hydro.wlVisible !== false,
-          waterlineContour: hydro.wlContourVisible !== false,
-          markers: {
-            cg: hydro.markersVisible?.cg !== false,
-            cb: hydro.markersVisible?.cb !== false,
-          },
-        },
-        referenceBounds: serializeBounds(ref),
-        submergedVolume: hasHydroSolution ? roundComponentNumber(last.subV, 6) : null,
-        displacementTonnes,
-        modelMassTonnes,
-        massGapTonnes: Number.isFinite(displacementTonnes) && Number.isFinite(modelMassTonnes)
-          ? roundComponentNumber(displacementTonnes - modelMassTonnes, 6)
-          : null,
-        cb: serializeVector(last.cbW),
-        cg: serializeVector(last.cgW),
-        wpArea: roundComponentNumber(last.wp?.A, 6),
-        kb: roundComponentNumber(last.kb, 6),
-        kg: roundComponentNumber(last.kg, 6),
-        bm: {
-          roll: roundComponentNumber(last.bm?.roll, 6),
-          pitch: roundComponentNumber(last.bm?.pitch, 6),
-        },
-        gm: {
-          roll: roundComponentNumber(last.gm?.roll, 6),
-          pitch: roundComponentNumber(last.gm?.pitch, 6),
-        },
-        gz: {
-          roll: roundComponentNumber(last.gz_now?.roll, 6),
-          pitch: roundComponentNumber(last.gz_now?.pitch, 6),
-        },
-        massProperties: massProps,
-      };
-    }
-
-    function postAnalysisToParent(root, summary = {}) {
-      try {
-        if (!window.parent || window.parent === window || !root) return;
-        const bounds = core.computeBoundsWorld(core.modelGroup);
-        const box = bounds?.box;
-        const unitMeta = getViewerUnitMeta();
-        if (!box) return;
-        window.parent.postMessage({
-          type: "viewer-analysis",
-          payload: {
-            bbox: {
-              minX: box.min.x,
-              minY: box.min.y,
-              minZ: box.min.z,
-              maxX: box.max.x,
-              maxY: box.max.y,
-              maxZ: box.max.z,
-            },
-            volume: Number.isFinite(summary.volume) ? summary.volume : (Number.isFinite(root.userData?.volume) ? root.userData.volume : null),
-            centroidLocal: summary.centroidLocal
-              ? { x: summary.centroidLocal.x, y: summary.centroidLocal.y, z: summary.centroidLocal.z }
-              : serializeVector(root.userData?.centroidLocal),
-            units: unitMeta.units,
-            sourceUnits: unitMeta.sourceUnits,
-            unitNote: unitMeta.unitNote,
-            source: "3MF viewer",
-            materialHint: root.userData?.modelMeta?.materialHint || null,
-            materialHintSource: root.userData?.modelMeta?.materialHint ? "3MF-modell" : "",
-            massProperties: serializeMassProperties(hydro?.getMassProperties?.()),
-            hydro: buildHydroPayload(),
-          }
-        }, "*");
-      } catch {}
-    }
-
-    function postHydroProgressToParent({ progress = 0, title = "", text = "", etaMs = null, kind = "report" } = {}) {
-      try {
-        if (!window.parent || window.parent === window) return;
-        window.parent.postMessage({
-          type: "viewer-hydro-progress",
-          payload: {
-            progress: Math.max(0, Math.min(1, Number(progress) || 0)),
-            title: title || "Genererer hydro-rapport...",
-            text: text || "",
-            etaMs: Number.isFinite(Number(etaMs)) ? Number(etaMs) : null,
-            kind,
-          },
-        }, "*");
-      } catch {}
-    }
-
-    function getHydroQualityPreset(quality, performanceMode = false) {
-      if (performanceMode) {
-        if (quality === "high") return { stepDeg: 2.5, draftCount: 26, sectionCount: 22 };
-        if (quality === "med") return { stepDeg: 4.5, draftCount: 18, sectionCount: 16 };
-        return { stepDeg: 7, draftCount: 12, sectionCount: 12 };
-      }
-      if (quality === "high") return { stepDeg: 1, draftCount: 44, sectionCount: 42 };
-      if (quality === "med") return { stepDeg: 2, draftCount: 30, sectionCount: 30 };
-      return { stepDeg: 4, draftCount: 20, sectionCount: 22 };
-    }
-
-    async function buildHydroReportPayload(options = {}) {
-      if (!hydro?.mesh) return null;
-      if (options.forceRecalc) invalidateHydroReportCache();
-      if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
-      if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
-      hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
-      const quality = options.quality || hydro.quality || "low";
-      const performanceMode = options.performanceMode === true;
-      if (quality) hydro.setQuality(String(quality));
-      if (Number.isFinite(Number(options.draftZWorld))) {
-        hydro.draftZWorld = Number(options.draftZWorld);
-        hydro.updateWaterPlane();
-        hydro._invalidateCache?.();
-      }
-      if (Number.isFinite(Number(options.trim))) hydro.setTrim(Number(options.trim));
-      if (Number.isFinite(Number(options.heel))) hydro.setHeel(Number(options.heel));
-
-      await withHydroGeometryState(async () => {
-        await hydro.recompute();
-      });
-
-      const cacheKey = buildHydroReportCacheKey({ quality, performanceMode });
-      if (!options.forceRecalc && hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
-        return {
-          ...hydroReportCachePayload,
-          cached: true,
-          reportCacheKey: cacheKey,
-        };
-      }
-      if (!options.forceRecalc && hydroReportCachePromise && hydroReportCacheKey === cacheKey) {
-        return hydroReportCachePromise;
-      }
-
-      hydroReportCacheKey = cacheKey;
-      hydroReportCachePromise = withHydroGeometryState(async () => {
-        const preset = getHydroQualityPreset(quality, performanceMode);
-        const startedAt = performance.now();
-        const stageProgress = performanceMode
-          ? { prepare: 0.03, roll: 0.12, pitch: 0.24, draft: 0.42, section: 0.62, equilibrium: 0.82 }
-          : { prepare: 0.03, roll: 0.16, pitch: 0.32, draft: 0.54, section: 0.78, equilibrium: 0.9 };
-        const pushProgress = (progress, title, text) => {
-          const fraction = Math.max(0.01, Math.min(0.99, Number(progress) || 0));
-          const elapsedMs = performance.now() - startedAt;
-          const etaMs = elapsedMs > 40 ? (elapsedMs * (1 - fraction)) / fraction : null;
-          postHydroProgressToParent({ progress: fraction, title, text, etaMs, kind: "report" });
-        };
-        pushProgress(stageProgress.prepare, "Genererer hydro-rapport...", "Forbereder hydrotilstand og massegrunnlag.");
-        const rollReport = await hydro.generateHydroReport({
-          mode: "roll",
-          maxDeg: 60,
-          stepDeg: preset.stepDeg,
-          quality,
-          includeSAK: false,
-        });
-        pushProgress(stageProgress.roll, "Genererer hydro-rapport...", "Rollkurve ferdig, fortsetter med pitch.");
-        const pitchReport = await hydro.generateHydroReport({
-          mode: "pitch",
-          maxDeg: 40,
-          stepDeg: preset.stepDeg,
-          quality,
-          includeSAK: false,
-        });
-        pushProgress(stageProgress.pitch, "Genererer hydro-rapport...", "Pitchkurve ferdig, skanner draft og deplasement.");
-        const draftScan = await hydro.generateDraftScan({
-          draftCount: preset.draftCount,
-          quality,
-          includeAwp: true,
-          includeSAK: false,
-        });
-        pushProgress(stageProgress.draft, "Genererer hydro-rapport...", "Draftscan ferdig, bygger seksjonsarealkurve.");
-        const sectionCurve = await hydro.computeSectionAreaCurve({
-          stationCount: preset.sectionCount,
-          draftZ: hydro.draftZWorld,
-          quality,
-          timeSliceMs: performanceMode ? 24 : 10,
-        });
-        pushProgress(stageProgress.section, "Genererer hydro-rapport...", "Seksjonsareal ferdig, finner likevekt.");
-        const equilibriumState = await hydro.estimateEquilibriumState({
-          solveTrimHeel: true,
-          toleranceTonnes: performanceMode ? 0.05 : 0.02,
-          maxIterations: performanceMode ? 16 : 26,
-          maxHeelDeg: performanceMode ? 10 : 14,
-          maxTrimDeg: performanceMode ? 8 : 10,
-        });
-        pushProgress(stageProgress.equilibrium, "Genererer hydro-rapport...", "Sammenstiller rapport og sluttverdier.");
-        postHydroProgressToParent({ progress: 1, title: "Hydro-rapport klar", text: "Rapporten er ferdig bygget.", etaMs: 0, kind: "report" });
-        const unitMeta = getViewerUnitMeta();
-        const payload = {
-          generatedAt: new Date().toISOString(),
-          fileName: decodeURIComponent((normalizeViewerUrl(modelUrl).split("/").pop() || "Hydro-modell")),
-          sourceLabel: "3MF viewer",
-          quality,
-          performanceMode,
-          units: unitMeta.units,
-          sourceUnits: unitMeta.sourceUnits,
-          unitNote: unitMeta.unitNote,
-          currentHydro: buildHydroPayload(),
-          rollReport,
-          pitchReport,
-          draftScan,
-          sectionCurve,
-          equilibriumState,
-          reportCacheKey: cacheKey,
-          cached: false,
-          note: `${performanceMode ? "Ytelsesmodus er aktiv. " : ""}Kurvene er generert fra aktiv 3MF-geometri. Hydro og rapport bruker full, ueksplodert og udempet geometri i bakgrunnen.`,
-        };
-        hydroReportCachePayload = payload;
-        return payload;
-      });
-
-      try {
-        return await hydroReportCachePromise;
-      } finally {
-        hydroReportCachePromise = null;
-      }
-    }
-
-    function syncExplodeUiFromCore() {
-      const rng = document.getElementById("rngExplode");
-      const txt = document.getElementById("txtExplode");
-      const meta = document.getElementById("txtExplodeMeta");
-      const btn = document.getElementById("btnExplodeReset");
-      const supported = !!core.canExplode?.();
-      const count = core.getExplodablePartCount?.() || 0;
-      const amount = core.getExplodeFactor?.() || 0;
-      if (rng) {
-        rng.disabled = !supported;
-        rng.value = String(amount);
-      }
-      if (txt) txt.textContent = supported ? `${Math.round(amount * 100)}%` : "av";
-      if (meta) meta.textContent = supported ? `${count} deler separeres visuelt` : "Krever minst 2 separate deler";
-      if (btn) btn.disabled = !supported && amount <= 0;
-    }
-
-    function postExplodeInfoToParent() {
-      try {
-        if (!window.parent || window.parent === window) return;
-        window.parent.postMessage({
-          type: "viewer-explode-info",
-          payload: {
-            supported: !!core.canExplode?.(),
-            count: core.getExplodablePartCount?.() || 0,
-            amount: core.getExplodeFactor?.() || 0,
-          }
-        }, "*");
-      } catch {}
-    }
-
-    function rememberBaseMaterial(mat) {
-      if (!mat || mat.userData?.viewerBaseState) return;
-      mat.userData = mat.userData || {};
-      mat.userData.viewerBaseState = {
-        opacity: Number.isFinite(mat.opacity) ? mat.opacity : 1,
-        transparent: !!mat.transparent,
-        depthWrite: mat.depthWrite !== false,
-        color: mat.color?.clone ? mat.color.clone() : null,
-        emissive: mat.emissive?.clone ? mat.emissive.clone() : null,
-      };
-    }
-
-    function restoreMaterialState(mat) {
-      const base = mat?.userData?.viewerBaseState;
-      if (!mat || !base) return;
-      mat.opacity = base.opacity;
-      mat.transparent = base.transparent;
-      mat.depthWrite = base.depthWrite;
-      if (base.color && mat.color) mat.color.copy(base.color);
-      if (base.emissive && mat.emissive) mat.emissive.copy(base.emissive);
-      mat.needsUpdate = true;
-    }
-
-    const componentViewState = {
-      chosen: new Set(),
-      muted: new Set(),
-    };
-    let pendingExplodeAmount = 0;
-    const HYDRO_REPORT_CACHE_VERSION = "20260412a";
-    let hydroReportCacheKey = "";
-    let hydroReportCachePayload = null;
-    let hydroReportCachePromise = null;
-
-    function invalidateHydroReportCache() {
-      hydroReportCacheKey = "";
-      hydroReportCachePayload = null;
-    }
-
-    function getViewerUnitMeta() {
-      const meta = core?.mesh?.userData?.modelMeta || {};
-      return {
-        units: "m",
-        sourceUnits: meta.sourceLengthUnit || meta.lengthUnit || "m",
-        unitNote: meta.unitNote || "Viewer beregner videre i meter.",
-      };
-    }
-
-    function roundCacheNumber(value, digits = 6) {
-      const num = Number(value);
-      if (!Number.isFinite(num)) return null;
-      return Number(num.toFixed(digits));
-    }
-
-    function buildHydroReportCacheKey(options = {}) {
-      const massProps = hydro?.getMassProperties?.() || null;
-      const ref = hydro?.getReferenceBoundsNoHydroRot?.() || null;
-      const unitMeta = getViewerUnitMeta();
-      return JSON.stringify({
-        v: HYDRO_REPORT_CACHE_VERSION,
-        file: normalizeViewerUrl(modelUrl),
-        modelKind: "3MF",
-        quality: String(options.quality || hydro?.quality || "low"),
-        performanceMode: options.performanceMode === true,
-        waterDensity: roundCacheNumber(hydro?.waterDensity, 3),
-        materialDensity: roundCacheNumber(hydro?.materialDensity, 3),
-        draftZWorld: roundCacheNumber(hydro?.draftZWorld, 6),
-        trimDeg: roundCacheNumber(hydro?.trimDeg, 4),
-        heelDeg: roundCacheNumber(hydro?.heelDeg, 4),
-        modelMassTonnes: roundCacheNumber(massProps?.totalMassTonnes, 6),
-        totalVolumeM3: roundCacheNumber(massProps?.totalVolumeM3, 6),
-        componentCount: Number(massProps?.componentCount) || 0,
-        refMinZ: roundCacheNumber(ref?.min?.z, 6),
-        refMaxZ: roundCacheNumber(ref?.max?.z, 6),
-        units: unitMeta.units,
-        sourceUnits: unitMeta.sourceUnits,
-      });
-    }
-
-    async function withHydroGeometryState(task) {
-      const previousExplode = core.getExplodeFactor?.() || 0;
-      const visibilitySnapshot = [];
-      const renderables = collectRenderableComponents(hydro?.mesh || core?.mesh);
-      renderables.forEach(({ object }) => {
-        if (!object) return;
-        visibilitySnapshot.push({ object, visible: object.visible !== false });
-        object.visible = true;
-      });
-      if (previousExplode > 0) {
-        core.setExplodeFactor?.(0);
-        syncExplodeUiFromCore();
-        postExplodeInfoToParent();
-      }
-      try {
-        return await task();
-      } finally {
-        visibilitySnapshot.forEach(({ object, visible }) => {
-          if (!object) return;
-          object.visible = visible;
-        });
-        if (previousExplode > 0) {
-          core.setExplodeFactor?.(previousExplode);
-          syncExplodeUiFromCore();
-          postExplodeInfoToParent();
-        }
-      }
-    }
-
-    function applyComponentViewState() {
-      const root = hydro?.mesh || core?.mesh;
-      const renderables = collectRenderableComponents(root);
-      if (!renderables.length) return;
-
-      const matchedChosen = renderables.filter((item) => componentMatchesState(item, componentViewState.chosen));
-      const useChosenFocus = matchedChosen.length > 0;
-
-      renderables.forEach((item) => {
-        const { object, key } = item;
-        const isMuted = componentMatchesState(item, componentViewState.muted);
-        const isChosen = componentMatchesState(item, componentViewState.chosen);
-        object.visible = !isMuted;
-
-        const mats = Array.isArray(object.material) ? object.material : [object.material];
-        mats.forEach((mat) => {
-          if (!mat) return;
-          rememberBaseMaterial(mat);
-          restoreMaterialState(mat);
-
-          if (isMuted) {
-            mat.opacity = 0;
-            mat.transparent = true;
-            mat.depthWrite = false;
-          } else if (useChosenFocus && !isChosen) {
-            mat.opacity = Math.min(mat.opacity, 0.14);
-            mat.transparent = true;
-            mat.depthWrite = false;
-          } else if (useChosenFocus && isChosen && mat.emissive) {
-            mat.emissive.setHex(0x262626);
-          }
-          mat.needsUpdate = true;
-        });
-      });
-    }
-
-    window.addEventListener("message", async (event) => {
-      const data = event?.data;
-      if (!data) return;
-      if (data.type === "viewer-component-state") {
-        componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
-        componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
-        applyComponentViewState();
-      }
-      if (data.type !== "viewer-command") return;
-
-      if (data.action === "set-explode") {
-        pendingExplodeAmount = Math.max(0, Math.min(1, Number(data.amount) || 0));
-        const applied = core.mesh ? core.setExplodeFactor?.(pendingExplodeAmount) : pendingExplodeAmount;
-        syncExplodeUiFromCore();
-        if (core.mesh) postExplodeInfoToParent();
-        setHud(applied > 0 ? `Explode ${Math.round(applied * 100)}%` : "Explode nullstilt", false);
-        return;
-      }
-
-      if (!hydro?.mesh) return;
-
-      if (data.action === "set-hydro-visibility") {
-        hydro.setHydroElementsVisible({
-          waterline: data.waterline !== false,
-          waterlineContour: data.contour !== false,
-          markers: {
-            cg: data.markers?.cg !== false,
-            cb: data.markers?.cb !== false,
-          },
-        });
-        syncHydroVisibility?.();
-        postAnalysisToParent(hydro.mesh);
-        return;
-      }
-
-      if (data.action === "set-hydro-state") {
-        invalidateHydroReportCache();
-        if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
-        if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
-        hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
-        if (data.quality) hydro.setQuality(String(data.quality));
-        await withHydroGeometryState(async () => {
-          await applyHydroInputs({
-            draft: Number.isFinite(Number(data.draftZWorld)) ? Number(data.draftZWorld) : null,
-            trim: Number.isFinite(Number(data.trim)) ? Number(data.trim) : null,
-            heel: Number.isFinite(Number(data.heel)) ? Number(data.heel) : null,
-          });
-        });
-        postAnalysisToParent(hydro.mesh);
-        return;
-      }
-
-      if (data.action === "reset-hydro-pose") {
-        invalidateHydroReportCache();
-        hydro.zeroTrimHeel();
-        if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
-        if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
-        hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
-        if (Number.isFinite(Number(data.draftZWorld))) {
-          hydro.draftZWorld = Number(data.draftZWorld);
-          hydro.updateWaterPlane();
-          hydro._invalidateCache?.();
-        }
-        await withHydroGeometryState(async () => {
-          await hydro.recompute();
-        });
-        await updateHydroAfterLoad();
-        syncHydroVisibility?.();
-        postAnalysisToParent(hydro.mesh);
-        setHud("Trim/heel nullstilt");
-        return;
-      }
-
-      if (data.action === "generate-hydro-report") {
-        const payload = await buildHydroReportPayload(data);
-        if (payload && window.parent && window.parent !== window) {
-          window.parent.postMessage({ type: "viewer-hydro-report", payload }, "*");
-        }
-      }
-    });
-
-    function buildComponentList(mesh) {
-      const componentList = document.getElementById('componentList');
-      const existingChips = componentList.querySelectorAll('.component-chip:not([data-static])');
-      existingChips.forEach(chip => chip.remove());
-
-      // Alltid legg til standard komponenter
-      const standardChips = [
-        { comp: 'hull', name: 'Skrog' },
-        { comp: 'wl', name: 'Vannlinje' },
-        { comp: 'cb', name: 'CB' },
-        { comp: 'cg', name: 'CG' },
-        { comp: 'wp', name: 'Waterplane' }
-      ];
-
-      // Legg til dynamiske komponenter fra modellen
-      const dynamicComponents = [];
-      if (mesh.userData?.componentNames) {
-        mesh.userData.componentNames.forEach(name => {
-          const lowerName = name.toLowerCase();
-          let compType = 'component';
-          if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
-          else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
-          else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
-          else compType = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-          dynamicComponents.push({ comp: compType, name: name });
-        });
-      } else if (mesh.children && mesh.children.length > 0) {
-        // Fallback: travers mesh for navn
-        mesh.traverse(child => {
-          if (child.name && child !== mesh) {
-            const lowerName = child.name.toLowerCase();
-            let compType = 'component';
-            if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
-            else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
-            else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
-            else compType = child.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            dynamicComponents.push({ comp: compType, name: child.name });
-          }
-        });
-      }
-
-      // Kombiner og fjern duplikater
-      const allComponents = [...standardChips];
-      dynamicComponents.forEach(dc => {
-        if (!allComponents.find(ac => ac.comp === dc.comp)) {
-          allComponents.push(dc);
-        }
-      });
-
-      // Legg til chips i DOM
-      const insertPoint = componentList.querySelector('.component-chip[data-comp="wp"]').nextElementSibling;
-      allComponents.slice(5).forEach(comp => { // Hopp over standard (de er allerede i HTML)
-        const chip = document.createElement('span');
-        chip.className = 'component-chip';
-        chip.setAttribute('data-comp', comp.comp);
-        chip.textContent = comp.name;
-        componentList.insertBefore(chip, insertPoint);
-      });
-
-      // Re-bind event listeners for alle chips
-      document.querySelectorAll('.component-chip').forEach(chip => {
-        chip.addEventListener('mouseenter', e => {
-          chip.classList.add('active');
-          highlightComponent(chip.dataset.comp, true);
-        });
-        chip.addEventListener('mouseleave', e => {
-          if (highlightedComponent !== chip.dataset.comp) {
-            chip.classList.remove('active');
-          }
-          highlightComponent(chip.dataset.comp, false);
-        });
-        chip.addEventListener('click', e => {
-          // Fjern active fra alle
-          document.querySelectorAll('.component-chip').forEach(c => {
-            if (c !== chip) c.classList.remove('active');
-          });
-
-          // Toggle denne
-          if (highlightedComponent === chip.dataset.comp) {
-            chip.classList.remove('active');
-            highlightedComponent = null;
-            highlightComponent(null, false); // Fjern all highlight
-          } else {
-            chip.classList.add('active');
-            highlightedComponent = chip.dataset.comp;
-            highlightComponent(chip.dataset.comp, true);
-          }
-        });
-      });
-    }
-
-    function highlightComponent(compName, highlight) {
-      if (!hydro || !hydro.mesh) return;
-
-      // Reset alle materialer først
-      if (!highlight) {
-        hydro.mesh.traverse((child) => {
-          if (child.material) {
-            child.material.opacity = 1.0;
-            child.material.transparent = false;
-            child.material.emissive?.setHex(0x000000);
-            child.material.needsUpdate = true;
-          }
-        });
-        return;
-      }
-
-      // Highlight spesifikk komponent
-      hydro.mesh.traverse((child) => {
-        if (child.material) {
-          const childName = (child.name || '').toLowerCase();
-          const childData = child.userData?.componentName || child.userData?.component || '';
-
-          const isTarget = child.name === compName ||
-                          childData === compName ||
-                          (compName === 'hull' && child === hydro.mesh) ||
-                          (compName === 'wl' && child === hydro.wlContour) ||
-                          (compName === 'cb' && child === hydro.cbMarker) ||
-                          (compName === 'cg' && child === hydro.cgMarker) ||
-                          (compName === 'wp' && child === hydro.waterPlane) ||
-                          (compName === 'thrusters' && (childName.includes('thruster') || childName.includes('propeller') || childData === 'thrusters')) ||
-                          (compName === 'batteries' && (childName.includes('battery') || childName.includes('batt') || childData === 'batteries')) ||
-                          (compName === 'sensors' && (childName.includes('sensor') || childName.includes('lidar') || childName.includes('camera') || childData === 'sensors')) ||
-                          (childName === compName.toLowerCase() || childData === compName);
-
-          if (isTarget) {
-            // Highlight denne
-            child.material.opacity = 1.0;
-            child.material.transparent = false;
-            child.material.emissive?.setHex(0x444444);
-            if (child.material.color) {
-              child.material.color.multiplyScalar(1.5); // Gjør lysere
-            }
-          } else {
-            // Fade ut andre
-            child.material.opacity = 0.2;
-            child.material.transparent = true;
-            child.material.emissive?.setHex(0x000000);
-          }
-          child.material.needsUpdate = true;
-        }
-      });
-    }
-
-    // --- Oppdater hydrostatikk-data etter lasting ---
-    async function updateHydroAfterLoad() {
-      // Hent ut relevante data fra hydro/core
-      const h = hydro;
-      const last = h.lastHydro || {};
-      const data = {
-        volume: last.subV,
-        displacement: last.subV ? last.subV * h.waterDensity / 1000 : null, // tonn
-        cb: last.cbW,
-        cg: last.cgW,
-        draft: h.draftZWorld,
-        trim: h.trimDeg,
-        heel: h.heelDeg,
-        gm: last.gm?.roll || null,
-        bm: last.bm?.roll || null,
-        wpArea: last.wp?.A || null,
-        gz: last.gz_now?.roll || null,
-      };
-      updateHydroDataUI(data);
-    }
-
-    // Kall denne etter modell er lastet og hydrostatikk er kalkulert
-    core.onAfterRender = updateHydroAfterLoad;
 
   <div id="uiWrap">
     <div id="toolbar">
@@ -1548,6 +708,10 @@
         <button class="close-btn" id="closeReport">&times;</button>
       </div>
       <div class="modal-body">
+        <div id="reportStatus" class="report-status" hidden>
+          <span><strong>Rapportstatus</strong> <span id="reportStatusText">Venter...</span></span>
+          <small id="reportStatusMeta"></small>
+        </div>
         <div id="reportTabs">
           <button class="tab-btn active" data-tab="overview">Oversikt</button>
           <button class="tab-btn" data-tab="curves">Kurver</button>
@@ -1684,13 +848,180 @@
     const loadingOverlay = document.getElementById("loadingOverlay");
     const loadingTitle = document.getElementById("loadingTitle");
     const loadingText = document.getElementById("loadingText");
+    const loadingMeta = document.getElementById("loadingMeta");
     const hydroDataWrap = document.getElementById("hydroDataWrap");
+    const reportStatus = document.getElementById("reportStatus");
+    const reportStatusText = document.getElementById("reportStatusText");
+    const reportStatusMeta = document.getElementById("reportStatusMeta");
+    const MODEL_KIND = "3MF";
     const embedded = window.parent !== window || new URLSearchParams(location.search).get("embedded") === "1";
     if (embedded) document.body.classList.add("is-embedded");
     const hostMode = new URLSearchParams(location.search).get("host") || "";
     if (hostMode === "fusion") document.body.classList.add("has-external-sidebar");
 
-    function setStageState(mode = "idle", title = "Laster modell", message = "3MF og hydrodata klargjores...") {
+    function formatDuration(ms) {
+      const value = Number(ms);
+      if (!Number.isFinite(value) || value < 0) return "";
+      if (value < 1000) return `${Math.round(value)} ms`;
+      return `${(value / 1000).toFixed(2)} s`;
+    }
+
+    function logPerf(label, startedAt, extra = {}) {
+      const durationMs = performance.now() - startedAt;
+      console.info("[3mfhydro][perf]", label, {
+        durationMs: Number(durationMs.toFixed(2)),
+        ...extra,
+      });
+      return durationMs;
+    }
+
+    function createAbortError(message = "Avbrutt") {
+      try {
+        return new DOMException(message, "AbortError");
+      } catch {
+        const error = new Error(message);
+        error.name = "AbortError";
+        return error;
+      }
+    }
+
+    function isAbortError(error) {
+      return error?.name === "AbortError";
+    }
+
+    function throwIfAborted(signal, message = "Avbrutt") {
+      if (signal?.aborted) {
+        throw signal.reason || createAbortError(message);
+      }
+    }
+
+    async function yieldToBrowser() {
+      if (globalThis.scheduler?.yield) {
+        await globalThis.scheduler.yield();
+        return;
+      }
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          setTimeout(resolve, 0);
+        });
+      });
+    }
+
+    async function processInChunks(items, chunkSize, fn, { signal = null, onChunk = null } = {}) {
+      const list = Array.isArray(items) ? items : [];
+      const size = Math.max(1, Number(chunkSize) || 1);
+      for (let start = 0; start < list.length; start += size) {
+        throwIfAborted(signal);
+        const end = Math.min(list.length, start + size);
+        for (let index = start; index < end; index += 1) {
+          fn(list[index], index);
+        }
+        onChunk?.({ start, end, total: list.length });
+        if (end < list.length) {
+          await yieldToBrowser();
+        }
+      }
+      return list;
+    }
+
+    async function collectSceneNodes(root, {
+      chunkSize = 320,
+      signal = null,
+      onChunk = null,
+      includeRoot = true,
+    } = {}) {
+      if (!root) return [];
+      const queue = includeRoot ? [root] : [...(root.children || [])];
+      const nodes = [];
+      const size = Math.max(8, Number(chunkSize) || 320);
+      for (let start = 0; start < queue.length; start += size) {
+        throwIfAborted(signal);
+        const end = Math.min(queue.length, start + size);
+        for (let index = start; index < end; index += 1) {
+          const node = queue[index];
+          if (!node) continue;
+          nodes.push(node);
+          if (Array.isArray(node.children) && node.children.length) {
+            queue.push(...node.children);
+          }
+        }
+        onChunk?.({ processed: end, queued: queue.length, total: nodes.length });
+        if (end < queue.length) {
+          await yieldToBrowser();
+        }
+      }
+      return nodes;
+    }
+
+    const runtimeState = {
+      loadJob: { id: 0, controller: null },
+      recomputeJob: { id: 0, controller: null, running: false, queuedState: null },
+      reportJob: { id: 0, controller: null },
+      highlightJobId: 0,
+      reportWorkerSeq: 0,
+      reportWorkerCallbacks: new Map(),
+      perf: {
+        pageStartedAt: performance.now(),
+        firstInteractiveLogged: false,
+      },
+    };
+
+    function startAbortableJob(kind) {
+      const state = runtimeState[kind];
+      if (!state) throw new Error(`Unknown runtime job: ${kind}`);
+      state.controller?.abort?.(createAbortError(`${kind} replaced by newer request`));
+      const controller = new AbortController();
+      const job = {
+        kind,
+        id: (state.id || 0) + 1,
+        controller,
+        signal: controller.signal,
+        startedAt: performance.now(),
+      };
+      state.id = job.id;
+      state.controller = controller;
+      return job;
+    }
+
+    function isCurrentJob(job) {
+      if (!job?.kind) return false;
+      const state = runtimeState[job.kind];
+      return !!state && state.id === job.id && !job.signal?.aborted;
+    }
+
+    function cancelJob(kind, message = `${kind} cancelled`) {
+      runtimeState[kind]?.controller?.abort?.(createAbortError(message));
+    }
+
+    function setReportStatus(text = "", meta = "", visible = false) {
+      if (!reportStatus) return;
+      reportStatus.hidden = !visible;
+      if (reportStatusText) reportStatusText.textContent = text || "";
+      if (reportStatusMeta) reportStatusMeta.textContent = meta || "";
+    }
+
+    async function waitForHydroIdle(signal = null) {
+      while (hydro?.hydroBusy || runtimeState.recomputeJob.running) {
+        throwIfAborted(signal);
+        await yieldToBrowser();
+      }
+    }
+
+    function cancelScheduledHydroRecalc() {
+      if (hydro?.hydroTimer) clearTimeout(hydro.hydroTimer);
+      if (hydro?._hiTimer) clearTimeout(hydro._hiTimer);
+      if (hydro) {
+        hydro.hydroTimer = null;
+        hydro._hiTimer = null;
+      }
+    }
+
+    function setStageState(mode = "idle", title = "Laster modell", message = "3MF og hydrodata klargjores...", options = {}) {
+      const {
+        progress = null,
+        detail = "",
+        keepPanelVisible = false,
+      } = options;
       const active = mode !== "idle";
       const isLoading = mode === "loading";
       document.body.classList.toggle("has-stage-overlay", active);
@@ -1699,13 +1030,20 @@
       if (loadingText) loadingText.textContent = message;
       if (loadingOverlay) {
         loadingOverlay.dataset.tone = mode === "error" ? "error" : "loading";
+        loadingOverlay.dataset.determinate = Number.isFinite(progress) ? "true" : "false";
         loadingOverlay.setAttribute("aria-busy", isLoading ? "true" : "false");
+        loadingOverlay.style.setProperty("--loading-progress", String(
+          Number.isFinite(progress) ? Math.max(0.02, Math.min(1, Number(progress))) : 0.18
+        ));
       }
-      if (hydroDataWrap) hydroDataWrap.style.visibility = active ? "hidden" : "visible";
+      if (loadingMeta) {
+        loadingMeta.textContent = detail || (Number.isFinite(progress) ? `${Math.round(Number(progress) * 100)}%` : "Arbeider...");
+      }
+      if (hydroDataWrap) hydroDataWrap.style.visibility = active && !keepPanelVisible ? "hidden" : "visible";
     }
 
-    function setLoadingState(isLoading, message = "Laster modell...") {
-      setStageState(isLoading ? "loading" : "idle", "Laster modell", message);
+    function setLoadingState(isLoading, message = "Laster modell...", options = {}) {
+      setStageState(isLoading ? "loading" : "idle", "Laster modell", message, options);
     }
 
     if (hydroDataWrap) hydroDataWrap.style.visibility = "hidden";
@@ -1748,6 +1086,505 @@
     const helpData = getHelpData(lang);
     ui.init(core, hydro, clipper, measure, { helpData, lang });
 
+    function normalizeComponentName(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function buildComponentAliasList(...values) {
+      return [...new Set(values
+        .flat()
+        .map((value) => normalizeComponentName(value))
+        .filter(Boolean))];
+    }
+
+    function componentMatchesState(item, tokenSet) {
+      if (!item || !tokenSet?.size) return false;
+      const aliases = Array.isArray(item.aliases) && item.aliases.length
+        ? item.aliases
+        : buildComponentAliasList(item.key, item.label, item.nodePath, item.sourceName);
+      return aliases.some((alias) => tokenSet.has(alias));
+    }
+
+    function roundComponentNumber(value, digits = 4) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return null;
+      const scale = 10 ** digits;
+      return Math.round(n * scale) / scale;
+    }
+
+    function getViewerUnitMeta() {
+      const meta = core?.mesh?.userData?.modelMeta || {};
+      return {
+        units: "m",
+        sourceUnits: meta.sourceLengthUnit || meta.lengthUnit || "m",
+        unitNote: meta.unitNote || "Viewer beregner videre i meter.",
+      };
+    }
+
+    function serializeVector(vec) {
+      if (!vec || !Number.isFinite(vec.x) || !Number.isFinite(vec.y) || !Number.isFinite(vec.z)) return null;
+      return {
+        x: roundComponentNumber(vec.x),
+        y: roundComponentNumber(vec.y),
+        z: roundComponentNumber(vec.z),
+      };
+    }
+
+    function serializeBounds(bounds) {
+      if (!bounds?.min || !bounds?.max) return null;
+      return {
+        min: serializeVector(bounds.min),
+        max: serializeVector(bounds.max),
+      };
+    }
+
+    function serializeMassProperties(massProps) {
+      if (!massProps) return null;
+      const components = Array.isArray(massProps.components) ? massProps.components : [];
+      return {
+        source: massProps.source || "mesh-components",
+        componentCount: Number.isFinite(massProps.componentCount) ? massProps.componentCount : components.length,
+        densityKgM3: roundComponentNumber(massProps.densityKgM3, 3),
+        densityResolved: massProps.densityResolved === true,
+        densityMode: massProps.densityMode || "",
+        densityNote: massProps.densityNote || "",
+        densitySourceCounts: massProps.densitySourceCounts || null,
+        defaultDensityKgM3: roundComponentNumber(massProps.defaultDensityKgM3, 3),
+        defaultDensitySource: massProps.defaultDensitySource || "",
+        massMethod: massProps.massMethod || "",
+        massMethodLabel: massProps.massMethodLabel || "",
+        totalVolumeM3: roundComponentNumber(massProps.totalVolumeM3, 6),
+        totalMassKg: roundComponentNumber(massProps.totalMassKg, 6),
+        totalMassTonnes: roundComponentNumber(massProps.totalMassTonnes, 6),
+        centerOfMassLocal: serializeVector(massProps.centerOfMassLocal),
+        centerOfMassWorld: serializeVector(massProps.centerOfMassWorld),
+        kgWorld: roundComponentNumber(massProps.kgWorld, 6),
+        inertiaCentroid: massProps.inertiaCentroid || null,
+        components: components.map((entry) => ({
+          key: entry?.key || "",
+          name: entry?.name || "",
+          nodePath: entry?.nodePath || "",
+          sourceName: entry?.sourceName || "",
+          volumeM3: roundComponentNumber(entry?.volumeM3, 6),
+          baseDensityKgM3: roundComponentNumber(entry?.baseDensityKgM3, 3),
+          densityKgM3: roundComponentNumber(entry?.densityKgM3, 3),
+          densitySource: entry?.densitySource || "",
+          sourceLabel: entry?.sourceLabel || "",
+          materialSlug: entry?.materialSlug || "",
+          materialLabel: entry?.materialLabel || "",
+          infillPercent: roundComponentNumber(entry?.infillPercent, 3),
+          supportsInfill: entry?.supportsInfill !== false,
+          massMode: entry?.massMode || "",
+          groupMassKg: roundComponentNumber(entry?.groupMassKg, 6),
+          massDistribution: entry?.massDistribution || "",
+          note: entry?.note || "",
+          massKg: roundComponentNumber(entry?.massKg, 6),
+          massTonnes: roundComponentNumber(entry?.massTonnes, 6),
+          centroidLocal: serializeVector(entry?.centroidLocal),
+        })),
+      };
+    }
+
+    function getComponentSpatialData(object, root) {
+      if (!object?.geometry) return null;
+      try {
+        object.geometry.computeBoundingBox?.();
+        const localBox = object.geometry.boundingBox;
+        if (!localBox) return null;
+        const localCenter = localBox.getCenter(new THREE.Vector3());
+        const worldCenter = object.localToWorld(localCenter.clone());
+        const rootCenter = root?.worldToLocal ? root.worldToLocal(worldCenter.clone()) : worldCenter;
+        const worldBox = new THREE.Box3().setFromObject(object);
+        const worldSize = worldBox.getSize(new THREE.Vector3());
+        return {
+          center: {
+            x: roundComponentNumber(rootCenter.x),
+            y: roundComponentNumber(rootCenter.y),
+            z: roundComponentNumber(rootCenter.z),
+          },
+          size: {
+            x: roundComponentNumber(worldSize.x),
+            y: roundComponentNumber(worldSize.y),
+            z: roundComponentNumber(worldSize.z),
+          },
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    async function collectRenderableComponents(root, {
+      signal = null,
+      chunkSize = 240,
+      onChunk = null,
+    } = {}) {
+      if (!root) return [];
+      const nodes = await collectSceneNodes(root, { chunkSize, signal, onChunk, includeRoot: true });
+      const items = [];
+      await processInChunks(nodes, chunkSize, (child) => {
+        if (!child?.isMesh || !child.material) return;
+        const label = String(child.userData?.componentName || child.userData?.component || child.name || "").trim();
+        if (!label) return;
+        const spatial = getComponentSpatialData(child, root);
+        items.push({
+          object: child,
+          label,
+          key: normalizeComponentName(child.userData?.componentKey || label),
+          nodePath: String(child.userData?.nodePath || "").trim(),
+          sourceName: String(child.userData?.sourceName || "").trim(),
+          brepFaces: Number(child.userData?.brepFaces) || 0,
+          center: spatial?.center || null,
+          size: spatial?.size || null,
+          aliases: buildComponentAliasList(
+            child.userData?.componentKey,
+            label,
+            child.userData?.nodePath,
+            child.userData?.sourceName
+          ),
+        });
+      }, { signal });
+      return items;
+    }
+
+    async function collectComponentPayload(root, options = {}) {
+      const byKey = new Map();
+      const pushItem = (label, extra = {}) => {
+        const cleanLabel = String(label || "").trim();
+        const key = normalizeComponentName(extra.key || cleanLabel);
+        if (!cleanLabel || !key || byKey.has(key)) return;
+        byKey.set(key, {
+          key,
+          label: cleanLabel,
+          subtitle: extra.subtitle || "",
+          description: extra.description || "",
+          center: extra.center || null,
+          size: extra.size || null,
+        });
+      };
+
+      const renderables = await collectRenderableComponents(root, options);
+      if (renderables.length) {
+        renderables.forEach(({ label, key, nodePath, sourceName, brepFaces, center, size }) => {
+          pushItem(label, {
+            key,
+            subtitle: nodePath || sourceName,
+            description: brepFaces ? `${brepFaces} B-Rep-flater` : "",
+            center,
+            size,
+          });
+        });
+      } else if (Array.isArray(root?.userData?.componentNames)) {
+        root.userData.componentNames.forEach((name) => pushItem(name));
+      }
+      return [...byKey.values()];
+    }
+
+    async function postComponentsToParent(root, options = {}) {
+      try {
+        if (!window.parent || window.parent === window || !root) return;
+        const items = await collectComponentPayload(root, options);
+        if (!items.length) return;
+        window.parent.postMessage({ type: "viewer-components", items, mode: "mesh" }, "*");
+      } catch {}
+    }
+
+    function buildHydroPayload() {
+      if (!hydro?.mesh) return { supported: false };
+      const last = hydro.getLastResults?.() || hydro.lastHydro || {};
+      const ref = hydro.getReferenceBoundsNoHydroRot?.() || null;
+      const unitMeta = getViewerUnitMeta();
+      const hasHydroSolution = Number.isFinite(last.subV);
+      const massProps = serializeMassProperties(hydro.getMassProperties?.());
+      const modelMassTonnes = Number.isFinite(massProps?.totalMassTonnes) ? massProps.totalMassTonnes : null;
+      const displacementTonnes = hasHydroSolution ? roundComponentNumber((last.subV * hydro.waterDensity) / 1000, 6) : null;
+      const draftZWorld = Number.isFinite(hydro.draftZWorld) ? hydro.draftZWorld : null;
+      const draftMeters = Number.isFinite(draftZWorld) && Number.isFinite(ref?.min?.z) ? Math.max(0, draftZWorld - ref.min.z) : null;
+      const length = ref ? Math.abs(ref.max.x - ref.min.x) : null;
+      const beam = ref ? Math.abs(ref.max.y - ref.min.y) : null;
+      const depth = ref ? Math.abs(ref.max.z - ref.min.z) : null;
+      return {
+        supported: true,
+        source: `${MODEL_KIND} viewer`,
+        modelKind: MODEL_KIND,
+        length: length == null ? null : roundComponentNumber(length, 6),
+        beam: beam == null ? null : roundComponentNumber(beam, 6),
+        depth: depth == null ? null : roundComponentNumber(depth, 6),
+        hasHydroSolution,
+        pendingHydro: !hasHydroSolution,
+        draftZWorld: draftZWorld == null ? null : roundComponentNumber(draftZWorld),
+        draftMeters: draftMeters == null ? null : roundComponentNumber(draftMeters),
+        trimDeg: roundComponentNumber(hydro.trimDeg, 3),
+        heelDeg: roundComponentNumber(hydro.heelDeg, 3),
+        waterDensity: roundComponentNumber(hydro.waterDensity, 3),
+        units: unitMeta.units,
+        sourceUnits: unitMeta.sourceUnits,
+        unitNote: unitMeta.unitNote,
+        quality: hydro.quality || hydro.userQuality || "low",
+        visibility: {
+          waterline: hydro.wlVisible !== false,
+          waterlineContour: hydro.wlContourVisible !== false,
+          markers: {
+            cg: hydro.markersVisible?.cg !== false,
+            cb: hydro.markersVisible?.cb !== false,
+          },
+        },
+        referenceBounds: serializeBounds(ref),
+        submergedVolume: hasHydroSolution ? roundComponentNumber(last.subV, 6) : null,
+        displacementTonnes,
+        modelMassTonnes,
+        massGapTonnes: Number.isFinite(displacementTonnes) && Number.isFinite(modelMassTonnes)
+          ? roundComponentNumber(displacementTonnes - modelMassTonnes, 6)
+          : null,
+        cb: serializeVector(last.cbW),
+        cg: serializeVector(last.cgW),
+        wpArea: roundComponentNumber(last.wp?.A, 6),
+        kb: roundComponentNumber(last.kb, 6),
+        kg: roundComponentNumber(last.kg, 6),
+        bm: {
+          roll: roundComponentNumber(last.bm?.roll, 6),
+          pitch: roundComponentNumber(last.bm?.pitch, 6),
+        },
+        gm: {
+          roll: roundComponentNumber(last.gm?.roll, 6),
+          pitch: roundComponentNumber(last.gm?.pitch, 6),
+        },
+        gz: {
+          roll: roundComponentNumber(last.gz_now?.roll, 6),
+          pitch: roundComponentNumber(last.gz_now?.pitch, 6),
+        },
+        massProperties: massProps,
+      };
+    }
+
+    function postAnalysisToParent(root, summary = {}) {
+      try {
+        if (!window.parent || window.parent === window || !root) return;
+        const bounds = core.computeBoundsWorld(core.modelGroup);
+        const box = bounds?.box;
+        const unitMeta = getViewerUnitMeta();
+        if (!box) return;
+        window.parent.postMessage({
+          type: "viewer-analysis",
+          payload: {
+            bbox: {
+              minX: box.min.x,
+              minY: box.min.y,
+              minZ: box.min.z,
+              maxX: box.max.x,
+              maxY: box.max.y,
+              maxZ: box.max.z,
+            },
+            volume: Number.isFinite(summary.volume) ? summary.volume : (Number.isFinite(root.userData?.volume) ? root.userData.volume : null),
+            centroidLocal: summary.centroidLocal
+              ? { x: summary.centroidLocal.x, y: summary.centroidLocal.y, z: summary.centroidLocal.z }
+              : serializeVector(root.userData?.centroidLocal),
+            units: unitMeta.units,
+            sourceUnits: unitMeta.sourceUnits,
+            unitNote: unitMeta.unitNote,
+            source: `${MODEL_KIND} viewer`,
+            materialHint: root.userData?.modelMeta?.materialHint || null,
+            materialHintSource: root.userData?.modelMeta?.materialHint ? `${MODEL_KIND}-modell` : "",
+            massProperties: serializeMassProperties(hydro?.getMassProperties?.()),
+            hydro: buildHydroPayload(),
+          }
+        }, "*");
+      } catch {}
+    }
+
+    function postHydroProgressToParent({ progress = 0, title = "", text = "", etaMs = null, kind = "report" } = {}) {
+      try {
+        if (!window.parent || window.parent === window) return;
+        window.parent.postMessage({
+          type: "viewer-hydro-progress",
+          payload: {
+            progress: Math.max(0, Math.min(1, Number(progress) || 0)),
+            title: title || "Genererer hydro-rapport...",
+            text: text || "",
+            etaMs: Number.isFinite(Number(etaMs)) ? Number(etaMs) : null,
+            kind,
+          },
+        }, "*");
+      } catch {}
+    }
+
+    function rememberBaseMaterial(mat) {
+      if (!mat || mat.userData?.viewerBaseState) return;
+      mat.userData = mat.userData || {};
+      mat.userData.viewerBaseState = {
+        opacity: Number.isFinite(mat.opacity) ? mat.opacity : 1,
+        transparent: !!mat.transparent,
+        depthWrite: mat.depthWrite !== false,
+        color: mat.color?.clone ? mat.color.clone() : null,
+        emissive: mat.emissive?.clone ? mat.emissive.clone() : null,
+      };
+    }
+
+    function restoreMaterialState(mat) {
+      const base = mat?.userData?.viewerBaseState;
+      if (!mat || !base) return;
+      mat.opacity = base.opacity;
+      mat.transparent = base.transparent;
+      mat.depthWrite = base.depthWrite;
+      if (base.color && mat.color) mat.color.copy(base.color);
+      if (base.emissive && mat.emissive) mat.emissive.copy(base.emissive);
+      mat.needsUpdate = true;
+    }
+
+    const componentViewState = {
+      chosen: new Set(),
+      muted: new Set(),
+      isolateChosen: false,
+    };
+    let pendingExplodeAmount = 0;
+    const HYDRO_REPORT_CACHE_VERSION = "20260523a";
+    let hydroReportCacheKey = "";
+    let hydroReportCachePayload = null;
+    let hydroReportCachePromise = null;
+
+    function invalidateHydroReportCache() {
+      hydroReportCacheKey = "";
+      hydroReportCachePayload = null;
+      hydroReportCachePromise = null;
+    }
+
+    function roundCacheNumber(value, digits = 6) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return null;
+      return Number(num.toFixed(digits));
+    }
+
+    function buildHydroReportCacheKey(options = {}) {
+      const massProps = hydro?.getMassProperties?.() || null;
+      const ref = hydro?.getReferenceBoundsNoHydroRot?.() || null;
+      const unitMeta = getViewerUnitMeta();
+      return JSON.stringify({
+        v: HYDRO_REPORT_CACHE_VERSION,
+        file: getCleanModelUrl(),
+        modelKind: MODEL_KIND,
+        quality: String(options.quality || hydro?.quality || "low"),
+        performanceMode: options.performanceMode === true,
+        waterDensity: roundCacheNumber(hydro?.waterDensity, 3),
+        materialDensity: roundCacheNumber(hydro?.materialDensity, 3),
+        draftZWorld: roundCacheNumber(hydro?.draftZWorld, 6),
+        trimDeg: roundCacheNumber(hydro?.trimDeg, 4),
+        heelDeg: roundCacheNumber(hydro?.heelDeg, 4),
+        modelMassTonnes: roundCacheNumber(massProps?.totalMassTonnes, 6),
+        totalVolumeM3: roundCacheNumber(massProps?.totalVolumeM3, 6),
+        componentCount: Number(massProps?.componentCount) || 0,
+        refMinZ: roundCacheNumber(ref?.min?.z, 6),
+        refMaxZ: roundCacheNumber(ref?.max?.z, 6),
+        units: unitMeta.units,
+        sourceUnits: unitMeta.sourceUnits,
+      });
+    }
+
+    async function withHydroGeometryState(task, { signal = null } = {}) {
+      const previousExplode = core.getExplodeFactor?.() || 0;
+      const visibilitySnapshot = [];
+      const renderables = await collectRenderableComponents(hydro?.mesh || core?.mesh, { signal });
+      renderables.forEach(({ object }) => {
+        if (!object) return;
+        visibilitySnapshot.push({ object, visible: object.visible !== false });
+        object.visible = true;
+      });
+      if (previousExplode > 0) {
+        core.setExplodeFactor?.(0);
+        syncExplodeUiFromCore();
+        postExplodeInfoToParent();
+        await yieldToBrowser();
+      }
+      try {
+        throwIfAborted(signal);
+        return await task();
+      } finally {
+        visibilitySnapshot.forEach(({ object, visible }) => {
+          if (!object) return;
+          object.visible = visible;
+        });
+        if (previousExplode > 0) {
+          core.setExplodeFactor?.(previousExplode);
+          syncExplodeUiFromCore();
+          postExplodeInfoToParent();
+        }
+      }
+    }
+
+    async function applyComponentViewState({ signal = null } = {}) {
+      const root = hydro?.mesh || core?.mesh;
+      const renderables = await collectRenderableComponents(root, { signal });
+      if (!renderables.length) return;
+
+      const matchedChosen = renderables.filter((item) => componentMatchesState(item, componentViewState.chosen));
+      const useChosenFocus = matchedChosen.length > 0;
+
+      await processInChunks(renderables, 180, (item) => {
+        const { object } = item;
+        const isMuted = componentMatchesState(item, componentViewState.muted);
+        const isChosen = componentMatchesState(item, componentViewState.chosen);
+        const hideUnselected = componentViewState.isolateChosen && useChosenFocus && !isChosen;
+        object.visible = !isMuted && !hideUnselected;
+
+        const mats = Array.isArray(object.material) ? object.material : [object.material];
+        mats.forEach((mat) => {
+          if (!mat) return;
+          rememberBaseMaterial(mat);
+          restoreMaterialState(mat);
+
+          if (isMuted || hideUnselected) {
+            mat.opacity = 0;
+            mat.transparent = true;
+            mat.depthWrite = false;
+          } else if (useChosenFocus && !isChosen) {
+            mat.opacity = Math.min(mat.opacity, 0.14);
+            mat.transparent = true;
+            mat.depthWrite = false;
+          } else if (useChosenFocus && isChosen && mat.emissive) {
+            mat.emissive.setHex(0x262626);
+          }
+          mat.needsUpdate = true;
+        });
+      }, { signal });
+    }
+
+    function syncExplodeUiFromCore() {
+      const rng = document.getElementById("rngExplode");
+      const txt = document.getElementById("txtExplode");
+      const meta = document.getElementById("txtExplodeMeta");
+      const btn = document.getElementById("btnExplodeReset");
+      const supported = !!core.canExplode?.();
+      const count = core.getExplodablePartCount?.() || 0;
+      const amount = core.getExplodeFactor?.() || 0;
+      const scope = core.getExplodeScope?.() || "all";
+      if (rng) {
+        rng.disabled = !supported;
+        rng.value = String(amount);
+      }
+      if (txt) txt.textContent = supported ? `${Math.round(amount * 100)}%` : "av";
+      if (meta) {
+        meta.textContent = supported
+          ? (scope === "selected"
+            ? `${count} valgte deler separeres kontrollert`
+            : `${count} deler separeres kontrollert fra assembly-senter`)
+          : "Krever minst 2 separate deler";
+      }
+      if (btn) btn.disabled = !supported && amount <= 0;
+    }
+
+    function postExplodeInfoToParent() {
+      try {
+        if (!window.parent || window.parent === window) return;
+        window.parent.postMessage({
+          type: "viewer-explode-info",
+          payload: {
+            supported: !!core.canExplode?.(),
+            count: core.getExplodablePartCount?.() || 0,
+            amount: core.getExplodeFactor?.() || 0,
+            scope: core.getExplodeScope?.() || "all",
+          }
+        }, "*");
+      } catch {}
+    }
+
     // --- Hydrostatikk-data UI ---
     function updateHydroDataUI(hydroData) {
       document.getElementById("hydro-vol").textContent = hydroData?.volume?.toFixed(3) || '?';
@@ -1765,35 +1602,64 @@
 
     let highlightedComponent = null;
 
-    function buildComponentList(mesh) {
+    function inferComponentType(name) {
+      const lowerName = String(name || "").toLowerCase();
+      if (lowerName.includes("thruster") || lowerName.includes("propeller")) return "thrusters";
+      if (lowerName.includes("battery") || lowerName.includes("batt")) return "batteries";
+      if (lowerName.includes("sensor") || lowerName.includes("lidar") || lowerName.includes("camera")) return "sensors";
+      return lowerName.replace(/[^a-z0-9]/g, "") || "component";
+    }
+
+    function bindComponentChipEvents() {
+      document.querySelectorAll(".component-chip").forEach((chip) => {
+        chip.onmouseenter = () => {
+          chip.classList.add("active");
+          void highlightComponent(chip.dataset.comp, true);
+        };
+        chip.onmouseleave = () => {
+          if (highlightedComponent !== chip.dataset.comp) chip.classList.remove("active");
+          void highlightComponent(chip.dataset.comp, false);
+        };
+        chip.onclick = () => {
+          document.querySelectorAll(".component-chip").forEach((candidate) => {
+            if (candidate !== chip) candidate.classList.remove("active");
+          });
+          if (highlightedComponent === chip.dataset.comp) {
+            chip.classList.remove("active");
+            highlightedComponent = null;
+            void highlightComponent(null, false);
+          } else {
+            chip.classList.add("active");
+            highlightedComponent = chip.dataset.comp;
+            void highlightComponent(chip.dataset.comp, true);
+          }
+        };
+      });
+    }
+
+    async function buildComponentList(mesh, { signal = null, onProgress = null } = {}) {
       const componentList = document.getElementById('componentList');
       if (!componentList || !mesh) return;
+      throwIfAborted(signal);
 
       const existingChips = componentList.querySelectorAll('.component-chip:not([data-static])');
       existingChips.forEach(chip => chip.remove());
 
       const dynamicComponents = [];
       if (mesh.userData?.componentNames?.length) {
-        mesh.userData.componentNames.forEach(name => {
-          const lowerName = String(name || '').toLowerCase();
-          let compType = 'component';
-          if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
-          else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
-          else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
-          else compType = lowerName.replace(/[^a-z0-9]/g, '') || 'component';
-          dynamicComponents.push({ comp: compType, name: name });
-        });
+        await processInChunks(mesh.userData.componentNames, 180, (name) => {
+          dynamicComponents.push({ comp: inferComponentType(name), name: String(name || "") });
+        }, { signal });
       } else if (mesh.children?.length) {
-        mesh.traverse(child => {
-          if (!child || child === mesh || !child.name) return;
-          const lowerName = child.name.toLowerCase();
-          let compType = 'component';
-          if (lowerName.includes('thruster') || lowerName.includes('propeller')) compType = 'thrusters';
-          else if (lowerName.includes('battery') || lowerName.includes('batt')) compType = 'batteries';
-          else if (lowerName.includes('sensor') || lowerName.includes('lidar') || lowerName.includes('camera')) compType = 'sensors';
-          else compType = lowerName.replace(/[^a-z0-9]/g, '') || 'component';
-          dynamicComponents.push({ comp: compType, name: child.name });
+        const nodes = await collectSceneNodes(mesh, {
+          chunkSize: 260,
+          signal,
+          onChunk: ({ processed }) => onProgress?.(`Traverserer mesh... ${processed} noder`),
         });
+        await processInChunks(nodes, 220, (child) => {
+          if (!child || child === mesh || !child.name) return;
+          dynamicComponents.push({ comp: inferComponentType(child.name), name: child.name });
+        }, { signal });
       } else {
         return;
       }
@@ -1802,7 +1668,7 @@
       const seen = new Set();
       const insertAfter = componentList.querySelector('.component-chip[data-comp="wp"]');
 
-      dynamicComponents.forEach(comp => {
+      await processInChunks(dynamicComponents, 100, (comp) => {
         if (!comp?.comp || standardComps.has(comp.comp) || seen.has(comp.comp)) return;
         seen.add(comp.comp);
         const chip = document.createElement('span');
@@ -1814,77 +1680,72 @@
         } else {
           componentList.appendChild(chip);
         }
-      });
+      }, { signal });
 
-      document.querySelectorAll('.component-chip').forEach(chip => {
-        chip.onmouseenter = () => {
-          chip.classList.add('active');
-          highlightComponent(chip.dataset.comp, true);
-        };
-        chip.onmouseleave = () => {
-          if (highlightedComponent !== chip.dataset.comp) chip.classList.remove('active');
-          highlightComponent(chip.dataset.comp, false);
-        };
-        chip.onclick = () => {
-          document.querySelectorAll('.component-chip').forEach(c => {
-            if (c !== chip) c.classList.remove('active');
-          });
-          if (highlightedComponent === chip.dataset.comp) {
-            chip.classList.remove('active');
-            highlightedComponent = null;
-            highlightComponent(null, false);
-          } else {
-            chip.classList.add('active');
-            highlightedComponent = chip.dataset.comp;
-            highlightComponent(chip.dataset.comp, true);
-          }
-        };
-      });
+      bindComponentChipEvents();
     }
 
-    function highlightComponent(compName, highlight) {
+    async function highlightComponent(compName, highlight) {
       if (!hydro || !hydro.mesh) return;
+      const highlightJobId = ++runtimeState.highlightJobId;
+      const nodes = await collectSceneNodes(hydro.mesh, { chunkSize: 260, includeRoot: true });
+      const target = String(compName || '').toLowerCase();
+      const chunkSize = 180;
 
-      if (!highlight || !compName) {
-        hydro.mesh.traverse((child) => {
-          if (!child.material) return;
-          child.material.opacity = 1.0;
-          child.material.transparent = false;
-          child.material.emissive?.setHex(0x000000);
-          child.material.needsUpdate = true;
-        });
-        return;
-      }
+      for (let start = 0; start < nodes.length; start += chunkSize) {
+        if (highlightJobId !== runtimeState.highlightJobId) return;
+        const end = Math.min(nodes.length, start + chunkSize);
+        for (let index = start; index < end; index += 1) {
+          const child = nodes[index];
+          if (!child.material) continue;
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          if (!highlight || !compName) {
+            mats.forEach((mat) => {
+              if (!mat) return;
+              mat.opacity = 1.0;
+              mat.transparent = false;
+              mat.emissive?.setHex(0x000000);
+              mat.needsUpdate = true;
+            });
+            continue;
+          }
 
-      hydro.mesh.traverse((child) => {
-        if (!child.material) return;
-        const childName = String(child.name || '').toLowerCase();
-        const childData = String(child.userData?.componentName || child.userData?.component || '').toLowerCase();
-        const target = String(compName || '').toLowerCase();
+          const childName = String(child.name || '').toLowerCase();
+          const childData = String(child.userData?.componentName || child.userData?.component || '').toLowerCase();
+          const isTarget =
+            childName === target ||
+            childData === target ||
+            (target === 'hull' && child === hydro.mesh) ||
+            (target === 'wl' && child === hydro.wlContour) ||
+            (target === 'cb' && child === hydro.cbMarker) ||
+            (target === 'cg' && child === hydro.cgMarker) ||
+            (target === 'wp' && child === hydro.waterPlane) ||
+            (target === 'thrusters' && (childName.includes('thruster') || childName.includes('propeller') || childData === 'thrusters')) ||
+            (target === 'batteries' && (childName.includes('battery') || childName.includes('batt') || childData === 'batteries')) ||
+            (target === 'sensors' && (childName.includes('sensor') || childName.includes('lidar') || childName.includes('camera') || childData === 'sensors'));
 
-        const isTarget =
-          childName === target ||
-          childData === target ||
-          (target === 'hull' && child === hydro.mesh) ||
-          (target === 'wl' && child === hydro.wlContour) ||
-          (target === 'cb' && child === hydro.cbMarker) ||
-          (target === 'cg' && child === hydro.cgMarker) ||
-          (target === 'wp' && child === hydro.waterPlane) ||
-          (target === 'thrusters' && (childName.includes('thruster') || childName.includes('propeller') || childData === 'thrusters')) ||
-          (target === 'batteries' && (childName.includes('battery') || childName.includes('batt') || childData === 'batteries')) ||
-          (target === 'sensors' && (childName.includes('sensor') || childName.includes('lidar') || childName.includes('camera') || childData === 'sensors'));
-
-        if (isTarget) {
-          child.material.opacity = 1.0;
-          child.material.transparent = false;
-          child.material.emissive?.setHex(0x444444);
-        } else {
-          child.material.opacity = 0.18;
-          child.material.transparent = true;
-          child.material.emissive?.setHex(0x000000);
+          if (isTarget) {
+            mats.forEach((mat) => {
+              if (!mat) return;
+              mat.opacity = 1.0;
+              mat.transparent = false;
+              mat.emissive?.setHex(0x444444);
+              mat.needsUpdate = true;
+            });
+          } else {
+            mats.forEach((mat) => {
+              if (!mat) return;
+              mat.opacity = 0.18;
+              mat.transparent = true;
+              mat.emissive?.setHex(0x000000);
+              mat.needsUpdate = true;
+            });
+          }
         }
-        child.material.needsUpdate = true;
-      });
+        if (end < nodes.length) {
+          await yieldToBrowser();
+        }
+      }
     }
 
     async function updateHydroAfterLoad() {
@@ -1906,7 +1767,9 @@
       updateHydroDataUI(data);
     }
 
-    core.onAfterRender = updateHydroAfterLoad;
+    core.onAfterRender = () => {
+      void updateHydroAfterLoad();
+    };
 
     // Apply saved visibility settings to 3D elements
     const applyVisibilitySettings = () => {
@@ -1924,6 +1787,1093 @@
     // --- Load model from ?file= or file input ---
     const params = new URLSearchParams(location.search);
     let modelUrl = params.get("file") || "";
+    let activeModelUrl = modelUrl;
+    let activeSourceUrl = modelUrl;
+
+    function getCleanModelUrl(url = activeSourceUrl || activeModelUrl || modelUrl || "") {
+      return String(url || "").split("?")[0].split("#")[0];
+    }
+
+    /* Legacy duplicate helper block disabled in favor of the earlier async implementation.
+    const modelKind = "3MF";
+    let activeModelUrl = modelUrl;
+    let activeSourceUrl = modelUrl;
+    const HYDRO_REPORT_CACHE_VERSION = "20260523a";
+    const componentViewState = {
+      chosen: new Set(),
+      muted: new Set(),
+      isolateChosen: false,
+    };
+    let pendingExplodeAmount = 0;
+    let hydroReportCacheKey = "";
+    let hydroReportCachePayload = null;
+    let hydroReportCachePromise = null;
+
+    function normalizeComponentName(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function buildComponentAliasList(...values) {
+      return [...new Set(values
+        .flat()
+        .map((value) => normalizeComponentName(value))
+        .filter(Boolean))];
+    }
+
+    function componentMatchesState(item, tokenSet) {
+      if (!item || !tokenSet?.size) return false;
+      const aliases = Array.isArray(item.aliases) && item.aliases.length
+        ? item.aliases
+        : buildComponentAliasList(item.key, item.label, item.nodePath, item.sourceName);
+      return aliases.some((alias) => tokenSet.has(alias));
+    }
+
+    function roundComponentNumber(value, digits = 4) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return null;
+      const scale = 10 ** digits;
+      return Math.round(n * scale) / scale;
+    }
+
+    function getComponentSpatialData(object, root) {
+      if (!object?.geometry) return null;
+      try {
+        object.geometry.computeBoundingBox?.();
+        const localBox = object.geometry.boundingBox;
+        if (!localBox) return null;
+        const localCenter = localBox.getCenter(new THREE.Vector3());
+        const worldCenter = object.localToWorld(localCenter.clone());
+        const rootCenter = root?.worldToLocal ? root.worldToLocal(worldCenter.clone()) : worldCenter;
+        const worldBox = new THREE.Box3().setFromObject(object);
+        const worldSize = worldBox.getSize(new THREE.Vector3());
+        return {
+          center: {
+            x: roundComponentNumber(rootCenter.x),
+            y: roundComponentNumber(rootCenter.y),
+            z: roundComponentNumber(rootCenter.z),
+          },
+          size: {
+            x: roundComponentNumber(worldSize.x),
+            y: roundComponentNumber(worldSize.y),
+            z: roundComponentNumber(worldSize.z),
+          },
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    function collectRenderableComponents(root) {
+      if (!root) return [];
+      const items = [];
+      root.traverse?.((child) => {
+        if (!child?.isMesh || !child.material) return;
+        const label = String(child.userData?.componentName || child.name || "").trim();
+        if (!label) return;
+        const spatial = getComponentSpatialData(child, root);
+        items.push({
+          object: child,
+          label,
+          key: normalizeComponentName(child.userData?.componentKey || label),
+          nodePath: String(child.userData?.nodePath || "").trim(),
+          sourceName: String(child.userData?.sourceName || "").trim(),
+          brepFaces: Number(child.userData?.brepFaces) || 0,
+          center: spatial?.center || null,
+          size: spatial?.size || null,
+          aliases: buildComponentAliasList(
+            child.userData?.componentKey,
+            label,
+            child.userData?.nodePath,
+            child.userData?.sourceName
+          ),
+        });
+      });
+      return items;
+    }
+
+    function collectComponentPayload(root) {
+      const byKey = new Map();
+      const pushItem = (label, extra = {}) => {
+        const cleanLabel = String(label || "").trim();
+        const key = normalizeComponentName(extra.key || cleanLabel);
+        if (!cleanLabel || !key || byKey.has(key)) return;
+        byKey.set(key, {
+          key,
+          label: cleanLabel,
+          subtitle: extra.subtitle || "",
+          description: extra.description || "",
+          center: extra.center || null,
+          size: extra.size || null,
+        });
+      };
+
+      const renderables = collectRenderableComponents(root);
+      if (renderables.length) {
+        renderables.forEach(({ label, key, nodePath, sourceName, brepFaces, center, size }) => {
+          pushItem(label, {
+            key,
+            subtitle: nodePath || sourceName,
+            description: brepFaces ? `${brepFaces} B-Rep-flater` : "",
+            center,
+            size,
+          });
+        });
+      } else if (Array.isArray(root?.userData?.componentNames)) {
+        root.userData.componentNames.forEach((name) => pushItem(name));
+      }
+
+      return [...byKey.values()];
+    }
+
+    function postComponentsToParent(root) {
+      try {
+        if (!window.parent || window.parent === window) return;
+        const items = collectComponentPayload(root);
+        if (!items.length) return;
+        window.parent.postMessage({ type: "viewer-components", items, mode: "mesh" }, "*");
+      } catch {}
+    }
+
+    function serializeVector(vec) {
+      if (!vec || !Number.isFinite(vec.x) || !Number.isFinite(vec.y) || !Number.isFinite(vec.z)) return null;
+      return {
+        x: roundComponentNumber(vec.x),
+        y: roundComponentNumber(vec.y),
+        z: roundComponentNumber(vec.z),
+      };
+    }
+
+    function serializeBounds(bounds) {
+      if (!bounds?.min || !bounds?.max) return null;
+      return {
+        min: serializeVector(bounds.min),
+        max: serializeVector(bounds.max),
+      };
+    }
+
+    function serializeMassProperties(massProps) {
+      if (!massProps) return null;
+      const components = Array.isArray(massProps.components) ? massProps.components : [];
+      return {
+        source: massProps.source || "mesh-components",
+        componentCount: Number.isFinite(massProps.componentCount) ? massProps.componentCount : components.length,
+        densityKgM3: roundComponentNumber(massProps.densityKgM3, 3),
+        densityResolved: massProps.densityResolved === true,
+        densityMode: massProps.densityMode || "",
+        densityNote: massProps.densityNote || "",
+        densitySourceCounts: massProps.densitySourceCounts || null,
+        defaultDensityKgM3: roundComponentNumber(massProps.defaultDensityKgM3, 3),
+        defaultDensitySource: massProps.defaultDensitySource || "",
+        massMethod: massProps.massMethod || "",
+        massMethodLabel: massProps.massMethodLabel || "",
+        totalVolumeM3: roundComponentNumber(massProps.totalVolumeM3, 6),
+        totalMassKg: roundComponentNumber(massProps.totalMassKg, 6),
+        totalMassTonnes: roundComponentNumber(massProps.totalMassTonnes, 6),
+        centerOfMassLocal: serializeVector(massProps.centerOfMassLocal),
+        centerOfMassWorld: serializeVector(massProps.centerOfMassWorld),
+        kgWorld: roundComponentNumber(massProps.kgWorld, 6),
+        inertiaCentroid: massProps.inertiaCentroid || null,
+        components: components.map((entry) => ({
+          key: entry?.key || "",
+          name: entry?.name || "",
+          nodePath: entry?.nodePath || "",
+          sourceName: entry?.sourceName || "",
+          volumeM3: roundComponentNumber(entry?.volumeM3, 6),
+          baseDensityKgM3: roundComponentNumber(entry?.baseDensityKgM3, 3),
+          densityKgM3: roundComponentNumber(entry?.densityKgM3, 3),
+          densitySource: entry?.densitySource || "",
+          sourceLabel: entry?.sourceLabel || "",
+          materialSlug: entry?.materialSlug || "",
+          materialLabel: entry?.materialLabel || "",
+          infillPercent: roundComponentNumber(entry?.infillPercent, 3),
+          supportsInfill: entry?.supportsInfill !== false,
+          massMode: entry?.massMode || "",
+          groupMassKg: roundComponentNumber(entry?.groupMassKg, 6),
+          massDistribution: entry?.massDistribution || "",
+          note: entry?.note || "",
+          massKg: roundComponentNumber(entry?.massKg, 6),
+          massTonnes: roundComponentNumber(entry?.massTonnes, 6),
+          centroidLocal: serializeVector(entry?.centroidLocal),
+        })),
+      };
+    }
+
+    function invalidateHydroReportCache() {
+      hydroReportCacheKey = "";
+      hydroReportCachePayload = null;
+      hydroReportCachePromise = null;
+    }
+
+    function getViewerUnitMeta() {
+      const meta = core?.mesh?.userData?.modelMeta || {};
+      return {
+        units: "m",
+        sourceUnits: meta.sourceLengthUnit || meta.lengthUnit || "m",
+        unitNote: meta.unitNote || "Viewer beregner videre i meter.",
+      };
+    }
+
+    function roundCacheNumber(value, digits = 6) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return null;
+      return Number(num.toFixed(digits));
+    }
+
+    function buildHydroPayload() {
+      if (!hydro?.mesh) return { supported: false };
+      const last = hydro.getLastResults?.() || hydro.lastHydro || {};
+      const ref = hydro.getReferenceBoundsNoHydroRot?.() || null;
+      const unitMeta = getViewerUnitMeta();
+      const hasHydroSolution = Number.isFinite(last.subV);
+      const massProps = serializeMassProperties(hydro.getMassProperties?.());
+      const modelMassTonnes = Number.isFinite(massProps?.totalMassTonnes) ? massProps.totalMassTonnes : null;
+      const displacementTonnes = hasHydroSolution ? roundComponentNumber((last.subV * hydro.waterDensity) / 1000, 6) : null;
+      const draftZWorld = Number.isFinite(hydro.draftZWorld) ? hydro.draftZWorld : null;
+      const draftMeters = Number.isFinite(draftZWorld) && Number.isFinite(ref?.min?.z) ? Math.max(0, draftZWorld - ref.min.z) : null;
+      const length = ref ? Math.abs(ref.max.x - ref.min.x) : null;
+      const beam = ref ? Math.abs(ref.max.y - ref.min.y) : null;
+      const depth = ref ? Math.abs(ref.max.z - ref.min.z) : null;
+      return {
+        supported: true,
+        source: `${modelKind} viewer`,
+        modelKind,
+        length: length == null ? null : roundComponentNumber(length, 6),
+        beam: beam == null ? null : roundComponentNumber(beam, 6),
+        depth: depth == null ? null : roundComponentNumber(depth, 6),
+        hasHydroSolution,
+        pendingHydro: !hasHydroSolution,
+        draftZWorld: draftZWorld == null ? null : roundComponentNumber(draftZWorld),
+        draftMeters: draftMeters == null ? null : roundComponentNumber(draftMeters),
+        trimDeg: roundComponentNumber(hydro.trimDeg, 3),
+        heelDeg: roundComponentNumber(hydro.heelDeg, 3),
+        waterDensity: roundComponentNumber(hydro.waterDensity, 3),
+        units: unitMeta.units,
+        sourceUnits: unitMeta.sourceUnits,
+        unitNote: unitMeta.unitNote,
+        quality: hydro.quality || hydro.userQuality || "low",
+        visibility: {
+          waterline: hydro.wlVisible !== false,
+          waterlineContour: hydro.wlContourVisible !== false,
+          markers: {
+            cg: hydro.markersVisible?.cg !== false,
+            cb: hydro.markersVisible?.cb !== false,
+          },
+        },
+        referenceBounds: serializeBounds(ref),
+        submergedVolume: hasHydroSolution ? roundComponentNumber(last.subV, 6) : null,
+        displacementTonnes,
+        modelMassTonnes,
+        massGapTonnes: Number.isFinite(displacementTonnes) && Number.isFinite(modelMassTonnes)
+          ? roundComponentNumber(displacementTonnes - modelMassTonnes, 6)
+          : null,
+        cb: serializeVector(last.cbW),
+        cg: serializeVector(last.cgW),
+        wpArea: roundComponentNumber(last.wp?.A, 6),
+        kb: roundComponentNumber(last.kb, 6),
+        kg: roundComponentNumber(last.kg, 6),
+        bm: {
+          roll: roundComponentNumber(last.bm?.roll, 6),
+          pitch: roundComponentNumber(last.bm?.pitch, 6),
+        },
+        gm: {
+          roll: roundComponentNumber(last.gm?.roll, 6),
+          pitch: roundComponentNumber(last.gm?.pitch, 6),
+        },
+        gz: {
+          roll: roundComponentNumber(last.gz_now?.roll, 6),
+          pitch: roundComponentNumber(last.gz_now?.pitch, 6),
+        },
+        massProperties: massProps,
+      };
+    }
+
+    function postAnalysisToParent(root, summary = {}) {
+      try {
+        if (!window.parent || window.parent === window || !root) return;
+        const bounds = core.computeBoundsWorld?.(core.modelGroup) || null;
+        const box = bounds?.box || new THREE.Box3().setFromObject(root);
+        const unitMeta = getViewerUnitMeta();
+        if (!box) return;
+        window.parent.postMessage({
+          type: "viewer-analysis",
+          payload: {
+            bbox: {
+              minX: box.min.x,
+              minY: box.min.y,
+              minZ: box.min.z,
+              maxX: box.max.x,
+              maxY: box.max.y,
+              maxZ: box.max.z,
+            },
+            volume: Number.isFinite(summary.volume) ? summary.volume : (Number.isFinite(root.userData?.volume) ? root.userData.volume : null),
+            centroidLocal: summary.centroidLocal
+              ? { x: summary.centroidLocal.x, y: summary.centroidLocal.y, z: summary.centroidLocal.z }
+              : serializeVector(root.userData?.centroidLocal),
+            units: unitMeta.units,
+            sourceUnits: unitMeta.sourceUnits,
+            unitNote: unitMeta.unitNote,
+            source: `${modelKind} viewer`,
+            materialHint: root.userData?.modelMeta?.materialHint || null,
+            materialHintSource: root.userData?.modelMeta?.materialHint ? `${modelKind}-modell` : "",
+            massProperties: serializeMassProperties(hydro?.getMassProperties?.()),
+            hydro: buildHydroPayload(),
+          }
+        }, "*");
+      } catch {}
+    }
+
+    function postHydroProgressToParent({ progress = 0, title = "", text = "", etaMs = null, kind = "report" } = {}) {
+      try {
+        if (!window.parent || window.parent === window) return;
+        window.parent.postMessage({
+          type: "viewer-hydro-progress",
+          payload: {
+            progress: Math.max(0, Math.min(1, Number(progress) || 0)),
+            title: title || "Genererer hydro-rapport...",
+            text: text || "",
+            etaMs: Number.isFinite(Number(etaMs)) ? Number(etaMs) : null,
+            kind,
+          },
+        }, "*");
+      } catch {}
+    }
+
+    function getHydroQualityPreset(quality, performanceMode = false) {
+      if (performanceMode) {
+        if (quality === "high") return { stepDeg: 2.5, draftCount: 26, sectionCount: 22 };
+        if (quality === "med") return { stepDeg: 4.5, draftCount: 18, sectionCount: 16 };
+        return { stepDeg: 7, draftCount: 12, sectionCount: 12 };
+      }
+      if (quality === "high") return { stepDeg: 1, draftCount: 44, sectionCount: 42 };
+      if (quality === "med") return { stepDeg: 2, draftCount: 30, sectionCount: 30 };
+      return { stepDeg: 4, draftCount: 20, sectionCount: 22 };
+    }
+
+    function buildHydroReportCacheKey(options = {}) {
+      const massProps = hydro?.getMassProperties?.() || null;
+      const ref = hydro?.getReferenceBoundsNoHydroRot?.() || null;
+      const unitMeta = getViewerUnitMeta();
+      return JSON.stringify({
+        v: HYDRO_REPORT_CACHE_VERSION,
+        file: getCleanModelUrl(),
+        modelKind,
+        quality: String(options.quality || hydro?.quality || "low"),
+        performanceMode: options.performanceMode === true,
+        waterDensity: roundCacheNumber(hydro?.waterDensity, 3),
+        materialDensity: roundCacheNumber(hydro?.materialDensity, 3),
+        draftZWorld: roundCacheNumber(hydro?.draftZWorld, 6),
+        trimDeg: roundCacheNumber(hydro?.trimDeg, 4),
+        heelDeg: roundCacheNumber(hydro?.heelDeg, 4),
+        modelMassTonnes: roundCacheNumber(massProps?.totalMassTonnes, 6),
+        totalVolumeM3: roundCacheNumber(massProps?.totalVolumeM3, 6),
+        componentCount: Number(massProps?.componentCount) || 0,
+        refMinZ: roundCacheNumber(ref?.min?.z, 6),
+        refMaxZ: roundCacheNumber(ref?.max?.z, 6),
+        units: unitMeta.units,
+        sourceUnits: unitMeta.sourceUnits,
+      });
+    }
+
+    function syncExplodeUiFromCore() {
+      const rng = document.getElementById("rngExplode");
+      const txt = document.getElementById("txtExplode");
+      const meta = document.getElementById("txtExplodeMeta");
+      const btn = document.getElementById("btnExplodeReset");
+      const supported = !!core.canExplode?.();
+      const count = core.getExplodablePartCount?.() || 0;
+      const amount = core.getExplodeFactor?.() || 0;
+      const scope = core.getExplodeScope?.() || "all";
+      if (rng) {
+        rng.disabled = !supported;
+        rng.value = String(amount);
+      }
+      if (txt) txt.textContent = supported ? `${Math.round(amount * 100)}%` : "av";
+      if (meta) {
+        meta.textContent = supported
+          ? (scope === "selected"
+            ? `${count} valgte deler separeres kontrollert`
+            : `${count} deler separeres kontrollert fra assembly-senter`)
+          : "Krever minst 2 separate deler";
+      }
+      if (btn) btn.disabled = !supported && amount <= 0;
+    }
+
+    function postExplodeInfoToParent() {
+      try {
+        if (!window.parent || window.parent === window) return;
+        window.parent.postMessage({
+          type: "viewer-explode-info",
+          payload: {
+            supported: !!core.canExplode?.(),
+            count: core.getExplodablePartCount?.() || 0,
+            amount: core.getExplodeFactor?.() || 0,
+            scope: core.getExplodeScope?.() || "all",
+          }
+        }, "*");
+      } catch {}
+    }
+
+    function rememberBaseMaterial(mat) {
+      if (!mat || mat.userData?.viewerBaseState) return;
+      mat.userData = mat.userData || {};
+      mat.userData.viewerBaseState = {
+        opacity: Number.isFinite(mat.opacity) ? mat.opacity : 1,
+        transparent: !!mat.transparent,
+        depthWrite: mat.depthWrite !== false,
+        color: mat.color?.clone ? mat.color.clone() : null,
+        emissive: mat.emissive?.clone ? mat.emissive.clone() : null,
+      };
+    }
+
+    function restoreMaterialState(mat) {
+      const base = mat?.userData?.viewerBaseState;
+      if (!mat || !base) return;
+      mat.opacity = base.opacity;
+      mat.transparent = base.transparent;
+      mat.depthWrite = base.depthWrite;
+      if (base.color && mat.color) mat.color.copy(base.color);
+      if (base.emissive && mat.emissive) mat.emissive.copy(base.emissive);
+      mat.needsUpdate = true;
+    }
+
+    async function withHydroGeometryState(task) {
+      const previousExplode = core.getExplodeFactor?.() || 0;
+      const visibilitySnapshot = [];
+      const renderables = collectRenderableComponents(core?.mesh);
+      renderables.forEach(({ object }) => {
+        if (!object) return;
+        visibilitySnapshot.push({ object, visible: object.visible !== false });
+        object.visible = true;
+      });
+      if (previousExplode > 0) {
+        core.setExplodeFactor?.(0);
+        syncExplodeUiFromCore();
+        postExplodeInfoToParent();
+      }
+      try {
+        return await task();
+      } finally {
+        visibilitySnapshot.forEach(({ object, visible }) => {
+          if (!object) return;
+          object.visible = visible;
+        });
+        if (previousExplode > 0) {
+          core.setExplodeFactor?.(previousExplode);
+          syncExplodeUiFromCore();
+          postExplodeInfoToParent();
+        }
+      }
+    }
+
+    function applyComponentState() {
+      const renderables = collectRenderableComponents(core.mesh);
+      if (!renderables.length) return;
+
+      const matchedChosen = renderables.filter((item) => componentMatchesState(item, componentViewState.chosen));
+      const useChosenFocus = matchedChosen.length > 0;
+
+      renderables.forEach((item) => {
+        const { object } = item;
+        const isMuted = componentMatchesState(item, componentViewState.muted);
+        const isChosen = componentMatchesState(item, componentViewState.chosen);
+        const hideUnselected = componentViewState.isolateChosen && useChosenFocus && !isChosen;
+        object.visible = !isMuted && !hideUnselected;
+
+        const mats = Array.isArray(object.material) ? object.material : [object.material];
+        mats.forEach((mat) => {
+          if (!mat) return;
+          rememberBaseMaterial(mat);
+          restoreMaterialState(mat);
+
+          if (isMuted || hideUnselected) {
+            mat.opacity = 0;
+            mat.transparent = true;
+            mat.depthWrite = false;
+          } else if (useChosenFocus && !isChosen) {
+            mat.opacity = Math.min(mat.opacity, 0.14);
+            mat.transparent = true;
+            mat.depthWrite = false;
+          } else if (useChosenFocus && isChosen && mat.emissive) {
+            mat.emissive.setHex(0x262626);
+          }
+          mat.needsUpdate = true;
+        });
+      });
+    }
+
+    function applyComponentViewState() {
+      applyComponentState();
+    }
+
+    async function buildHydroReportPayload(options = {}) {
+      if (!hydro?.mesh) return null;
+      if (options.forceRecalc) invalidateHydroReportCache();
+      if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
+      if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
+      hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
+      const quality = options.quality || hydro.quality || "low";
+      const performanceMode = options.performanceMode === true;
+      if (quality) {
+        hydro.userQuality = String(quality);
+        hydro.quality = String(quality);
+      }
+      if (Number.isFinite(Number(options.draftZWorld))) {
+        hydro.draftZWorld = Number(options.draftZWorld);
+      }
+      if (Number.isFinite(Number(options.trim))) {
+        const trimDeg = Number(options.trim);
+        hydro._setAxisRotation?.(hydro.axis.pitchAxis, THREE.MathUtils.degToRad(trimDeg));
+        hydro.trimDeg = trimDeg;
+      }
+      if (Number.isFinite(Number(options.heel))) {
+        const heelDeg = Number(options.heel);
+        hydro._setAxisRotation?.(hydro.axis.rollAxis, THREE.MathUtils.degToRad(heelDeg));
+        hydro.heelDeg = heelDeg;
+      }
+      hydro.updateWaterPlane();
+      hydro._invalidateCache?.();
+
+      await withHydroGeometryState(async () => {
+        await hydro.recompute();
+      });
+
+      const cacheKey = buildHydroReportCacheKey({ quality, performanceMode });
+      if (!options.forceRecalc && hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
+        return {
+          ...hydroReportCachePayload,
+          cached: true,
+          reportCacheKey: cacheKey,
+        };
+      }
+      if (!options.forceRecalc && hydroReportCachePromise && hydroReportCacheKey === cacheKey) {
+        return hydroReportCachePromise;
+      }
+
+      hydroReportCacheKey = cacheKey;
+      hydroReportCachePromise = withHydroGeometryState(async () => {
+        const preset = getHydroQualityPreset(quality, performanceMode);
+        const startedAt = performance.now();
+        const stageProgress = performanceMode
+          ? { prepare: 0.03, roll: 0.12, pitch: 0.24, draft: 0.42, section: 0.62, equilibrium: 0.82 }
+          : { prepare: 0.03, roll: 0.16, pitch: 0.32, draft: 0.54, section: 0.78, equilibrium: 0.9 };
+        const pushProgress = (progress, title, text) => {
+          const fraction = Math.max(0.01, Math.min(0.99, Number(progress) || 0));
+          const elapsedMs = performance.now() - startedAt;
+          const etaMs = elapsedMs > 40 ? (elapsedMs * (1 - fraction)) / fraction : null;
+          postHydroProgressToParent({ progress: fraction, title, text, etaMs, kind: "report" });
+        };
+        pushProgress(stageProgress.prepare, "Genererer hydro-rapport...", "Forbereder hydrotilstand og massegrunnlag.");
+        const rollReport = await hydro.generateHydroReport({
+          mode: "roll",
+          maxDeg: 60,
+          stepDeg: preset.stepDeg,
+          quality,
+          includeSAK: true,
+        });
+        pushProgress(stageProgress.roll, "Genererer hydro-rapport...", "Rollkurve ferdig, fortsetter med pitch.");
+        const pitchReport = await hydro.generateHydroReport({
+          mode: "pitch",
+          maxDeg: 40,
+          stepDeg: preset.stepDeg,
+          quality,
+          includeSAK: false,
+        });
+        pushProgress(stageProgress.pitch, "Genererer hydro-rapport...", "Pitchkurve ferdig, skanner draft og deplasement.");
+        const draftScan = await hydro.generateDraftScan({
+          draftCount: preset.draftCount,
+          quality,
+          includeAwp: true,
+          includeSAK: false,
+        });
+        pushProgress(stageProgress.draft, "Genererer hydro-rapport...", "Draftscan ferdig, bygger seksjonsarealkurve.");
+        const sectionCurve = await hydro.computeSectionAreaCurve({
+          stationCount: preset.sectionCount,
+          draftZ: hydro.draftZWorld,
+          quality,
+          timeSliceMs: performanceMode ? 24 : 10,
+        });
+        pushProgress(stageProgress.section, "Genererer hydro-rapport...", "Seksjonsareal ferdig, finner likevekt.");
+        const equilibriumState = await hydro.estimateEquilibriumState({
+          solveTrimHeel: true,
+          toleranceTonnes: performanceMode ? 0.05 : 0.02,
+          maxIterations: performanceMode ? 16 : 26,
+          maxHeelDeg: performanceMode ? 10 : 14,
+          maxTrimDeg: performanceMode ? 8 : 10,
+        });
+        pushProgress(stageProgress.equilibrium, "Genererer hydro-rapport...", "Sammenstiller rapport og sluttverdier.");
+        postHydroProgressToParent({ progress: 1, title: "Hydro-rapport klar", text: "Rapporten er ferdig bygget.", etaMs: 0, kind: "report" });
+        const unitMeta = getViewerUnitMeta();
+        const payload = {
+          generatedAt: new Date().toISOString(),
+          fileName: decodeURIComponent((getCleanModelUrl().split("/").pop() || "Hydro-modell")),
+          sourceLabel: `${modelKind} viewer`,
+          quality,
+          performanceMode,
+          units: unitMeta.units,
+          sourceUnits: unitMeta.sourceUnits,
+          unitNote: unitMeta.unitNote,
+          currentHydro: buildHydroPayload(),
+          rollReport,
+          pitchReport,
+          draftScan,
+          sectionCurve,
+          equilibriumState,
+          reportCacheKey: cacheKey,
+          cached: false,
+          note: `${performanceMode ? "Ytelsesmodus er aktiv. " : ""}Kurvene er generert fra aktiv viewer-geometri. Hydro og rapport bruker full, ueksplodert og udempet geometri i bakgrunnen.`,
+        };
+        hydroReportCachePayload = payload;
+        return payload;
+      });
+
+      try {
+        return await hydroReportCachePromise;
+      } finally {
+        hydroReportCachePromise = null;
+      }
+    }
+
+    window.addEventListener("message", async (event) => {
+      const data = event?.data;
+      if (!data) return;
+      if (data.type === "viewer-component-state") {
+        componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.isolateChosen = data.isolateChosen === true;
+        applyComponentState();
+        return;
+      }
+      if (data.type !== "viewer-command") return;
+
+      if (data.action === "set-explode-scope") {
+        const requestedScope = String(data.scope || "").toLowerCase();
+        const scope = requestedScope === "selected"
+          ? "selected"
+          : requestedScope === "none"
+            ? "none"
+            : (data.enabled === false ? "none" : "all");
+        core.setExplodeScope?.({
+          scope,
+          tokens: Array.isArray(data.keys) ? data.keys : [],
+        });
+        if (core.mesh) {
+          if ((pendingExplodeAmount || 0) > 0 || scope === "none") {
+            core.setExplodeFactor?.(pendingExplodeAmount || 0);
+          }
+          syncExplodeUiFromCore();
+          postExplodeInfoToParent();
+        }
+        return;
+      }
+
+      if (data.action === "set-explode") {
+        pendingExplodeAmount = Math.max(0, Math.min(1, Number(data.amount) || 0));
+        const applied = core.mesh ? core.setExplodeFactor?.(pendingExplodeAmount) : pendingExplodeAmount;
+        syncExplodeUiFromCore();
+        if (core.mesh) postExplodeInfoToParent();
+        setHud(applied > 0 ? `Explode ${Math.round(applied * 100)}%` : "Explode nullstilt", false);
+        return;
+      }
+
+      if (!hydro?.mesh) return;
+
+      if (data.action === "set-hydro-visibility") {
+        hydro.setHydroElementsVisible({
+          waterline: data.waterline !== false,
+          waterlineContour: data.contour !== false,
+          markers: {
+            cg: data.markers?.cg !== false,
+            cb: data.markers?.cb !== false,
+          },
+        });
+        postAnalysisToParent(core.mesh);
+        return;
+      }
+
+      if (data.action === "set-hydro-state") {
+        invalidateHydroReportCache();
+        if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
+        if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
+        hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
+        if (data.quality) hydro.setQuality(String(data.quality));
+        if (Number.isFinite(Number(data.draftZWorld))) {
+          hydro.draftZWorld = Number(data.draftZWorld);
+          hydro.updateWaterPlane();
+          hydro._invalidateCache?.();
+        }
+        if (Number.isFinite(Number(data.trim))) hydro.setTrim(Number(data.trim));
+        if (Number.isFinite(Number(data.heel))) hydro.setHeel(Number(data.heel));
+        await withHydroGeometryState(async () => {
+          await hydro.recompute();
+        });
+        ui._updateHydroUI?.();
+        ui._updateDraftText?.(hydro.draftZWorld);
+        postAnalysisToParent(core.mesh);
+        setHud("Hydrostatikk oppdatert", false);
+        return;
+      }
+
+      if (data.action === "reset-hydro-pose") {
+        invalidateHydroReportCache();
+        hydro.zeroTrimHeel();
+        if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
+        if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
+        hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
+        if (Number.isFinite(Number(data.draftZWorld))) {
+          hydro.draftZWorld = Number(data.draftZWorld);
+          hydro.updateWaterPlane();
+          hydro._invalidateCache?.();
+        }
+        await withHydroGeometryState(async () => {
+          await hydro.recompute();
+        });
+        ui._updateHydroUI?.();
+        ui._updateDraftText?.(hydro.draftZWorld);
+        postAnalysisToParent(core.mesh);
+        setHud("Trim/heel nullstilt", false);
+        return;
+      }
+
+      if (data.action === "generate-hydro-report") {
+        const payload = await buildHydroReportPayload(data);
+        if (payload && window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "viewer-hydro-report", payload }, "*");
+        }
+      }
+    });
+
+    */
+    const reportWorker = typeof Worker === "function"
+      ? new Worker("/includes/three/HydroReportWorker.js?v=20260523a")
+      : null;
+
+    if (reportWorker) {
+      reportWorker.addEventListener("message", (event) => {
+        const data = event?.data || {};
+        const callback = runtimeState.reportWorkerCallbacks.get(data.id);
+        if (!callback) return;
+        runtimeState.reportWorkerCallbacks.delete(data.id);
+        if (data.ok === false) {
+          callback.reject(new Error(data.error?.message || "Worker task failed"));
+          return;
+        }
+        callback.resolve(data.result);
+      });
+    }
+
+    async function runReportWorkerTask(type, payload, { signal = null } = {}) {
+      if (!reportWorker) return null;
+      throwIfAborted(signal);
+      const id = `report-worker-${++runtimeState.reportWorkerSeq}`;
+      const resultPromise = new Promise((resolve, reject) => {
+        runtimeState.reportWorkerCallbacks.set(id, { resolve, reject });
+      });
+      const abortHandler = () => {
+        const callback = runtimeState.reportWorkerCallbacks.get(id);
+        if (!callback) return;
+        runtimeState.reportWorkerCallbacks.delete(id);
+        callback.reject(createAbortError("Worker task aborted"));
+      };
+      signal?.addEventListener?.("abort", abortHandler, { once: true });
+      reportWorker.postMessage({ id, type, payload });
+      try {
+        const result = await resultPromise;
+        throwIfAborted(signal);
+        return result;
+      } finally {
+        signal?.removeEventListener?.("abort", abortHandler);
+      }
+    }
+
+    function getHydroQualityPreset(quality, performanceMode = false) {
+      if (performanceMode) {
+        if (quality === "high") return { stepDeg: 2.5, draftCount: 26, sectionCount: 22 };
+        if (quality === "med") return { stepDeg: 4.5, draftCount: 18, sectionCount: 16 };
+        return { stepDeg: 7, draftCount: 12, sectionCount: 12 };
+      }
+      if (quality === "high") return { stepDeg: 1, draftCount: 44, sectionCount: 42 };
+      if (quality === "med") return { stepDeg: 2, draftCount: 30, sectionCount: 30 };
+      return { stepDeg: 4, draftCount: 20, sectionCount: 22 };
+    }
+
+    async function buildHydroReportPayload(options = {}, runtime = {}) {
+      if (!hydro?.mesh) return null;
+      const signal = runtime.signal || null;
+      const onStage = typeof runtime.onStage === "function" ? runtime.onStage : null;
+      const onPartial = typeof runtime.onPartial === "function" ? runtime.onPartial : null;
+
+      if (options.forceRecalc) invalidateHydroReportCache();
+      if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
+      if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
+      hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
+      const quality = options.quality || hydro.quality || "low";
+      const performanceMode = options.performanceMode === true;
+      if (quality) {
+        hydro.userQuality = String(quality);
+        hydro.quality = String(quality);
+      }
+      if (Number.isFinite(Number(options.draftZWorld))) {
+        hydro.draftZWorld = Number(options.draftZWorld);
+      }
+      if (Number.isFinite(Number(options.trim))) {
+        const trimDeg = Number(options.trim);
+        hydro._setAxisRotation?.(hydro.axis.pitchAxis, THREE.MathUtils.degToRad(trimDeg));
+        hydro.trimDeg = trimDeg;
+      }
+      if (Number.isFinite(Number(options.heel))) {
+        const heelDeg = Number(options.heel);
+        hydro._setAxisRotation?.(hydro.axis.rollAxis, THREE.MathUtils.degToRad(heelDeg));
+        hydro.heelDeg = heelDeg;
+      }
+      hydro.updateWaterPlane();
+      hydro._invalidateCache?.();
+      cancelScheduledHydroRecalc();
+
+      const cacheKey = buildHydroReportCacheKey({ quality, performanceMode });
+      if (!options.forceRecalc && hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
+        return {
+          ...hydroReportCachePayload,
+          cached: true,
+          reportCacheKey: cacheKey,
+        };
+      }
+      if (!options.forceRecalc && hydroReportCachePromise && hydroReportCacheKey === cacheKey) {
+        return hydroReportCachePromise;
+      }
+
+      hydroReportCacheKey = cacheKey;
+      hydroReportCachePromise = withHydroGeometryState(async () => {
+        throwIfAborted(signal);
+        const preset = getHydroQualityPreset(quality, performanceMode);
+        const startedAt = performance.now();
+        const stageProgress = performanceMode
+          ? { prepare: 0.04, roll: 0.16, pitch: 0.3, draft: 0.52, section: 0.7, equilibrium: 0.86, derive: 0.94 }
+          : { prepare: 0.04, roll: 0.18, pitch: 0.36, draft: 0.58, section: 0.78, equilibrium: 0.9, derive: 0.96 };
+        const announce = (progress, title, text) => {
+          const fraction = Math.max(0.01, Math.min(0.99, Number(progress) || 0));
+          const elapsedMs = performance.now() - startedAt;
+          const etaMs = elapsedMs > 40 ? (elapsedMs * (1 - fraction)) / fraction : null;
+          onStage?.({ progress: fraction, title, text, etaMs, elapsedMs });
+          postHydroProgressToParent({ progress: fraction, title, text, etaMs, kind: "report" });
+        };
+
+        announce(stageProgress.prepare, "Genererer hydro-rapport...", "Forbereder hydrotilstand og geometri.");
+        await waitForHydroIdle(signal);
+        await hydro.recompute();
+        await yieldToBrowser();
+        throwIfAborted(signal);
+
+        const rollReport = await hydro.generateHydroReport({
+          mode: "roll",
+          maxDeg: 60,
+          stepDeg: preset.stepDeg,
+          quality,
+          includeSAK: false,
+        });
+        if (onPartial) await onPartial({ type: "roll-report", report: rollReport });
+        announce(stageProgress.roll, "Genererer hydro-rapport...", "Rollkurve klar, fortsetter med pitch.");
+        await yieldToBrowser();
+        throwIfAborted(signal);
+
+        const pitchReport = await hydro.generateHydroReport({
+          mode: "pitch",
+          maxDeg: 40,
+          stepDeg: preset.stepDeg,
+          quality,
+          includeSAK: false,
+        });
+        if (onPartial) await onPartial({ type: "pitch-report", report: pitchReport });
+        announce(stageProgress.pitch, "Genererer hydro-rapport...", "Pitchkurve klar, skanner draft og seksjoner.");
+        await yieldToBrowser();
+        throwIfAborted(signal);
+
+        const draftScan = await hydro.generateDraftScan({
+          draftCount: preset.draftCount,
+          quality,
+          includeAwp: true,
+          includeSAK: false,
+        });
+        announce(stageProgress.draft, "Genererer hydro-rapport...", "Draftscan klar, bygger seksjonsarealer.");
+        await yieldToBrowser();
+        throwIfAborted(signal);
+
+        const sectionCurve = await hydro.computeSectionAreaCurve({
+          stationCount: preset.sectionCount,
+          draftZ: hydro.draftZWorld,
+          quality,
+          timeSliceMs: performanceMode ? 24 : 10,
+        });
+        announce(stageProgress.section, "Genererer hydro-rapport...", "Seksjonskurve klar, finner likevekt.");
+        await yieldToBrowser();
+        throwIfAborted(signal);
+
+        const equilibriumState = await hydro.estimateEquilibriumState({
+          solveTrimHeel: true,
+          toleranceTonnes: performanceMode ? 0.05 : 0.02,
+          maxIterations: performanceMode ? 16 : 26,
+          maxHeelDeg: performanceMode ? 10 : 14,
+          maxTrimDeg: performanceMode ? 8 : 10,
+        });
+        announce(stageProgress.equilibrium, "Genererer hydro-rapport...", "Likevektsdata klar, avleder tabeller og eksport.");
+        await yieldToBrowser();
+        throwIfAborted(signal);
+
+        const unitMeta = getViewerUnitMeta();
+        const currentHydro = buildHydroPayload();
+        const derived = await runReportWorkerTask("derive-report", {
+          waterDensity: hydro.waterDensity,
+          rollReport,
+          pitchReport,
+          draftScan,
+          sectionCurve,
+          equilibriumState,
+          currentHydro,
+          fileName: decodeURIComponent((getCleanModelUrl().split("/").pop() || "Hydro-modell")),
+          sourceLabel: `${MODEL_KIND} viewer`,
+          quality,
+          performanceMode,
+          units: unitMeta.units,
+          sourceUnits: unitMeta.sourceUnits,
+          unitNote: unitMeta.unitNote,
+        }, { signal });
+        announce(stageProgress.derive, "Genererer hydro-rapport...", "Bearbeider rapportdata utenfor main thread.");
+        await yieldToBrowser();
+        throwIfAborted(signal);
+
+        const payload = {
+          generatedAt: new Date().toISOString(),
+          fileName: decodeURIComponent((getCleanModelUrl().split("/").pop() || "Hydro-modell")),
+          sourceLabel: `${MODEL_KIND} viewer`,
+          quality,
+          performanceMode,
+          units: unitMeta.units,
+          sourceUnits: unitMeta.sourceUnits,
+          unitNote: unitMeta.unitNote,
+          currentHydro,
+          rollReport,
+          pitchReport,
+          draftScan,
+          sectionCurve,
+          equilibriumState,
+          derived,
+          reportCacheKey: cacheKey,
+          cached: false,
+          note: `${performanceMode ? "Ytelsesmodus er aktiv. " : ""}Kurvene er generert fra aktiv viewer-geometri. Hydro og rapport bruker full, ueksplodert og udempet geometri i bakgrunnen.`,
+        };
+        hydroReportCachePayload = payload;
+        onStage?.({ progress: 1, title: "Hydro-rapport klar", text: "Rapporten er ferdig bygget.", etaMs: 0, elapsedMs: performance.now() - startedAt });
+        postHydroProgressToParent({ progress: 1, title: "Hydro-rapport klar", text: "Rapporten er ferdig bygget.", etaMs: 0, kind: "report" });
+        return payload;
+      }, { signal });
+
+      try {
+        return await hydroReportCachePromise;
+      } finally {
+        hydroReportCachePromise = null;
+      }
+    }
+
+    window.addEventListener("message", async (event) => {
+      const data = event?.data;
+      if (!data) return;
+      if (data.type === "viewer-component-state") {
+        componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.isolateChosen = data.isolateChosen === true;
+        await applyComponentViewState();
+        return;
+      }
+      if (data.type !== "viewer-command") return;
+
+      if (data.action === "set-explode-scope") {
+        const requestedScope = String(data.scope || "").toLowerCase();
+        const scope = requestedScope === "selected"
+          ? "selected"
+          : requestedScope === "none"
+            ? "none"
+            : (data.enabled === false ? "none" : "all");
+        core.setExplodeScope?.({
+          scope,
+          tokens: Array.isArray(data.keys) ? data.keys : [],
+        });
+        if (core.mesh) {
+          if ((pendingExplodeAmount || 0) > 0 || scope === "none") {
+            core.setExplodeFactor?.(pendingExplodeAmount || 0);
+          }
+          syncExplodeUiFromCore();
+          postExplodeInfoToParent();
+        }
+        return;
+      }
+
+      if (data.action === "set-explode") {
+        pendingExplodeAmount = Math.max(0, Math.min(1, Number(data.amount) || 0));
+        const applied = core.mesh ? core.setExplodeFactor?.(pendingExplodeAmount) : pendingExplodeAmount;
+        syncExplodeUiFromCore();
+        if (core.mesh) postExplodeInfoToParent();
+        setHud(applied > 0 ? `Explode ${Math.round(applied * 100)}%` : "Explode nullstilt", false);
+        return;
+      }
+
+      if (!hydro?.mesh) return;
+
+      if (data.action === "set-hydro-visibility") {
+        hydro.setHydroElementsVisible({
+          waterline: data.waterline !== false,
+          waterlineContour: data.contour !== false,
+          markers: {
+            cg: data.markers?.cg !== false,
+            cb: data.markers?.cb !== false,
+          },
+        });
+        syncHydroVisibility();
+        postAnalysisToParent(hydro.mesh);
+        return;
+      }
+
+      if (data.action === "set-hydro-state") {
+        await queueHydroStateUpdate({
+          draft: Number.isFinite(Number(data.draftZWorld)) ? Number(data.draftZWorld) : null,
+          trim: Number.isFinite(Number(data.trim)) ? Number(data.trim) : null,
+          heel: Number.isFinite(Number(data.heel)) ? Number(data.heel) : null,
+          waterDensity: Number.isFinite(Number(data.waterDensity)) ? Number(data.waterDensity) : null,
+          materialDensity: Number.isFinite(Number(data.materialDensity)) ? Number(data.materialDensity) : null,
+          componentDensityOverrides: data.componentDensityOverrides || {},
+          quality: data.quality ? String(data.quality) : null,
+          source: "parent-state",
+          useOverlay: false,
+        });
+        return;
+      }
+
+      if (data.action === "reset-hydro-pose") {
+        hydro.zeroTrimHeel();
+        await queueHydroStateUpdate({
+          draft: Number.isFinite(Number(data.draftZWorld)) ? Number(data.draftZWorld) : null,
+          waterDensity: Number.isFinite(Number(data.waterDensity)) ? Number(data.waterDensity) : null,
+          materialDensity: Number.isFinite(Number(data.materialDensity)) ? Number(data.materialDensity) : null,
+          componentDensityOverrides: data.componentDensityOverrides || {},
+          source: "parent-reset",
+          useOverlay: false,
+        });
+        setHud("Trim/heel nullstilt", false);
+        return;
+      }
+
+      if (data.action === "generate-hydro-report") {
+        const reportJob = startAbortableJob("reportJob");
+        try {
+          const payload = await buildHydroReportPayload(data, { signal: reportJob.signal });
+          if (payload && isCurrentJob(reportJob) && window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: "viewer-hydro-report", payload }, "*");
+          }
+        } catch (error) {
+          if (!isAbortError(error)) {
+            console.error("[3mfhydro] Parent report generation failed:", error);
+          }
+        }
+      }
+    });
 
     function normalizeViewerUrl(url) {
       if(!url) return "";
@@ -1959,24 +2909,39 @@
     }
 
     async function loadModel(url) {
+      cancelJob("reportJob", "Ny modellast startet");
+      cancelJob("recomputeJob", "Ny modellast startet");
+      const loadJob = startAbortableJob("loadJob");
+      runtimeState.perf.firstInteractiveLogged = false;
       if(!url) {
         setHud("Velg en 3MF-fil å laste", false);
         return;
       }
       const resolved = await resolvePreferredModelUrl(url);
+      throwIfAborted(loadJob.signal);
       url = resolved.url;
+      activeModelUrl = url;
+      activeSourceUrl = resolved.sourceUrl || url;
       console.info("[3mfhydro] modelUrl:", url, resolved);
 
       // Loader timeout (stopper uendelig "Laster...")
       const TIMEOUT_MS = 25000;
       const to = setTimeout(() => {
         setHud("3MF tar lenger tid enn ventet. Fortsetter a vente...", false);
-        setStageState("loading", "Laster 3MF", "Lasting tar lengre tid enn forventet...");
+        setStageState("loading", "Laster 3MF", "Lasting tar lengre tid enn forventet...", {
+          progress: 0.2,
+          detail: "Venter fortsatt pa parser og geometri...",
+        });
       }, TIMEOUT_MS);
 
       try{
-        setStageState("loading", "Laster 3MF", "Laster 3MF og hydrodata...");
+        setStageState("loading", "Laster 3MF", "Laster 3MF og hydrodata...", {
+          progress: 0.04,
+          detail: resolved.placeholder ? "Forbereder 3MF-placeholder..." : "Forbereder 3MF-lasting...",
+        });
         setHud(resolved.placeholder ? "Laster 3MF-placeholder..." : "Laster 3MF...");        // Først: test om filen finnes og er tilgjengelig
+        await yieldToBrowser();
+        throwIfAborted(loadJob.signal);
         const headOk = true;
         const headStatus = 200;
         if (!headOk) {
@@ -1986,11 +2951,36 @@
           return;
         }
 
-        setStageState("loading", "Bygger modell", "Setter opp mesh, komponenter og geometri...");
+        setStageState("loading", "Parser 3MF", "Pakker ut geometri og komponenter...", {
+          progress: 0.12,
+          detail: "Starter parser og mesh-oppbygging...",
+        });
         const loader = new ModelLoader();
-        const { mesh, geometry, volume, centroidLocal } = await loader.load(url);
+        const parseStartedAt = performance.now();
+        const { mesh, geometry, volume, centroidLocal } = await loader.load(url, {
+          signal: loadJob.signal,
+          yieldControl: yieldToBrowser,
+          onProgress: ({ progress = null, title = "Parser 3MF", message = "", detail = "" } = {}) => {
+            if (!isCurrentJob(loadJob)) return;
+            setStageState("loading", title, message || "Pakker ut geometri og komponenter...", {
+              progress: Number.isFinite(progress) ? progress : 0.18,
+              detail,
+            });
+          },
+        });
+        const parseDurationMs = logPerf("parse-time", parseStartedAt, {
+          url,
+          placeholder: resolved.placeholder,
+        });
+        throwIfAborted(loadJob.signal);
 
         clearTimeout(to);
+
+        setStageState("loading", "Bygger modell", "Binder mesh til viewer og hydro...", {
+          progress: 0.72,
+          detail: "Oppdaterer scene, bounds og hydro-cache...",
+        });
+        await yieldToBrowser();
 
         core.setMesh(mesh);
         core.setUnitsScale?.(Number(mesh?.userData?.modelMeta?.metersPerUnit) || 1);
@@ -1998,15 +2988,39 @@
         invalidateHydroReportCache();
 
         // Bygg dynamisk komponentliste basert på modellen
-        buildComponentList(mesh);
-        postComponentsToParent(mesh);
+        setStageState("loading", "Komponenter", "Bygger komponentliste og sidepanel...", {
+          progress: 0.8,
+          detail: "Traverserer mesh i chunks for a holde UI responsiv...",
+          keepPanelVisible: true,
+        });
+        await buildComponentList(mesh, {
+          signal: loadJob.signal,
+          onProgress: (detail) => {
+            if (!isCurrentJob(loadJob)) return;
+            setStageState("loading", "Komponenter", "Bygger komponentliste og sidepanel...", {
+              progress: 0.84,
+              detail,
+              keepPanelVisible: true,
+            });
+          },
+        });
+        throwIfAborted(loadJob.signal);
+        await yieldToBrowser();
+
+        setStageState("loading", "Synkroniserer", "Sender analyse og paneldata...", {
+          progress: 0.9,
+          detail: `Parse: ${formatDuration(parseDurationMs)}. Synkroniserer komponenter og analyser...`,
+          keepPanelVisible: true,
+        });
+        await postComponentsToParent(mesh, { signal: loadJob.signal });
         postAnalysisToParent(mesh, { volume, centroidLocal });
         syncExplodeUiFromCore();
         postExplodeInfoToParent();
-        applyComponentViewState();
+        await applyComponentViewState({ signal: loadJob.signal });
 
-        applyVisibilitySettings(); // Apply saved visibility settings to 3D elements
+        applyVisibilitySettings();
         hydro.initDraftAtWorldZero();
+        cancelScheduledHydroRecalc();
 
         ui.afterModelLoaded({ mesh, geometry, volume, centroidLocal, modelUrl: url });
 
@@ -2021,6 +3035,19 @@
         core.start();
         syncHydroVisibility();
         setStageState("idle");
+        await yieldToBrowser();
+        if (isCurrentJob(loadJob)) {
+          requestAnimationFrame(() => {
+            if (!isCurrentJob(loadJob) || runtimeState.perf.firstInteractiveLogged) return;
+            runtimeState.perf.firstInteractiveLogged = true;
+            logPerf("time-to-first-interactive-frame", loadJob.startedAt, { url });
+          });
+        }
+        logPerf("total-load", loadJob.startedAt, {
+          url,
+          placeholder: resolved.placeholder,
+          parseDurationMs: Number(parseDurationMs.toFixed(2)),
+        });
         setHud(
           resolved.placeholder
             ? "3MF-placeholder lastet - beregner hydrostatikk..."
@@ -2030,15 +3057,28 @@
 
         (async () => {
           const preferredQuality = hydro.userQuality || hydro.quality || "med";
+          const hydroComputeStartedAt = performance.now();
           try {
+            await yieldToBrowser();
+            throwIfAborted(loadJob.signal);
             hydro.quality = "low";
             await hydro.recompute();
+            const hydroComputeDurationMs = logPerf("hydro-compute-time", hydroComputeStartedAt, {
+              stage: "post-load-low-quality",
+              url,
+            });
+            if (!isCurrentJob(loadJob)) return;
+            await yieldToBrowser();
             await updateHydroAfterLoad();
             postAnalysisToParent(mesh, { volume, centroidLocal });
 
             if (preferredQuality !== "low") {
-              hydro.quality = preferredQuality;
-              hydro.scheduleRecalc(false);
+              hydro.userQuality = preferredQuality;
+              await queueHydroStateUpdate({
+                quality: preferredQuality,
+                source: "post-load-quality-upgrade",
+                useOverlay: false,
+              });
             } else {
               hydro.quality = preferredQuality;
             }
@@ -2055,13 +3095,19 @@
                 : "Klar - 3MF lastet med hydrostatikk",
               false
             );
+            console.info("[3mfhydro][perf]", "load-summary", {
+              totalLoadMs: Number((performance.now() - loadJob.startedAt).toFixed(2)),
+              hydroComputeMs: Number(hydroComputeDurationMs.toFixed(2)),
+            });
           } catch (hydroErr) {
+            if (isAbortError(hydroErr) || !isCurrentJob(loadJob)) return;
             console.warn("[3mfhydro] Hydrostatikk etter lasting feilet:", hydroErr);
             setHud("3MF lastet, men hydrostatikk feilet.", true);
           }
         })();
       }catch(err){
         clearTimeout(to);
+        if (isAbortError(err)) return;
         let msg = "Feil under lasting av 3MF. ";
         if (err && err.message) {
           msg += err.message;
@@ -2075,7 +3121,7 @@
 
     // Load from URL parameter
     if(modelUrl) {
-      loadModel(modelUrl);
+      void loadModel(modelUrl);
     }
 
     // File input handling
@@ -2091,7 +3137,7 @@
       if(file) {
         // Create object URL for the file
         const url = URL.createObjectURL(file);
-        loadModel(url);
+        void loadModel(url);
       }
     });
 
@@ -2099,14 +3145,18 @@
     let currentReport = null;
     let currentReportRoll = null;
     let currentReportPitch = null;
+    let currentReportBundle = null;
+    let currentReportDerived = null;
 
     document.getElementById('btnReport').addEventListener('click', () => {
-      generateFullReport();
+      void generateFullReport();
       document.getElementById('reportModal').classList.add('show');
     });
 
     document.getElementById('closeReport').addEventListener('click', () => {
+      cancelJob("reportJob", "Rapportdialog lukket");
       document.getElementById('reportModal').classList.remove('show');
+      setReportStatus('', '', false);
     });
 
     // Curve mode switching
@@ -2129,6 +3179,108 @@
       });
     });
 
+    function setText(id, value) {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    }
+
+    function fmtNum(value, digits = 3) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num.toFixed(digits) : '?';
+    }
+
+    function fmtVec(value) {
+      if (!value || !Number.isFinite(value.x) || !Number.isFinite(value.y) || !Number.isFinite(value.z)) return '?';
+      return `${value.x.toFixed(3)}, ${value.y.toFixed(3)}, ${value.z.toFixed(3)}`;
+    }
+
+    function drawCurvePlaceholder(canvasId, label) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas?.getContext?.('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 14px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, ctx.canvas.width / 2, ctx.canvas.height / 2);
+    }
+
+    function resetReportUiForLoading() {
+      [
+        'rep-vol','rep-disp','rep-cb','rep-cg','rep-draft','rep-trim','rep-heel','rep-kb','rep-kg',
+        'rep-bm-roll','rep-bm-pitch','rep-gm-roll','rep-gm-pitch','rep-gz-roll','rep-gz-pitch',
+        'rep-wp-area','rep-wp-lcf','rep-wp-tcf','rep-sak','rep-max-gz-roll','rep-max-gz-pitch',
+        'rep-angle-max-gz-roll','rep-angle-max-gz-pitch'
+      ].forEach((id) => setText(id, '...'));
+      setText('rawData', 'Bygger rapport...');
+      drawCurvePlaceholder('gzCurveCanvas', 'Beregner GZ-kurve...');
+      drawCurvePlaceholder('sakCurveCanvas', 'Beregner SAK-kurve...');
+    }
+
+    async function generateFullReport() {
+      if (!hydro?.mesh) {
+        setHud('Last modellen ferdig forst.', true);
+        return;
+      }
+
+      const reportJob = startAbortableJob("reportJob");
+      currentReport = null;
+      currentReportRoll = null;
+      currentReportPitch = null;
+      currentReportBundle = null;
+      currentReportDerived = null;
+      resetReportUiForLoading();
+      setReportStatus('Starter hydro-rapport...', '', true);
+      setHud('Genererer hydro-rapport...');
+
+      try {
+        const payload = await buildHydroReportPayload({
+          quality: 'low',
+          performanceMode: false,
+        }, {
+          signal: reportJob.signal,
+          onStage: ({ progress, title, text, etaMs }) => {
+            if (!isCurrentJob(reportJob)) return;
+            setReportStatus(text || title, `${Math.round(progress * 100)}%${etaMs ? ` · ETA ${formatDuration(etaMs)}` : ''}`, true);
+          },
+          onPartial: async ({ type, report }) => {
+            if (!isCurrentJob(reportJob)) return;
+            if (type === 'roll-report') {
+              currentReportRoll = report;
+              currentReport = report;
+              updateReportUI(report);
+              drawCurves(report);
+            } else if (type === 'pitch-report') {
+              currentReportPitch = report;
+              if (document.querySelector('input[name="curveMode"]:checked')?.value === 'pitch') {
+                currentReport = report;
+                updateReportUI(report);
+                drawCurves(report);
+              }
+            }
+            await yieldToBrowser();
+          },
+        });
+        if (!payload || !isCurrentJob(reportJob)) return;
+        currentReportBundle = payload;
+        currentReportDerived = payload.derived || null;
+        currentReportRoll = payload.rollReport || currentReportRoll;
+        currentReportPitch = payload.pitchReport || currentReportPitch;
+        currentReport = document.querySelector('input[name="curveMode"]:checked')?.value === 'pitch'
+          ? (currentReportPitch || currentReportRoll)
+          : (currentReportRoll || currentReportPitch);
+        updateCurveDisplay();
+        setText('rawData', currentReportDerived?.rawJson || JSON.stringify(payload, null, 2));
+        setReportStatus('Rapport klar', payload.cached ? 'Brukte cachet rapportdata' : 'Alle delsteg fullfort', true);
+        setHud('Hydro-rapport generert');
+      } catch (err) {
+        if (isAbortError(err)) return;
+        console.error('Generate full report failed:', err);
+        setReportStatus('Rapportfeil', err?.message || 'Ukjent feil', true);
+        setHud('Feil ved hydro-rapport', true);
+      }
+    }
+
     function updateCurveDisplay() {
       try {
         const mode = document.querySelector('input[name="curveMode"]:checked').value;
@@ -2137,6 +3289,10 @@
           currentReport = report;
           updateReportUI(report);
           drawCurves(report);
+          setText('rawData', currentReportDerived?.rawJson || JSON.stringify(currentReportBundle || {
+            roll: currentReportRoll,
+            pitch: currentReportPitch,
+          }, null, 2));
           setHud('Rapport generert');
         }
       } catch (err) {
@@ -2147,45 +3303,32 @@
 
     function updateReportUI(report) {
       const now = report.now;
+      const derivedOverview = currentReportDerived?.overview || null;
+      const pick = (key, fallback) => derivedOverview && key in derivedOverview ? derivedOverview[key] : fallback;
 
-      // Oversikt-tabell
-      document.getElementById('rep-vol').textContent = now.subV?.toFixed(3) || '?';
-      document.getElementById('rep-disp').textContent = now.subV ? (now.subV * hydro.waterDensity / 1000).toFixed(3) : '?';
-      document.getElementById('rep-cb').textContent = now.cbW ? `${now.cbW.x.toFixed(3)}, ${now.cbW.y.toFixed(3)}, ${now.cbW.z.toFixed(3)}` : '?';
-      document.getElementById('rep-cg').textContent = now.cgW ? `${now.cgW.x.toFixed(3)}, ${now.cgW.y.toFixed(3)}, ${now.cgW.z.toFixed(3)}` : '?';
-      document.getElementById('rep-draft').textContent = report.meta.draftZWorld?.toFixed(3) || '?';
-      document.getElementById('rep-trim').textContent = hydro.trimDeg?.toFixed(2) || '0.00';
-      document.getElementById('rep-heel').textContent = hydro.heelDeg?.toFixed(2) || '0.00';
-      document.getElementById('rep-kb').textContent = now.kb?.toFixed(3) || '?';
-      document.getElementById('rep-kg').textContent = now.kg?.toFixed(3) || '?';
-      document.getElementById('rep-bm-roll').textContent = now.bm?.roll?.toFixed(3) || '?';
-      document.getElementById('rep-gm-roll').textContent = now.gm?.roll?.toFixed(3) || '?';
-      document.getElementById('rep-gm-pitch').textContent = now.gm?.pitch?.toFixed(3) || '?';
-
-      // Stabilitetsdata fra kurver
-      if (currentReportRoll?.stability) {
-        const stabRoll = currentReportRoll.stability;
-        document.getElementById('rep-max-gz-roll').textContent = stabRoll.maxGZ?.toFixed(3) || '?';
-        document.getElementById('rep-angle-max-gz-roll').textContent = stabRoll.angleAtMaxGZ?.toFixed(1) || '?';
-      }
-      if (currentReportPitch?.stability) {
-        const stabPitch = currentReportPitch.stability;
-        document.getElementById('rep-max-gz-pitch').textContent = stabPitch.maxGZ?.toFixed(3) || '?';
-        document.getElementById('rep-angle-max-gz-pitch').textContent = stabPitch.angleAtMaxGZ?.toFixed(1) || '?';
-      }
-      document.getElementById('rep-gz-roll').textContent = now.gz_now?.roll?.toFixed(3) || '?';
-      document.getElementById('rep-gz-pitch').textContent = now.gz_now?.pitch?.toFixed(3) || '?';
-      document.getElementById('rep-wp-area').textContent = now.wp?.A?.toFixed(3) || '?';
-      document.getElementById('rep-wp-lcf').textContent = now.wp?.xF?.toFixed(3) || '?';
-      document.getElementById('rep-wp-tcf').textContent = now.wp?.yF?.toFixed(3) || '?';
-      document.getElementById('rep-sak').textContent = now.sak?.toFixed(3) || '?';
-
-      // Raw data
-      const data = {
-        roll: currentReportRoll,
-        pitch: currentReportPitch
-      };
-      document.getElementById('rawData').textContent = JSON.stringify(data, null, 2);
+      setText('rep-vol', pick('rep-vol', fmtNum(now.subV)));
+      setText('rep-disp', pick('rep-disp', now.subV ? fmtNum(now.subV * hydro.waterDensity / 1000) : '?'));
+      setText('rep-cb', pick('rep-cb', fmtVec(now.cbW)));
+      setText('rep-cg', pick('rep-cg', fmtVec(now.cgW)));
+      setText('rep-draft', pick('rep-draft', fmtNum(report.meta.draftZWorld)));
+      setText('rep-trim', pick('rep-trim', fmtNum(hydro.trimDeg, 2)));
+      setText('rep-heel', pick('rep-heel', fmtNum(hydro.heelDeg, 2)));
+      setText('rep-kb', pick('rep-kb', fmtNum(now.kb)));
+      setText('rep-kg', pick('rep-kg', fmtNum(now.kg)));
+      setText('rep-bm-roll', pick('rep-bm-roll', fmtNum(now.bm?.roll)));
+      setText('rep-bm-pitch', pick('rep-bm-pitch', fmtNum(now.bm?.pitch)));
+      setText('rep-gm-roll', pick('rep-gm-roll', fmtNum(now.gm?.roll)));
+      setText('rep-gm-pitch', pick('rep-gm-pitch', fmtNum(now.gm?.pitch)));
+      setText('rep-gz-roll', pick('rep-gz-roll', fmtNum(now.gz_now?.roll)));
+      setText('rep-gz-pitch', pick('rep-gz-pitch', fmtNum(now.gz_now?.pitch)));
+      setText('rep-wp-area', pick('rep-wp-area', fmtNum(now.wp?.A)));
+      setText('rep-wp-lcf', pick('rep-wp-lcf', fmtNum(now.wp?.xF)));
+      setText('rep-wp-tcf', pick('rep-wp-tcf', fmtNum(now.wp?.yF)));
+      setText('rep-sak', pick('rep-sak', fmtNum(now.sak)));
+      setText('rep-max-gz-roll', pick('rep-max-gz-roll', fmtNum(currentReportRoll?.stability?.maxGZ)));
+      setText('rep-angle-max-gz-roll', pick('rep-angle-max-gz-roll', fmtNum(currentReportRoll?.stability?.angleAtMaxGZ, 1)));
+      setText('rep-max-gz-pitch', pick('rep-max-gz-pitch', fmtNum(currentReportPitch?.stability?.maxGZ)));
+      setText('rep-angle-max-gz-pitch', pick('rep-angle-max-gz-pitch', fmtNum(currentReportPitch?.stability?.angleAtMaxGZ, 1)));
     }
 
     function drawCurves(report) {
@@ -2213,10 +3356,28 @@
       const w = canvas.width - 2 * margin;
       const h = canvas.height - 2 * margin;
 
-      const xMin = Math.min(...xData);
-      const xMax = Math.max(...xData);
-      const yMin = Math.min(...yData.filter(v => v != null));
-      const yMax = Math.max(...yData.filter(v => v != null));
+      let xMin = Infinity;
+      let xMax = -Infinity;
+      let yMin = Infinity;
+      let yMax = -Infinity;
+      for (let index = 0; index < xData.length; index += 1) {
+        const x = Number(xData[index]);
+        const y = Number(yData[index]);
+        if (Number.isFinite(x)) {
+          if (x < xMin) xMin = x;
+          if (x > xMax) xMax = x;
+        }
+        if (Number.isFinite(y)) {
+          if (y < yMin) yMin = y;
+          if (y > yMax) yMax = y;
+        }
+      }
+      if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+        drawCurvePlaceholder(canvas.id, 'Ingen kurvedata tilgjengelig');
+        return;
+      }
+      const xRange = Math.max(1e-9, xMax - xMin);
+      const yRange = Math.max(1e-9, yMax - yMin);
 
       // Grid
       ctx.strokeStyle = '#ddd';
@@ -2239,12 +3400,17 @@
       ctx.lineWidth = 2;
       ctx.beginPath();
 
+      let started = false;
       for (let i = 0; i < xData.length; i++) {
         if (yData[i] == null) continue;
-        const x = margin + ((xData[i] - xMin) / (xMax - xMin)) * w;
-        const y = canvas.height - margin - ((yData[i] - yMin) / (yMax - yMin)) * h;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        const x = margin + ((xData[i] - xMin) / xRange) * w;
+        const y = canvas.height - margin - ((yData[i] - yMin) / yRange) * h;
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
       }
       ctx.stroke();
 
@@ -2261,14 +3427,16 @@
 
     // --- Eksporter ---
     document.getElementById('exportJSON').addEventListener('click', () => {
-      if (!currentReport) return;
-      const dataStr = JSON.stringify(currentReport, null, 2);
+      const payload = currentReportBundle || currentReport;
+      if (!payload) return;
+      const dataStr = currentReportDerived?.rawJson || JSON.stringify(payload, null, 2);
       downloadFile('hydro_report.json', dataStr, 'application/json');
     });
 
     document.getElementById('exportCSV').addEventListener('click', () => {
       if (!currentReport) return;
-      const csv = reportToCSV(currentReport);
+      const mode = document.querySelector('input[name="curveMode"]:checked')?.value || 'roll';
+      const csv = currentReportDerived?.csvByMode?.[mode] || reportToCSV(currentReport);
       downloadFile('hydro_report.csv', csv, 'text/csv');
     });
 
@@ -2395,32 +3563,146 @@
       if (hydro?.mesh) postAnalysisToParent(hydro.mesh);
     };
 
-    const applyHydroInputs = async ({ draft = null, trim = null, heel = null } = {}) => {
+    function mergeHydroState(base = {}, next = {}) {
+      const merged = { ...(base || {}) };
+      Object.entries(next || {}).forEach(([key, value]) => {
+        if (value !== undefined) merged[key] = value;
+      });
+      return merged;
+    }
+
+    async function performHydroStateUpdate(state, recomputeJob) {
+      const useOverlay = state.useOverlay !== false;
+      const hasQueuedNewerState = () => runtimeState.recomputeJob.queuedState != null;
+      if (useOverlay) {
+        setLoadingState(true, "Oppdaterer hydrostatikk...", {
+          progress: 0.12,
+          detail: "Klargjorer ny hydrotilstand...",
+          keepPanelVisible: true,
+        });
+      }
+
+      if (Number.isFinite(Number(state.waterDensity))) hydro.setWaterDensity(Number(state.waterDensity));
+      if (Number.isFinite(Number(state.materialDensity))) hydro.setMaterialDensity(Number(state.materialDensity));
+      hydro.setComponentDensityOverrides?.(state.componentDensityOverrides || {});
+      if (state.quality) {
+        hydro.userQuality = String(state.quality);
+        hydro.quality = String(state.quality);
+      }
+
+      if (state.draft != null && !Number.isNaN(Number(state.draft))) {
+        hydro.draftZWorld = Number(state.draft);
+      }
+      if (state.trim != null && !Number.isNaN(Number(state.trim))) {
+        const trimDeg = Number(state.trim);
+        hydro._setAxisRotation?.(hydro.axis.pitchAxis, THREE.MathUtils.degToRad(trimDeg));
+        hydro.trimDeg = trimDeg;
+      }
+      if (state.heel != null && !Number.isNaN(Number(state.heel))) {
+        const heelDeg = Number(state.heel);
+        hydro._setAxisRotation?.(hydro.axis.rollAxis, THREE.MathUtils.degToRad(heelDeg));
+        hydro.heelDeg = heelDeg;
+      }
+      hydro.updateWaterPlane();
+      hydro._invalidateCache?.();
+      cancelScheduledHydroRecalc();
+
+      invalidateHydroReportCache();
+      await yieldToBrowser();
+      throwIfAborted(recomputeJob.signal);
+
+      if (useOverlay) {
+        setLoadingState(true, "Oppdaterer hydrostatikk...", {
+          progress: 0.34,
+          detail: "Kjorer hydro-beregning i single-flight...",
+          keepPanelVisible: true,
+        });
+      }
+      const computeStartedAt = performance.now();
+      await hydro.recompute();
+      const computeDurationMs = logPerf("hydro-compute-time", computeStartedAt, {
+        stage: state.source || "ui-update",
+      });
+      throwIfAborted(recomputeJob.signal);
+      await yieldToBrowser();
+
+      if (hasQueuedNewerState()) return;
+
+      if (useOverlay) {
+        setLoadingState(true, "Oppdaterer hydrostatikk...", {
+          progress: 0.82,
+          detail: "Oppdaterer panel, synlighet og analyse...",
+          keepPanelVisible: true,
+        });
+      }
+
+      await updateHydroAfterLoad();
+      syncHydroVisibility();
+      postAnalysisToParent(hydro.mesh);
+      if (!hasQueuedNewerState()) {
+        setHud(`Hydrostatikk oppdatert (${formatDuration(computeDurationMs)})`);
+      }
+    }
+
+    async function queueHydroStateUpdate(nextState = {}) {
       if (!hydro?.mesh) {
         setHud('Last modellen ferdig forst.', true);
         return;
       }
 
+      cancelJob("reportJob", "Ny hydrotilstand ugyldiggjorde rapportarbeid");
+      const queueState = runtimeState.recomputeJob;
+      queueState.queuedState = mergeHydroState(queueState.queuedState, nextState);
+      if (queueState.running) {
+        cancelJob("recomputeJob", "Nyere hydrotilstand overtok aktiv jobb");
+        return;
+      }
+
+      queueState.running = true;
       try {
-        setLoadingState(true, 'Oppdaterer hydrostatikk...');
-        if (draft != null && !Number.isNaN(Number(draft))) {
-          hydro.draftZWorld = Number(draft);
-          hydro.updateWaterPlane();
-          hydro._invalidateCache?.();
+        while (queueState.queuedState) {
+          const currentState = queueState.queuedState;
+          queueState.queuedState = null;
+          const recomputeJob = startAbortableJob("recomputeJob");
+          try {
+            await performHydroStateUpdate(currentState, recomputeJob);
+          } catch (err) {
+            if (!isAbortError(err)) throw err;
+          } finally {
+            if (currentState.useOverlay !== false && !queueState.queuedState) {
+              setLoadingState(false);
+            }
+          }
         }
-        if (trim != null && !Number.isNaN(Number(trim))) hydro.setTrim(Number(trim));
-        if (heel != null && !Number.isNaN(Number(heel))) hydro.setHeel(Number(heel));
-        await hydro.recompute();
-        await updateHydroAfterLoad();
-        syncHydroVisibility();
-        postAnalysisToParent(hydro.mesh);
-        setHud('Hydrostatikk oppdatert');
       } catch (err) {
         console.error('[3mfhydro] Hydro-oppdatering feilet:', err);
         setHud('Feil ved hydro-oppdatering', true);
       } finally {
-        setLoadingState(false);
+        queueState.running = false;
+        if (!queueState.queuedState) {
+          setLoadingState(false);
+        }
       }
+    }
+
+    const hydroInputDebounceTimers = new Map();
+    function debounceHydroInput(key, state, delayMs = 120) {
+      const timer = hydroInputDebounceTimers.get(key);
+      if (timer) clearTimeout(timer);
+      hydroInputDebounceTimers.set(key, setTimeout(() => {
+        hydroInputDebounceTimers.delete(key);
+        void queueHydroStateUpdate({ ...state, source: `debounced-${key}` });
+      }, delayMs));
+    }
+
+    const applyHydroInputs = async ({ draft = null, trim = null, heel = null } = {}) => {
+      await queueHydroStateUpdate({
+        draft,
+        trim,
+        heel,
+        source: "apply-button",
+        useOverlay: true,
+      });
     };
 
     document.getElementById('chkHydro')?.addEventListener('change', () => {
@@ -2443,6 +3725,18 @@
 
     document.getElementById('btnHeelApply')?.addEventListener('click', async () => {
       await applyHydroInputs({ heel: document.getElementById('numHeel')?.value });
+    });
+
+    document.getElementById('numDraft')?.addEventListener('input', (event) => {
+      debounceHydroInput('draft', { draft: event.target?.value, useOverlay: false }, 120);
+    });
+
+    document.getElementById('numTrim')?.addEventListener('input', (event) => {
+      debounceHydroInput('trim', { trim: event.target?.value, useOverlay: false }, 120);
+    });
+
+    document.getElementById('numHeel')?.addEventListener('input', (event) => {
+      debounceHydroInput('heel', { heel: event.target?.value, useOverlay: false }, 120);
     });
 
     document.getElementById('btnHydroReport')?.addEventListener('click', () => {
