@@ -135,6 +135,7 @@ class ThreeMFLoader extends Loader {
     const signal = options.signal || null;
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString( xmlText, 'text/xml' );
+    const modelUnitMeta = this._readModelUnitMeta( xmlDoc );
     const materialLibrary = this._extract3MFMaterials( xmlDoc );
     const objects = Array.from( xmlDoc.querySelectorAll( 'object' ) );
     if ( !objects.length ) {
@@ -217,6 +218,7 @@ class ThreeMFLoader extends Loader {
       }
       geometry.setAttribute( 'position', new BufferAttribute( positions, 3 ) );
       geometry.computeVertexNormals();
+      this._attachUnitMetaToGeometry( geometry, modelUnitMeta );
 
       const triangleMaterials = this._collectTriangleMaterials( triangles, materialLibrary );
       meshMap.set( meshNode, { geometry, triangleMaterials } );
@@ -270,7 +272,12 @@ class ThreeMFLoader extends Loader {
       const meshData = resolveGeometryForObject( objNode );
       if ( !meshData?.geometry ) continue;
       const objectMaterials = this._collectObjectMaterials( objNode, materialLibrary, meshData.triangleMaterials );
-      components.push( { name, geometry: meshData.geometry, materials: objectMaterials } );
+      components.push( {
+        name,
+        geometry: meshData.geometry,
+        materials: objectMaterials,
+        userData: { modelUnitMeta }
+      } );
       if ( ( objectIndex + 1 ) % 12 === 0 && objectIndex + 1 < objects.length ) {
         onProgress( {
           progress: 0.72 + ( ( objectIndex + 1 ) / Math.max( 1, objects.length ) ) * 0.24,
@@ -289,6 +296,7 @@ class ThreeMFLoader extends Loader {
   _parse3MFXML( xmlText ) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString( xmlText, 'text/xml' );
+    const modelUnitMeta = this._readModelUnitMeta( xmlDoc );
     const materialLibrary = this._extract3MFMaterials( xmlDoc );
 
     // Find all <object> nodes (each can reference a mesh)
@@ -347,6 +355,7 @@ class ThreeMFLoader extends Loader {
       }
       geometry.setAttribute('position', new BufferAttribute(positions, 3));
       geometry.computeVertexNormals();
+      this._attachUnitMetaToGeometry( geometry, modelUnitMeta );
 
       // Store geometry by mesh node and by id (if present)
       const triangleMaterials = this._collectTriangleMaterials(triangles, materialLibrary);
@@ -391,12 +400,61 @@ class ThreeMFLoader extends Loader {
       const meshData = resolveGeometryForObject(objNode);
       if (!meshData?.geometry) return null;
       const objectMaterials = this._collectObjectMaterials(objNode, materialLibrary, meshData.triangleMaterials);
-      return { name, geometry: meshData.geometry, materials: objectMaterials };
+      return {
+        name,
+        geometry: meshData.geometry,
+        materials: objectMaterials,
+        userData: { modelUnitMeta }
+      };
     }).filter(Boolean);
 
     // Fallback: if only one, return geometry directly for backward compatibility
     if (components.length === 1) return components[0].geometry;
     return components;
+  }
+
+  _normalize3MFLengthUnit(value) {
+    const unit = String(value || '').trim().toLowerCase();
+    if (!unit) return null;
+    if (unit === 'micron' || unit === 'micrometer' || unit === 'micrometre' || unit === 'um') return 'um';
+    if (unit === 'millimeter' || unit === 'millimetre' || unit === 'mm') return 'mm';
+    if (unit === 'centimeter' || unit === 'centimetre' || unit === 'cm') return 'cm';
+    if (unit === 'meter' || unit === 'metre' || unit === 'm') return 'm';
+    if (unit === 'inch' || unit === 'in') return 'inch';
+    if (unit === 'foot' || unit === 'ft') return 'ft';
+    return null;
+  }
+
+  _metersPer3MFUnit(unit) {
+    if (unit === 'um') return 1e-6;
+    if (unit === 'mm') return 1e-3;
+    if (unit === 'cm') return 1e-2;
+    if (unit === 'inch') return 0.0254;
+    if (unit === 'ft') return 0.3048;
+    return 1;
+  }
+
+  _readModelUnitMeta(xmlDoc) {
+    const modelNode = xmlDoc?.documentElement?.nodeName?.toLowerCase() === 'model'
+      ? xmlDoc.documentElement
+      : xmlDoc?.querySelector?.('model');
+    const rawUnit = modelNode?.getAttribute?.('unit') || '';
+    const sourceLengthUnit = this._normalize3MFLengthUnit(rawUnit);
+    return {
+      sourceLengthUnit,
+      sourceMetersPerUnit: this._metersPer3MFUnit(sourceLengthUnit),
+      normalizedToMeters: false,
+      unitDeclaredInFile: !!sourceLengthUnit,
+    };
+  }
+
+  _attachUnitMetaToGeometry(geometry, modelUnitMeta) {
+    if (!geometry) return;
+    geometry.userData = geometry.userData || {};
+    geometry.userData.modelUnitMeta = {
+      ...(geometry.userData.modelUnitMeta || {}),
+      ...(modelUnitMeta || {}),
+    };
   }
 
   _extract3MFMaterials(xmlDoc) {

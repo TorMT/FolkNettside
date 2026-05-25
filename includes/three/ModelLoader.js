@@ -84,15 +84,143 @@ export class ModelLoader {
     return null;
   }
 
-  _buildUnitMeta({ fileType = "model", sourceLengthUnit = null } = {}) {
-    const sourceUnit = sourceLengthUnit || "m";
-    const unitNote = sourceLengthUnit && sourceLengthUnit !== "m"
-      ? `${fileType.toUpperCase()}-kilden oppgir ${sourceLengthUnit}; viewer beregner videre i meter.`
-      : "Viewer beregner videre i meter.";
+  _normalizeLengthUnit(value) {
+    const unit = String(value || "").trim().toLowerCase();
+    if (!unit) return null;
+    if (unit === "millimeter" || unit === "millimetre" || unit === "mm") return "mm";
+    if (unit === "centimeter" || unit === "centimetre" || unit === "cm") return "cm";
+    if (unit === "decimeter" || unit === "decimetre" || unit === "dm") return "dm";
+    if (unit === "meter" || unit === "metre" || unit === "m") return "m";
+    if (unit === "micron" || unit === "micrometer" || unit === "micrometre" || unit === "um") return "um";
+    if (unit === "inch" || unit === "in") return "inch";
+    if (unit === "foot" || unit === "ft") return "ft";
+    return unit;
+  }
+
+  _metersPerLengthUnit(value) {
+    const unit = this._normalizeLengthUnit(value);
+    if (unit === "um") return 1e-6;
+    if (unit === "mm") return 1e-3;
+    if (unit === "cm") return 1e-2;
+    if (unit === "dm") return 1e-1;
+    if (unit === "inch") return 0.0254;
+    if (unit === "ft") return 0.3048;
+    return 1;
+  }
+
+  _extractLoadedUnitMeta(candidate) {
+    const rawMeta =
+      candidate?.userData?.modelUnitMeta ||
+      candidate?.geometry?.userData?.modelUnitMeta ||
+      candidate?.modelUnitMeta ||
+      null;
+    const sourceLengthUnit = this._normalizeLengthUnit(
+      rawMeta?.sourceLengthUnit ||
+      rawMeta?.lengthUnit ||
+      rawMeta?.unit ||
+      null
+    );
+    const sourceMetersPerUnit = Number(rawMeta?.sourceMetersPerUnit);
+    return {
+      sourceLengthUnit,
+      sourceMetersPerUnit: Number.isFinite(sourceMetersPerUnit) && sourceMetersPerUnit > 0
+        ? sourceMetersPerUnit
+        : this._metersPerLengthUnit(sourceLengthUnit),
+      normalizedToMeters: rawMeta?.normalizedToMeters === true,
+      unitDeclaredInFile: rawMeta?.unitDeclaredInFile === true,
+    };
+  }
+
+  _normalizeGeometryToMeters(geometry, unitMeta = null) {
+    if (!geometry) return null;
+    geometry.userData = geometry.userData || {};
+    if (geometry.userData.viewerNormalizedToMeters === true) {
+      return geometry.userData.modelUnitMeta || unitMeta;
+    }
+
+    const sourceLengthUnit = this._normalizeLengthUnit(unitMeta?.sourceLengthUnit);
+    const sourceMetersPerUnit = Number(unitMeta?.sourceMetersPerUnit);
+    const factor = Number.isFinite(sourceMetersPerUnit) && sourceMetersPerUnit > 0
+      ? sourceMetersPerUnit
+      : this._metersPerLengthUnit(sourceLengthUnit);
+
+    if (Math.abs(factor - 1) > 1e-12) {
+      geometry.scale(factor, factor, factor);
+      geometry.computeBoundingBox?.();
+      geometry.computeBoundingSphere?.();
+    }
+
+    geometry.userData.viewerNormalizedToMeters = true;
+    geometry.userData.modelUnitMeta = {
+      ...(geometry.userData.modelUnitMeta || {}),
+      sourceLengthUnit: sourceLengthUnit || "",
+      sourceMetersPerUnit: factor,
+      normalizedToMeters: true,
+      unitDeclaredInFile: unitMeta?.unitDeclaredInFile === true,
+    };
+    return geometry.userData.modelUnitMeta;
+  }
+
+  _normalizeComponentUnitsToMeters(components = []) {
+    const seenGeometries = new WeakSet();
+    const unitMetas = [];
+    for (const component of Array.isArray(components) ? components : []) {
+      const geometry = this._normalizeComponentGeometry(component);
+      const loadedUnitMeta = this._extractLoadedUnitMeta(component);
+      if (geometry && !seenGeometries.has(geometry)) {
+        unitMetas.push(this._normalizeGeometryToMeters(geometry, loadedUnitMeta));
+        seenGeometries.add(geometry);
+      } else if (loadedUnitMeta?.sourceLengthUnit || Number.isFinite(loadedUnitMeta?.sourceMetersPerUnit)) {
+        unitMetas.push(loadedUnitMeta);
+      }
+      if (component && typeof component === "object") {
+        component.userData = {
+          ...(component.userData || {}),
+          modelUnitMeta: {
+            ...(component.userData?.modelUnitMeta || {}),
+            ...this._extractLoadedUnitMeta(component),
+            normalizedToMeters: true,
+          },
+        };
+      }
+    }
+    return this._summarizeUnitMeta(unitMetas);
+  }
+
+  _summarizeUnitMeta(unitMetas = [], fallbackSourceLengthUnit = null) {
+    const normalizedUnits = (Array.isArray(unitMetas) ? unitMetas : [])
+      .map((entry) => this._normalizeLengthUnit(entry?.sourceLengthUnit))
+      .filter(Boolean);
+    const uniqueUnits = [...new Set(normalizedUnits)];
+    const fallbackUnit = this._normalizeLengthUnit(fallbackSourceLengthUnit);
+    if (uniqueUnits.length > 1) {
+      return { sourceLengthUnit: "mixed", sourceMetersPerUnit: 1, mixedSourceUnits: true };
+    }
+    const sourceLengthUnit = uniqueUnits[0] || fallbackUnit || "";
+    return {
+      sourceLengthUnit,
+      sourceMetersPerUnit: this._metersPerLengthUnit(sourceLengthUnit),
+      mixedSourceUnits: false,
+    };
+  }
+
+  _buildUnitMeta({ fileType = "model", sourceLengthUnit = null, sourceMetersPerUnit = null, mixedSourceUnits = false } = {}) {
+    const normalizedSourceUnit = mixedSourceUnits ? "mixed" : this._normalizeLengthUnit(sourceLengthUnit);
+    const resolvedSourceMetersPerUnit = Number.isFinite(Number(sourceMetersPerUnit)) && Number(sourceMetersPerUnit) > 0
+      ? Number(sourceMetersPerUnit)
+      : this._metersPerLengthUnit(normalizedSourceUnit);
+    const unitNote = mixedSourceUnits
+      ? `${fileType.toUpperCase()}-kilden bruker flere lengdeenheter; hver geometri er normalisert til meter for hydroberegning.`
+      : normalizedSourceUnit && normalizedSourceUnit !== "m"
+        ? `${fileType.toUpperCase()}-kilden oppgir ${normalizedSourceUnit}; geometri er normalisert til meter for hydroberegning.`
+        : normalizedSourceUnit === "m"
+          ? `${fileType.toUpperCase()}-kilden oppgir meter; hydro beregner i meter.`
+          : `${fileType.toUpperCase()}-kilden oppgir ingen lengdeenhet; viewer antar meter.`;
     return {
       lengthUnit: "m",
       metersPerUnit: 1,
-      sourceLengthUnit: sourceUnit,
+      sourceLengthUnit: normalizedSourceUnit || "",
+      sourceMetersPerUnit: resolvedSourceMetersPerUnit,
       unitNote,
     };
   }
@@ -236,11 +364,19 @@ export class ModelLoader {
     }
     throwIfAborted(signal);
 
+    const resolvedFileType =
+      isFusionArchive ? "fusion-archive" :
+      is3MF ? "3mf" :
+      isStep ? "step" :
+      isIges ? "iges" :
+      isZip ? "zip-auto" :
+      "stl";
     let mesh;
     let componentNames = [];
 
     if (components) {
       // Build a group with multiple meshes
+      const componentUnitMeta = this._normalizeComponentUnitsToMeters(components);
       const group = new THREE.Group();
       let totalVolume = 0;
       const totalCentroid = new THREE.Vector3();
@@ -341,6 +477,17 @@ export class ModelLoader {
       if (mergedGeometry) {
         group.geometry = mergedGeometry;
         group.userData.aggregateGeometry = mergedGeometry;
+        mergedGeometry.userData = {
+          ...(mergedGeometry.userData || {}),
+          viewerNormalizedToMeters: true,
+          modelUnitMeta: {
+            ...(mergedGeometry.userData?.modelUnitMeta || {}),
+            sourceLengthUnit: componentUnitMeta.sourceLengthUnit || "",
+            sourceMetersPerUnit: Number(componentUnitMeta.sourceMetersPerUnit) || 1,
+            normalizedToMeters: true,
+            unitDeclaredInFile: componentUnitMeta.sourceLengthUnit !== "mixed" && !!componentUnitMeta.sourceLengthUnit,
+          },
+        };
       }
 
       const combinedGeometryMassProps = this.combineGeometryMassProps(componentMassProps);
@@ -371,20 +518,12 @@ export class ModelLoader {
       mesh.userData.modelMeta = {
         ...meta,
         ...this._buildUnitMeta({
-          fileType:
-            isFusionArchive ? 'fusion-archive' :
-            is3MF ? '3mf' :
-            isStep ? 'step' :
-            isIges ? 'iges' :
-            'zip-auto',
-          sourceLengthUnit: cadSourceLengthUnit,
+          fileType: resolvedFileType,
+          sourceLengthUnit: componentUnitMeta.sourceLengthUnit || cadSourceLengthUnit,
+          sourceMetersPerUnit: componentUnitMeta.sourceMetersPerUnit,
+          mixedSourceUnits: componentUnitMeta.mixedSourceUnits === true,
         }),
-        fileType:
-          isFusionArchive ? 'fusion-archive' :
-          is3MF ? '3mf' :
-          isStep ? 'step' :
-          isIges ? 'iges' :
-          'zip-auto',
+        fileType: resolvedFileType,
         url: url,
         components: componentNames.length
       };
@@ -401,6 +540,8 @@ export class ModelLoader {
       if (!geometry || typeof geometry.computeVertexNormals !== "function" || typeof geometry.computeBoundingBox !== "function") {
         throw new Error("Kunne ikke hente gyldig geometri fra modellen (mangler computeVertexNormals/computeBoundingBox).");
       }
+      const geometryUnitMeta = this._normalizeGeometryToMeters(geometry, this._extractLoadedUnitMeta(geometry));
+      const modelUnitMeta = this._summarizeUnitMeta([geometryUnitMeta], cadSourceLengthUnit);
       geometry.computeVertexNormals();
       geometry.computeBoundingBox();
 
@@ -433,20 +574,12 @@ export class ModelLoader {
       mesh.userData.modelMeta = {
         ...meta,
         ...this._buildUnitMeta({
-          fileType:
-            is3MF ? '3mf' :
-            isFusionArchive ? 'fusion-archive' :
-            isStep ? 'step' :
-            isIges ? 'iges' :
-            'stl',
-          sourceLengthUnit: cadSourceLengthUnit,
+          fileType: resolvedFileType,
+          sourceLengthUnit: modelUnitMeta.sourceLengthUnit,
+          sourceMetersPerUnit: modelUnitMeta.sourceMetersPerUnit,
+          mixedSourceUnits: modelUnitMeta.mixedSourceUnits === true,
         }),
-        fileType:
-          is3MF ? '3mf' :
-          isFusionArchive ? 'fusion-archive' :
-          isStep ? 'step' :
-          isIges ? 'iges' :
-          'stl',
+        fileType: resolvedFileType,
         url: url
       };
 

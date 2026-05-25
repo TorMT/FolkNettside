@@ -221,6 +221,8 @@
   const hydroLiveWaterline = document.getElementById("hydroLiveWaterline");
   const hydroLiveAttitude = document.getElementById("hydroLiveAttitude");
   const hydroQuickSummary = document.getElementById("hydroQuickSummary");
+  const hydroLabNote = document.getElementById("hydroLabNote");
+  const hydroLabSummary = document.getElementById("hydroLabSummary");
   const hydroSource = document.getElementById("hydroSource");
   const hydroMaterialHint = document.getElementById("hydroMaterialHint");
   const hydroWarn = document.getElementById("hydroWarn");
@@ -875,7 +877,7 @@
     const hasChosen = chosenKeys.length > 0;
     const scope = getEffectiveExplodeScope();
     const selectedDescriptor = describeExplodeSelection(chosenKeys);
-    const hasPotentialExplode = componentState.items.length > 1;
+    const hasPotentialExplode = viewerVisualState.explodeSupported || componentState.items.length > 1;
     if (selExplodeScope) {
       const selectedOption = selExplodeScope.querySelector('option[value="selected"]');
       if (selectedOption) selectedOption.disabled = !hasChosen;
@@ -919,19 +921,22 @@
   function updateSelectionActionUi() {
     const chosenKeys = getResolvedChosenKeys();
     const hasChosen = chosenKeys.length > 0;
-    const hasPotentialExplode = componentState.items.length > 1;
+    const hasPotentialExplode = viewerVisualState.explodeSupported || componentState.items.length > 1;
     if (!hasChosen) {
       selectionToolState.isolateChosen = false;
       selectionToolState.explodeChosen = false;
     }
     if (btnComponentView) {
       btnComponentView.disabled = !hasChosen;
-      btnComponentView.textContent = selectionToolState.isolateChosen ? "Component view p\u00e5" : "Component view av";
+      btnComponentView.textContent = selectionToolState.isolateChosen ? "Vis alle deler" : "Vis bare valgt";
+      btnComponentView.title = selectionToolState.isolateChosen
+        ? "Sl\u00e5 av isolering og vis hele modellen igjen."
+        : "Isoler valgte komponenter og skjul resten av modellen.";
     }
     if (btnSelectionExplode) {
       btnSelectionExplode.disabled = !hasChosen || !hasPotentialExplode;
-      btnSelectionExplode.textContent = selectionToolState.explodeChosen ? "Explode valgt p\u00e5" : "Explode valgt av";
       btnSelectionExplode.textContent = getEffectiveExplodeScope() === "selected" ? "Explode valgt p\u00e5" : "Explode valgt av";
+      btnSelectionExplode.title = "Bruk valgt komponent, gruppe eller familie som eget explode-scope.";
     }
     if (btnExportSelected) {
       btnExportSelected.disabled = !hasChosen;
@@ -1326,6 +1331,8 @@
         label,
         subtitle: "",
         description: "",
+        familyKey: "",
+        aliases: [normalizeComponentToken(label)].filter(Boolean),
         center: null,
         size: null,
         search: label.toLowerCase()
@@ -1345,6 +1352,18 @@
     if (item.type) subtitleParts.push(String(item.type).replace(/^application\//i, ""));
     const fileHint = prettyFusionName(item.rootFileName) || prettyFusionName(item.file);
     if (fileHint && fileHint.toLowerCase() !== String(label).toLowerCase()) subtitleParts.push(fileHint);
+    const aliases = [...new Set([
+      ...(Array.isArray(item.aliases) ? item.aliases : []),
+      item.key,
+      item.label,
+      item.name,
+      item.displayName,
+      item.friendlyName,
+      item.file,
+      item.rootFileName,
+      item.sourceName,
+      item.nodePath,
+    ].map(normalizeComponentToken).filter(Boolean))];
 
     return {
       key: String(item.key || item.file || label || `component-${index}`),
@@ -1355,6 +1374,8 @@
       rootFileName: String(item.rootFileName || "").trim(),
       sourceName: String(item.sourceName || "").trim(),
       nodePath: String(item.nodePath || "").trim(),
+      familyKey: normalizeComponentToken(item.familyKey),
+      aliases,
       center: item.center && Number.isFinite(Number(item.center.x)) && Number.isFinite(Number(item.center.y)) && Number.isFinite(Number(item.center.z))
         ? { x: Number(item.center.x), y: Number(item.center.y), z: Number(item.center.z) }
         : null,
@@ -1371,7 +1392,9 @@
         item.sourceName,
         item.nodePath,
         item.description,
-        item.type
+        item.type,
+        item.familyKey,
+        ...aliases,
       ].filter(Boolean).join(" ").toLowerCase()
     };
   }
@@ -1766,6 +1789,69 @@
     `).join("");
   }
 
+  function renderHydroLabSummary(snapshot = getActiveHydroSnapshot()) {
+    if (!hydroLabSummary || !hydroLabNote) return;
+    const payload = reportState.payload || analysisState.latestViewerReport || null;
+    const currentHydro = payload?.currentHydro || payload?.hydro || snapshot?.hydro || null;
+    const rollStability = payload?.rollReport?.stability || null;
+    const pitchStability = payload?.pitchReport?.stability || null;
+    const eq = payload?.equilibriumState || null;
+
+    if (reportState.isGenerating) {
+      hydroLabNote.textContent = "Genererer draftscan, likevektsdraft og stabilitetsgrenser fra aktiv viewer...";
+      hydroLabSummary.innerHTML = "";
+      return;
+    }
+
+    if (!payload) {
+      hydroLabNote.textContent = "Kjor Vis rapport for a gjore draftscan, likevektsdraft og de mer tekniske hydrolab-resultatene tilgjengelige her.";
+      hydroLabSummary.innerHTML = "";
+      return;
+    }
+
+    const cards = [
+      {
+        title: "Likevektsdraft",
+        value: fmtUnitValue(eq?.draftMeters, 3, "m"),
+        note: describeDraftDirection(eq?.draftDirection),
+      },
+      {
+        title: "Stabilitetsgrense",
+        value: `AVS ${fmtUnitValue(rollStability?.avs, 1, "deg")}`,
+        note: `Max GZ ${fmtUnitValue(rollStability?.maxGZ, 3, "m")} ved ${fmtUnitValue(rollStability?.angleAtMaxGZ, 1, "deg")}`,
+      },
+      {
+        title: "Kurveal",
+        value: `0-30 ${fmtUnitValue(rollStability?.area_0_30, 3, "deg*m")}`,
+        note: `0-40 ${fmtUnitValue(rollStability?.area_0_40, 3, "deg*m")} | 0-max ${fmtUnitValue(rollStability?.area_0_max, 3, "deg*m")}`,
+      },
+      {
+        title: "Aktiv GZ",
+        value: `Roll ${fmtUnitValue(currentHydro?.gz?.roll, 3, "m")}`,
+        note: `Pitch ${fmtUnitValue(currentHydro?.gz?.pitch, 3, "m")} | GM pitch ${fmtUnitValue(currentHydro?.gm?.pitch, 3, "m")}`,
+      },
+      {
+        title: "Draftscan",
+        value: `${Number(payload?.draftScan?.meta?.draftCount) || 0} prover`,
+        note: `Kvalitet ${getHydroQualityLabel(payload?.quality || payload?.draftScan?.meta?.qualityUsed)} | rho ${Number.isFinite(currentHydro?.waterDensity) ? `${Math.round(currentHydro.waterDensity)} kg/m^3` : "N/A"}`,
+      },
+      {
+        title: "Pitchkurve",
+        value: `Max GZ ${fmtUnitValue(pitchStability?.maxGZ, 3, "m")}`,
+        note: `Ved ${fmtUnitValue(pitchStability?.angleAtMaxGZ, 1, "deg")} | AVS ${fmtUnitValue(pitchStability?.avs, 1, "deg")}`,
+      },
+    ];
+
+    hydroLabNote.textContent = `${payload.cached ? "Sist genererte" : "Aktive"} hydrolab-data fra rapportmotoren er tilgjengelige direkte i sidepanelet.`;
+    hydroLabSummary.innerHTML = cards.map((card) => `
+      <article class="hydro-stat-card">
+        <div class="hydro-stat-title">${escapeHtml(card.title)}</div>
+        <div class="hydro-stat-value">${escapeHtml(card.value)}</div>
+        <div class="muted">${escapeHtml(card.note)}</div>
+      </article>
+    `).join("");
+  }
+
   function renderHydroTextReport(hydro, estimate) {
     if (!hydroReport) return;
     const active = hydro || estimate;
@@ -1830,6 +1916,7 @@
     const snapshot = getActiveHydroSnapshot();
     renderHydroQuickCards(snapshot.hydro, snapshot.estimate);
     renderHydroSummaryGrid(snapshot.hydro, snapshot.estimate);
+    renderHydroLabSummary(snapshot);
     renderHydroTextReport(snapshot.hydro, snapshot.estimate);
     const cbRow = inpCb?.closest(".kv");
     if (cbRow) cbRow.hidden = snapshot.mode !== "estimate";
@@ -3496,11 +3583,7 @@
 
   function getMassComponentInfo(item) {
     const components = getViewerMassProperties()?.components || [];
-    const aliases = [
-      item?.key,
-      item?.label,
-      item?.subtitle,
-    ].map(normalizeComponentToken).filter(Boolean);
+    const aliases = getComponentItemAliases(item);
     for (const entry of components) {
       const candidateAliases = [
         entry?.key,
@@ -3618,16 +3701,36 @@
     return normalizeComponentToken(a) === normalizeComponentToken(b) ? a : `${a} | ${b}`;
   }
 
+  function getComponentItemAliases(item) {
+    return [...new Set([
+      ...(Array.isArray(item?.aliases) ? item.aliases : []),
+      item?.key,
+      item?.label,
+      item?.subtitle,
+      item?.file,
+      item?.rootFileName,
+      item?.sourceName,
+      item?.nodePath,
+    ].map(normalizeComponentToken).filter(Boolean))];
+  }
+
+  function getComponentFamilyKey(item) {
+    return normalizeComponentToken(item?.familyKey)
+      || buildFamilySignature(item?.label)
+      || normalizeFamilyToken(item?.label)
+      || normalizeComponentToken(item?.key);
+  }
+
   function findMetadataMatchForViewerItem(item, metadataItems = []) {
     const wantedKey = normalizeComponentToken(item?.key);
     const wantedLabel = normalizeComponentToken(item?.label);
-    const wantedFamily = buildFamilySignature(item?.label);
+    const wantedFamily = getComponentFamilyKey(item);
     return metadataItems.find((candidate) => {
       const candidateKey = normalizeComponentToken(candidate?.key);
       const candidateLabel = normalizeComponentToken(candidate?.label);
       if (wantedKey && candidateKey === wantedKey) return true;
       if (wantedLabel && candidateLabel === wantedLabel) return true;
-      return wantedFamily && buildFamilySignature(candidate?.label) === wantedFamily;
+      return wantedFamily && getComponentFamilyKey(candidate) === wantedFamily;
     }) || null;
   }
 
@@ -3638,8 +3741,14 @@
       if (!meta) return item;
       const subtitle = mergeComponentText(item.subtitle, meta.subtitle);
       const description = item.description || meta.description || "";
+      const aliases = [...new Set([
+        ...getComponentItemAliases(item),
+        ...getComponentItemAliases(meta),
+      ])];
       return {
         ...item,
+        familyKey: item.familyKey || meta.familyKey || "",
+        aliases,
         subtitle,
         description,
         search: [
@@ -3647,6 +3756,7 @@
           meta.search,
           subtitle,
           description,
+          ...aliases,
         ].filter(Boolean).join(" ").toLowerCase(),
       };
     });
@@ -3836,9 +3946,7 @@
     const wanted = normalizeComponentToken(token);
     if (!wanted) return null;
     return componentState.items.find((item) => {
-      const itemKey = normalizeComponentToken(item?.key);
-      const itemLabel = normalizeComponentToken(item?.label);
-      return itemKey === wanted || itemLabel === wanted;
+      return getComponentItemAliases(item).includes(wanted);
     }) || null;
   }
 
@@ -3964,6 +4072,43 @@
         mutedSet.delete(key);
       }
     });
+    if (!shouldMute && selectionToolState.isolateChosen) {
+      const chosenKeys = new Set(getResolvedChosenKeys());
+      const revealsUnselected = (keys || []).some((key) => key && !chosenKeys.has(key));
+      if (revealsUnselected) selectionToolState.isolateChosen = false;
+    }
+  }
+
+  function normalizeComponentKeyList(keys = []) {
+    return [...new Set((keys || [])
+      .map((key) => findComponentItem(key)?.key || String(key || "").trim())
+      .filter(Boolean))];
+  }
+
+  function haveSameComponentKeys(left = [], right = []) {
+    const a = normalizeComponentKeyList(left).sort();
+    const b = normalizeComponentKeyList(right).sort();
+    return a.length === b.length && a.every((value, index) => value === b[index]);
+  }
+
+  function isExactIsolatedSelection(keys = []) {
+    if (!selectionToolState.isolateChosen) return false;
+    const resolved = normalizeComponentKeyList(keys);
+    if (!resolved.length) return false;
+    return haveSameComponentKeys(resolved, getResolvedChosenKeys());
+  }
+
+  function isolateKeys(keys, { replaceSelection = true } = {}) {
+    const resolved = normalizeComponentKeyList(keys);
+    if (!resolved.length) return;
+    if (isExactIsolatedSelection(resolved)) {
+      selectionToolState.isolateChosen = false;
+      return;
+    }
+    if (replaceSelection) chosenSet.clear();
+    setChosenForKeys(resolved, true);
+    setMutedForKeys(resolved, false);
+    selectionToolState.isolateChosen = true;
   }
 
   function isGroupExpanded(group, filterValue = "") {
@@ -3988,7 +4133,7 @@
   function buildComponentFamilies(items) {
     const families = new Map();
     items.forEach((item) => {
-      const familyKey = buildFamilySignature(item.label) || normalizeFamilyToken(item.label) || item.key;
+      const familyKey = getComponentFamilyKey(item) || item.key;
       if (!families.has(familyKey)) families.set(familyKey, []);
       families.get(familyKey).push(item);
     });
@@ -4050,7 +4195,8 @@
     const groupState = getGroupState(keys);
     const materialStatus = getCollectionMaterialStatusText(keys);
     const allChosen = chosenCount === group.items.length && group.items.length > 0;
-    const allMuted = mutedCount === group.items.length && group.items.length > 0;
+    const hasChosen = chosenCount > 0;
+    const hasMuted = mutedCount > 0;
     const isExpanded = isGroupExpanded(group, filter);
     const canCollapse = group.items.length > 1;
     const expandLabel = !canCollapse
@@ -4093,8 +4239,8 @@
           <div class="comp-group-side">
             <span class="comp-state comp-state-${groupState === "mixed" ? "mixed" : groupState}">${getGroupStateLabel(groupState)}</span>
             <div class="comp-group-actions">
-              <button class="btn comp-group-toggle ${allChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(group.key)}" type="button">${allChosen ? "Fjern markering" : "Marker gruppe"}</button>
-              <button class="btn comp-group-toggle ${allMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(group.key)}" type="button">${allMuted ? "Vis gruppe" : "Demp gruppe"}</button>
+              <button class="btn comp-group-toggle ${hasChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(group.key)}" type="button">${allChosen ? "Fjern markering" : chosenCount > 0 ? "Marker resten" : "Marker gruppe"}</button>
+              <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(group.key)}" type="button">${hasMuted ? "Vis gruppe" : "Demp gruppe"}</button>
             </div>
           </div>
         </div>
@@ -4117,7 +4263,8 @@
     const familyState = getGroupState(keys);
     const materialStatus = getCollectionMaterialStatusText(keys);
     const allChosen = chosenCount === family.items.length && family.items.length > 0;
-    const allMuted = mutedCount === family.items.length && family.items.length > 0;
+    const hasChosen = chosenCount > 0;
+    const hasMuted = mutedCount > 0;
     const isExpanded = isGroupExpanded(family, filter);
     const canCollapse = family.items.length > 1;
     const hasSubgroups = family.groups.length > 1;
@@ -4165,8 +4312,8 @@
           <div class="comp-family-side">
             <span class="comp-state comp-state-${familyState === "mixed" ? "mixed" : familyState}">${getGroupStateLabel(familyState)}</span>
             <div class="comp-family-actions">
-              <button class="btn comp-group-toggle ${allChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(family.key)}" type="button">${allChosen ? "Fjern markering" : "Marker familie"}</button>
-              <button class="btn comp-group-toggle ${allMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(family.key)}" type="button">${allMuted ? "Vis familie" : "Demp familie"}</button>
+              <button class="btn comp-group-toggle ${hasChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(family.key)}" type="button">${allChosen ? "Fjern markering" : chosenCount > 0 ? "Marker resten" : "Marker familie"}</button>
+              <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(family.key)}" type="button">${hasMuted ? "Vis familie" : "Demp familie"}</button>
             </div>
           </div>
         </div>
@@ -4184,7 +4331,7 @@
   function groupComponentItems(items) {
     const families = new Map();
     items.forEach((item) => {
-      const familyKey = buildFamilySignature(item.label) || normalizeFamilyToken(item.label) || item.key;
+      const familyKey = getComponentFamilyKey(item) || item.key;
       if (!families.has(familyKey)) families.set(familyKey, []);
       families.get(familyKey).push(item);
     });
@@ -4206,6 +4353,204 @@
         if (sizeDiff) return sizeDiff;
         return a.label.localeCompare(b.label, "nb");
       });
+  }
+
+  function buildVisibleComponentFamilies(families, filterValue = "") {
+    const filter = String(filterValue || "").trim().toLowerCase();
+    return (families || []).map((family) => {
+      const allItems = Array.isArray(family?.items) ? family.items : [];
+      const allGroups = Array.isArray(family?.groups) ? family.groups : [];
+      const visibleItems = !filter ? allItems : allItems.filter((item) => item.search.includes(filter));
+      if (!visibleItems.length) return null;
+      const visibleGroups = allGroups
+        .map((group) => {
+          const sourceItems = Array.isArray(group?.items) ? group.items : [];
+          const matchedItems = !filter ? sourceItems : sourceItems.filter((item) => item.search.includes(filter));
+          if (!matchedItems.length) return null;
+          return {
+            ...group,
+            allItems: sourceItems,
+            items: matchedItems,
+          };
+        })
+        .filter(Boolean);
+      return {
+        ...family,
+        allItems,
+        allGroups,
+        items: visibleItems,
+        groups: visibleGroups,
+      };
+    }).filter(Boolean);
+  }
+
+  function buildComponentGroupLookup(families) {
+    const lookup = new Map();
+    (families || []).forEach((family) => {
+      if (!family?.key) return;
+      lookup.set(family.key, family);
+      (family.groups || []).forEach((group) => {
+        if (group?.key) lookup.set(group.key, group);
+      });
+    });
+    return lookup;
+  }
+
+  function renderScopedComponentGroup(group, filter, { nested = false } = {}) {
+    const allItems = Array.isArray(group?.allItems) && group.allItems.length ? group.allItems : (group.items || []);
+    const visibleItems = Array.isArray(group?.items) ? group.items : [];
+    const keys = allItems.map((item) => item.key);
+    const chosenCount = keys.filter((key) => chosenSet.has(key)).length;
+    const mutedCount = keys.filter((key) => mutedSet.has(key)).length;
+    const visibleCount = allItems.length - mutedCount;
+    const groupState = getGroupState(keys);
+    const materialStatus = getCollectionMaterialStatusText(keys);
+    const allChosen = chosenCount === allItems.length && allItems.length > 0;
+    const hasChosen = chosenCount > 0;
+    const hasMuted = mutedCount > 0;
+    const isIsolated = isExactIsolatedSelection(keys);
+    const isExpanded = isGroupExpanded(group, filter);
+    const canCollapse = allItems.length > 1;
+    const filterNote = String(filter || "").trim() && visibleItems.length !== allItems.length
+      ? ` | ${visibleItems.length} i filter`
+      : "";
+    const expandLabel = !canCollapse
+      ? "En del"
+      : String(filter || "").trim()
+        ? `${visibleItems.length} treff`
+        : isExpanded
+          ? "Skjul deler"
+          : `Vis ${allItems.length} deler`;
+    const groupItems = visibleItems.map((item) => renderComponentRow(item)).join("");
+
+    return `
+      <section class="comp-group${nested ? " comp-subgroup" : ""}" data-group-state="${groupState}" data-expanded="${isExpanded ? "true" : "false"}">
+        <div class="comp-group-head">
+          ${canCollapse ? `
+            <button
+              class="btn comp-group-main ${isExpanded ? "is-open" : ""}"
+              data-toggle-group="${escapeAttr(group.key)}"
+              type="button"
+              ${String(filter || "").trim() ? "disabled" : ""}
+              aria-expanded="${isExpanded ? "true" : "false"}"
+            >
+              <span class="comp-group-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
+              <span class="comp-group-heading">
+                <span class="comp-group-title">${escapeHtml(group.label)}</span>
+                <span class="comp-group-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+              </span>
+              <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
+            </button>
+          ` : `
+            <div class="comp-group-main is-static">
+              <span class="comp-group-chevron" aria-hidden="true">=</span>
+              <span class="comp-group-heading">
+                <span class="comp-group-title">${escapeHtml(group.label)}</span>
+                <span class="comp-group-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+              </span>
+              <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
+            </div>
+          `}
+          <div class="comp-group-side">
+            <span class="comp-state comp-state-${groupState === "mixed" ? "mixed" : groupState}">${getGroupStateLabel(groupState)}</span>
+            <div class="comp-group-actions">
+              <button class="btn comp-group-toggle ${hasChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(group.key)}" type="button">${allChosen ? "Fjern markering" : chosenCount > 0 ? "Marker resten" : "Marker gruppe"}</button>
+              <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(group.key)}" type="button">${hasMuted ? "Vis gruppe" : "Demp gruppe"}</button>
+              <button class="btn comp-group-toggle ${isIsolated ? "is-active" : ""}" data-isolate-group="${escapeAttr(group.key)}" type="button">${isIsolated ? "Vis alt" : "Isoler gruppe"}</button>
+            </div>
+          </div>
+        </div>
+        <div class="comp-group-material">
+          <span class="comp-sub comp-material-status">${escapeHtml(materialStatus)}</span>
+          ${renderMaterialEditor("group", group.key, keys)}
+        </div>
+        ${isExpanded
+          ? `<ul class="comp-group-list">${groupItems}</ul>`
+          : `<div class="comp-group-collapsed-note">${allItems.length} detaljdeler er skjult. Apne gruppen for a se enkeltdelene.</div>`}
+      </section>
+    `;
+  }
+
+  function renderScopedComponentFamily(family, filter) {
+    const allItems = Array.isArray(family?.allItems) && family.allItems.length ? family.allItems : (family.items || []);
+    const visibleItems = Array.isArray(family?.items) ? family.items : [];
+    const allGroups = Array.isArray(family?.allGroups) && family.allGroups.length ? family.allGroups : (family.groups || []);
+    const visibleGroups = Array.isArray(family?.groups) ? family.groups : [];
+    const keys = allItems.map((item) => item.key);
+    const chosenCount = keys.filter((key) => chosenSet.has(key)).length;
+    const mutedCount = keys.filter((key) => mutedSet.has(key)).length;
+    const visibleCount = allItems.length - mutedCount;
+    const familyState = getGroupState(keys);
+    const materialStatus = getCollectionMaterialStatusText(keys);
+    const allChosen = chosenCount === allItems.length && allItems.length > 0;
+    const hasChosen = chosenCount > 0;
+    const hasMuted = mutedCount > 0;
+    const isIsolated = isExactIsolatedSelection(keys);
+    const isExpanded = isGroupExpanded(family, filter);
+    const canCollapse = allItems.length > 1;
+    const hasSubgroups = allGroups.length > 1;
+    const filterNote = String(filter || "").trim() && visibleItems.length !== allItems.length
+      ? ` | ${visibleItems.length} i filter`
+      : "";
+    const expandLabel = !canCollapse
+      ? "En del"
+      : String(filter || "").trim()
+        ? `${visibleItems.length} treff`
+        : isExpanded
+          ? "Skjul familie"
+          : hasSubgroups
+            ? `Vis ${allGroups.length} grupper`
+            : `Vis ${allItems.length} deler`;
+    const body = hasSubgroups
+      ? `<div class="comp-subgroup-stack">${visibleGroups.map((group) => renderScopedComponentGroup(group, filter, { nested: true })).join("")}</div>`
+      : `<ul class="comp-group-list">${visibleItems.map((item) => renderComponentRow(item)).join("")}</ul>`;
+
+    return `
+      <section class="comp-family" data-group-state="${familyState}" data-expanded="${isExpanded ? "true" : "false"}">
+        <div class="comp-family-head">
+          ${canCollapse ? `
+            <button
+              class="btn comp-family-main ${isExpanded ? "is-open" : ""}"
+              data-toggle-group="${escapeAttr(family.key)}"
+              type="button"
+              ${String(filter || "").trim() ? "disabled" : ""}
+              aria-expanded="${isExpanded ? "true" : "false"}"
+            >
+              <span class="comp-group-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
+              <span class="comp-family-heading">
+                <span class="comp-family-title">${escapeHtml(family.label)}</span>
+                <span class="comp-family-meta">${allItems.length} deler | ${allGroups.length} grupper${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+              </span>
+              <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
+            </button>
+          ` : `
+            <div class="comp-family-main is-static">
+              <span class="comp-group-chevron" aria-hidden="true">=</span>
+              <span class="comp-family-heading">
+                <span class="comp-family-title">${escapeHtml(family.label)}</span>
+                <span class="comp-family-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+              </span>
+              <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
+            </div>
+          `}
+          <div class="comp-family-side">
+            <span class="comp-state comp-state-${familyState === "mixed" ? "mixed" : familyState}">${getGroupStateLabel(familyState)}</span>
+            <div class="comp-family-actions">
+              <button class="btn comp-group-toggle ${hasChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(family.key)}" type="button">${allChosen ? "Fjern markering" : chosenCount > 0 ? "Marker resten" : "Marker familie"}</button>
+              <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(family.key)}" type="button">${hasMuted ? "Vis familie" : "Demp familie"}</button>
+              <button class="btn comp-group-toggle ${isIsolated ? "is-active" : ""}" data-isolate-group="${escapeAttr(family.key)}" type="button">${isIsolated ? "Vis alt" : "Isoler familie"}</button>
+            </div>
+          </div>
+        </div>
+        <div class="comp-family-material">
+          <span class="comp-sub comp-material-status">${escapeHtml(materialStatus)}</span>
+          ${renderMaterialEditor("family", family.key, keys)}
+        </div>
+        ${isExpanded
+          ? `<div class="comp-family-body">${body}</div>`
+          : `<div class="comp-group-collapsed-note">${allItems.length} deler er skjult i familien. Apne familien for a se undergrupper og enkeltdeler.</div>`}
+      </section>
+    `;
   }
 
   function renderComponentList(items, mode, { source = "metadata" } = {}) {
@@ -4234,12 +4579,9 @@
       return;
     }
 
-    const familyGroups = buildComponentFamilies(filtered);
-    const groupLookup = new Map();
-    familyGroups.forEach((family) => {
-      groupLookup.set(family.key, family);
-      family.groups.forEach((group) => groupLookup.set(group.key, group));
-    });
+    const allFamilyGroups = buildComponentFamilies(componentState.items);
+    const familyGroups = buildVisibleComponentFamilies(allFamilyGroups, filter);
+    const groupLookup = buildComponentGroupLookup(allFamilyGroups);
 
     function resolveMaterialEditorKeys(scope, token) {
       if (!token) return [];
@@ -4255,7 +4597,7 @@
       <div class="muted muted-box" style="margin-bottom:8px;">
         ${componentIntroText(componentState.mode)}
       </div>
-      <div class="comp-list">${familyGroups.map((family) => renderComponentFamily(family, filter)).join("")}</div>
+      <div class="comp-list">${familyGroups.map((family) => renderScopedComponentFamily(family, filter)).join("")}</div>
     `;
 
     components.querySelectorAll("button[data-comp]").forEach((btn) => {
@@ -4308,8 +4650,17 @@
         const group = groupLookup.get(token);
         if (!group) return;
         const keys = group.items.map((item) => item.key);
-        const allMuted = keys.length > 0 && keys.every((key) => mutedSet.has(key));
-        setMutedForKeys(keys, !allMuted);
+        const hasMuted = keys.some((key) => mutedSet.has(key));
+        setMutedForKeys(keys, !hasMuted);
+        renderFilteredComponents();
+      });
+    });
+    components.querySelectorAll("button[data-isolate-group]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const token = btn.getAttribute("data-isolate-group");
+        const group = groupLookup.get(token);
+        if (!group) return;
+        isolateKeys(group.items.map((item) => item.key), { replaceSelection: true });
         renderFilteredComponents();
       });
     });
@@ -4380,7 +4731,7 @@
       const visibleCount = group.items.length - mutedCount;
       const groupState = getGroupState(keys);
       const allChosen = chosenCount === group.items.length && group.items.length > 0;
-      const allMuted = mutedCount === group.items.length && group.items.length > 0;
+      const hasMuted = mutedCount > 0;
       const isExpanded = isGroupExpanded(group, filter);
       const canCollapse = group.items.length > 1;
       const expandLabel = !canCollapse
@@ -4440,7 +4791,7 @@
               <span class="comp-state comp-state-${groupState === "mixed" ? "mixed" : groupState}">${getGroupStateLabel(groupState)}</span>
               <div class="comp-group-actions">
                 <button class="btn comp-group-toggle ${allChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(group.key)}" type="button">${allChosen ? "Fjern markering" : "Marker gruppe"}</button>
-                <button class="btn comp-group-toggle ${allMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(group.key)}" type="button">${allMuted ? "Vis gruppe" : "Demp gruppe"}</button>
+                <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(group.key)}" type="button">${hasMuted ? "Vis gruppe" : "Demp gruppe"}</button>
               </div>
             </div>
           </div>
@@ -4508,8 +4859,8 @@
         const group = groups.find((entry) => entry.key === token);
         if (!group) return;
         const keys = group.items.map((item) => item.key);
-        const allMuted = keys.length > 0 && keys.every((key) => mutedSet.has(key));
-        setMutedForKeys(keys, !allMuted);
+        const hasMuted = keys.some((key) => mutedSet.has(key));
+        setMutedForKeys(keys, !hasMuted);
         renderFilteredComponents();
       });
     });
@@ -4782,6 +5133,7 @@
         analysisState.geometrySource = payload.source;
       }
       if (payload.materialHint) applyMaterialHint(payload.materialHint, payload.materialHintSource || "Viewer");
+      if (componentState.items.length) renderFilteredComponents();
       buildHydroReport();
       return;
     }
@@ -4815,6 +5167,7 @@
       renderHydroReportModal(data.payload);
       openHydroReportModal();
       updateHydroPanels();
+      if (componentState.items.length) renderFilteredComponents();
       return;
     }
     if (data.type === "viewer-hydro-progress" && data.payload) {
@@ -4833,6 +5186,7 @@
       viewerVisualState.explodeCount = Number(payload.count) || 0;
       viewerVisualState.explode = Math.max(0, Math.min(1, Number(payload.amount) || 0));
       updateExplodeUi();
+      updateSelectionActionUi();
     }
   });
   try {

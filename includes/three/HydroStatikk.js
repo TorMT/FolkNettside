@@ -108,6 +108,11 @@ export class HydroStatikk {
     this._tmpQuat = new THREE.Quaternion();
     this._tmpScale = new THREE.Vector3();
     this._pts8 = Array.from({ length: 8 }, () => new THREE.Vector3());
+    this._tmpBoxB = new THREE.Box3();
+    this._sectionRayDir = new THREE.Vector3(0, 1, 0);
+    this._rayHits = [];
+    this._waterplaneHits = [];
+    this._sectionHits = [];
 
     // SAK triangle cache
     if (this.wlContour) {
@@ -594,7 +599,9 @@ export class HydroStatikk {
     }
 
     const geom = this.mesh.geometry || this.mesh.userData?.aggregateGeometry;
-    geom.computeBoundingBox();
+    if (!geom.boundingBox) {
+      geom.computeBoundingBox();
+    }
     const bb = geom.boundingBox;
 
     this.hydroRotGroup.updateMatrixWorld(true);
@@ -628,7 +635,7 @@ export class HydroStatikk {
     this._pts8[6].set(max.x, max.y, min.z).applyMatrix4(meshNoRotWorld);
     this._pts8[7].set(max.x, max.y, max.z).applyMatrix4(meshNoRotWorld);
 
-    const boxW = new THREE.Box3().setFromPoints(this._pts8);
+    const boxW = this._tmpBoxB.setFromPoints(this._pts8);
 
     const minW = boxW.min.clone();
     const maxW = boxW.max.clone();
@@ -685,7 +692,9 @@ export class HydroStatikk {
     this.applyWaterPlaneOrientation();
     this.waterPlane.position.set(ref.center.x, ref.center.y, this.draftZWorld);
     this._wlContourDirty = true;
-    this.updateWaterlineContour();
+    if (this.wlContourVisible) {
+      this.updateWaterlineContour();
+    }
 
 
     if (this.waterPlane.geometry.parameters.width !== planeSize) {
@@ -727,6 +736,10 @@ export class HydroStatikk {
   setWaterlineContourVisible(visible) {
     this.wlContourVisible = !!visible;
     if (this.wlContour) this.wlContour.visible = this.wlContourVisible;
+    if (this.wlContourVisible) {
+      this._wlContourDirty = true;
+      this.updateWaterlineContour();
+    }
   }
 
  
@@ -734,6 +747,10 @@ updateWaterlineContour() {
   if (!this.mesh) return;
   this.ensureWaterlineContour();
   if (!this.wlContour) return;
+  if (!this.wlContourVisible) {
+    this._wlContourDirty = true;
+    return;
+  }
 
   // Synlighet uansett
   this.wlContour.visible = true;
@@ -742,15 +759,9 @@ updateWaterlineContour() {
   if (!this._wlContourDirty) return;
 
   const z0 = this.draftZWorld;
-
-  const g = this.mesh.geometry;
-  const posAttr = g.getAttribute("position");
-  if (!posAttr) return;
-
-  const pos = posAttr.array;
-  const idxAttr = g.index;
-  const index = idxAttr ? idxAttr.array : null;
-  const triCount = index ? (index.length / 3) : (pos.length / 9);
+  const triSource = this._triCache;
+  if (!triSource?.pos) return;
+  const { pos, index, triCount } = triSource;
 
   this.mesh.updateMatrixWorld(true);
   const M = this.mesh.matrixWorld;
@@ -840,8 +851,6 @@ updateWaterlineContour() {
   }
 
   // DEBUG: se om du faktisk får segmenter
-  console.log("[WL contour] segments:", segCount, "z0:", z0);
-
   this.wlContour.geometry.setAttribute(
     "position",
     new THREE.Float32BufferAttribute(segs, 3)
@@ -1062,6 +1071,11 @@ updateWaterlineContour() {
     let Ixy0 = 0;
 
     let t0 = performance.now();
+    const rayTarget = this._getRaycastTarget();
+    if (!rayTarget) {
+      return { A: 0, xF: null, yF: null, Ixx: 0, Iyy: 0, Ixy: 0 };
+    }
+    const hits = this._waterplaneHits;
 
     for (let iy = 0; iy < ny; iy++) {
       const y = yMin + (iy + 0.5) * dy;
@@ -1069,9 +1083,8 @@ updateWaterlineContour() {
       this._rayOrigin.set(bounds.min.x - eps, y, draftZ);
       this.raycaster.set(this._rayOrigin, this._rayDir);
 
-      const rayTarget = this._getRaycastTarget();
-      if (!rayTarget) continue;
-      const hits = this.raycaster.intersectObject(rayTarget, false);
+      hits.length = 0;
+      this.raycaster.intersectObject(rayTarget, false, hits);
       const n = hits.length;
       if (n < 2) continue;
 
@@ -1253,6 +1266,7 @@ updateWaterlineContour() {
     const eps = (bounds.max.y - bounds.min.y) * 0.02 + 1e-6;
     const rayTarget = this._getRaycastTarget();
     if (!rayTarget) return { xStations: [], sectionAreas: [], activeX: null, activeArea: null };
+    const hits = this._sectionHits;
 
     const xStations = [];
     const sectionAreas = [];
@@ -1266,9 +1280,10 @@ updateWaterlineContour() {
       for (let iz = 0; iz < zSlices; iz++) {
         const z = zMin + (iz + 0.5) * dz;
         this._rayOrigin.set(x, bounds.min.y - eps, z);
-        this.raycaster.set(this._rayOrigin, new THREE.Vector3(0, 1, 0));
+        this.raycaster.set(this._rayOrigin, this._sectionRayDir);
 
-        const hits = this.raycaster.intersectObject(rayTarget, false);
+        hits.length = 0;
+        this.raycaster.intersectObject(rayTarget, false, hits);
         const hitCount = hits.length;
         if (hitCount < 2) continue;
 
@@ -1375,6 +1390,19 @@ updateWaterlineContour() {
     let cbx = 0, cby = 0, cbz = 0;
 
     const eps = (wb.max.x - wb.min.x) * 0.02 + 1e-6;
+    const rayTarget = this._getRaycastTarget();
+    if (!rayTarget) {
+      this.lastHydro.subV = 0;
+      this.lastHydro.cbW = null;
+      this.lastHydro.wp = null;
+      this.lastHydro.kb = null;
+      this.lastHydro.bm = null;
+      this.lastHydro.gm = null;
+      this.lastHydro.gz_now = null;
+      if (computeSAK) this.lastHydro.sak = 0;
+      return { subV: 0, cbW: null };
+    }
+    const hits = this._rayHits;
 
     let t0 = performance.now();
 
@@ -1387,9 +1415,8 @@ updateWaterlineContour() {
         this._rayOrigin.set(wb.min.x - eps, y, z);
         this.raycaster.set(this._rayOrigin, this._rayDir);
 
-        const rayTarget = this._getRaycastTarget();
-        if (!rayTarget) continue;
-        const hits = this.raycaster.intersectObject(rayTarget, false);
+        hits.length = 0;
+        this.raycaster.intersectObject(rayTarget, false, hits);
         const n = hits.length;
         if (n < 2) continue;
 
@@ -1521,7 +1548,8 @@ updateWaterlineContour() {
    */
   async findDraftForDisplacement(targetTonnes, {
     toleranceTonnes = 0.05,
-    maxIterations = 22
+    maxIterations = 22,
+    finalizeRecompute = true,
   } = {}) {
     if (!this.mesh) return null;
 
@@ -1575,8 +1603,9 @@ updateWaterlineContour() {
     this.updateWaterPlane();
     this._invalidateCache();
 
-    // full update
-    await this.recompute();
+    if (finalizeRecompute) {
+      await this.recompute();
+    }
 
     return {
       draft: bestDraft,
@@ -1594,6 +1623,7 @@ updateWaterlineContour() {
     solveTrimHeel = false,
     maxHeelDeg = 18,
     maxTrimDeg = 12,
+    finalizeRecompute = true,
   } = {}) {
     if (!this.mesh) {
       return {
@@ -1648,6 +1678,7 @@ updateWaterlineContour() {
       draftResult = await this.findDraftForDisplacement(assumedMassTonnes, {
         toleranceTonnes,
         maxIterations,
+        finalizeRecompute: false,
       });
 
       if (solveTrimHeel && draftResult) {
@@ -1656,12 +1687,14 @@ updateWaterlineContour() {
           scanStepDeg: 2,
           toleranceGZ: 1e-3,
           maxBisectionIters: 18,
+          finalizeRecompute: false,
         });
         heelResult = await this.solveEquilibrium("roll", {
           maxDeg: maxHeelDeg,
           scanStepDeg: 2,
           toleranceGZ: 1e-3,
           maxBisectionIters: 18,
+          finalizeRecompute: false,
         });
       }
 
@@ -1709,7 +1742,9 @@ updateWaterlineContour() {
       this.quality = origQuality;
       this.updateWaterPlane();
       this._invalidateCache();
-      await this.recompute();
+      if (finalizeRecompute) {
+        await this.recompute();
+      }
     }
   }
 
@@ -1725,12 +1760,14 @@ updateWaterlineContour() {
     maxDeg = 30,
     scanStepDeg = 2,
     toleranceGZ = 1e-3,
-    maxBisectionIters = 20
+    maxBisectionIters = 20,
+    finalizeRecompute = true,
   } = {}) {
     if (!this.mesh || !this.cgLocal) return null;
 
     const origRot = this.hydroRotGroup.rotation.clone();
     const origQuality = this.quality;
+    let restored = false;
 
     const maxA = Math.max(1, Number(maxDeg) || 30);
     const step = Math.max(0.5, Number(scanStepDeg) || 2);
@@ -1799,9 +1836,13 @@ updateWaterlineContour() {
 
         // restore and recompute full
         this.hydroRotGroup.rotation.copy(origRot);
-        this.quality = origQuality;
+        this.updateWaterPlane();
         this._invalidateCache();
-        await this.recompute();
+        this.quality = origQuality;
+        if (finalizeRecompute) {
+          await this.recompute();
+        }
+        restored = true;
 
         return { angleDeg: bestA, gz: isFinite(bestG) ? (bestG * (bestA < 0 ? -1 : 1)) : null, bracket: null };
       }
@@ -1847,16 +1888,29 @@ updateWaterlineContour() {
 
       // apply best
       this.hydroRotGroup.rotation.copy(origRot);
-      if (mode === "roll") this._setAxisRotation(this.axis.rollAxis, THREE.MathUtils.degToRad(bestAngle));
-      else this._setAxisRotation(this.axis.pitchAxis, THREE.MathUtils.degToRad(bestAngle));
+      if (mode === "roll") {
+        this._setAxisRotation(this.axis.rollAxis, THREE.MathUtils.degToRad(bestAngle));
+        this.heelDeg = bestAngle;
+      } else {
+        this._setAxisRotation(this.axis.pitchAxis, THREE.MathUtils.degToRad(bestAngle));
+        this.trimDeg = bestAngle;
+      }
 
       this.updateWaterPlane();
       this._invalidateCache();
       this.quality = origQuality;
-      await this.recompute();
+      if (finalizeRecompute) {
+        await this.recompute();
+      }
+      restored = true;
 
       return { angleDeg: bestAngle, gz: bestGZ, bracket: { lo, hi } };
     } finally {
+      if (!restored) {
+        this.hydroRotGroup.rotation.copy(origRot);
+        this.updateWaterPlane();
+        this._invalidateCache();
+      }
       this.quality = origQuality;
     }
   }
@@ -1870,12 +1924,16 @@ updateWaterlineContour() {
     maxDeg = 60,
     stepDeg = 2,
     quality = "low",
-    includeSAK = true
+    includeSAK = true,
+    restoreState = true,
+    nowSnapshot = null,
   } = {}) {
     if (!this.mesh) return null;
 
     const origRot = this.hydroRotGroup.rotation.clone();
     const origQuality = this.quality;
+    const baselineNow = nowSnapshot || this._cloneHydroSnapshot();
+    let restored = false;
 
     const angles = [];
     const gz = [];
@@ -1926,21 +1984,23 @@ updateWaterlineContour() {
 
       // restore
       this.hydroRotGroup.rotation.copy(origRot);
-
-      // full recompute at current state
       this.quality = origQuality;
-      await this.recompute();
-
-      const now = this.getLastResults();
+      this.updateWaterPlane();
+      this._invalidateCache();
+      if (restoreState) {
+        await this.recompute();
+      }
+      const now = restoreState ? this._cloneHydroSnapshot() : baselineNow;
       const stability = this._computeStabilityMetrics(angles, gz);
+      restored = true;
 
       return {
         meta: { mode, maxDeg: maxA, stepDeg: step, qualityUsed: quality, includeSAK: !!includeSAK, draftZWorld: this.draftZWorld },
         now: {
           subV: now.subV,
           sak: now.sak,
-          cbW: now.cbW ? { x: now.cbW.x, y: now.cbW.y, z: now.cbW.z } : null,
-          cgW: now.cgW ? { x: now.cgW.x, y: now.cgW.y, z: now.cgW.z } : null,
+          cbW: now.cbW || null,
+          cgW: now.cgW || null,
           wp: now.wp,
           kb: now.kb,
           kg: now.kg,
@@ -1952,7 +2012,11 @@ updateWaterlineContour() {
         stability
       };
     } finally {
-      this.hydroRotGroup.rotation.copy(origRot);
+      if (!restored) {
+        this.hydroRotGroup.rotation.copy(origRot);
+        this.updateWaterPlane();
+        this._invalidateCache();
+      }
       this.quality = origQuality;
     }
   }
@@ -2000,6 +2064,22 @@ updateWaterlineContour() {
     };
   }
 
+  _cloneHydroSnapshot(source = this.lastHydro) {
+    if (!source) return null;
+    return {
+      subV: Number.isFinite(source.subV) ? source.subV : null,
+      cbW: this._vectorToPlain(source.cbW),
+      cgW: this._vectorToPlain(source.cgW),
+      wp: source.wp ? { ...source.wp } : null,
+      kb: Number.isFinite(source.kb) ? source.kb : null,
+      kg: Number.isFinite(source.kg) ? source.kg : null,
+      bm: source.bm ? { ...source.bm } : null,
+      gm: source.gm ? { ...source.gm } : null,
+      gz_now: source.gz_now ? { ...source.gz_now } : null,
+      sak: Number.isFinite(source.sak) ? source.sak : source.sak ?? null,
+    };
+  }
+
   // ============================================================
   // DRAFT-SCAN (on-demand)
   // ============================================================
@@ -2008,7 +2088,8 @@ updateWaterlineContour() {
     draftCount = 20,
     quality = "low",
     includeAwp = true,
-    includeSAK = false
+    includeSAK = false,
+    restoreState = true,
   } = {}) {
     if (!this.mesh) return null;
 
@@ -2029,6 +2110,7 @@ updateWaterlineContour() {
     const saks = [];
 
     this.quality = quality;
+    let restored = false;
 
     try {
       for (let i = 0; i < n; i++) {
@@ -2068,14 +2150,22 @@ updateWaterlineContour() {
       this.draftZWorld = origDraft;
       this.updateWaterPlane();
       this.quality = origQuality;
-      await this.recompute();
+      this._invalidateCache();
+      if (restoreState) {
+        await this.recompute();
+      }
+      restored = true;
 
       return {
         meta: { draftCount: n, qualityUsed: quality, includeAwp: !!includeAwp, includeSAK: !!includeSAK, rho: this.waterDensity },
         data: { drafts, volumes, displacements, kbs, awps, saks }
       };
     } finally {
-      this.draftZWorld = origDraft;
+      if (!restored) {
+        this.draftZWorld = origDraft;
+        this.updateWaterPlane();
+        this._invalidateCache();
+      }
       this.quality = origQuality;
     }
   }

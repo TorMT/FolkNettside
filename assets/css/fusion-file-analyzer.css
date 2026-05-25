@@ -25,7 +25,7 @@ html, body {
 
 .fusion-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(350px, 22vw, 390px);
+  grid-template-columns: minmax(0, 1fr) clamp(380px, 27vw, 460px);
   gap: 14px;
   min-height: 100vh;
   padding: 14px;
@@ -163,6 +163,7 @@ h2 {
   gap: 14px;
   max-height: calc(100vh - 36px);
   overflow: auto;
+  min-width: 0;
   padding-right: 4px;
 }
 
@@ -230,7 +231,7 @@ h2 {
 .kv span:last-child { overflow-wrap: anywhere; text-align: right; }
 .buttons { display:flex; flex-wrap:wrap; gap:8px; }
 .compact-buttons { justify-content: flex-end; }
-button, a.btn { border:1px solid var(--ffa-border); color:var(--ffa-text); background: var(--ffa-bg-soft); border-radius:12px; padding:8px 12px; cursor:pointer; text-decoration:none; font-weight:700; box-shadow: 0 4px 12px rgba(17, 35, 70, 0.06); }
+button, a.btn { border:1px solid var(--ffa-border); color:var(--ffa-text); background: var(--ffa-bg-soft); border-radius:12px; padding:8px 12px; cursor:pointer; text-decoration:none; font-weight:700; line-height:1.25; white-space:normal; box-shadow: 0 4px 12px rgba(17, 35, 70, 0.06); }
 button:hover, a.btn:hover { border-color: color-mix(in srgb, var(--ffa-accent) 45%, var(--ffa-border) 55%); }
 button:disabled, a.btn.disabled { opacity:.5; cursor:not-allowed; pointer-events:none; filter: grayscale(0.15); }
 button.primary, a.btn.primary, button.tab.active { background: var(--ffa-accent); color: var(--ffa-accent-contrast); border-color: var(--ffa-accent); }
@@ -293,12 +294,18 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
 .hydro-pill-card {
   display:grid;
   gap:4px;
+  min-width:0;
   padding:12px 14px;
   border-radius:14px;
   border:1px solid var(--ffa-border);
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--ffa-accent) 12%, transparent 88%), transparent 40%),
     color-mix(in srgb, var(--ffa-bg-soft) 76%, var(--ffa-bg-elevated) 24%);
+}
+.hydro-pill-card > * {
+  min-width:0;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .hydro-pill-card strong {
   font-size:1.08rem;
@@ -377,6 +384,13 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   background: color-mix(in srgb, var(--ffa-bg-soft) 78%, #ffffff 22%);
   display:grid;
   gap:6px;
+  min-width:0;
+  align-content:start;
+}
+.hydro-stat-card > * {
+  min-width:0;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .hydro-stat-title {
   font-size:.76rem;
@@ -389,6 +403,8 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   font-size:1.08rem;
   font-weight:900;
   line-height:1.2;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .hydro-report-shell {
   margin-top:12px;
@@ -398,9 +414,14 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--ffa-bg-soft) 76%, #ffffff 24%) 0%, var(--ffa-bg-elevated) 100%);
   line-height:1.5;
+  min-width:0;
+  overflow:hidden;
 }
 .hydro-report-shell pre {
   margin:0;
+}
+.hydro-report-shell > * {
+  min-width:0;
 }
 .report-modal[hidden] {
   display:none;
@@ -482,10 +503,13 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   padding:12px;
   display:grid;
   gap:5px;
+  min-width:0;
 }
 .report-summary-card strong {
   font-size:1.1rem;
   line-height:1.2;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .report-chart-card {
   margin-top:12px;
@@ -500,6 +524,7 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   border-radius:16px;
   border:1px dashed rgba(21, 32, 51, 0.16);
   background: color-mix(in srgb, var(--ffa-bg-soft) 62%, #ffffff 38%);
+  min-width:0;
 }
 .report-note-card h3 {
   margin:0 0 8px;
@@ -508,9 +533,17 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
 .report-note-card p {
   margin:0;
   line-height:1.55;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .report-note-card p + p {
   margin-top:8px;
+}
+.hydro-lab-shell {
+  margin-top:12px;
+}
+.hydro-lab-grid {
+  margin-top:10px;
 }
 .report-note-list {
   margin:10px 0 0 18px;
@@ -578,6 +611,7 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   display:inline-flex;
   align-items:center;
   gap:6px;
+  min-width:0;
   min-height:32px;
   padding:6px 12px;
   border-radius:999px;
@@ -601,6 +635,8 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
 .chosen-muted-detail {
   flex:1 1 100%;
   line-height:1.45;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .comp-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
 .comp-family {
@@ -938,15 +974,42 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   border-color: color-mix(in srgb, #64748b 48%, var(--ffa-border) 52%);
 }
 .muted-box { background: var(--ffa-bg-soft); border:1px dashed var(--ffa-border); border-radius:12px; padding:8px; }
-.component-toolbar { margin-bottom: 8px; display:grid; gap:8px; }
+.component-toolbar { margin-bottom: 8px; display:grid; gap:10px; min-width:0; }
+.component-toolbar > * { min-width:0; }
+.component-scope-tools {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:8px;
+}
+.component-scope-tools .btn,
+.component-scope-tools button {
+  width:100%;
+  min-width:0;
+}
 .explode-toolbar {
   display:grid;
-  grid-template-columns:auto auto minmax(0,1fr) auto auto;
+  grid-template-columns:minmax(0,1fr) auto auto;
   gap:8px;
   align-items:center;
 }
+.explode-toolbar > :nth-child(1) {
+  grid-column:1;
+}
+.explode-toolbar > :nth-child(2) {
+  grid-column:2 / 4;
+}
+.explode-toolbar > :nth-child(3) {
+  grid-column:1;
+}
+.explode-toolbar > :nth-child(4) {
+  grid-column:2;
+}
+.explode-toolbar > :nth-child(5) {
+  grid-column:3;
+}
 .explode-toolbar select {
-  min-width: 160px;
+  min-width:0;
+  width:100%;
 }
 .explode-toolbar input[type="range"] {
   width:100%;
@@ -964,7 +1027,7 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   background: var(--ffa-bg-soft);
   font-weight:800;
 }
-#componentFilter { width: min(420px, 100%); }
+#componentFilter { width:100%; }
 
 @media (max-width: 980px) {
   .fusion-shell {
@@ -1021,6 +1084,7 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   .viewer-topbar { flex-direction: column; }
   .buttons { gap:6px; }
   button, a.btn { width:100%; text-align:center; }
+  .component-scope-tools { grid-template-columns:1fr; }
   .drawer-brand { align-items: flex-start; }
   .fusion-brand-mark {
     width: 50px;
@@ -1083,6 +1147,26 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
   grid-template-columns: 1fr;
 }
 
+.inspector-drawer .hydro-quick-grid,
+.inspector-drawer .hydro-summary-grid,
+.inspector-drawer .report-summary-grid {
+  grid-template-columns: 1fr;
+}
+
+.inspector-drawer .hydro-pill-card strong,
+.inspector-drawer .hydro-stat-value,
+.inspector-drawer .report-summary-card strong {
+  font-size:1rem;
+}
+
+.inspector-drawer .hydro-report-shell,
+.inspector-drawer .report-note-card,
+.inspector-drawer .hydro-stat-card,
+.inspector-drawer .hydro-pill-card,
+.inspector-drawer .report-summary-card {
+  overflow:hidden;
+}
+
 .inspector-drawer .comp-main {
   width: 100%;
   box-sizing: border-box;
@@ -1093,9 +1177,14 @@ input, select { border:1px solid var(--ffa-border); color:var(--ffa-text); backg
 }
 
 .inspector-drawer .comp-actions,
-.inspector-drawer .comp-group-actions {
+.inspector-drawer .comp-group-actions,
+.inspector-drawer .comp-family-actions {
   width: 100%;
   justify-content: flex-start;
+}
+
+.inspector-drawer .component-scope-tools {
+  width:100%;
 }
 
 .inspector-drawer .comp-group-main,

@@ -1018,6 +1018,7 @@
           object: child,
           label,
           key: normalizeComponentName(child.userData?.componentKey || label),
+          familyKey: normalizeComponentName(child.userData?.componentFamilyKey || ""),
           nodePath: String(child.userData?.nodePath || "").trim(),
           sourceName: String(child.userData?.sourceName || "").trim(),
           brepFaces: Number(child.userData?.brepFaces) || 0,
@@ -1045,6 +1046,10 @@
           label: cleanLabel,
           subtitle: extra.subtitle || "",
           description: extra.description || "",
+          familyKey: extra.familyKey || "",
+          nodePath: extra.nodePath || "",
+          sourceName: extra.sourceName || "",
+          aliases: Array.isArray(extra.aliases) ? extra.aliases.slice() : [],
           center: extra.center || null,
           size: extra.size || null,
         });
@@ -1052,11 +1057,15 @@
 
       const renderables = collectRenderableComponents(root);
       if (renderables.length) {
-        renderables.forEach(({ label, key, nodePath, sourceName, brepFaces, center, size }) => {
+        renderables.forEach(({ label, key, familyKey, nodePath, sourceName, brepFaces, center, size, aliases }) => {
           pushItem(label, {
             key,
             subtitle: nodePath || sourceName,
             description: brepFaces ? `${brepFaces} B-Rep-flater` : "",
+            familyKey,
+            nodePath,
+            sourceName,
+            aliases,
             center,
             size,
           });
@@ -1139,6 +1148,72 @@
           centroidLocal: serializeVector(entry?.centroidLocal),
         })),
       };
+    }
+
+    function buildMassPropertyAliasMap(massProps) {
+      const aliasMap = new Map();
+      const components = Array.isArray(massProps?.components) ? massProps.components : [];
+      components.forEach((entry) => {
+        const aliases = buildComponentAliasList(
+          entry?.key,
+          entry?.name,
+          entry?.nodePath,
+          entry?.sourceName
+        );
+        aliases.forEach((alias) => {
+          if (!aliasMap.has(alias)) aliasMap.set(alias, entry);
+        });
+      });
+      return aliasMap;
+    }
+
+    function syncSceneMassProperties() {
+      if (!core?.mesh || !hydro?.getMassProperties) return;
+      const massProps = hydro.getMassProperties?.();
+      const aliasMap = buildMassPropertyAliasMap(massProps);
+      if (!aliasMap.size) return;
+
+      collectRenderableComponents(core.mesh).forEach(({ object, aliases }) => {
+        if (!object) return;
+        const match = (Array.isArray(aliases) ? aliases : []).map((alias) => aliasMap.get(alias)).find(Boolean);
+        if (!match) return;
+        const userData = object.userData || (object.userData = {});
+        const massKg = Number(match?.massKg);
+        const densityKgM3 = Number(match?.densityKgM3);
+        const groupMassKg = Number(match?.groupMassKg);
+
+        userData.massKg = Number.isFinite(massKg) && massKg > 0 ? massKg : null;
+        userData.directMassKg = match?.massMode === "direct" && Number.isFinite(massKg) && massKg > 0 ? massKg : null;
+        userData.groupMassKg = Number.isFinite(groupMassKg) && groupMassKg > 0 ? groupMassKg : null;
+        userData.densityKgM3 = Number.isFinite(densityKgM3) && densityKgM3 > 0 ? densityKgM3 : null;
+        userData.massMode = String(match?.massMode || "").trim() || null;
+        userData.materialLabel = String(match?.materialLabel || "").trim() || null;
+        if (match?.centroidLocal && Number.isFinite(match.centroidLocal.x) && Number.isFinite(match.centroidLocal.y) && Number.isFinite(match.centroidLocal.z)) {
+          userData.centroidLocal = {
+            x: Number(match.centroidLocal.x),
+            y: Number(match.centroidLocal.y),
+            z: Number(match.centroidLocal.z),
+          };
+        }
+
+        if (userData.geometryMassProps && typeof userData.geometryMassProps === "object") {
+          userData.geometryMassProps.massKg = userData.massKg;
+          userData.geometryMassProps.densityKgM3 = userData.densityKgM3;
+          userData.geometryMassProps.groupMassKg = userData.groupMassKg;
+          userData.geometryMassProps.massMode = userData.massMode;
+          userData.geometryMassProps.materialLabel = userData.materialLabel;
+          if (userData.centroidLocal) {
+            userData.geometryMassProps.centroidLocal = { ...userData.centroidLocal };
+          }
+        }
+      });
+    }
+
+    function refreshExplodeLayoutFromMassState() {
+      if (!core?.refreshExplodeLayout) return;
+      core.refreshExplodeLayout();
+      syncExplodeUiFromCore();
+      postExplodeInfoToParent();
     }
 
     function buildHydroPayload() {
@@ -1644,6 +1719,8 @@
         await withHydroGeometryState(async () => {
           await hydro.recompute();
         });
+        syncSceneMassProperties();
+        refreshExplodeLayoutFromMassState();
         ui._updateHydroUI?.();
         ui._updateDraftText?.(hydro.draftZWorld);
         postAnalysisToParent(core.mesh);
@@ -1665,6 +1742,8 @@
         await withHydroGeometryState(async () => {
           await hydro.recompute();
         });
+        syncSceneMassProperties();
+        refreshExplodeLayoutFromMassState();
         ui._updateHydroUI?.();
         ui._updateDraftText?.(hydro.draftZWorld);
         postAnalysisToParent(core.mesh);
@@ -1698,6 +1777,8 @@
       core.setMesh(mesh);
       core.setUnitsScale?.(Number(mesh?.userData?.modelMeta?.metersPerUnit) || 1);
       hydro.setMesh(mesh);
+      syncSceneMassProperties();
+      refreshExplodeLayoutFromMassState();
       invalidateHydroReportCache();
 
       hydro.initDraftAtWorldZero();
@@ -1726,6 +1807,8 @@
         try {
           hydro.quality = "low";
           await hydro.recompute();
+          syncSceneMassProperties();
+          refreshExplodeLayoutFromMassState();
           ui._updateHydroUI?.();
           ui._updateDraftText?.(hydro.draftZWorld);
           postAnalysisToParent(mesh, { volume, centroidLocal });

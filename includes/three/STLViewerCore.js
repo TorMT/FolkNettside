@@ -880,6 +880,21 @@ export class STLViewerCore {
     return this._explodeFactor;
   }
 
+  refreshExplodeLayout() {
+    this._restoreExplodeBasePositions(this._explodeItems);
+    this._explodeItems = [];
+    if (this.mesh && this._explodeFactor > 0) {
+      return this.setExplodeFactor(this._explodeFactor);
+    }
+    this.modelGroup?.updateMatrixWorld?.(true);
+    if (this._bboxHelper) {
+      try {
+        this._bboxHelper.box.setFromObject(this.modelGroup);
+      } catch {}
+    }
+    return this._explodeFactor;
+  }
+
   resetExplode() {
     return this.setExplodeFactor(0);
   }
