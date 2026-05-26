@@ -341,10 +341,18 @@ function getKarakterwebUrl(courseCode){
   const tplMeta = document.querySelector('meta[name="karakterweb-url-template"]')?.getAttribute('content');
   if (tplMeta){
     return String(tplMeta)
+      .replace(/^https:\/\/www\.karakterweb\.no(?=\/|$)/i, 'https://karakterweb.no')
       .replaceAll('{COURSE_CODE}', encodeURIComponent(code))
       .replaceAll('{course_code}', encodeURIComponent(codeLower));
   }
-  return `https://www.karakterweb.no/ntnu/${encodeURIComponent(codeLower)}`;
+  // Karakterweb gikk over til kanonisk domene uten "www".
+  // Beholder samme sti og lowercase kurskode for kompatibilitet.
+  return `https://karakterweb.no/ntnu/${encodeURIComponent(codeLower)}`;
+}
+function getKarakterwebInviewUrl(courseCode){
+  const url = getKarakterwebUrl(courseCode);
+  if (!url) return null;
+  return `/includes/karakterweb/api/render.php?url=${encodeURIComponent(url)}`;
 }
 function toAbsUrl(rel, baseDir){
   const s = String(rel||'');
@@ -860,14 +868,16 @@ function openInViewer(url, kind){
 
   const {box} = ensureViewer();
   const useIframeForPdf = kind === 'pdf' && isMobileViewport();
+  const useIframeForHtmlPage = kind === 'iframehtml';
   // Backward-compat alias (older codepaths/patches may reference this name)
   const userframeForPdf = useIframeForPdf;
   globalThis.userframeForPdf = userframeForPdf;
-  const frame = useIframeForPdf
+  const frame = (useIframeForPdf || useIframeForHtmlPage)
     ? (replaceViewerFrame('iframe') || box.firstElementChild)
     : (replaceViewerFrame('object') || box.firstElementChild);
   let target = url;
 
+  if (kind === 'iframehtml') target = url;
   if (kind === 'py')         target = `/includes/kodeLesere/pyview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'ipynb') target = `/includes/kodeLesere/nbview.html?file=${encodeURIComponent(url)}`;
   else if (kind === 'fusion') target = `/includes/kodeLesere/fusionview.html?file=${encodeURIComponent(url)}`;
@@ -1601,7 +1611,7 @@ async function initSidebar(){
   const karakterwebBtnHtml = `
     <div class="dropdown-oving">
       <div class="dropdown-btn" id="karakterweb-btn">
-        <img src="https://www.karakterweb.no/favicon.ico" alt="" aria-hidden="true"
+        <img src="https://karakterweb.no/favicon.ico" alt="" aria-hidden="true"
              style="width:16px;height:16px;vertical-align:-3px;margin-right:8px;border-radius:3px;">
         Karakterweb
       </div>
@@ -2108,7 +2118,6 @@ async function initSidebar(){
     });
   }
 
-  let pendingKarakterwebUrl = null;
   const karakterwebBtn = document.getElementById('karakterweb-btn');
   if (karakterwebBtn){
     karakterwebBtn.addEventListener('click', ()=>{
@@ -2122,25 +2131,16 @@ async function initSidebar(){
         alert('Kunne ikke bygge Karakterweb-lenke for faget.');
         return;
       }
-      pendingKarakterwebUrl = karakterwebUrl;
-      openInViewer(karakterwebUrl, 'html');
+      const karakterwebInviewUrl = getKarakterwebInviewUrl(courseCode);
+      if (!karakterwebInviewUrl){
+        alert('Kunne ikke bygge Karakterweb inview-lenke for faget.');
+        return;
+      }
+      openInViewer(karakterwebInviewUrl, 'iframehtml');
       sb.querySelectorAll('.dropdown-oving').forEach(d=>d.classList.remove('active'));
       karakterwebBtn.closest('.dropdown-oving')?.classList.add('active');
     });
   }
-
-  window.addEventListener('message', (ev) => {
-    const data = ev?.data;
-    if (!data || data.type !== 'htmlview-status') return;
-    if (!pendingKarakterwebUrl) return;
-    if (data.file !== pendingKarakterwebUrl) return;
-    if (data.status === 'blocked' || data.status === 'timeout'){
-      window.open(pendingKarakterwebUrl, '_blank', 'noopener');
-      pendingKarakterwebUrl = null;
-    } else if (data.status === 'loaded'){
-      pendingKarakterwebUrl = null;
-    }
-  });
 
   /* Modul-initialisering */
   if (window.SidebarSearch && typeof window.SidebarSearch.init === 'function') {

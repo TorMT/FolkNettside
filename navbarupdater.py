@@ -174,7 +174,7 @@ def generate_default_page(out: Path, title: str, desc: str, course_code: str = '
   <meta name="theme-color" content="#004f9f">
   <meta name="description" content="{{DESCRIPTION}}">
   <meta name="course-code" content="{{COURSE_CODE}}">
-  <meta name="karakterweb-url-template" content="https://www.karakterweb.no/ntnu/{course_code}">
+  <meta name="karakterweb-url-template" content="https://karakterweb.no/ntnu/{course_code}">
   <title>{{TITLE}} - Studieressurser</title>
 
   <!-- Preload kritiske ressurser for raskere lasting -->
