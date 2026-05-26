@@ -344,7 +344,9 @@ function getKarakterwebUrl(courseCode){
       .replaceAll('{COURSE_CODE}', encodeURIComponent(code))
       .replaceAll('{course_code}', encodeURIComponent(codeLower));
   }
-  return `https://www.karakterweb.no/ntnu/${encodeURIComponent(codeLower)}`;
+  // Karakterweb gikk over til kanonisk domene uten "www".
+  // Beholder samme sti og lowercase kurskode for kompatibilitet.
+  return `https://karakterweb.no/ntnu/${encodeURIComponent(codeLower)}`;
 }
 function toAbsUrl(rel, baseDir){
   const s = String(rel||'');
@@ -1600,7 +1602,7 @@ async function initSidebar(){
   const karakterwebBtnHtml = `
     <div class="dropdown-oving">
       <div class="dropdown-btn" id="karakterweb-btn">
-        <img src="https://www.karakterweb.no/favicon.ico" alt="" aria-hidden="true"
+        <img src="https://karakterweb.no/favicon.ico" alt="" aria-hidden="true"
              style="width:16px;height:16px;vertical-align:-3px;margin-right:8px;border-radius:3px;">
         Karakterweb
       </div>
@@ -2364,6 +2366,5 @@ document.readyState==='loading'
   b.textContent=txt;
 })();
 /* -------------------------------------------------------------------- */
-
 
 
