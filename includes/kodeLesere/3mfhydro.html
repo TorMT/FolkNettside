@@ -439,16 +439,16 @@
     }
     #cornerLoader{
       position:fixed;
-      right:16px;
-      bottom:16px;
+      right:12px;
+      bottom:12px;
       z-index:255;
       display:flex;
       align-items:center;
-      gap:10px;
-      min-width:220px;
-      max-width:min(360px, calc(100vw - 32px));
-      padding:10px 12px;
-      border-radius:14px;
+      gap:8px;
+      min-width:0;
+      max-width:min(260px, calc(100vw - 24px));
+      padding:7px 9px;
+      border-radius:10px;
       border:1px solid var(--border-color);
       background: color-mix(in srgb, var(--bg-card) 90%, rgba(255,255,255,.08) 10%);
       box-shadow: var(--shadow);
@@ -468,8 +468,8 @@
       background: color-mix(in srgb, var(--bg-card) 88%, rgba(239,68,68,.08) 12%);
     }
     .corner-loader-spinner{
-      width:18px;
-      height:18px;
+      width:14px;
+      height:14px;
       border-radius:999px;
       border:2px solid color-mix(in srgb, var(--primary) 22%, transparent 78%);
       border-top-color: var(--primary);
@@ -486,7 +486,7 @@
       gap:2px;
     }
     .corner-loader-title{
-      font-size:12px;
+      font-size:11px;
       font-weight:800;
       color:var(--text-main);
       white-space:nowrap;
@@ -494,7 +494,7 @@
       text-overflow:ellipsis;
     }
     .corner-loader-meta{
-      font-size:11px;
+      font-size:10px;
       color:var(--text-muted);
       white-space:nowrap;
       overflow:hidden;
@@ -998,6 +998,13 @@
       });
     }
 
+    async function waitForAnimationFrames(count = 1) {
+      const frames = Math.max(1, Number(count) || 1);
+      for (let index = 0; index < frames; index += 1) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+    }
+
     async function processInChunks(items, chunkSize, fn, { signal = null, onChunk = null } = {}) {
       const list = Array.isArray(items) ? items : [];
       const size = Math.max(1, Number(chunkSize) || 1);
@@ -1070,6 +1077,7 @@
       loadJob: { id: 0, controller: null },
       recomputeJob: { id: 0, controller: null, running: false, queuedState: null },
       reportJob: { id: 0, controller: null },
+      hydroExclusive: Promise.resolve(),
       highlightJobId: 0,
       reportWorkerSeq: 0,
       reportWorkerCallbacks: new Map(),
@@ -1110,6 +1118,63 @@
       runtimeState[kind]?.controller?.abort?.(createAbortError(message));
     }
 
+    async function runHydroExclusive(label, task, { signal = null } = {}) {
+      const previous = runtimeState.hydroExclusive.catch(() => {});
+      let release;
+      runtimeState.hydroExclusive = new Promise((resolve) => {
+        release = resolve;
+      });
+      await previous;
+      try {
+        throwIfAborted(signal);
+        return await task();
+      } finally {
+        release?.();
+      }
+    }
+
+    function captureHydroLiveState() {
+      return {
+        draftZWorld: hydro.draftZWorld,
+        trimDeg: hydro.trimDeg,
+        heelDeg: hydro.heelDeg,
+        quality: hydro.quality,
+        userQuality: hydro.userQuality,
+        waterDensity: hydro.waterDensity,
+        materialDensity: hydro.materialDensity,
+        componentDensityOverrides: hydro.componentDensityOverrides instanceof Map
+          ? new Map(hydro.componentDensityOverrides)
+          : null,
+        rotation: hydro.hydroRotGroup?.rotation?.clone?.() || null,
+      };
+    }
+
+    function restoreHydroLiveState(snapshot) {
+      if (!snapshot || !hydro) return;
+      hydro.draftZWorld = snapshot.draftZWorld;
+      hydro.trimDeg = snapshot.trimDeg;
+      hydro.heelDeg = snapshot.heelDeg;
+      hydro.quality = snapshot.quality;
+      hydro.userQuality = snapshot.userQuality;
+      hydro.waterDensity = snapshot.waterDensity;
+      hydro.setMaterialDensity?.(snapshot.materialDensity);
+      hydro.componentDensityOverrides = snapshot.componentDensityOverrides instanceof Map
+        ? new Map(snapshot.componentDensityOverrides)
+        : new Map();
+      hydro._syncMassPropertiesFromMesh?.();
+      if (snapshot.rotation && hydro.hydroRotGroup?.rotation) {
+        hydro.hydroRotGroup.rotation.copy(snapshot.rotation);
+      }
+      if (Number.isFinite(Number(snapshot.trimDeg))) {
+        hydro._setAxisRotation?.(hydro.axis.pitchAxis, THREE.MathUtils.degToRad(Number(snapshot.trimDeg)));
+      }
+      if (Number.isFinite(Number(snapshot.heelDeg))) {
+        hydro._setAxisRotation?.(hydro.axis.rollAxis, THREE.MathUtils.degToRad(Number(snapshot.heelDeg)));
+      }
+      hydro.updateWaterPlane();
+      hydro._invalidateCache?.();
+    }
+
     function markHydroUiDirty() {
       runtimeState.hydroUi.dirty = true;
     }
@@ -1129,12 +1194,6 @@
       if (cornerLoaderMeta) {
         cornerLoaderMeta.textContent = meta || (visible ? "Forbereder beregning..." : "");
       }
-    }
-
-    function hasActiveHydroIndicatorWork() {
-      return runtimeState.recomputeJob.running
-        || document.body.classList.contains("is-loading")
-        || document.body.classList.contains("has-stage-overlay");
     }
 
     async function waitForHydroIdle(signal = null) {
@@ -1160,6 +1219,7 @@
         keepPanelVisible = false,
         metaText = "",
         determinate = null,
+        keepCornerLoader = false,
       } = options;
       const active = mode !== "idle";
       const isLoading = mode === "loading";
@@ -1182,7 +1242,7 @@
       if (hydroDataWrap) hydroDataWrap.style.visibility = active && !keepPanelVisible ? "hidden" : "visible";
       if (isLoading) {
         setCornerLoader(true, title, metaText || detail || message || "Arbeider...");
-      } else if (mode !== "loading") {
+      } else if (mode !== "loading" && keepCornerLoader !== true) {
         setCornerLoader(false);
       }
     }
@@ -2807,233 +2867,252 @@
       const onStage = typeof runtime.onStage === "function" ? runtime.onStage : null;
       const onPartial = typeof runtime.onPartial === "function" ? runtime.onPartial : null;
 
-      if (options.forceRecalc) invalidateHydroReportCache();
-      if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
-      if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
-      hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
-      const quality = options.quality || hydro.quality || "low";
-      const performanceMode = options.performanceMode === true;
-      if (quality) {
-        hydro.userQuality = String(quality);
-        hydro.quality = String(quality);
-      }
-      if (Number.isFinite(Number(options.draftZWorld))) {
-        hydro.draftZWorld = Number(options.draftZWorld);
-      }
-      if (Number.isFinite(Number(options.trim))) {
-        const trimDeg = Number(options.trim);
-        hydro._setAxisRotation?.(hydro.axis.pitchAxis, THREE.MathUtils.degToRad(trimDeg));
-        hydro.trimDeg = trimDeg;
-      }
-      if (Number.isFinite(Number(options.heel))) {
-        const heelDeg = Number(options.heel);
-        hydro._setAxisRotation?.(hydro.axis.rollAxis, THREE.MathUtils.degToRad(heelDeg));
-        hydro.heelDeg = heelDeg;
-      }
-      hydro.updateWaterPlane();
-      hydro._invalidateCache?.();
-      cancelScheduledHydroRecalc();
+      return runHydroExclusive("report", async () => {
+        if (options.forceRecalc) invalidateHydroReportCache();
+        const liveSnapshot = captureHydroLiveState();
+        if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
+        if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
+        hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
+        const quality = options.quality || hydro.quality || "low";
+        const performanceMode = options.performanceMode === true;
+        if (quality) {
+          hydro.userQuality = String(quality);
+          hydro.quality = String(quality);
+        }
+        if (Number.isFinite(Number(options.draftZWorld))) {
+          hydro.draftZWorld = Number(options.draftZWorld);
+        }
+        if (Number.isFinite(Number(options.trim))) {
+          const trimDeg = Number(options.trim);
+          hydro._setAxisRotation?.(hydro.axis.pitchAxis, THREE.MathUtils.degToRad(trimDeg));
+          hydro.trimDeg = trimDeg;
+        }
+        if (Number.isFinite(Number(options.heel))) {
+          const heelDeg = Number(options.heel);
+          hydro._setAxisRotation?.(hydro.axis.rollAxis, THREE.MathUtils.degToRad(heelDeg));
+          hydro.heelDeg = heelDeg;
+        }
+        hydro.updateWaterPlane();
+        hydro._invalidateCache?.();
+        cancelScheduledHydroRecalc();
 
-      const cacheKey = buildHydroReportCacheKey({ quality, performanceMode });
-      if (!options.forceRecalc && hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
-        return {
-          ...hydroReportCachePayload,
-          cached: true,
-          reportCacheKey: cacheKey,
-        };
-      }
-      if (!options.forceRecalc && hydroReportCachePromise && hydroReportCacheKey === cacheKey) {
-        return hydroReportCachePromise;
-      }
+        const cacheKey = buildHydroReportCacheKey({ quality, performanceMode });
+        if (!options.forceRecalc && hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
+          restoreHydroLiveState(liveSnapshot);
+          return {
+            ...hydroReportCachePayload,
+            cached: true,
+            reportCacheKey: cacheKey,
+          };
+        }
+        if (!options.forceRecalc && hydroReportCachePromise && hydroReportCacheKey === cacheKey) {
+          restoreHydroLiveState(liveSnapshot);
+          return hydroReportCachePromise;
+        }
 
-      hydroReportCacheKey = cacheKey;
-      hydroReportCachePromise = withHydroGeometryState(async () => {
-        throwIfAborted(signal);
-        const preset = getHydroQualityPreset(quality, performanceMode);
-        const startedAt = performance.now();
-        const reportStages = ["prepare", "roll", "pitch", "draft", "section", "equilibrium", "derive"];
-        const reportStageCount = reportStages.length;
-        const getStageIndex = (stageKey) => {
-          const idx = reportStages.indexOf(stageKey);
-          return idx >= 0 ? idx + 1 : null;
-        };
-        const announce = (stageKey, title, text) => {
-          const stageIndex = getStageIndex(stageKey);
-          const fraction = stageIndex == null ? 0 : stageIndex / reportStageCount;
-          const elapsedMs = performance.now() - startedAt;
-          onStage?.({
-            progress: fraction,
-            title,
-            text,
-            etaMs: null,
-            elapsedMs,
-            stageIndex,
-            stageCount: reportStageCount,
-            progressMode: "phase",
-          });
-          postHydroProgressToParent({
-            progress: fraction,
-            title,
-            text,
-            etaMs: null,
-            kind: "report",
-            stageIndex,
-            stageCount: reportStageCount,
-            progressMode: "phase",
-            elapsedMs,
-          });
-        };
+        hydroReportCacheKey = cacheKey;
+        hydroReportCachePromise = withHydroGeometryState(async () => {
+          let restoredLiveState = false;
+          try {
+            throwIfAborted(signal);
+            const preset = getHydroQualityPreset(quality, performanceMode);
+            const startedAt = performance.now();
+            const reportStages = ["prepare", "roll", "pitch", "draft", "section", "equilibrium", "derive"];
+            const reportStageCount = reportStages.length;
+            const getStageIndex = (stageKey) => {
+              const idx = reportStages.indexOf(stageKey);
+              return idx >= 0 ? idx + 1 : null;
+            };
+            const announce = (stageKey, title, text) => {
+              const stageIndex = getStageIndex(stageKey);
+              const fraction = stageIndex == null ? 0 : stageIndex / reportStageCount;
+              const elapsedMs = performance.now() - startedAt;
+              onStage?.({
+                progress: fraction,
+                title,
+                text,
+                etaMs: null,
+                elapsedMs,
+                stageIndex,
+                stageCount: reportStageCount,
+                progressMode: "phase",
+              });
+              postHydroProgressToParent({
+                progress: fraction,
+                title,
+                text,
+                etaMs: null,
+                kind: "report",
+                stageIndex,
+                stageCount: reportStageCount,
+                progressMode: "phase",
+                elapsedMs,
+              });
+            };
 
-        announce("prepare", "Genererer hydro-rapport...", "Forbereder hydrotilstand og geometri.");
-        await waitForHydroIdle(signal);
-        await hydro.recompute();
-        markHydroUiDirty();
-        const currentHydroSnapshot = hydro._cloneHydroSnapshot?.() || null;
-        const currentHydro = buildHydroPayload();
-        await yieldToBrowser();
-        throwIfAborted(signal);
+            announce("prepare", "Genererer hydro-rapport...", "Forbereder hydrotilstand og geometri.");
+            await hydro.recompute();
+            markHydroUiDirty();
+            const currentHydroSnapshot = hydro._cloneHydroSnapshot?.() || null;
+            const currentHydro = buildHydroPayload();
+            await yieldToBrowser();
+            throwIfAborted(signal);
 
-        const rollReport = await hydro.generateHydroReport({
-          mode: "roll",
-          maxDeg: 60,
-          stepDeg: preset.stepDeg,
-          quality,
-          includeSAK: false,
-          restoreState: false,
-          nowSnapshot: currentHydroSnapshot,
-        });
-        if (onPartial) await onPartial({ type: "roll-report", report: rollReport });
-        announce("roll", "Genererer hydro-rapport...", "Rollkurve klar, fortsetter med pitch.");
-        await yieldToBrowser();
-        throwIfAborted(signal);
+            const rollReport = await hydro.generateHydroReport({
+              mode: "roll",
+              maxDeg: 60,
+              stepDeg: preset.stepDeg,
+              quality,
+              includeSAK: false,
+              restoreState: false,
+              nowSnapshot: currentHydroSnapshot,
+            });
+            if (onPartial) await onPartial({ type: "roll-report", report: rollReport });
+            announce("roll", "Genererer hydro-rapport...", "Rollkurve klar, fortsetter med pitch.");
+            await yieldToBrowser();
+            throwIfAborted(signal);
 
-        const pitchReport = await hydro.generateHydroReport({
-          mode: "pitch",
-          maxDeg: 40,
-          stepDeg: preset.stepDeg,
-          quality,
-          includeSAK: false,
-          restoreState: false,
-          nowSnapshot: currentHydroSnapshot,
-        });
-        if (onPartial) await onPartial({ type: "pitch-report", report: pitchReport });
-        announce("pitch", "Genererer hydro-rapport...", "Pitchkurve klar, skanner draft og seksjoner.");
-        await yieldToBrowser();
-        throwIfAborted(signal);
+            const pitchReport = await hydro.generateHydroReport({
+              mode: "pitch",
+              maxDeg: 40,
+              stepDeg: preset.stepDeg,
+              quality,
+              includeSAK: false,
+              restoreState: false,
+              nowSnapshot: currentHydroSnapshot,
+            });
+            if (onPartial) await onPartial({ type: "pitch-report", report: pitchReport });
+            announce("pitch", "Genererer hydro-rapport...", "Pitchkurve klar, skanner draft og seksjoner.");
+            await yieldToBrowser();
+            throwIfAborted(signal);
 
-        const draftScan = await hydro.generateDraftScan({
-          draftCount: preset.draftCount,
-          quality,
-          includeAwp: true,
-          includeSAK: false,
-          restoreState: false,
-        });
-        announce("draft", "Genererer hydro-rapport...", "Draftscan klar, bygger seksjonsarealer.");
-        await yieldToBrowser();
-        throwIfAborted(signal);
+            const draftScan = await hydro.generateDraftScan({
+              draftCount: preset.draftCount,
+              quality,
+              includeAwp: true,
+              includeSAK: false,
+              restoreState: false,
+            });
+            announce("draft", "Genererer hydro-rapport...", "Draftscan klar, bygger seksjonsarealer.");
+            await yieldToBrowser();
+            throwIfAborted(signal);
 
-        const sectionCurve = await hydro.computeSectionAreaCurve({
-          stationCount: preset.sectionCount,
-          draftZ: hydro.draftZWorld,
-          quality,
-          timeSliceMs: performanceMode ? 24 : 10,
-        });
-        announce("section", "Genererer hydro-rapport...", "Seksjonskurve klar, finner likevekt.");
-        await yieldToBrowser();
-        throwIfAborted(signal);
+            const sectionCurve = await hydro.computeSectionAreaCurve({
+              stationCount: preset.sectionCount,
+              draftZ: hydro.draftZWorld,
+              quality,
+              timeSliceMs: performanceMode ? 24 : 10,
+            });
+            announce("section", "Genererer hydro-rapport...", "Seksjonskurve klar, finner likevekt.");
+            await yieldToBrowser();
+            throwIfAborted(signal);
 
-        const equilibriumState = await hydro.estimateEquilibriumState({
-          solveTrimHeel: true,
-          toleranceTonnes: performanceMode ? 0.05 : 0.02,
-          maxIterations: performanceMode ? 16 : 26,
-          maxHeelDeg: performanceMode ? 10 : 14,
-          maxTrimDeg: performanceMode ? 8 : 10,
-          finalizeRecompute: false,
-        });
-        announce("equilibrium", "Genererer hydro-rapport...", "Likevektsdata klar, avleder tabeller og eksport.");
-        await yieldToBrowser();
-        throwIfAborted(signal);
+            const equilibriumState = await hydro.estimateEquilibriumState({
+              solveTrimHeel: true,
+              toleranceTonnes: performanceMode ? 0.05 : 0.02,
+              maxIterations: performanceMode ? 16 : 26,
+              maxHeelDeg: performanceMode ? 10 : 14,
+              maxTrimDeg: performanceMode ? 8 : 10,
+              finalizeRecompute: false,
+            });
+            announce("equilibrium", "Genererer hydro-rapport...", "Likevektsdata klar, avleder tabeller og eksport.");
+            await yieldToBrowser();
+            throwIfAborted(signal);
 
-        const unitMeta = getViewerUnitMeta();
-        const derivedPromise = runReportWorkerTask("derive-report", {
-          waterDensity: hydro.waterDensity,
-          rollReport,
-          pitchReport,
-          draftScan,
-          sectionCurve,
-          equilibriumState,
-          currentHydro,
-          fileName: decodeURIComponent((getCleanModelUrl().split("/").pop() || "Hydro-modell")),
-          sourceLabel: `${MODEL_KIND} viewer`,
-          quality,
-          performanceMode,
-          units: unitMeta.units,
-          sourceUnits: unitMeta.sourceUnits,
-          unitNote: unitMeta.unitNote,
+            const unitMeta = getViewerUnitMeta();
+            const derivedPromise = runReportWorkerTask("derive-report", {
+              waterDensity: hydro.waterDensity,
+              rollReport,
+              pitchReport,
+              draftScan,
+              sectionCurve,
+              equilibriumState,
+              currentHydro,
+              fileName: decodeURIComponent((getCleanModelUrl().split("/").pop() || "Hydro-modell")),
+              sourceLabel: `${MODEL_KIND} viewer`,
+              quality,
+              performanceMode,
+              units: unitMeta.units,
+              sourceUnits: unitMeta.sourceUnits,
+              unitNote: unitMeta.unitNote,
+            }, { signal });
+            announce("derive", "Genererer hydro-rapport...", "Bearbeider rapportdata og gjenoppretter live hydrotilstand.");
+            await yieldToBrowser();
+            throwIfAborted(signal);
+            restoreHydroLiveState(liveSnapshot);
+            await hydro.recompute();
+            markHydroUiDirty();
+            restoredLiveState = true;
+            const derived = await derivedPromise;
+
+            const payload = {
+              generatedAt: new Date().toISOString(),
+              fileName: decodeURIComponent((getCleanModelUrl().split("/").pop() || "Hydro-modell")),
+              sourceLabel: `${MODEL_KIND} viewer`,
+              quality,
+              performanceMode,
+              units: unitMeta.units,
+              sourceUnits: unitMeta.sourceUnits,
+              unitNote: unitMeta.unitNote,
+              currentHydro,
+              rollReport,
+              pitchReport,
+              draftScan,
+              sectionCurve,
+              equilibriumState,
+              derived,
+              reportCacheKey: cacheKey,
+              cached: false,
+              note: `${performanceMode ? "Ytelsesmodus er aktiv. " : ""}Kurvene er generert fra aktiv viewer-geometri. Hydro og rapport bruker full, ueksplodert og udempet geometri i bakgrunnen.`,
+            };
+            hydroReportCachePayload = payload;
+            logPerf("hydro-report-total", startedAt, {
+              quality,
+              performanceMode,
+              cached: false,
+            });
+            const totalElapsedMs = performance.now() - startedAt;
+            onStage?.({
+              progress: 1,
+              title: "Hydro-rapport klar",
+              text: "Rapporten er ferdig bygget.",
+              etaMs: null,
+              elapsedMs: totalElapsedMs,
+              stageIndex: reportStageCount,
+              stageCount: reportStageCount,
+              progressMode: "phase",
+            });
+            postHydroProgressToParent({
+              progress: 1,
+              title: "Hydro-rapport klar",
+              text: "Rapporten er ferdig bygget.",
+              etaMs: null,
+              kind: "report",
+              stageIndex: reportStageCount,
+              stageCount: reportStageCount,
+              progressMode: "phase",
+              elapsedMs: totalElapsedMs,
+            });
+            return payload;
+          } finally {
+            if (!restoredLiveState) {
+              restoreHydroLiveState(liveSnapshot);
+              try {
+                await hydro.recompute();
+                markHydroUiDirty();
+              } catch (restoreError) {
+                console.warn("[3mfhydro] Kunne ikke gjenopprette hydro etter rapportjobb:", restoreError);
+              }
+            }
+          }
         }, { signal });
-        announce("derive", "Genererer hydro-rapport...", "Bearbeider rapportdata og gjenoppretter live hydrotilstand.");
-        await yieldToBrowser();
-        throwIfAborted(signal);
-        await hydro.recompute();
-        markHydroUiDirty();
-        const derived = await derivedPromise;
 
-        const payload = {
-          generatedAt: new Date().toISOString(),
-          fileName: decodeURIComponent((getCleanModelUrl().split("/").pop() || "Hydro-modell")),
-          sourceLabel: `${MODEL_KIND} viewer`,
-          quality,
-          performanceMode,
-          units: unitMeta.units,
-          sourceUnits: unitMeta.sourceUnits,
-          unitNote: unitMeta.unitNote,
-          currentHydro,
-          rollReport,
-          pitchReport,
-          draftScan,
-          sectionCurve,
-          equilibriumState,
-          derived,
-          reportCacheKey: cacheKey,
-          cached: false,
-          note: `${performanceMode ? "Ytelsesmodus er aktiv. " : ""}Kurvene er generert fra aktiv viewer-geometri. Hydro og rapport bruker full, ueksplodert og udempet geometri i bakgrunnen.`,
-        };
-        hydroReportCachePayload = payload;
-        logPerf("hydro-report-total", startedAt, {
-          quality,
-          performanceMode,
-          cached: false,
-        });
-        const totalElapsedMs = performance.now() - startedAt;
-        onStage?.({
-          progress: 1,
-          title: "Hydro-rapport klar",
-          text: "Rapporten er ferdig bygget.",
-          etaMs: null,
-          elapsedMs: totalElapsedMs,
-          stageIndex: reportStageCount,
-          stageCount: reportStageCount,
-          progressMode: "phase",
-        });
-        postHydroProgressToParent({
-          progress: 1,
-          title: "Hydro-rapport klar",
-          text: "Rapporten er ferdig bygget.",
-          etaMs: null,
-          kind: "report",
-          stageIndex: reportStageCount,
-          stageCount: reportStageCount,
-          progressMode: "phase",
-          elapsedMs: totalElapsedMs,
-        });
-        return payload;
+        try {
+          return await hydroReportCachePromise;
+        } finally {
+          hydroReportCachePromise = null;
+        }
       }, { signal });
-
-      try {
-        return await hydroReportCachePromise;
-      } finally {
-        hydroReportCachePromise = null;
-      }
     }
 
     window.addEventListener("message", async (event) => {
@@ -3345,11 +3424,13 @@
           const hydroComputeStartedAt = performance.now();
           try {
             setCornerLoader(true, "Hydrostatikk", "Etterbehandler modellen...");
-            await yieldToBrowser();
-            throwIfAborted(loadJob.signal);
-            hydro.quality = "low";
-            await hydro.recompute();
-            markHydroUiDirty();
+            await runHydroExclusive("post-load-hydro", async () => {
+              await yieldToBrowser();
+              throwIfAborted(loadJob.signal);
+              hydro.quality = "low";
+              await hydro.recompute();
+              markHydroUiDirty();
+            }, { signal: loadJob.signal });
             const hydroComputeDurationMs = logPerf("hydro-compute-time", hydroComputeStartedAt, {
               stage: "post-load-low-quality",
               url,
@@ -3365,10 +3446,10 @@
                 quality: preferredQuality,
                 source: "post-load-quality-upgrade",
                 useOverlay: false,
+                keepCornerLoader: true,
               });
             } else {
               hydro.quality = preferredQuality;
-              setCornerLoader(false);
             }
 
             if (pendingExplodeAmount > 0) {
@@ -3387,6 +3468,9 @@
               totalLoadMs: Number((performance.now() - loadJob.startedAt).toFixed(2)),
               hydroComputeMs: Number(hydroComputeDurationMs.toFixed(2)),
             });
+            await waitForAnimationFrames(2);
+            if (!isCurrentJob(loadJob)) return;
+            setCornerLoader(false);
           } catch (hydroErr) {
             if (isAbortError(hydroErr) || !isCurrentJob(loadJob)) return;
             console.warn("[3mfhydro] Hydrostatikk etter lasting feilet:", hydroErr);
@@ -3446,9 +3530,6 @@
       cancelJob("reportJob", "Rapportdialog lukket");
       document.getElementById('reportModal').classList.remove('show');
       setReportStatus('', '', false);
-      if (!hasActiveHydroIndicatorWork()) {
-        setCornerLoader(false);
-      }
     });
 
     // Curve mode switching
@@ -3523,7 +3604,6 @@
       currentReportDerived = null;
       resetReportUiForLoading();
       setReportStatus('Starter hydro-rapport...', formatPhaseMeta(0, 7), true);
-      setCornerLoader(true, 'Hydro-rapport', formatPhaseMeta(0, 7, { detail: 'Starter rapportjobb...' }));
       setHud('Genererer hydro-rapport...');
 
       try {
@@ -3536,7 +3616,6 @@
             if (!isCurrentJob(reportJob)) return;
             const meta = formatPhaseMeta(stageIndex, stageCount, { elapsedMs });
             setReportStatus(text || title, meta, true);
-            setCornerLoader(true, title || 'Hydro-rapport', meta);
           },
           onPartial: async ({ type, report }) => {
             if (!isCurrentJob(reportJob)) return;
@@ -3573,10 +3652,6 @@
         console.error('Generate full report failed:', err);
         setReportStatus('Rapportfeil', err?.message || 'Ukjent feil', true);
         setHud('Feil ved hydro-rapport', true);
-      } finally {
-        if (runtimeState.reportJob.id === reportJob.id && !hasActiveHydroIndicatorWork()) {
-          setCornerLoader(false);
-        }
       }
     }
 
@@ -3955,7 +4030,9 @@
       postAnalysisToParent(hydro.mesh);
       if (!hasQueuedNewerState()) {
         setHud(`Hydrostatikk oppdatert (${formatDuration(computeDurationMs)})`);
-        setCornerLoader(false);
+        if (state.keepCornerLoader !== true) {
+          setCornerLoader(false);
+        }
       }
     }
 
@@ -3965,9 +4042,9 @@
         return;
       }
 
-      cancelJob("reportJob", "Ny hydrotilstand ugyldiggjorde rapportarbeid");
       const queueState = runtimeState.recomputeJob;
       queueState.queuedState = mergeHydroState(queueState.queuedState, nextState);
+      queueState.keepCornerLoader = queueState.keepCornerLoader === true || nextState.keepCornerLoader === true;
       if (queueState.running) {
         cancelJob("recomputeJob", "Nyere hydrotilstand overtok aktiv jobb");
         return;
@@ -3980,14 +4057,17 @@
           queueState.queuedState = null;
           const recomputeJob = startAbortableJob("recomputeJob");
           try {
-            await performHydroStateUpdate(currentState, recomputeJob);
+            await runHydroExclusive("recompute", async () => {
+              await performHydroStateUpdate(currentState, recomputeJob);
+            }, { signal: recomputeJob.signal });
           } catch (err) {
             if (!isAbortError(err)) throw err;
           } finally {
+            const keepCornerLoader = queueState.keepCornerLoader === true || currentState.keepCornerLoader === true;
             if (currentState.useOverlay !== false && !queueState.queuedState) {
-              setLoadingState(false);
+              setLoadingState(false, "Laster modell...", { keepCornerLoader });
             }
-            if (!queueState.queuedState) {
+            if (!queueState.queuedState && !keepCornerLoader) {
               setCornerLoader(false);
             }
           }
@@ -3997,10 +4077,14 @@
         setHud('Feil ved hydro-oppdatering', true);
         setCornerLoader(false);
       } finally {
+        const keepCornerLoader = queueState.keepCornerLoader === true;
         queueState.running = false;
         if (!queueState.queuedState) {
-          setLoadingState(false);
-          setCornerLoader(false);
+          setLoadingState(false, "Laster modell...", { keepCornerLoader });
+          if (!keepCornerLoader) {
+            setCornerLoader(false);
+          }
+          queueState.keepCornerLoader = false;
         }
       }
     }

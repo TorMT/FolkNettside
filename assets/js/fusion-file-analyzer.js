@@ -2938,82 +2938,15 @@
     };
   }
 
-  function getHydroComponentCount(snapshot = getActiveHydroSnapshot()) {
-    const massProps = snapshot?.hydro?.massProperties || getViewerMassProperties();
-    const directCount = Number(massProps?.componentCount);
-    if (Number.isFinite(directCount) && directCount > 0) return directCount;
-    if (Array.isArray(massProps?.components) && massProps.components.length) return massProps.components.length;
-    if (Array.isArray(componentState?.items) && componentState.items.length) return componentState.items.length;
-    return 1;
-  }
-
-  function formatEtaRangeSeconds(minSeconds, maxSeconds) {
-    const safeMin = Math.max(1, Math.round(minSeconds || 1));
-    const safeMax = Math.max(safeMin, Math.round(maxSeconds || safeMin));
-    if (safeMax < 60) return `Est: ${safeMin}-${safeMax} s`;
-    const minMin = Math.max(1, Math.round(safeMin / 60));
-    const maxMin = Math.max(minMin, Math.round(safeMax / 60));
-    return `Est: ${minMin}-${maxMin} min`;
-  }
-
-  function formatEtaMs(ms) {
-    const seconds = Math.max(1, Math.round((Number(ms) || 0) / 1000));
-    if (seconds < 60) return `Est: ${seconds} s`;
-    const minutes = Math.floor(seconds / 60);
-    const remain = seconds % 60;
-    return remain > 0 ? `Est: ${minutes}m ${remain}s` : `Est: ${minutes} min`;
-  }
-
-  function getLiveEtaMs() {
-    if (!Number.isFinite(hydroTaskState.etaMs)) return null;
-    const updatedAt = Number(hydroTaskState.etaUpdatedAt) || Date.now();
-    return Math.max(0, hydroTaskState.etaMs - (Date.now() - updatedAt));
-  }
-
-  function getAnimatedHydroProgress() {
-    if (!Number.isFinite(hydroTaskState.progress)) return null;
-    const baseProgress = Math.max(0, Math.min(1, Number(hydroTaskState.progress)));
-    const liveEta = getLiveEtaMs();
-    if (!Number.isFinite(liveEta) || liveEta <= 0 || !Number.isFinite(hydroTaskState.etaMs) || hydroTaskState.etaMs <= 0) {
-      return baseProgress;
-    }
-    const elapsed = Math.max(0, Date.now() - (Number(hydroTaskState.progressUpdatedAt) || Date.now()));
-    const progressWindow = Math.min(0.08, (1 - baseProgress) * 0.35);
-    const fraction = Math.max(0, Math.min(1, elapsed / hydroTaskState.etaMs));
-    return Math.min(0.985, baseProgress + progressWindow * fraction);
-  }
-
-  function getHydroEtaLabel(kind = "hydro", snapshot = getActiveHydroSnapshot()) {
-    const quality = selHydroQuality?.value || snapshot?.hydro?.quality || "low";
-    const performanceMode = chkHydroPerfMode?.checked === true;
-    const componentCount = getHydroComponentCount(snapshot);
-    const measuredSeconds = kind === "report" && Number.isFinite(reportState.lastDurationMs) && reportState.lastDurationMs > 500
-      ? reportState.lastDurationMs / 1000
-      : null;
-    const baseSeconds = kind === "report"
-      ? measuredSeconds || ({ low: 35, med: 95, high: 260 }[quality] || 95)
-      : { low: 6, med: 18, high: 45 }[quality] || 18;
-    const performanceFactor = performanceMode ? 0.58 : 1;
-    const complexityFactor = componentCount <= 8
-      ? 1
-      : componentCount <= 24
-        ? 1.25
-        : componentCount <= 60
-          ? 1.7
-          : componentCount <= 120
-          ? 2.2
-            : 3;
-    const minSeconds = baseSeconds * performanceFactor * Math.max(0.85, complexityFactor * 0.75);
-    const maxSeconds = baseSeconds * performanceFactor * Math.max(1.2, complexityFactor * 1.2);
-    return formatEtaRangeSeconds(minSeconds, maxSeconds);
-  }
-
   function setHydroTaskState(active, title = "", text = "", options = {}) {
     const wasActive = hydroTaskState.active;
     hydroTaskState.active = !!active;
     hydroTaskState.title = title || "";
     hydroTaskState.text = text || "";
     hydroTaskState.kind = options.kind || hydroTaskState.kind || "hydro";
+    hydroTaskState.progressMode = options.progressMode || "";
+    hydroTaskState.stageIndex = Number.isFinite(options.stageIndex) ? Number(options.stageIndex) : null;
+    hydroTaskState.stageCount = Number.isFinite(options.stageCount) ? Number(options.stageCount) : null;
     if (Number.isFinite(options.progress)) {
       hydroTaskState.progress = Math.max(0, Math.min(1, Number(options.progress)));
       hydroTaskState.progressUpdatedAt = Date.now();
@@ -3021,13 +2954,8 @@
       hydroTaskState.progress = null;
       hydroTaskState.progressUpdatedAt = 0;
     }
-    if (Number.isFinite(options.etaMs)) {
-      hydroTaskState.etaMs = Math.max(0, Number(options.etaMs));
-      hydroTaskState.etaUpdatedAt = Date.now();
-    } else if (!active) {
-      hydroTaskState.etaMs = null;
-      hydroTaskState.etaUpdatedAt = 0;
-    }
+    hydroTaskState.etaMs = null;
+    hydroTaskState.etaUpdatedAt = 0;
     if (active && !wasActive) hydroTaskState.startedAt = Date.now();
     if (!active) {
       hydroTaskState.progress = null;
@@ -3036,6 +2964,9 @@
       hydroTaskState.etaUpdatedAt = 0;
       hydroTaskState.progressUpdatedAt = 0;
       hydroTaskState.kind = "hydro";
+      hydroTaskState.progressMode = "";
+      hydroTaskState.stageIndex = null;
+      hydroTaskState.stageCount = null;
     }
   }
 
@@ -3062,27 +2993,15 @@
     hydroProgress.hidden = !active;
     if (active) {
       if (hydroProgressTitle) hydroProgressTitle.textContent = title;
-      const liveProgress = getAnimatedHydroProgress();
-      const liveEtaMs = getLiveEtaMs();
-      const progressLabel = Number.isFinite(liveProgress)
-        ? ` ${Math.round(liveProgress * 100)}% ferdig.`
+      const stageLabel = hydroTaskState.progressMode === "phase" && Number.isFinite(hydroTaskState.stageIndex) && Number.isFinite(hydroTaskState.stageCount)
+        ? ` Steg ${hydroTaskState.stageIndex}/${hydroTaskState.stageCount}.`
         : "";
-      const etaLabel = Number.isFinite(liveEtaMs)
-        ? formatEtaMs(liveEtaMs)
-        : getHydroEtaLabel(reportState.isGenerating ? "report" : hydroTaskState.kind || "hydro", snapshot);
-      if (hydroProgressText) hydroProgressText.textContent = `${text}${progressLabel} ${etaLabel}.`.trim();
+      if (hydroProgressText) hydroProgressText.textContent = `${text}${stageLabel}`.trim();
       if (hydroProgressBar) {
-        if (Number.isFinite(liveProgress)) {
-          hydroProgressBar.style.animation = "none";
-          hydroProgressBar.style.inset = "0 auto 0 0";
-          hydroProgressBar.style.width = `${Math.max(8, Math.min(100, liveProgress * 100))}%`;
-          hydroProgressBar.style.transform = "none";
-        } else {
-          hydroProgressBar.style.removeProperty("width");
-          hydroProgressBar.style.removeProperty("inset");
-          hydroProgressBar.style.removeProperty("transform");
-          hydroProgressBar.style.removeProperty("animation");
-        }
+        hydroProgressBar.style.removeProperty("width");
+        hydroProgressBar.style.removeProperty("inset");
+        hydroProgressBar.style.removeProperty("transform");
+        hydroProgressBar.style.removeProperty("animation");
       }
     } else if (hydroProgressBar) {
       hydroProgressBar.style.removeProperty("width");
@@ -5175,7 +5094,9 @@
       setHydroTaskState(true, payload.title || "Genererer hydro-rapport...", payload.text || "Kjører hydroberegninger i aktiv viewer.", {
         kind: payload.kind || "report",
         progress: safeNumber(payload.progress),
-        etaMs: safeNumber(payload.etaMs),
+        progressMode: payload.progressMode || "",
+        stageIndex: safeNumber(payload.stageIndex),
+        stageCount: safeNumber(payload.stageCount),
       });
       updateHydroProgressUi();
       return;
