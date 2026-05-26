@@ -1291,6 +1291,20 @@
     const helpData = getHelpData(lang);
     ui.init(core, hydro, clipper, measure, { helpData, lang });
 
+    function pauseAutoRotateDuringReport() {
+      const autoToggle = document.getElementById("chkAuto");
+      const wasAutoRotating = core.controls?.autoRotate === true;
+      if (wasAutoRotating) {
+        core.setAutoRotate(false);
+        if (autoToggle) autoToggle.checked = false;
+      }
+      return () => {
+        if (!wasAutoRotating) return;
+        core.setAutoRotate(true);
+        if (autoToggle) autoToggle.checked = true;
+      };
+    }
+
     const wavePreviewState = {
       enabled: false,
       objectMode: "vessel",
@@ -3367,6 +3381,7 @@
 
       if (data.action === "generate-hydro-report") {
         const reportJob = startAbortableJob("reportJob");
+        const resumeAutoRotate = pauseAutoRotateDuringReport();
         try {
           const payload = await buildHydroReportPayload(data, { signal: reportJob.signal });
           if (payload && isCurrentJob(reportJob) && window.parent && window.parent !== window) {
@@ -3376,6 +3391,8 @@
           if (!isAbortError(error)) {
             console.error("[3mfhydro] Parent report generation failed:", error);
           }
+        } finally {
+          resumeAutoRotate();
         }
       }
     });
@@ -3768,6 +3785,7 @@
       resetReportUiForLoading();
       setReportStatus('Starter hydro-rapport...', formatPhaseMeta(0, 7), true);
       setHud('Genererer hydro-rapport...');
+      const resumeAutoRotate = pauseAutoRotateDuringReport();
 
       try {
         const payload = await buildHydroReportPayload({
@@ -3815,6 +3833,8 @@
         console.error('Generate full report failed:', err);
         setReportStatus('Rapportfeil', err?.message || 'Ukjent feil', true);
         setHud('Feil ved hydro-rapport', true);
+      } finally {
+        resumeAutoRotate();
       }
     }
 
