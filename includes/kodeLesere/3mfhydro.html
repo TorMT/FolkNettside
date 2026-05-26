@@ -1291,6 +1291,149 @@
     const helpData = getHelpData(lang);
     ui.init(core, hydro, clipper, measure, { helpData, lang });
 
+    const wavePreviewState = {
+      enabled: false,
+      objectMode: "vessel",
+      seabedLocked: false,
+      mesh: null,
+      ghost: null,
+      startedAt: performance.now(),
+      params: {},
+    };
+
+    function clearWavePreview() {
+      wavePreviewState.enabled = false;
+      if (wavePreviewState.mesh) {
+        wavePreviewState.mesh.geometry?.dispose?.();
+        wavePreviewState.mesh.material?.dispose?.();
+        core.scene.remove(wavePreviewState.mesh);
+        wavePreviewState.mesh = null;
+      }
+      if (wavePreviewState.ghost) {
+        wavePreviewState.ghost.geometry?.dispose?.();
+        wavePreviewState.ghost.material?.dispose?.();
+        core.scene.remove(wavePreviewState.ghost);
+        wavePreviewState.ghost = null;
+      }
+      wavePreviewState.params = {};
+    }
+
+    function ensureWavePreviewObjects(params = {}) {
+      const bounds = core.computeBoundsWorld?.(core.modelGroup);
+      const center = bounds?.center || new THREE.Vector3();
+      const size = bounds?.size || new THREE.Vector3(1, 1, 1);
+      const lengthM = Math.max(0.1, Number(params.modelLengthM) || Math.max(size.x, 1));
+      const beamM = Math.max(0.1, Number(params.modelBeamM) || Math.max(size.y, 1));
+      const gridSize = Math.max(lengthM * 3.2, beamM * 5, Number(params.wavelengthM) * 1.35 || 10);
+      if (!wavePreviewState.mesh || Math.abs((wavePreviewState.mesh.userData.gridSize || 0) - gridSize) / gridSize > 0.2) {
+        if (wavePreviewState.mesh) {
+          wavePreviewState.mesh.geometry?.dispose?.();
+          wavePreviewState.mesh.material?.dispose?.();
+          core.scene.remove(wavePreviewState.mesh);
+        }
+        const geometry = new THREE.PlaneGeometry(gridSize, gridSize, 72, 72);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x1d8fbd,
+          transparent: true,
+          opacity: 0.28,
+          side: THREE.DoubleSide,
+          wireframe: true,
+          depthWrite: false,
+        });
+        wavePreviewState.mesh = new THREE.Mesh(geometry, material);
+        wavePreviewState.mesh.userData.gridSize = gridSize;
+        wavePreviewState.mesh.renderOrder = 4;
+        core.scene.add(wavePreviewState.mesh);
+      }
+      wavePreviewState.mesh.position.set(center.x, center.y, hydro?.draftZWorld || center.z);
+      if (!wavePreviewState.ghost && params.objectMode !== "fixed") {
+        const ghostGeometry = new THREE.BoxGeometry(Math.max(size.x, 0.01), Math.max(size.y, 0.01), Math.max(size.z, 0.01));
+        const ghostMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffb020,
+          transparent: true,
+          opacity: 0.18,
+          wireframe: true,
+          depthWrite: false,
+        });
+        wavePreviewState.ghost = new THREE.Mesh(ghostGeometry, ghostMaterial);
+        wavePreviewState.ghost.renderOrder = 5;
+        core.scene.add(wavePreviewState.ghost);
+      } else if (params.objectMode === "fixed" && wavePreviewState.ghost) {
+        wavePreviewState.ghost.geometry?.dispose?.();
+        wavePreviewState.ghost.material?.dispose?.();
+        core.scene.remove(wavePreviewState.ghost);
+        wavePreviewState.ghost = null;
+      }
+      if (wavePreviewState.ghost) {
+        wavePreviewState.ghost.position.copy(center);
+        wavePreviewState.ghost.rotation.set(0, 0, 0);
+      }
+    }
+
+    function setWavePreview(data = {}) {
+      if (data.enabled === false) {
+        clearWavePreview();
+        return;
+      }
+      wavePreviewState.enabled = true;
+      wavePreviewState.startedAt = performance.now();
+      wavePreviewState.objectMode = data.objectMode === "fixed" ? "fixed" : "vessel";
+      wavePreviewState.seabedLocked = data.seabedLocked === true || wavePreviewState.objectMode === "fixed";
+      wavePreviewState.params = {
+        waveHeightM: Math.max(0, Number(data.waveHeightM) || 0),
+        wavePeriodS: Math.max(0.5, Number(data.wavePeriodS) || 6.5),
+        wavelengthM: Math.max(0.1, Number(data.wavelengthM) || 10),
+        waveDirectionDeg: Number(data.waveDirectionDeg) || 0,
+        modelLengthM: Math.max(0.1, Number(data.modelLengthM) || 1),
+        modelBeamM: Math.max(0.1, Number(data.modelBeamM) || 1),
+        modelDraftM: Math.max(0.01, Number(data.modelDraftM) || 0.3),
+        response: data.response || {},
+        objectMode: wavePreviewState.objectMode,
+      };
+      ensureWavePreviewObjects(wavePreviewState.params);
+      setHud(wavePreviewState.seabedLocked ? "Bølgepreview: bunnlåst konstruksjon" : "Bølgepreview: fartøyrespons", false);
+    }
+
+    core.addFrameListener(() => {
+      if (!wavePreviewState.enabled || !wavePreviewState.mesh) return;
+      const params = wavePreviewState.params || {};
+      const geometry = wavePreviewState.mesh.geometry;
+      const pos = geometry?.attributes?.position;
+      if (!pos) return;
+      const t = (performance.now() - wavePreviewState.startedAt) / 1000;
+      const amplitude = (Number(params.waveHeightM) || 0) / 2;
+      const wavelength = Math.max(0.1, Number(params.wavelengthM) || 10);
+      const omega = (Math.PI * 2) / Math.max(0.5, Number(params.wavePeriodS) || 6.5);
+      const theta = THREE.MathUtils.degToRad(Number(params.waveDirectionDeg) || 0);
+      const dirX = Math.sin(theta);
+      const dirY = Math.cos(theta);
+      const k = (Math.PI * 2) / wavelength;
+      for (let i = 0; i < pos.count; i += 1) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const phase = k * (x * dirX + y * dirY) - omega * t;
+        pos.setZ(i, amplitude * Math.sin(phase));
+      }
+      pos.needsUpdate = true;
+      geometry.computeVertexNormals?.();
+      if (wavePreviewState.ghost) {
+        const response = params.response || {};
+        const heave = Number(response.heaveM) || 0;
+        const roll = THREE.MathUtils.degToRad(Number(response.rollDeg) || 0);
+        const pitch = THREE.MathUtils.degToRad(Number(response.pitchDeg) || 0);
+        const phase = omega * t;
+        const bounds = core.computeBoundsWorld?.(core.modelGroup);
+        if (bounds?.center) {
+          wavePreviewState.ghost.position.set(bounds.center.x, bounds.center.y, bounds.center.z + heave * Math.sin(phase));
+        }
+        wavePreviewState.ghost.rotation.set(
+          roll * Math.sin(phase + Math.PI * 0.2),
+          pitch * Math.sin(phase),
+          0
+        );
+      }
+    });
+
     function normalizeComponentName(value) {
       return String(value || "").trim().toLowerCase();
     }
@@ -2710,6 +2853,16 @@
       }
       if (data.type !== "viewer-command") return;
 
+      if (data.action === "set-wave-preview") {
+        setWavePreview(data);
+        return;
+      }
+
+      if (data.action === "clear-wave-preview") {
+        clearWavePreview();
+        return;
+      }
+
       if (data.action === "set-explode-scope") {
         const requestedScope = String(data.scope || "").toLowerCase();
         const scope = requestedScope === "selected"
@@ -3126,6 +3279,16 @@
         return;
       }
       if (data.type !== "viewer-command") return;
+
+      if (data.action === "set-wave-preview") {
+        setWavePreview(data);
+        return;
+      }
+
+      if (data.action === "clear-wave-preview") {
+        clearWavePreview();
+        return;
+      }
 
       if (data.action === "set-explode-scope") {
         const requestedScope = String(data.scope || "").toLowerCase();

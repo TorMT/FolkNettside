@@ -108,6 +108,17 @@
     startedAt: 0,
     lastDurationMs: null,
   };
+  const resistanceState = {
+    jobId: 0,
+    controller: null,
+    input: null,
+    result: null,
+    signature: "",
+    computedAt: "",
+    visualizationEnabled: false,
+    marineSnapshot: null,
+    location: null,
+  };
   const hydroTaskState = {
     active: false,
     title: "",
@@ -200,6 +211,7 @@
   const btnHydroResetPose = document.getElementById("btnHydroResetPose");
   const btnHydroReport = document.getElementById("btnHydroReport");
   const btnHydroRecalc = document.getElementById("btnHydroRecalc");
+  const btnResistanceOpen = document.getElementById("btnResistanceOpen");
   const inpHydroDraft = document.getElementById("inpHydroDraft");
   const inpHydroTrim = document.getElementById("inpHydroTrim");
   const inpHydroHeel = document.getElementById("inpHydroHeel");
@@ -254,7 +266,30 @@
   const hydroReportEquilibriumNote = document.getElementById("hydroReportEquilibriumNote");
   const hydroReportMethodNote = document.getElementById("hydroReportMethodNote");
   const hydroReportSheet = document.getElementById("hydroReportSheet");
+  const resistanceModal = document.getElementById("resistanceModal");
+  const resistanceMeta = document.getElementById("resistanceMeta");
+  const resistanceStatus = document.getElementById("resistanceStatus");
+  const btnResistanceRun = document.getElementById("btnResistanceRun");
+  const btnResistanceJson = document.getElementById("btnResistanceJson");
+  const btnResistanceClose = document.getElementById("btnResistanceClose");
+  const btnResistanceLocation = document.getElementById("btnResistanceLocation");
+  const resObjectMode = document.getElementById("resObjectMode");
+  const resLocationQuery = document.getElementById("resLocationQuery");
+  const resLocationResults = document.getElementById("resLocationResults");
+  const resSpeedKn = document.getElementById("resSpeedKn");
+  const resHeadingDeg = document.getElementById("resHeadingDeg");
+  const resWaveHeight = document.getElementById("resWaveHeight");
+  const resWavePeriod = document.getElementById("resWavePeriod");
+  const resWaveDirection = document.getElementById("resWaveDirection");
+  const resWaterDepth = document.getElementById("resWaterDepth");
+  const resCurrentVelocity = document.getElementById("resCurrentVelocity");
+  const resPanelSpan = document.getElementById("resPanelSpan");
+  const resPreviewToggle = document.getElementById("resPreviewToggle");
+  const resTabResistance = document.getElementById("resTabResistance");
+  const resTabScantling = document.getElementById("resTabScantling");
+  const resTabPreview = document.getElementById("resTabPreview");
   const txtKgMode = document.getElementById("txtKgMode");
+  let hydroLabModulesPromise = null;
 
   if (!file) {
     headline.textContent = "Mangler ?file= parameter.";
@@ -1207,6 +1242,20 @@
   });
   btnHydroReport?.addEventListener("click", () => requestHydroReport());
   btnHydroRecalc?.addEventListener("click", () => requestHydroReport({ force: true }));
+  btnResistanceOpen?.addEventListener("click", () => openResistanceModal());
+  btnResistanceClose?.addEventListener("click", () => closeResistanceModal());
+  resistanceModal?.querySelector("[data-close-resistance='1']")?.addEventListener("click", () => closeResistanceModal());
+  btnResistanceRun?.addEventListener("click", () => void runResistanceEstimate());
+  btnResistanceJson?.addEventListener("click", () => downloadResistanceJson());
+  btnResistanceLocation?.addEventListener("click", () => void searchResistanceLocation());
+  resLocationResults?.addEventListener("change", () => void applySelectedResistanceLocation());
+  resPreviewToggle?.addEventListener("change", () => {
+    resistanceState.visualizationEnabled = resPreviewToggle.checked === true;
+    sendWavePreview(resistanceState.visualizationEnabled);
+  });
+  resistanceModal?.querySelectorAll("[data-res-tab]")?.forEach((button) => {
+    button.addEventListener("click", () => setResistanceTab(button.getAttribute("data-res-tab") || "resistance"));
+  });
   chkHydroPerfMode?.addEventListener("change", () => {
     invalidateHydroReportState();
     buildHydroReport();
@@ -2536,6 +2585,8 @@
       hydroReportEquilibriumNote.textContent = payload?.equilibriumState?.note || "N/A - likevektsdraft kunne ikke bestemmes for denne rapporten.";
     }
 
+    renderResistanceReportSection();
+
     if (hydroReportMethodNote) {
       hydroReportMethodNote.innerHTML = buildHydroMethodNoteHtml(currentHydro, massSummary, componentMassRows);
     }
@@ -2547,6 +2598,66 @@
     renderHydroTextReport(currentHydro, analysisState.latestHydroEstimate);
   }
 
+  function renderResistanceReportSection() {
+    const existing = document.getElementById("hydroReportResistanceWrap");
+    const match = getMatchingResistanceResult();
+    if (!hydroReportSheet) return;
+    if (!match) {
+      existing?.remove();
+      return;
+    }
+    const input = resistanceState.input || {};
+    const resistance = match.resistance || {};
+    const scantling = match.scantling || {};
+    const isFixed = input.objectMode === "fixed";
+    const rows = isFixed ? [
+      ["Objekttype", "Bunnlåst konstruksjon"],
+      ["Bolg-/stromlast", fmtForce(resistance.baseShearN ?? resistance.waveForceN)],
+      ["Designtrykk", fmtPressure(scantling.designPressurePa)],
+      ["Platetykkelse", fmtUnitValue(scantling.plateThicknessMm, 1, "mm")],
+      ["Stiveravstand", fmtUnitValue(scantling.stiffenerSpacingM, 2, "m")],
+      ["Beregnet", resistanceState.computedAt ? new Date(resistanceState.computedAt).toLocaleString("nb-NO") : "N/A"],
+    ] : [
+      ["Objekttype", "Fartoy, flytende"],
+      ["Totalmotstand", fmtForce(resistance.totalResistanceN)],
+      ["Effektbehov", fmtPowerKw(resistance.effectivePowerKw)],
+      ["Bolgecase", `${fmtUnitValue(input.waveHeightM, 2, "m")} / ${fmtUnitValue(input.wavePeriodS, 1, "s")}`],
+      ["Platetykkelse", fmtUnitValue(scantling.plateThicknessMm, 1, "mm")],
+      ["Beregnet", resistanceState.computedAt ? new Date(resistanceState.computedAt).toLocaleString("nb-NO") : "N/A"],
+    ];
+    const warningHtml = (match.warnings || []).length
+      ? `<ul class="report-note-list">${match.warnings.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`
+      : "";
+    const html = `
+      <div class="report-section-head">
+        <h3>Motstand og dimensjonering</h3>
+        <p class="muted">Kun inkludert fordi Motstand-modulen allerede er kjort for samme state.</p>
+      </div>
+      <table class="report-table">
+        <tbody>
+          ${rows.map(([label, value]) => `
+            <tr>
+              <th>${escapeHtml(label)}</th>
+              <td>${escapeHtml(value)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      ${warningHtml}
+      <p class="muted" style="margin-top:10px;">Konseptestimat, ikke klassegodkjenning, CE, ISO eller DNV-beregning.</p>
+    `;
+    if (existing) {
+      existing.innerHTML = html;
+      return;
+    }
+    const section = document.createElement("section");
+    section.id = "hydroReportResistanceWrap";
+    section.className = "report-table-wrap";
+    section.innerHTML = html;
+    if (hydroReportMethodNote?.parentNode) hydroReportMethodNote.parentNode.insertBefore(section, hydroReportMethodNote);
+    else hydroReportSheet.appendChild(section);
+  }
+
   function openHydroReportModal() {
     if (!hydroReportModal) return;
     hydroReportModal.hidden = false;
@@ -2555,6 +2666,142 @@
   function closeHydroReportModal() {
     if (!hydroReportModal) return;
     hydroReportModal.hidden = true;
+  }
+
+  function setResistanceTab(tab = "resistance") {
+    const normalized = ["resistance", "scantling", "preview"].includes(tab) ? tab : "resistance";
+    resistanceModal?.querySelectorAll("[data-res-tab]")?.forEach((button) => {
+      button.classList.toggle("active", button.getAttribute("data-res-tab") === normalized);
+    });
+    [
+      ["resistance", resTabResistance],
+      ["scantling", resTabScantling],
+      ["preview", resTabPreview],
+    ].forEach(([key, panel]) => panel?.classList.toggle("active", key === normalized));
+  }
+
+  function openResistanceModal() {
+    if (!resistanceModal) return;
+    resistanceModal.hidden = false;
+    setResistanceTab("resistance");
+    renderResistanceResult();
+    if (resistanceState.visualizationEnabled) sendWavePreview(true);
+  }
+
+  function closeResistanceModal() {
+    if (!resistanceModal) return;
+    resistanceModal.hidden = true;
+    resistanceState.visualizationEnabled = false;
+    if (resPreviewToggle) resPreviewToggle.checked = false;
+    sendWavePreview(false);
+  }
+
+  async function searchResistanceLocation() {
+    const query = String(resLocationQuery?.value || "").trim();
+    if (!query) {
+      setResistanceStatus("Skriv inn lokasjon for a hente Open-Meteo bolgedata.", true);
+      return;
+    }
+    const jobId = ++resistanceState.jobId;
+    resistanceState.controller?.abort?.();
+    resistanceState.controller = new AbortController();
+    try {
+      setResistanceStatus("Henter lokasjoner...");
+      const { marine } = await getHydroLabModules();
+      const places = await marine.searchLocation(query);
+      if (jobId !== resistanceState.jobId) return;
+      if (!places.length) {
+        setResistanceStatus("Fant ingen lokasjoner. Bruk manuell bolgeinput.", true);
+        return;
+      }
+      if (resLocationResults) {
+        resLocationResults.hidden = false;
+        resLocationResults.innerHTML = places.map((place, index) => `
+          <option value="${index}">${escapeHtml(place.name)} (${Number(place.latitude).toFixed(3)}, ${Number(place.longitude).toFixed(3)})</option>
+        `).join("");
+        resLocationResults._places = places;
+      }
+      setResistanceStatus("Velg lokasjon fra listen, eller behold forste treff.");
+      await applySelectedResistanceLocation();
+    } catch (err) {
+      if (err?.name === "AbortError") return;
+      setResistanceStatus(`Kunne ikke hente lokasjon: ${err?.message || err}`, true);
+    }
+  }
+
+  async function applySelectedResistanceLocation() {
+    const places = resLocationResults?._places || [];
+    const index = Number(resLocationResults?.value || 0);
+    const place = places[index] || places[0];
+    if (!place) return;
+    const jobId = resistanceState.jobId;
+    try {
+      setResistanceStatus("Henter bolgedata fra Open-Meteo...");
+      const { marine } = await getHydroLabModules();
+      const snapshot = await marine.fetchMarineSnapshot(place);
+      if (jobId !== resistanceState.jobId) return;
+      resistanceState.location = place;
+      resistanceState.marineSnapshot = snapshot;
+      if (Number.isFinite(snapshot.waveHeightM) && resWaveHeight) resWaveHeight.value = String(snapshot.waveHeightM);
+      if (Number.isFinite(snapshot.wavePeriodS) && resWavePeriod) resWavePeriod.value = String(snapshot.wavePeriodS);
+      if (Number.isFinite(snapshot.waveDirectionDeg) && resWaveDirection) resWaveDirection.value = String(snapshot.waveDirectionDeg);
+      if (Number.isFinite(snapshot.currentVelocityKmh) && resCurrentVelocity) resCurrentVelocity.value = String((snapshot.currentVelocityKmh / 3.6).toFixed(2));
+      setResistanceStatus(`Bolgedata hentet for ${place.name}. Kjor beregning nar du vil.`);
+    } catch (err) {
+      setResistanceStatus(`Kunne ikke hente bolgedata: ${err?.message || err}. Bruk manuell input.`, true);
+    }
+  }
+
+  async function runResistanceEstimate() {
+    const jobId = ++resistanceState.jobId;
+    resistanceState.controller?.abort?.();
+    resistanceState.controller = new AbortController();
+    const startedAt = performance.now();
+    try {
+      setResistanceStatus("Beregner motstand og dimensjonering...");
+      if (btnResistanceRun) btnResistanceRun.disabled = true;
+      const { estimator } = await getHydroLabModules();
+      if (jobId !== resistanceState.jobId) return;
+      const input = collectResistanceInput();
+      const signature = buildResistanceSignature(input);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const result = estimator.estimateResistanceCase(input);
+      if (jobId !== resistanceState.jobId) return;
+      resistanceState.input = input;
+      resistanceState.result = { ...result, signature };
+      resistanceState.signature = signature;
+      resistanceState.computedAt = new Date().toISOString();
+      renderResistanceResult();
+      if (reportState.payload) renderHydroReportModal(reportState.payload);
+      setResistanceStatus(`Ferdig pa ${((performance.now() - startedAt) / 1000).toFixed(2)} s. Resultatet kan na bli med i hydro-rapporten.`);
+      if (resPreviewToggle?.checked) {
+        resistanceState.visualizationEnabled = true;
+        sendWavePreview(true);
+      }
+    } catch (err) {
+      setResistanceStatus(`Motstand feilet: ${err?.message || err}`, true);
+    } finally {
+      if (btnResistanceRun) btnResistanceRun.disabled = false;
+    }
+  }
+
+  function downloadResistanceJson() {
+    if (!resistanceState.result) return;
+    const blob = new Blob([JSON.stringify({
+      input: resistanceState.input,
+      result: resistanceState.result,
+      computedAt: resistanceState.computedAt,
+      location: resistanceState.location,
+    }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${basenameFromUrl(displayFileName || fileName || "motstand") || "motstand"}-motstand.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 0);
   }
 
   function buildHydroDetailSignature() {
@@ -2802,6 +3049,39 @@
 
   function fmtPercent(value, digits = 0) {
     return Number.isFinite(value) ? `${Number(value).toFixed(digits)} %` : "–";
+  }
+
+  function fmtForce(value) {
+    if (!Number.isFinite(value)) return "N/A";
+    const abs = Math.abs(value);
+    if (abs >= 1e6) return `${(value / 1e6).toFixed(2)} MN`;
+    if (abs >= 1000) return `${(value / 1000).toFixed(1)} kN`;
+    return `${value.toFixed(0)} N`;
+  }
+
+  function fmtPowerKw(value) {
+    if (!Number.isFinite(value)) return "N/A";
+    if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(2)} MW`;
+    return `${value.toFixed(1)} kW`;
+  }
+
+  function fmtPressure(value) {
+    if (!Number.isFinite(value)) return "N/A";
+    return value >= 1000 ? `${(value / 1000).toFixed(1)} kPa` : `${value.toFixed(0)} Pa`;
+  }
+
+  function knotsToMs(value) {
+    return (safeNumber(value) || 0) * 0.514444;
+  }
+
+  function getHydroLabModules() {
+    if (!hydroLabModulesPromise) {
+      hydroLabModulesPromise = Promise.all([
+        import("/includes/three/hydro-lab/HydroAdvancedEstimator.js"),
+        import("/includes/three/hydro-lab/MarineLocationApi.js"),
+      ]).then(([estimator, marine]) => ({ estimator, marine }));
+    }
+    return hydroLabModulesPromise;
   }
 
   function buildExtraDetailsHtml(lines = []) {
@@ -3219,6 +3499,187 @@
       };
     }
     return { mode: "estimate", hydro: estimate, estimate };
+  }
+
+  function getCurrentResistanceHydro() {
+    return reportState.payload?.currentHydro
+      || analysisState.latestViewerReport?.currentHydro
+      || getViewerHydroData()
+      || analysisState.latestHydroEstimate
+      || buildHydroEstimateFromBbox()
+      || {};
+  }
+
+  function getResistanceDimensions(hydro = getCurrentResistanceHydro()) {
+    const bbox = analysisState.bbox || {};
+    const scale = unitScaleToMeters(analysisState.units);
+    const fallbackLength = Number.isFinite(bbox.maxX) && Number.isFinite(bbox.minX) ? Math.abs((bbox.maxX - bbox.minX) * scale) : null;
+    const fallbackBeam = Number.isFinite(bbox.maxY) && Number.isFinite(bbox.minY) ? Math.abs((bbox.maxY - bbox.minY) * scale) : null;
+    const fallbackDepth = Number.isFinite(bbox.maxZ) && Number.isFinite(bbox.minZ) ? Math.abs((bbox.maxZ - bbox.minZ) * scale) : null;
+    return {
+      lengthM: safeNumber(hydro.length ?? hydro.lengthM ?? hydro.lwlM ?? fallbackLength),
+      beamM: safeNumber(hydro.beam ?? hydro.beamM ?? hydro.bwlM ?? fallbackBeam),
+      draftM: safeNumber(getDraftMetersFromHydro(hydro) ?? hydro.draftM ?? (fallbackDepth ? fallbackDepth * 0.45 : null)),
+      depthM: safeNumber(hydro.depth ?? hydro.depthM ?? fallbackDepth),
+    };
+  }
+
+  function collectResistanceInput() {
+    const hydro = getCurrentResistanceHydro();
+    const dims = getResistanceDimensions(hydro);
+    const massProps = hydro.massProperties || getViewerMassProperties() || {};
+    const objectMode = resObjectMode?.value === "fixed" ? "fixed" : "vessel";
+    const materialSlug = selMaterial?.value || analysisState.materialHint?.profile?.slug || analysisState.materialHint?.slug || "custom";
+    const wettedAreaM2 = safeNumber(hydro.wettedAreaM2 ?? hydro.sak ?? hydro.wettedArea);
+    const displacementKg = Number.isFinite(hydro.displacementTonnes)
+      ? hydro.displacementTonnes * 1000
+      : Number.isFinite(hydro.displacementKg)
+        ? hydro.displacementKg
+        : Number.isFinite(hydro.submergedVolume)
+          ? hydro.submergedVolume * (safeNumber(hydro.waterDensity) || 1025)
+          : null;
+    return {
+      objectMode,
+      seabedLocked: objectMode === "fixed",
+      lwlM: dims.lengthM,
+      bwlM: dims.beamM,
+      draftM: dims.draftM,
+      depthM: dims.depthM,
+      volumeM3: safeNumber(hydro.submergedVolume ?? hydro.volumeM3),
+      displacementKg,
+      wettedAreaM2,
+      waterDensityKgM3: safeNumber(hydro.waterDensity ?? inpRhoWater?.value) || 1025,
+      materialSlug,
+      materialDensityKgM3: safeNumber(massProps.densityKgM3 ?? inpRhoMat?.value) || null,
+      shipSpeedMs: knotsToMs(resSpeedKn?.value),
+      waveHeadingDeg: safeNumber(resHeadingDeg?.value) ?? 180,
+      waveHeightM: Math.max(0, safeNumber(resWaveHeight?.value) ?? 0),
+      wavePeriodS: Math.max(0.5, safeNumber(resWavePeriod?.value) ?? 6.5),
+      waveDirectionDeg: safeNumber(resWaveDirection?.value) ?? 180,
+      waterDepthM: Math.max(0.5, safeNumber(resWaterDepth?.value) ?? 30),
+      currentVelocityMs: Math.max(0, safeNumber(resCurrentVelocity?.value) ?? 0),
+      panelSpanM: safeNumber(resPanelSpan?.value),
+      location: resistanceState.location,
+      marineSnapshot: resistanceState.marineSnapshot,
+    };
+  }
+
+  function buildResistanceSignature(input = null) {
+    const command = collectHydroCommandPayload({ includeDraftPose: true });
+    const dims = getResistanceDimensions();
+    const src = input || resistanceState.input || {};
+    return JSON.stringify({
+      v: "motstand-v1",
+      file: cleanUrlPath(decodedFile),
+      command,
+      dims,
+      resistance: {
+        objectMode: src.objectMode,
+        shipSpeedMs: Number(src.shipSpeedMs || 0).toFixed(3),
+        waveHeadingDeg: Number(src.waveHeadingDeg || 0).toFixed(2),
+        waveHeightM: Number(src.waveHeightM || 0).toFixed(3),
+        wavePeriodS: Number(src.wavePeriodS || 0).toFixed(3),
+        waveDirectionDeg: Number(src.waveDirectionDeg || 0).toFixed(2),
+        waterDepthM: Number(src.waterDepthM || 0).toFixed(3),
+        currentVelocityMs: Number(src.currentVelocityMs || 0).toFixed(3),
+        panelSpanM: Number(src.panelSpanM || 0).toFixed(3),
+        materialSlug: src.materialSlug,
+      },
+    });
+  }
+
+  function getMatchingResistanceResult() {
+    if (!resistanceState.result || !resistanceState.signature || !resistanceState.input) return null;
+    return resistanceState.signature === buildResistanceSignature(resistanceState.input) ? resistanceState.result : null;
+  }
+
+  function setResistanceStatus(text, isError = false) {
+    if (!resistanceStatus) return;
+    resistanceStatus.textContent = text || "";
+    resistanceStatus.classList.toggle("warn", !!isError);
+  }
+
+  function renderResistanceCards(target, cards = []) {
+    if (!target) return;
+    target.innerHTML = `
+      <div class="resistance-card-grid">
+        ${cards.map((card) => `
+          <article class="resistance-card">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+            <p class="muted">${escapeHtml(card.note || "")}</p>
+          </article>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderResistanceResult() {
+    const result = resistanceState.result;
+    const input = resistanceState.input;
+    if (!result || !input) {
+      renderResistanceCards(resTabResistance, [{ label: "Status", value: "Ikke beregnet", note: "Motstand kjores manuelt og legges bare i rapporten etterpa." }]);
+      renderResistanceCards(resTabScantling, [{ label: "Dimensjonering", value: "Ikke beregnet", note: "Kjor Motstand for a lage estimert dimensjonering." }]);
+      renderResistanceCards(resTabPreview, [{ label: "Preview", value: "Av", note: "Bolgepreview bruker samme tall etter beregning." }]);
+      return;
+    }
+    const resistance = result.resistance || {};
+    const scantling = result.scantling || {};
+    const wave = result.wavePreview?.wave || {};
+    const response = result.wavePreview?.response || {};
+    const isFixed = input.objectMode === "fixed";
+    renderResistanceCards(resTabResistance, isFixed ? [
+      { label: "Bolg-/stromlast", value: fmtForce(resistance.baseShearN ?? resistance.waveForceN), note: "Morison-lignende toppkraft mot eksponert areal." },
+      { label: "Objekttype", value: "Bunnlåst", note: "Fremdriftseffekt vises ikke for fast konstruksjon." },
+      { label: "Bolgecase", value: `${fmtUnitValue(input.waveHeightM, 2, "m")} / ${fmtUnitValue(input.wavePeriodS, 1, "s")}`, note: resistanceState.location?.name || "Manuell bolgeinput" },
+      { label: "Kvalitet", value: `${result.quality?.grade || "?"} (${Math.round(result.quality?.score || 0)})`, note: (result.quality?.missing || []).length ? `Mangler: ${result.quality.missing.join(", ")}` : "Basert pa tilgjengelig hydrodata." },
+    ] : [
+      { label: "Totalmotstand", value: fmtForce(resistance.totalResistanceN), note: "Roligvann + grov added resistance." },
+      { label: "Effektbehov", value: fmtPowerKw(resistance.effectivePowerKw), note: `${Number(resSpeedKn?.value || 0).toFixed(1)} knop effektiv effekt uten propulsjonstap.` },
+      { label: "Froude", value: Number.isFinite(resistance.added?.froude) ? resistance.added.froude.toFixed(3) : "N/A", note: "Brukes som hastighetsindikator i estimatet." },
+      { label: "Bolgecase", value: `${fmtUnitValue(input.waveHeightM, 2, "m")} / ${fmtUnitValue(input.wavePeriodS, 1, "s")}`, note: resistanceState.location?.name || "Manuell bolgeinput" },
+    ]);
+    renderResistanceCards(resTabScantling, [
+      { label: "Designtrykk", value: fmtPressure(scantling.designPressurePa), note: "Hydrostatisk + enkel bolge/slam/current faktor." },
+      { label: "Platetykkelse", value: fmtUnitValue(scantling.plateThicknessMm, 1, "mm"), note: `${scantling.material?.label || "Materiale"} med SF ${Number(scantling.safetyFactor || 0).toFixed(1)}.` },
+      { label: "Stiveravstand", value: fmtUnitValue(scantling.stiffenerSpacingM, 2, "m"), note: `Panelspenn ${fmtUnitValue(scantling.panelSpanM, 2, "m")}.` },
+      { label: "Seksjonsmodul", value: Number.isFinite(scantling.stiffenerSectionModulusM3) ? `${(scantling.stiffenerSectionModulusM3 * 1e6).toFixed(2)} cm^3` : "N/A", note: "Grov minimumsverdi per stiver." },
+      ...(isFixed ? [{ label: "Bunnmoment", value: Number.isFinite(scantling.overturningMomentNm) ? `${(scantling.overturningMomentNm / 1000).toFixed(1)} kNm` : "N/A", note: "Forenklet fast konstruksjon." }] : []),
+    ]);
+    renderResistanceCards(resTabPreview, [
+      { label: "Bolgelengde", value: fmtUnitValue(wave.wavelengthM, 1, "m"), note: `Amplitude ${fmtUnitValue(input.waveHeightM / 2, 2, "m")}.` },
+      { label: "Heave", value: fmtUnitValue(response.heaveM, 2, "m"), note: isFixed ? "Last i bunn: ingen bevegelse." : "Visuell respons, ikke hydro-state." },
+      { label: "Roll / pitch", value: `${fmtUnitValue(response.rollDeg, 1, "deg")} / ${fmtUnitValue(response.pitchDeg, 1, "deg")}`, note: "Skalert mot modellstorrelse og heading." },
+      { label: "Rapport", value: getMatchingResistanceResult() ? "Klar" : "Utdatert", note: "Hydro-rapporten inkluderer bare matchende resultat." },
+    ]);
+    const warnings = result.warnings || [];
+    if (warnings.length && resTabPreview) {
+      resTabPreview.insertAdjacentHTML("beforeend", `<ul class="resistance-warning-list">${warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`);
+    }
+    if (resistanceMeta) {
+      resistanceMeta.textContent = `Sist beregnet ${resistanceState.computedAt ? new Date(resistanceState.computedAt).toLocaleString("nb-NO") : "na"} | ${isFixed ? "bunnlåst konstruksjon" : "fartoy"}`;
+    }
+  }
+
+  function sendWavePreview(enabled = resistanceState.visualizationEnabled) {
+    const input = resistanceState.input || collectResistanceInput();
+    const result = resistanceState.result;
+    const wave = result?.wavePreview?.wave || {};
+    const response = result?.wavePreview?.response || {};
+    postViewerCommandToViewer(enabled ? "set-wave-preview" : "clear-wave-preview", {
+      enabled: !!enabled,
+      objectMode: input.objectMode || "vessel",
+      seabedLocked: input.objectMode === "fixed",
+      waveHeightM: input.waveHeightM,
+      wavePeriodS: input.wavePeriodS,
+      wavelengthM: wave.wavelengthM,
+      waveDirectionDeg: input.waveDirectionDeg,
+      waterDepthM: input.waterDepthM,
+      modelLengthM: input.lwlM,
+      modelBeamM: input.bwlM,
+      modelDraftM: input.draftM,
+      response,
+    });
   }
 
   function normalizeComponentToken(value) {

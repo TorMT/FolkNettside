@@ -160,6 +160,7 @@
             <button id="btnHydroResetPose" type="button">Nullstill trim/heel</button>
             <button id="btnHydroReport" type="button">Vis rapport</button>
             <button id="btnHydroRecalc" type="button">Recalc rapport</button>
+            <button id="btnResistanceOpen" type="button">Motstand</button>
             <label class="btn" style="display:inline-flex; align-items:center; gap:8px;">
               <input id="chkHydroPerfMode" type="checkbox">
               <span>Ytelsesmodus</span>
@@ -320,7 +321,64 @@
     </div>
   </div>
 
-  <script src="/assets/js/fusion-file-analyzer.js?v=20260521b" defer></script>
+  <div id="resistanceModal" class="report-modal" hidden>
+    <div class="report-backdrop" data-close-resistance="1"></div>
+    <div class="report-dialog card resistance-dialog">
+      <div class="report-toolbar">
+        <div>
+          <p class="viewer-kicker">HydroLab</p>
+          <h2>Motstand og dimensjonering</h2>
+          <p id="resistanceMeta" class="muted">Kjor manuelt nar du vil legge motstand inn i rapporten.</p>
+        </div>
+        <div class="buttons">
+          <button id="btnResistanceRun" class="primary" type="button">Beregn motstand</button>
+          <button id="btnResistanceJson" type="button">JSON</button>
+          <button id="btnResistanceClose" type="button">Lukk</button>
+        </div>
+      </div>
+
+      <div class="resistance-layout">
+        <aside class="resistance-controls">
+          <label>Objekttype
+            <select id="resObjectMode">
+              <option value="vessel">Fartoy, flytende</option>
+              <option value="fixed">Bunnl&aring;st konstruksjon</option>
+            </select>
+          </label>
+          <label>Lokasjon
+            <div class="resistance-row">
+              <input id="resLocationQuery" type="search" placeholder="F.eks. Trondheim" />
+              <button id="btnResistanceLocation" type="button">Hent</button>
+            </div>
+          </label>
+          <select id="resLocationResults" hidden></select>
+          <label>Fart (knop)<input id="resSpeedKn" type="number" value="8" min="0" step="0.5" /></label>
+          <label>Heading mot bolger (deg)<input id="resHeadingDeg" type="number" value="180" min="0" max="360" step="5" /></label>
+          <label>Bolgehoyde Hs (m)<input id="resWaveHeight" type="number" value="1.2" min="0" step="0.1" /></label>
+          <label>Bolgeperiode (s)<input id="resWavePeriod" type="number" value="6.5" min="0.5" step="0.1" /></label>
+          <label>Bolgeretning (deg)<input id="resWaveDirection" type="number" value="180" min="0" max="360" step="5" /></label>
+          <label>Vanndybde (m)<input id="resWaterDepth" type="number" value="30" min="0.5" step="0.5" /></label>
+          <label>Strom (m/s)<input id="resCurrentVelocity" type="number" value="0" min="0" step="0.1" /></label>
+          <label>Panelspenn/stiveravstand (m)<input id="resPanelSpan" type="number" value="" min="0.1" step="0.05" placeholder="Auto" /></label>
+          <label class="checkline"><input id="resPreviewToggle" type="checkbox" /> Vis bolgepreview i 3D</label>
+          <p id="resistanceStatus" class="muted">Motstand kjores ikke automatisk i hydro-rapporten.</p>
+        </aside>
+
+        <section class="resistance-content">
+          <div class="resistance-tabs" role="tablist">
+            <button class="active" type="button" data-res-tab="resistance">Motstand</button>
+            <button type="button" data-res-tab="scantling">Dimensjonering</button>
+            <button type="button" data-res-tab="preview">Bolgepreview</button>
+          </div>
+          <div id="resTabResistance" class="resistance-tab active"></div>
+          <div id="resTabScantling" class="resistance-tab"></div>
+          <div id="resTabPreview" class="resistance-tab"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/js/fusion-file-analyzer.js?v=20260526-motstand" defer></script>
 
 <script src="locked-view.js"></script>
 </body>

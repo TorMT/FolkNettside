@@ -20,12 +20,22 @@ export async function fetchMarineSnapshot({ latitude, longitude }) {
     'wave_direction',
     'wave_period',
     'wind_wave_height',
+    'wind_wave_direction',
+    'wind_wave_period',
+    'wind_wave_peak_period',
     'swell_wave_height',
+    'swell_wave_direction',
+    'swell_wave_period',
+    'swell_wave_peak_period',
     'sea_level_height_msl',
+    'ocean_current_velocity',
+    'ocean_current_direction',
   ].join(',');
-  const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=${hourly}&forecast_days=2&timezone=auto`;
+  const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=${hourly}&forecast_days=2&timezone=auto&cell_selection=sea`;
   const json = await fetchJsonWithRetry(url);
-  const i = 0;
+  const now = Date.now();
+  const times = Array.isArray(json.hourly?.time) ? json.hourly.time : [];
+  const i = Math.max(0, times.findIndex((time) => Date.parse(time) >= now));
   return {
     latitude: json.latitude,
     longitude: json.longitude,
@@ -34,7 +44,17 @@ export async function fetchMarineSnapshot({ latitude, longitude }) {
     waveHeightM: json.hourly?.wave_height?.[i] ?? null,
     waveDirectionDeg: json.hourly?.wave_direction?.[i] ?? null,
     wavePeriodS: json.hourly?.wave_period?.[i] ?? null,
+    wavePeakPeriodS: json.hourly?.wind_wave_peak_period?.[i] ?? json.hourly?.swell_wave_peak_period?.[i] ?? null,
+    windWaveHeightM: json.hourly?.wind_wave_height?.[i] ?? null,
+    windWaveDirectionDeg: json.hourly?.wind_wave_direction?.[i] ?? null,
+    windWavePeriodS: json.hourly?.wind_wave_period?.[i] ?? null,
+    swellWaveHeightM: json.hourly?.swell_wave_height?.[i] ?? null,
+    swellWaveDirectionDeg: json.hourly?.swell_wave_direction?.[i] ?? null,
+    swellWavePeriodS: json.hourly?.swell_wave_period?.[i] ?? null,
     seaLevelMslM: json.hourly?.sea_level_height_msl?.[i] ?? null,
+    currentVelocityKmh: json.hourly?.ocean_current_velocity?.[i] ?? null,
+    currentDirectionDeg: json.hourly?.ocean_current_direction?.[i] ?? null,
+    attribution: 'Marine data fra Open-Meteo Marine API (cell_selection=sea). Ikke bruk til navigasjon.',
     raw: json,
   };
 }
