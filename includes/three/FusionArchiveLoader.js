@@ -2,7 +2,7 @@
 // Loader for Fusion archive files (.f3z/.3fz) (ZIP with one or more Fusion payload files)
 // Gjenbruker ThreeMFLoader for å hente ut alle komponenter fra hver 3MF
 
-import { ThreeMFLoader } from "./ThreeMFLoader.js?v=20260409j";
+import { ThreeMFLoader } from "./ThreeMFLoader.js?v=20260527a";
 
 let jsZipBootPromise = null;
 
@@ -38,6 +38,42 @@ class FusionArchiveLoader {
     this.threeMFLoader = new ThreeMFLoader();
   }
 
+  _basename(path) {
+    const value = String(path || "");
+    if (!value) return "";
+    const parts = value.split(/[\\/]/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : value;
+  }
+
+  _annotateComponent(component, file, index = 0) {
+    if (!component) return null;
+    const archiveEntry = String(file?.name || "").trim();
+    const sourceName = this._basename(archiveEntry) || `3mf-${index + 1}`;
+    const componentName = String(
+      component?.name ||
+      component?.userData?.componentName ||
+      component?.userData?.partNumber ||
+      component?.userData?.objectId ||
+      sourceName ||
+      `component-${index + 1}`
+    ).trim() || `component-${index + 1}`;
+    const rawNodePath = String(component?.userData?.nodePath || componentName).trim();
+    const nodePath = rawNodePath
+      ? (archiveEntry && !rawNodePath.startsWith(`${archiveEntry}::`) ? `${archiveEntry}::${rawNodePath}` : rawNodePath)
+      : `${archiveEntry}::${componentName}`;
+    return {
+      ...component,
+      name: componentName,
+      userData: {
+        ...(component?.userData || {}),
+        componentName,
+        sourceName,
+        archiveEntry,
+        nodePath,
+      },
+    };
+  }
+
   async load(url) {
     await ensureJsZip();
     // Fetch .f3z/.3fz file
@@ -68,10 +104,10 @@ class FusionArchiveLoader {
       const xmlText = await file.async('text');
       const comps = this.threeMFLoader._parse3MFXML(xmlText);
       if (Array.isArray(comps)) {
-        return comps;
+        return comps.map((component, index) => this._annotateComponent(component, file, index)).filter(Boolean);
       }
       if (comps) {
-        return [{ name: file.name, geometry: comps }];
+        return [this._annotateComponent({ name: this._basename(file.name), geometry: comps, userData: {} }, file, 0)];
       }
       return [];
     }));

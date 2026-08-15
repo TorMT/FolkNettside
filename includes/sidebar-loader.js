@@ -1,20 +1,20 @@
 /* --------------------------------------------------------------------
-   FolkNettsideFolk Ã¢â‚¬â€œ sidebar-loader.js  v11.15.2
+   FolkNettsideFolk ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ sidebar-loader.js  v11.15.2
    --------------------------------------------------------------------
    FIKSET: Fil ikoner og CSS/JS-blanding
    
-   Ã¢â‚¬Â¢ Riktig rekkefÃƒÂ¸lge: ØvingXX Ã¢â€ â€™ PythonØvingÃ¢â‚¬Â¦ Ã¢â€ â€™ andre Ã¢â€ â€™ beskyttet
-   Ã¢â‚¬Â¢ PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
-   Ã¢â‚¬Â¢ pyview/nbview/codeview bruker ?file= Ã¢â‚¬Â¦
-   Ã¢â‚¬Â¢ Skjuler beskyttet flyout/innhold til passord er godkjent
-   Ã¢â‚¬Â¢ Quiz-knapp rendrer i innholdet (auto-finner quiz.json + fikser bildepaths)
-   Ã¢â‚¬Â¢ Tittel/innhold havner ikke under sidebaren
-   Ã¢â‚¬Â¢ Robust JSON-innlasting (stripper BOM, viser feilsnutt ved HTML/404, osv.)
-   Ã¢â‚¬Â¢ Nested flyouts: Filer med "/" i navnet (f.eks. "DelA/fil.pdf") fÃƒÂ¥r nested flyout
-   Ã¢â‚¬Â¢ BUGFIX v11.15.2:
-     Ã¢â‚¬â€œ Fikset CSS/JS-blanding som ÃƒÂ¸dela fil-ikoner
-     Ã¢â‚¬â€œ Alle ikoner fungerer nÃƒÂ¥ korrekt
-     Ã¢â‚¬â€œ Bedre struktur i CSS-injeksjon
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Riktig rekkefÃƒÆ’Ã‚Â¸lge: Ã˜vingXX ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ PythonÃ˜vingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ andre ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ beskyttet
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ PDF/py/ipynb/code (C/C++/C#/Java) i viewer; robust 3s fallback for PDF
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ pyview/nbview/codeview bruker ?file= ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Skjuler beskyttet flyout/innhold til passord er godkjent
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Quiz-knapp rendrer i innholdet (auto-finner quiz.json + fikser bildepaths)
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Tittel/innhold havner ikke under sidebaren
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Robust JSON-innlasting (stripper BOM, viser feilsnutt ved HTML/404, osv.)
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Nested flyouts: Filer med "/" i navnet (f.eks. "DelA/fil.pdf") fÃƒÆ’Ã‚Â¥r nested flyout
+   ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ BUGFIX v11.15.2:
+     ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Fikset CSS/JS-blanding som ÃƒÆ’Ã‚Â¸dela fil-ikoner
+     ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Alle ikoner fungerer nÃƒÆ’Ã‚Â¥ korrekt
+     ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Bedre struktur i CSS-injeksjon
 -------------------------------------------------------------------- */
 
 /**************** 1) Dynamisk CSS ****************************************/
@@ -171,7 +171,7 @@
       }
       
       .nested-folder-item::after{ 
-        content:'▸';
+        content:'â–¸';
         position:absolute;
         right:8px;
         font-size:1.1em; 
@@ -274,14 +274,14 @@
     }
     
     .file-label.watched::before{
-      content:"✓ ";
+      content:"âœ“ ";
       color:#8BC34A;
       margin-right:6px;
       font-weight:700;
     }
     
     .nested-folder-item.watched>.file-label::after{
-      content:" ✓";
+      content:" âœ“";
       color:#8BC34A;
       margin-left:6px;
     }
@@ -337,17 +337,15 @@ function getCourseCode(){
 function getKarakterwebUrl(courseCode){
   const code = String(courseCode || '').trim().toUpperCase();
   if (!code) return null;
-  const codeLower = code.toLowerCase();
   const tplMeta = document.querySelector('meta[name="karakterweb-url-template"]')?.getAttribute('content');
   if (tplMeta){
     return String(tplMeta)
       .replace(/^https:\/\/www\.karakterweb\.no(?=\/|$)/i, 'https://karakterweb.no')
       .replaceAll('{COURSE_CODE}', encodeURIComponent(code))
-      .replaceAll('{course_code}', encodeURIComponent(codeLower));
+      .replaceAll('{course_code}', encodeURIComponent(code.toLowerCase()));
   }
-  // Karakterweb gikk over til kanonisk domene uten "www".
-  // Beholder samme sti og lowercase kurskode for kompatibilitet.
-  return `https://karakterweb.no/ntnu/${encodeURIComponent(codeLower)}`;
+  // Karakterweb-ruter bruker kurskode i original/upper-case form.
+  return `https://karakterweb.no/ntnu/${encodeURIComponent(code)}`;
 }
 function getKarakterwebInviewUrl(courseCode){
   const url = getKarakterwebUrl(courseCode);
@@ -1029,23 +1027,23 @@ async function autoFindQuizRel(courseDir){
 /**************** 3) Navn + sort (UENDRET) *******************************/
 function repairMojibakeLabel(value){
   return String(value || '')
-    .replace(/ÃƒËœ/g, 'Ø')
-    .replace(/ÃƒÂ¸/g, 'ø')
-    .replace(/Ãƒâ€¦/g, 'Å')
-    .replace(/ÃƒÂ¥/g, 'å')
-    .replace(/Ãƒâ€ /g, 'Æ')
-    .replace(/ÃƒÂ¦/g, 'æ')
-    .replace(/Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
-    .replace(/Ã‚/g, '')
+    .replace(/ÃƒÆ’Ã‹Å“/g, 'Ã˜')
+    .replace(/ÃƒÆ’Ã‚Â¸/g, 'Ã¸')
+    .replace(/ÃƒÆ’Ã¢â‚¬Â¦/g, 'Ã…')
+    .replace(/ÃƒÆ’Ã‚Â¥/g, 'Ã¥')
+    .replace(/ÃƒÆ’Ã¢â‚¬Â /g, 'Ã†')
+    .replace(/ÃƒÆ’Ã‚Â¦/g, 'Ã¦')
+    .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â/g, ' - ')
+    .replace(/Ãƒâ€š/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 function displayName(key){
   const fixed = repairMojibakeLabel(key);
-  const m = fixed.match(/^\s*[Øøo]ving(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m)  return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m = fixed.match(/^\s*[\u00D8\u00F8o]ving(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m)  return `\u00D8ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = fixed.match(/^oving(\d{1,3})$/i);
-  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  if (m2) return `\u00D8ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
   return fixed.replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '').replace(/\.[^/.]+$/, '');
 }
 
@@ -1054,10 +1052,10 @@ function sortSidebarKeys(data){
   const ovingNum = (k) => {
     const fixed = repairMojibakeLabel(k);
     if (/^oving\d{2}$/i.test(fixed)) return parseInt(fixed.slice(5), 10);
-    const m = fixed.match(/^\s*[Øøo]ving(?:er)?\s*0*(\d{1,3})\b/i);
+    const m = fixed.match(/^\s*[\u00D8\u00F8o]ving(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy   = k => /^pythonøving/i.test(repairMojibakeLabel(k));
+  const isPy   = k => /^python(?:\u00F8|o)ving/i.test(repairMojibakeLabel(k));
   const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(k));
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
   const py    = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
@@ -1068,16 +1066,16 @@ function sortSidebarKeys(data){
 
 repairMojibakeLabel = function(value){
   return String(value || '')
-    .replace(/ÃƒÆ’Ã‹Å“|ÃƒËœ/g, 'Ø')
-    .replace(/ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, 'ø')
-    .replace(/ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, 'Å')
-    .replace(/ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, 'å')
-    .replace(/ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, 'Æ')
-    .replace(/ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, 'æ')
-    .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|â€“|â€”/g, ' - ')
-    .replace(/Ãƒâ€š/g, '')
-    .replace(/Ã°Å¸[^ ]*/g, '')
-    .replace(/[â– â–¡]/g, '')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“/g, 'Ã˜')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸/g, 'Ã¸')
+    .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦/g, 'Ã…')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥/g, 'Ã¥')
+    .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â /g, 'Ã†')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦/g, 'Ã¦')
+    .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
+    .replace(/ÃƒÆ’Ã¢â‚¬Å¡/g, '')
+    .replace(/ÃƒÂ°Ã…Â¸[^ ]*/g, '')
+    .replace(/[Ã¢â€“Â Ã¢â€“Â¡]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 };
@@ -1085,16 +1083,16 @@ repairMojibakeLabel = function(value){
 displayName = function(key){
   const fixed = repairMojibakeLabel(key);
   const cleaned = fixed
-    .replace(/^[â– â–¡â–ªâ–«â—†â—‡â—¼â—»â¬›â¬œ]+\s*/g, '')
-    .replace(/Ã°Å¸[^ ]*/g, '')
+    .replace(/^[Ã¢â€“Â Ã¢â€“Â¡Ã¢â€“ÂªÃ¢â€“Â«Ã¢â€”â€ Ã¢â€”â€¡Ã¢â€”Â¼Ã¢â€”Â»Ã¢Â¬â€ºÃ¢Â¬Å“]+\s*/g, '')
+    .replace(/ÃƒÂ°Ã…Â¸[^ ]*/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-  const m = cleaned.match(/^\s*(?:øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const m = cleaned.match(/^\s*(?:[\u00D8\u00F8]ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m) return `\u00D8ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   const m2 = cleaned.match(/^oving(\d{1,3})$/i);
-  if (m2) return `Øving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
-  const py = cleaned.match(/^python(?:ø|o)ving\s*0*(\d{1,3})$/i);
-  if (py) return `PythonØving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
+  if (m2) return `\u00D8ving ${String(parseInt(m2[1],10)).padStart(2,'0')}`;
+  const py = cleaned.match(/^python(?:\u00F8|o)ving\s*0*(\d{1,3})$/i);
+  if (py) return `Python\u00D8ving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
   return cleaned
     .replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '')
     .replace(/\.[^/.]+$/, '');
@@ -1102,34 +1100,34 @@ displayName = function(key){
 
 repairMojibakeLabel = function(value){
   return String(value || '')
-    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹Ãƒâ€¦Ã¢â‚¬Å“|ÃƒÆ’Æâ€™Ãƒâ€¹Åâ€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ/g, 'Ø')
-    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸|ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, 'ø')
-    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÆ’Æâ€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, 'Å')
-    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥|ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, 'å')
-    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â |ÃƒÆ’Æâ€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, 'Æ')
-    .replace(/ÃƒÆ’Æâ€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, 'æ')
-    .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Åâ€œ|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
-    .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦/g, '...')
-    .replace(/ÃƒÆ’Ã¢â‚¬Å¡/g, '')
-    .replace(/Ã°Å¸[^A-Za-zÆØÅæøå0-9]*/g, '')
-    .replace(/[â– â–¡â–ªâ–«â—†â—‡â—¼â—»â¬›â¬œï¿½]/g, '')
+    .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ|ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹Ã…Ã¢â‚¬Å“|ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“/g, 'Ã˜')
+    .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸/g, 'Ã¸')
+    .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦/g, 'Ã…')
+    .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥/g, 'Ã¥')
+    .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â |ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â |ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â /g, 'Ã†')
+    .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦/g, 'Ã¦')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ã…Ã¢â‚¬Å“|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â/g, ' - ')
+    .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦/g, '...')
+    .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡/g, '')
+    .replace(/ÃƒÂ°Ã…Â¸[^A-Za-zÃ†Ã˜Ã…Ã¦Ã¸Ã¥0-9]*/g, '')
+    .replace(/[Ã¢â€“Â Ã¢â€“Â¡Ã¢â€“ÂªÃ¢â€“Â«Ã¢â€”â€ Ã¢â€”â€¡Ã¢â€”Â¼Ã¢â€”Â»Ã¢Â¬â€ºÃ¢Â¬Å“Ã¯Â¿Â½]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 };
 
 displayName = function(key){
   const cleaned = repairMojibakeLabel(key)
-    .replace(/^[â– â–¡â–ªâ–«â—†â—‡â—¼â—»â¬›â¬œ]+\s*/g, '')
+    .replace(/^[Ã¢â€“Â Ã¢â€“Â¡Ã¢â€“ÂªÃ¢â€“Â«Ã¢â€”â€ Ã¢â€”â€¡Ã¢â€”Â¼Ã¢â€”Â»Ã¢Â¬â€ºÃ¢Â¬Å“]+\s*/g, '')
     .replace(/\s*\((?:beskyttet|hemmelig)\)\s*/gi, '')
     .replace(/\.[^/.]+$/, '')
     .replace(/\s+/g, ' ')
     .trim();
-  let m = cleaned.match(/^\s*(?:Øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
-  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  let m = cleaned.match(/^\s*(?:[\u00D8\u00F8]ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+  if (m) return `\u00D8ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
   m = cleaned.match(/^oving(\d{1,3})$/i);
-  if (m) return `Øving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
-  const py = cleaned.match(/^python(?:ø|o)ving\s*0*(\d{1,3})$/i);
-  if (py) return `PythonØving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
+  if (m) return `\u00D8ving ${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  const py = cleaned.match(/^python(?:\u00F8|o)ving\s*0*(\d{1,3})$/i);
+  if (py) return `Python\u00D8ving ${String(parseInt(py[1],10)).padStart(2,'0')}`;
   return cleaned;
 };
 
@@ -1138,10 +1136,10 @@ sortSidebarKeys = function(data){
   const ovingNum = (k) => {
     const fixed = repairMojibakeLabel(k);
     if (/^oving\d{2,3}$/i.test(fixed)) return parseInt(fixed.slice(5), 10);
-    const m = fixed.match(/^\s*(?:øving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
+    const m = fixed.match(/^\s*(?:[\u00D8\u00F8]ving|oving)(?:er)?\s*0*(\d{1,3})\b/i);
     return m ? parseInt(m[1], 10) : null;
   };
-  const isPy = k => /^python(?:ø|o)ving/i.test(repairMojibakeLabel(k));
+  const isPy = k => /^python(?:\u00F8|o)ving/i.test(repairMojibakeLabel(k));
   const isLock = k => !!(data[k]?.beskyttet) || /beskyttet|hemmelig/i.test(repairMojibakeLabel(k));
   const oving = keys.filter(k => ovingNum(k) !== null && !isLock(k)).sort((a,b)=>ovingNum(a)-ovingNum(b));
   const py = keys.filter(k => !oving.includes(k) && isPy(k) && !isLock(k)).sort((a,b)=>repairMojibakeLabel(a).localeCompare(repairMojibakeLabel(b),'nb'));
@@ -1397,7 +1395,7 @@ function buildNestedFlyoutHTML(files, makeHrefFunc, isPyGroup) {
   rootItems.forEach(item => {
     const f = item.f;
     const href = makeHrefFunc(f);
-    const label = (isPyGroup ? '\uD83D\uDC0D ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'…' : item.label);
+    const label = (isPyGroup ? '\uD83D\uDC0D ' : '') + (item.label.length>40 ? item.label.slice(0,38)+'â€¦' : item.label);
     const icon = iconForFile(f);
     html += `<a href="${href}" data-file="${f}">${icon}<span class="file-label">${label}</span></a>`;
   });
@@ -1517,7 +1515,7 @@ buildNestedFlyoutHTML = function(files, makeHrefFunc, isPyGroup) {
     }).filter(Boolean);
     if (playlistItems.length) {
       const payload = encodeURIComponent(JSON.stringify({ title: repairMojibakeLabel(folderName), items: playlistItems }));
-      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Åpne alle videoer i innebygd modus">`;
+      html += `<a href="#" class="video-collection-link" data-playlist="${payload}" title="Ã…pne alle videoer i innebygd modus">`;
       html += `<span class="file-icon" style="background:#D32F2F">ALL</span>`;
       html += `<span class="file-label">Se alle videoer (embedded)</span>`;
       html += `</a>`;
@@ -1618,7 +1616,7 @@ async function initSidebar(){
     </div>
   `;
 
-  let html = '<h3>Øvinger</h3>';
+  let html = '<h3>\u00D8vinger</h3>';
   let karakterwebInserted = false;
   for (const key of keys){
     const obj = data[key];
@@ -1639,7 +1637,7 @@ async function initSidebar(){
     }
 
     if (files && files.length){
-      const isPyGroup = /^pythonøving/i.test(String(key));
+      const isPyGroup = /^python(?:\u00F8|o)ving/i.test(String(key));
       const contentHTML = buildNestedFlyoutHTML(files, (f) => makeHref(key, obj, f), isPyGroup);
       
       html += `<div class="dropdown-oving">
@@ -1944,7 +1942,7 @@ async function initSidebar(){
     });
   });
 
-  /* Klikk-ÃƒÂ¥pne filer */
+  /* Klikk-ÃƒÆ’Ã‚Â¥pne filer */
   async function handleFlyoutAnchorClick(e, a){
     e.preventDefault();
     const q = document.getElementById('quiz-container'); 
@@ -2016,7 +2014,7 @@ async function initSidebar(){
     if (a) handleFlyoutAnchorClick(e, a);
   });
 
-  /* Hjem pÃƒÂ¥ tittel */
+  /* Hjem pÃƒÆ’Ã‚Â¥ tittel */
   document.querySelector('.content h1')?.addEventListener('click', ()=>{
     location.reload();
   });
@@ -2114,7 +2112,7 @@ async function initSidebar(){
         }
       }
 
-      alert('Quiz-modulen er ikke tilgjengelig.\nForsÃƒÂ¸kte:\n- ' + tried.join('\n- '));
+      alert('Quiz-modulen er ikke tilgjengelig.\nForsÃƒÆ’Ã‚Â¸kte:\n- ' + tried.join('\n- '));
     });
   }
 
@@ -2146,16 +2144,16 @@ async function initSidebar(){
   if (window.SidebarSearch && typeof window.SidebarSearch.init === 'function') {
     try {
       window.SidebarSearch.init(sb);
-      console.log('Ã¢Å“â€œ Sidebar Search Module initialized');
+      console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Sidebar Search Module initialized');
     } catch (err) {
-      console.error('[sidebar-loader] Kunne ikke initialisere sÃƒÂ¸kemodul:', err);
+      console.error('[sidebar-loader] Kunne ikke initialisere sÃƒÆ’Ã‚Â¸kemodul:', err);
     }
   }
   
   if (window.SidebarNotifications && typeof window.SidebarNotifications.init === 'function') {
     try {
       window.SidebarNotifications.init(courseDir);
-      console.log('Ã¢Å“â€œ Sidebar Notifications Module initialized');
+      console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Sidebar Notifications Module initialized');
     } catch (err) {
       console.error('[sidebar-loader] Kunne ikke initialisere notifikasjonsmodul:', err);
     }
@@ -2197,23 +2195,25 @@ document.readyState==='loading'
 
   function cleanSidebarText(value){
     return String(value || '')
-      .replace(/ÃƒÆ’Æâ€™Ãƒâ€¹Åâ€œ|ÃƒÆ’Ã‹Å“|ÃƒËœ/g, '\u00D8')
-      .replace(/ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸|ÃƒÂ¸/g, '\u00F8')
-      .replace(/ÃƒÆ’Æâ€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦|Ãƒâ€¦/g, '\u00C5')
-      .replace(/ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥|ÃƒÂ¥/g, '\u00E5')
-      .replace(/ÃƒÆ’Æâ€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â |Ãƒâ€ /g, '\u00C6')
-      .replace(/ÃƒÆ’Æâ€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦|ÃƒÂ¦/g, '\u00E6')
-      .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â|Ã¢â‚¬â€œ|Ã¢â‚¬â€/g, ' - ')
-      .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|Ã¢â‚¬Â¦/g, '...')
-      .replace(/Ãƒâ€š/g, '')
-      .replace(/Ã˜|Ä˜/g, 'Ø')
-      .replace(/Ã¸|Ä™/g, 'ø')
-      .replace(/Ã…/g, 'Å')
-      .replace(/Ã¥/g, 'å')
-      .replace(/Ã†/g, 'Æ')
-      .replace(/Ã¦/g, 'æ')
-      .replace(/Ã°Å¸[^ ]*/g, '')
-      .replace(/[â– â–¡]/g, '')
+      .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¹Ã…Ã¢â‚¬Å“|ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ|ÃƒÆ’Ã‹Å“/g, '\u00D8')
+      .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸|ÃƒÆ’Ã‚Â¸/g, '\u00F8')
+      .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦|ÃƒÆ’Ã¢â‚¬Â¦/g, '\u00C5')
+      .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥|ÃƒÆ’Ã‚Â¥/g, '\u00E5')
+      .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â |ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â |ÃƒÆ’Ã¢â‚¬Â /g, '\u00C6')
+      .replace(/ÃƒÆ’Ã†â€™Ã†Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦|ÃƒÆ’Ã‚Â¦/g, '\u00E6')
+      .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ|ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â/g, ' - ')
+      .replace(/ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦|ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦/g, '...')
+      .replace(/ÃƒÆ’Ã¢â‚¬Å¡/g, '')
+      .replace(/ÃƒËœ|Ã„Ëœ/g, '\u00D8')
+      .replace(/ÃƒÂ¸|Ã„â„¢/g, '\u00F8')
+      .replace(/Ãƒâ€¦/g, '\u00C5')
+      .replace(/ÃƒÂ¥/g, '\u00E5')
+      .replace(/Ãƒâ€ /g, '\u00C6')
+      .replace(/ÃƒÂ¦/g, '\u00E6')
+      .replace(/\u00EF\u00BF\u00BD/g, '')
+      .replace(/\uFFFD/g, '')
+      .replace(/ÃƒÂ°Ã…Â¸[^ ]*/g, '')
+      .replace(/[Ã¢â€“Â Ã¢â€“Â¡]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -2226,7 +2226,7 @@ document.readyState==='loading'
     if (m) return `\u00D8ving ${String(parseInt(m[1], 10)).padStart(2, '0')}`;
     m = fixed.match(/^python(?:\u00D8|o)ving\s*0*(\d{1,3})$/i);
     if (m) return `Python\u00D8ving ${String(parseInt(m[1], 10)).padStart(2, '0')}`;
-    return fixed.replace(/^Ã°Å¸\S*\s*/g, '').replace(/[â– â–¡ï¿½]/g, '').trim();
+    return fixed.replace(/^ÃƒÂ°Ã…Â¸\S*\s*/g, '').replace(/[Ã¢â€“Â Ã¢â€“Â¡Ã¯Â¿Â½]/g, '').trim();
   }
 
   function badgeForSidebarFile(name, isFolder){
@@ -2292,6 +2292,15 @@ document.readyState==='loading'
 
     const heading = sidebar.querySelector('h3');
     if (heading) heading.textContent = '\u00D8vinger';
+
+    sidebar.querySelectorAll('.dropdown-btn').forEach((btn) => {
+      if (btn.id === 'quiz-btn' || btn.id === 'karakterweb-btn' || btn.querySelector('img')) return;
+      const raw = String(btn.textContent || '');
+      const match = raw.match(/^\s*(\uD83D\uDD12\s*)?(.*)$/u);
+      const prefix = match?.[1] || '';
+      const cleaned = prettySidebarLabel(match?.[2] || raw);
+      if (cleaned) btn.textContent = `${prefix}${cleaned}`;
+    });
 
     sidebar.querySelectorAll('.file-label').forEach((label) => {
       const cleaned = prettySidebarLabel(label.textContent);

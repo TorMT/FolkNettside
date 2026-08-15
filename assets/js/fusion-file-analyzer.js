@@ -31,6 +31,9 @@
   const file = qs.get("file");
   const viewerFrame = document.getElementById("viewerFrame");
   const viewerLoading = document.getElementById("viewerLoading");
+  const viewerCornerLoader = document.getElementById("viewerCornerLoader");
+  const viewerCornerTitle = document.getElementById("viewerCornerTitle");
+  const viewerCornerText = document.getElementById("viewerCornerText");
   const viewerTitle = document.getElementById("viewerTitle");
   const btnToggleDrawer = document.getElementById("btnToggleDrawer");
   const drawer = document.getElementById("drawer");
@@ -78,6 +81,7 @@
   const selectionToolState = {
     isolateChosen: false,
     explodeChosen: false,
+    autoExplodeScope: false,
     pendingSelectedExport: "",
   };
   const hydroControlState = {
@@ -99,6 +103,15 @@
     latestViewerHydro: null,
     latestViewerReport: null,
   };
+  const materialCatalogState = {
+    url: "",
+    title: "",
+    sourceLabel: "",
+    loaded: false,
+    materials: new Map(),
+    materialSlugs: new Set(),
+    componentRules: [],
+  };
   const reportState = {
     payload: null,
     isGenerating: false,
@@ -108,14 +121,26 @@
     startedAt: 0,
     lastDurationMs: null,
   };
+  const hydroCommandState = {
+    seq: 0,
+    pendingSignature: "",
+    confirmedSignature: "",
+    lastSentAt: 0,
+  };
   const resistanceState = {
     jobId: 0,
     controller: null,
+    isRunning: false,
+    isCurveRunning: false,
     input: null,
     result: null,
+    curve: null,
+    curveSignature: "",
     signature: "",
     computedAt: "",
     visualizationEnabled: false,
+    visualizationSeq: 0,
+    waveModelYawDeg: 0,
     marineSnapshot: null,
     location: null,
   };
@@ -132,7 +157,7 @@
   };
   let currentSidebarTab = "overview";
   const DRAWER_PREF_KEY = "fusionDrawerOpen.v20260410f";
-  const REPORT_CACHE_VERSION = "20260521b";
+  const REPORT_CACHE_VERSION = "20260528m";
   const MATERIAL_OVERRIDE_STORAGE_VERSION = "20260412g";
 
   function invalidateHydroReportState() {
@@ -183,6 +208,10 @@
     nylon: { slug: "nylon", label: "Nylon", density: 1150, supportsInfill: true },
     custom: { slug: "custom", label: "Custom", density: 1240, supportsInfill: true },
   };
+  const BUILTIN_MATERIAL_DENSITY = { ...MATERIAL_DENSITY };
+  const BUILTIN_MATERIAL_LIBRARY = Object.fromEntries(
+    Object.entries(MATERIAL_LIBRARY).map(([slug, entry]) => [slug, { ...entry }])
+  );
   const MATERIAL_PROFILES = [
     { slug: "steel", label: "Stål", density: 7850, patterns: [/\bsteel\b/i, /\bstål\b/i, /\bstainless\b/i, /\binox\b/i] },
     { slug: "aluminum", label: "Aluminium", density: 2700, patterns: [/\balum(?:inium|inum)?\b/i, /\balu\b/i] },
@@ -199,6 +228,191 @@
     { slug: "titanium", label: "Titan", density: 4500, patterns: [/\btitan(?:ium)?\b/i, /\bti-?6al-?4v\b/i] },
     { slug: "brass", label: "Messing", density: 8500, patterns: [/\bbrass\b/i, /\bmessing\b/i] },
   );
+  const MATERIAL_CATALOG_CANDIDATE_NAMES = [
+    "material-density-catalog.json",
+    "material-catalog.json",
+    "materials.json",
+    "density-map.json",
+    "hydro-materials.json",
+  ];
+  const MATERIAL_CATALOG_SAME_STEM_SUFFIXES = [
+    ".material-density-catalog.json",
+    ".material-catalog.json",
+    ".materials.json",
+    ".density-map.json",
+    ".hydro-materials.json",
+  ];
+  const GLOBAL_MATERIAL_CATALOG_CANDIDATE = "/assets/data/material-density-catalog.json";
+
+  function slugifyMaterialToken(value, fallback = "custom") {
+    const slug = String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return slug || fallback;
+  }
+
+  function normalizeCatalogMatchText(value) {
+    return String(value || "")
+      .replace(/[_/\\|]+/g, " ")
+      .replace(/[^a-zA-Z0-9.+:-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function normalizeCatalogMatchList(value) {
+    const raw = Array.isArray(value)
+      ? value
+      : typeof value === "string" || typeof value === "number"
+        ? [value]
+        : [];
+    return [...new Set(raw.map(normalizeCatalogMatchText).filter(Boolean))];
+  }
+
+  function normalizeCatalogMaterialEntries(rawMaterials) {
+    if (Array.isArray(rawMaterials)) return rawMaterials.slice();
+    if (rawMaterials && typeof rawMaterials === "object") {
+      return Object.entries(rawMaterials).map(([slug, entry]) => (
+        entry && typeof entry === "object"
+          ? { ...entry, slug: entry.slug || slug }
+          : { slug, label: slug, densityKgM3: entry }
+      ));
+    }
+    return [];
+  }
+
+  function normalizeCatalogRuleEntries(rawRules) {
+    if (Array.isArray(rawRules)) return rawRules.slice();
+    if (rawRules && typeof rawRules === "object") return Object.values(rawRules);
+    return [];
+  }
+
+  function buildCatalogMaterialDefinition(entry, index = 0) {
+    const densityKgM3 = normalizeDensityKgM3(entry?.densityKgM3 ?? entry?.density ?? entry?.rho ?? entry?.kgM3);
+    if (!Number.isFinite(densityKgM3)) return null;
+    const label = String(entry?.label || entry?.name || entry?.title || entry?.slug || `Material ${index + 1}`).trim();
+    const slug = slugifyMaterialToken(entry?.slug || entry?.id || entry?.key || label, `catalog-material-${index + 1}`);
+    const aliases = normalizeCatalogMatchList([
+      ...(Array.isArray(entry?.aliases) ? entry.aliases : []),
+      ...(Array.isArray(entry?.match) ? entry.match : (typeof entry?.match === "string" ? [entry.match] : [])),
+      entry?.name,
+      entry?.label,
+      entry?.slug,
+      entry?.id,
+      entry?.key,
+    ]);
+    const explicitSupportsInfill = entry?.supportsInfill;
+    const supportsInfill = explicitSupportsInfill === true
+      ? true
+      : explicitSupportsInfill === false
+        ? false
+        : /\b(pla|petg|abs|nylon|plastic|plast|polymer)\b/i.test(`${slug} ${label} ${aliases.join(" ")}`);
+    return {
+      slug,
+      label,
+      densityKgM3,
+      supportsInfill,
+      aliases,
+      note: String(entry?.note || "").trim(),
+    };
+  }
+
+  function buildCatalogComponentRule(entry, index = 0) {
+    if (!entry || typeof entry !== "object") return null;
+    const matchAny = normalizeCatalogMatchList(entry.matchAny ?? entry.match ?? entry.matches ?? entry.aliases ?? entry.names ?? entry.contains);
+    const matchAll = normalizeCatalogMatchList(entry.matchAll);
+    const excludeAny = normalizeCatalogMatchList(entry.excludeAny ?? entry.exclude);
+    const materialSlugRaw = String(entry.materialSlug || entry.material || entry.slug || "").trim();
+    const materialSlug = materialSlugRaw ? slugifyMaterialToken(materialSlugRaw, "") : "";
+    const densityKgM3 = normalizeDensityKgM3(entry?.densityKgM3 ?? entry?.density ?? entry?.rho ?? entry?.kgM3);
+    if (!(matchAny.length || matchAll.length)) return null;
+    if (!materialSlug && !Number.isFinite(densityKgM3)) return null;
+    return {
+      key: String(entry.key || `catalog-rule-${index + 1}`).trim() || `catalog-rule-${index + 1}`,
+      matchAny,
+      matchAll,
+      excludeAny,
+      materialSlug,
+      densityKgM3,
+      materialLabel: String(entry.materialLabel || entry.label || entry.name || "").trim(),
+      supportsInfill: entry.supportsInfill,
+      infillPercent: clampInfillPercent(entry.infillPercent, 100),
+      note: String(entry.note || "").trim(),
+      priority: Number.isFinite(Number(entry.priority)) ? Number(entry.priority) : 0,
+      specificity: matchAll.join(" ").length + matchAny.join(" ").length,
+    };
+  }
+
+  function clearMaterialCatalogRegistry() {
+    materialCatalogState.materialSlugs.forEach((slug) => {
+      if (Object.prototype.hasOwnProperty.call(BUILTIN_MATERIAL_LIBRARY, slug)) {
+        MATERIAL_LIBRARY[slug] = { ...BUILTIN_MATERIAL_LIBRARY[slug] };
+      } else {
+        delete MATERIAL_LIBRARY[slug];
+      }
+      if (Object.prototype.hasOwnProperty.call(BUILTIN_MATERIAL_DENSITY, slug)) {
+        MATERIAL_DENSITY[slug] = BUILTIN_MATERIAL_DENSITY[slug];
+      } else {
+        delete MATERIAL_DENSITY[slug];
+      }
+    });
+    materialCatalogState.materialSlugs.clear();
+    materialCatalogState.materials = new Map();
+    materialCatalogState.componentRules = [];
+    materialCatalogState.title = "";
+    materialCatalogState.sourceLabel = "";
+    materialCatalogState.url = "";
+    materialCatalogState.loaded = false;
+  }
+
+  function applyMaterialCatalogData(rawCatalog, url = "") {
+    clearMaterialCatalogRegistry();
+    const materials = normalizeCatalogMaterialEntries(rawCatalog?.materials).map(buildCatalogMaterialDefinition).filter(Boolean);
+    const materialMap = new Map();
+    materials.forEach((material) => {
+      materialMap.set(material.slug, material);
+      materialCatalogState.materialSlugs.add(material.slug);
+      MATERIAL_LIBRARY[material.slug] = {
+        slug: material.slug,
+        label: material.label,
+        density: material.densityKgM3,
+        supportsInfill: material.supportsInfill !== false,
+      };
+      MATERIAL_DENSITY[material.slug] = material.densityKgM3;
+    });
+    const componentRules = normalizeCatalogRuleEntries(rawCatalog?.componentRules || rawCatalog?.rules || rawCatalog?.components)
+      .map(buildCatalogComponentRule)
+      .filter(Boolean)
+      .sort((a, b) => b.priority - a.priority || b.specificity - a.specificity || a.key.localeCompare(b.key, "nb"));
+    materialCatalogState.materials = materialMap;
+    materialCatalogState.componentRules = componentRules;
+    materialCatalogState.url = String(url || "").trim();
+    materialCatalogState.title = String(rawCatalog?.title || rawCatalog?.name || basenameFromUrl(url) || "materialkatalog").trim();
+    materialCatalogState.sourceLabel = materialCatalogState.title || basenameFromUrl(url) || "materialkatalog";
+    materialCatalogState.loaded = materialMap.size > 0 || componentRules.length > 0;
+    return materialCatalogState.loaded;
+  }
+
+  function getCatalogMaterialProfile(text) {
+    const source = normalizeCatalogMatchText(text);
+    if (!source || !materialCatalogState.loaded || !materialCatalogState.materials.size) return null;
+    const padded = ` ${source} `;
+    for (const material of materialCatalogState.materials.values()) {
+      if ((material.aliases || []).some((alias) => alias && padded.includes(` ${alias} `))) {
+        return {
+          slug: material.slug,
+          label: material.label,
+          density: material.densityKgM3,
+          supportsInfill: material.supportsInfill !== false,
+          source: "material-catalog",
+          note: material.note || "",
+        };
+      }
+    }
+    return null;
+  }
   const CAD_EXT = new Set(["stl", "obj", "step", "stp", "iges", "igs", "3mf", "3fm", "f3d", "f3z", "fbm", "fm3", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm"]);
   const BAMBU_EXT = new Set(["stl", "3mf", "3fm", "obj"]);
   const inpRhoWater = document.getElementById("inpRhoWater");
@@ -270,9 +484,11 @@
   const resistanceMeta = document.getElementById("resistanceMeta");
   const resistanceStatus = document.getElementById("resistanceStatus");
   const btnResistanceRun = document.getElementById("btnResistanceRun");
+  const btnResistanceCurve = document.getElementById("btnResistanceCurve");
   const btnResistanceJson = document.getElementById("btnResistanceJson");
   const btnResistanceClose = document.getElementById("btnResistanceClose");
   const btnResistanceLocation = document.getElementById("btnResistanceLocation");
+  const btnResistanceWaveYaw = document.getElementById("btnResistanceWaveYaw");
   const resObjectMode = document.getElementById("resObjectMode");
   const resLocationQuery = document.getElementById("resLocationQuery");
   const resLocationResults = document.getElementById("resLocationResults");
@@ -284,12 +500,22 @@
   const resWaterDepth = document.getElementById("resWaterDepth");
   const resCurrentVelocity = document.getElementById("resCurrentVelocity");
   const resPanelSpan = document.getElementById("resPanelSpan");
+  const resPropCount = document.getElementById("resPropCount");
+  const resPropDiameter = document.getElementById("resPropDiameter");
+  const resWakeFraction = document.getElementById("resWakeFraction");
+  const resThrustDeduction = document.getElementById("resThrustDeduction");
+  const resExpandedAreaRatio = document.getElementById("resExpandedAreaRatio");
   const resPreviewToggle = document.getElementById("resPreviewToggle");
   const resTabResistance = document.getElementById("resTabResistance");
   const resTabScantling = document.getElementById("resTabScantling");
+  const resTabPropulsion = document.getElementById("resTabPropulsion");
   const resTabPreview = document.getElementById("resTabPreview");
   const txtKgMode = document.getElementById("txtKgMode");
   let hydroLabModulesPromise = null;
+  let marineLocationModulePromise = null;
+  let resistanceWorker = null;
+  let resistanceWorkerSeq = 0;
+  const resistanceWorkerCallbacks = new Map();
 
   if (!file) {
     headline.textContent = "Mangler ?file= parameter.";
@@ -318,6 +544,7 @@
   let resolvedStlCandidate = "";
   let resolvedStepCandidate = "";
   let resolvedPreviewCandidate = "";
+  let resolvedMaterialCatalogCandidate = "";
   let sourceFileSizeBytes = null;
 
   btnRaw.href = decodedFile;
@@ -441,6 +668,22 @@
       `${stem}.stl${suffix}`
     ];
   }
+  function sameStemMaterialCatalogCandidates(url) {
+    const cleanUrl = cleanUrlPath(url);
+    const match = cleanUrl.match(/^(.*?)(\.[^./?#]+)$/);
+    if (!match) return [];
+    const stem = match[1];
+    const suffix = String(url || "").slice(cleanUrl.length);
+    return MATERIAL_CATALOG_SAME_STEM_SUFFIXES.map((extName) => `${stem}${extName}${suffix}`);
+  }
+  function sameDirMaterialCatalogCandidates(url) {
+    const cleanUrl = cleanUrlPath(url);
+    const slash = cleanUrl.lastIndexOf("/");
+    const suffix = String(url || "").slice(cleanUrl.length);
+    if (slash < 0) return MATERIAL_CATALOG_CANDIDATE_NAMES.map((name) => `${name}${suffix}`);
+    const basePath = cleanUrl.slice(0, slash + 1);
+    return MATERIAL_CATALOG_CANDIDATE_NAMES.map((name) => `${basePath}${name}${suffix}`);
+  }
   function sameStemMeshPreviewCandidates(url) {
     return sameStemCandidates(url).filter((candidate) => MESH_PREVIEW_EXTS.has(fileExtFromUrl(candidate)));
   }
@@ -480,6 +723,9 @@
   function getActivePreviewCandidate() {
     return resolvedPreviewCandidate || "";
   }
+  function getActiveMaterialCatalogCandidate() {
+    return resolvedMaterialCatalogCandidate || "";
+  }
   function getActiveBambuCandidate() {
     const previewCandidate = getActivePreviewCandidate();
     if (BAMBU_EXT.has(fileExtFromUrl(previewCandidate))) return previewCandidate;
@@ -492,6 +738,26 @@
     return [...chosenSet]
       .map((token) => findComponentItem(token)?.key || "")
       .filter(Boolean);
+  }
+
+  function buildViewerStateTokenList(keys = []) {
+    const tokens = new Set();
+    (keys || []).forEach((key) => {
+      const item = findComponentItem(key);
+      if (item) {
+        getComponentMatchAliases(item).forEach((alias) => {
+          if (alias) tokens.add(alias);
+        });
+        const fallbackKey = normalizeComponentToken(item.key);
+        if (fallbackKey) tokens.add(fallbackKey);
+        const fallbackPath = normalizeComponentToken(item.nodePath);
+        if (fallbackPath) tokens.add(fallbackPath);
+        return;
+      }
+      const fallback = normalizeComponentToken(key);
+      if (fallback) tokens.add(fallback);
+    });
+    return [...tokens];
   }
 
   function normalizeExplodeScopeState() {
@@ -510,6 +776,37 @@
 
   function getSelectionScopeKeys() {
     return getEffectiveExplodeScope() === "selected" ? getResolvedChosenKeys() : [];
+  }
+
+  function syncExplodeScopeToSelectionView() {
+    const chosenKeys = getResolvedChosenKeys();
+    const hasPotentialExplode = viewerVisualState.explodeSupported || componentState.items.length > 1;
+    if (!hasPotentialExplode) {
+      viewerVisualState.explodeScope = "none";
+      selectionToolState.autoExplodeScope = false;
+      selectionToolState.explodeChosen = false;
+      return viewerVisualState.explodeScope;
+    }
+
+    if (selectionToolState.isolateChosen && chosenKeys.length) {
+      viewerVisualState.explodeScope = "selected";
+      selectionToolState.autoExplodeScope = true;
+      if ((viewerVisualState.explode || 0) <= 0.001) {
+        viewerVisualState.explode = 0.12;
+      }
+      return normalizeExplodeScopeState();
+    }
+
+    if (selectionToolState.autoExplodeScope) {
+      selectionToolState.autoExplodeScope = false;
+      viewerVisualState.explodeScope = (viewerVisualState.explode || 0) > 0.001 ? "all" : "none";
+    } else if (!chosenKeys.length && viewerVisualState.explodeScope === "selected") {
+      viewerVisualState.explodeScope = (viewerVisualState.explode || 0) > 0.001 ? "all" : "none";
+    } else if ((viewerVisualState.explode || 0) > 0.001 && viewerVisualState.explodeScope === "none") {
+      viewerVisualState.explodeScope = "all";
+    }
+
+    return normalizeExplodeScopeState();
   }
 
   function sameComponentKeySet(keys, wantedSet) {
@@ -749,6 +1046,73 @@
     } catch {}
     return getActiveStepCandidate();
   }
+  async function resolveSiblingMaterialCatalogCandidate() {
+    const directCandidates = [
+      ...sameStemMaterialCatalogCandidates(decodedFile),
+      ...sameDirMaterialCatalogCandidates(decodedFile),
+      GLOBAL_MATERIAL_CATALOG_CANDIDATE,
+    ];
+    const direct = await firstExistingCandidateByOrder(directCandidates);
+    if (direct) {
+      resolvedMaterialCatalogCandidate = direct;
+      return resolvedMaterialCatalogCandidate;
+    }
+
+    try {
+      const basePath = clean.replace(/[^\/]+$/, "");
+      if (!basePath) return getActiveMaterialCatalogCandidate();
+      const indexUrl = `${basePath}index.json`;
+      const data = await fetchJsonCached(indexUrl);
+      if (!data) return getActiveMaterialCatalogCandidate();
+      const siblingFiles = [];
+      Object.entries(data || {}).forEach(([, value]) => {
+        if (!value || !Array.isArray(value.files)) return;
+        const dirName = typeof value?.dir === "string" ? value.dir : "";
+        value.files.forEach((file) => {
+          if (typeof file !== "string" || !/\.json(?:$|[?#])/i.test(file)) return;
+          const lower = file.toLowerCase();
+          if (!MATERIAL_CATALOG_CANDIDATE_NAMES.some((name) => lower.endsWith(name))) return;
+          const fullUrl = buildIndexedEntryUrl(basePath, dirName, file);
+          if (fullUrl) siblingFiles.push(fullUrl);
+        });
+      });
+      const unique = [...new Set(siblingFiles)];
+      if (!unique.length) return getActiveMaterialCatalogCandidate();
+      const sourceStem = (fileName || "").replace(/\.[^.]+$/i, "").toLowerCase();
+      const ranked = unique.map((name) => ({
+        name,
+        score: candidateScore(name, sourceStem) + (/material|density|hydro/i.test(name) ? 20 : 0),
+      })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "nb"));
+      if (ranked[0]?.score > 0) resolvedMaterialCatalogCandidate = ranked[0].name;
+    } catch {}
+    return getActiveMaterialCatalogCandidate();
+  }
+
+  function refreshGlobalMaterialSelectOptions() {
+    if (!selMaterial) return;
+    const current = selMaterial.value || "steel";
+    selMaterial.innerHTML = buildMaterialSelectOptions(current);
+    selMaterial.value = current in MATERIAL_LIBRARY ? current : "custom";
+  }
+
+  async function loadAutoMaterialCatalog() {
+    const candidate = getActiveMaterialCatalogCandidate();
+    if (!candidate) return false;
+    const catalog = await fetchJsonCached(candidate);
+    if (!catalog || typeof catalog !== "object") return false;
+    const applied = applyMaterialCatalogData(catalog, candidate);
+    if (!applied) return false;
+    refreshGlobalMaterialSelectOptions();
+    updateHydroSourceText();
+    if (componentState.items.length) {
+      renderFilteredComponents();
+      if (componentCatalog.viewerItems.length) {
+        invalidateHydroReportState();
+        applyHydroControlsToViewer({ includeDraftPose: false, silentEstimate: true });
+      }
+    }
+    return true;
+  }
   async function resolveSiblingPreviewCandidate() {
     const probeCandidates = FUSION_ARCHIVE_EXTS.has(ext)
       ? sameStemMeshPreviewCandidates(decodedFile)
@@ -884,10 +1248,14 @@
   function postComponentStateToViewer() {
     try {
       if (!viewerFrame?.contentWindow) return;
+      const chosen = [...chosenSet];
+      const muted = [...mutedSet];
       viewerFrame.contentWindow.postMessage({
         type: "viewer-component-state",
-        chosen: [...chosenSet],
-        muted: [...mutedSet],
+        chosen,
+        muted,
+        chosenAliases: buildViewerStateTokenList(chosen),
+        mutedAliases: buildViewerStateTokenList(muted),
         isolateChosen: selectionToolState.isolateChosen,
       }, "*");
     } catch {}
@@ -956,22 +1324,17 @@
   function updateSelectionActionUi() {
     const chosenKeys = getResolvedChosenKeys();
     const hasChosen = chosenKeys.length > 0;
-    const hasPotentialExplode = viewerVisualState.explodeSupported || componentState.items.length > 1;
     if (!hasChosen) {
       selectionToolState.isolateChosen = false;
       selectionToolState.explodeChosen = false;
+      selectionToolState.autoExplodeScope = false;
     }
     if (btnComponentView) {
       btnComponentView.disabled = !hasChosen;
-      btnComponentView.textContent = selectionToolState.isolateChosen ? "Vis alle deler" : "Vis bare valgt";
+      btnComponentView.textContent = selectionToolState.isolateChosen ? "Vis hele modellen" : "Vis bare valgt";
       btnComponentView.title = selectionToolState.isolateChosen
         ? "Sl\u00e5 av isolering og vis hele modellen igjen."
-        : "Isoler valgte komponenter og skjul resten av modellen.";
-    }
-    if (btnSelectionExplode) {
-      btnSelectionExplode.disabled = !hasChosen || !hasPotentialExplode;
-      btnSelectionExplode.textContent = getEffectiveExplodeScope() === "selected" ? "Explode valgt p\u00e5" : "Explode valgt av";
-      btnSelectionExplode.title = "Bruk valgt komponent, gruppe eller familie som eget explode-scope.";
+        : "Vis bare de markerte delene og skjul resten av modellen.";
     }
     if (btnExportSelected) {
       btnExportSelected.disabled = !hasChosen;
@@ -1014,6 +1377,8 @@
 
   function loadIntegratedViewer() {
     if (!viewerFrame) return;
+    hydroCommandState.pendingSignature = "";
+    hydroCommandState.confirmedSignature = "";
     setHydroTaskState(true, "Laster 3D-viewer...", "Starter viewer og henter geometri/kandidater.");
     updateHydroProgressUi();
     if (viewerLoading) viewerLoading.classList.remove("is-hidden");
@@ -1026,6 +1391,9 @@
       postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode || 0 });
       postHydroVisibilityToViewer();
       applyHydroControlsToViewer({ includeDraftPose: true, silentEstimate: true });
+      if (resistanceState.visualizationEnabled) {
+        requestAnimationFrame(() => sendWavePreview(true));
+      }
     };
       viewerFrame.src = buildViewerTarget();
   }
@@ -1156,22 +1524,19 @@
   btnComponentView && (btnComponentView.onclick = () => {
     if (!getResolvedChosenKeys().length) return;
     selectionToolState.isolateChosen = !selectionToolState.isolateChosen;
-    postComponentStateToViewer();
-    postExplodeScopeToViewer();
-    updateSelectionActionUi();
+    renderChosenMuted();
   });
   btnSelectionExplode && (btnSelectionExplode.onclick = () => {
     if (!getResolvedChosenKeys().length || !viewerVisualState.explodeSupported) return;
+    selectionToolState.autoExplodeScope = false;
     viewerVisualState.explodeScope = getEffectiveExplodeScope() === "selected"
       ? ((viewerVisualState.explode || 0) > 0.001 ? "all" : "none")
       : "selected";
     if (viewerVisualState.explodeScope === "selected" && (viewerVisualState.explode || 0) <= 0.001) {
       viewerVisualState.explode = 0.12;
     }
-    updateExplodeUi();
-    postExplodeScopeToViewer();
+    renderChosenMuted();
     postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode });
-    updateSelectionActionUi();
   });
   btnExportSelected && (btnExportSelected.onclick = () => {
     requestSelectedExport("download");
@@ -1189,6 +1554,7 @@
     toolsCard.style.display = toolsCard.style.display === "none" ? "" : "none";
   });
   selExplodeScope?.addEventListener("change", () => {
+    selectionToolState.autoExplodeScope = false;
     viewerVisualState.explodeScope = selExplodeScope.value || "none";
     updateExplodeUi();
     postExplodeScopeToViewer();
@@ -1198,6 +1564,7 @@
   inpExplode?.addEventListener("input", () => {
     viewerVisualState.explode = Math.max(0, Math.min(1, Number(inpExplode.value) || 0));
     if ((viewerVisualState.explode || 0) > 0.001 && getEffectiveExplodeScope() === "none") {
+      selectionToolState.autoExplodeScope = false;
       viewerVisualState.explodeScope = "all";
     }
     updateExplodeUi();
@@ -1205,6 +1572,7 @@
     postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode });
   });
   btnExplodeReset?.addEventListener("click", () => {
+    selectionToolState.autoExplodeScope = false;
     viewerVisualState.explode = 0;
     viewerVisualState.explodeScope = "none";
     updateExplodeUi();
@@ -1237,7 +1605,17 @@
   btnHydroResetPose?.addEventListener("click", () => {
     if (inpHydroTrim) inpHydroTrim.value = "0";
     if (inpHydroHeel) inpHydroHeel.value = "0";
-    postViewerCommandToViewer("reset-hydro-pose", collectHydroCommandPayload({ includeDraftPose: true }));
+    const resetPayload = collectHydroCommandPayload({ includeDraftPose: true });
+    const resetSignature = buildHydroCommandSignature(resetPayload);
+    hydroCommandState.seq += 1;
+    hydroCommandState.pendingSignature = resetSignature;
+    hydroCommandState.confirmedSignature = "";
+    hydroCommandState.lastSentAt = Date.now();
+    postViewerCommandToViewer("reset-hydro-pose", {
+      ...resetPayload,
+      commandSeq: hydroCommandState.seq,
+      commandSignature: resetSignature,
+    });
     buildHydroReport();
   });
   btnHydroReport?.addEventListener("click", () => requestHydroReport());
@@ -1246,11 +1624,58 @@
   btnResistanceClose?.addEventListener("click", () => closeResistanceModal());
   resistanceModal?.querySelector("[data-close-resistance='1']")?.addEventListener("click", () => closeResistanceModal());
   btnResistanceRun?.addEventListener("click", () => void runResistanceEstimate());
+  btnResistanceCurve?.addEventListener("click", () => void runResistanceCurveEstimate());
   btnResistanceJson?.addEventListener("click", () => downloadResistanceJson());
   btnResistanceLocation?.addEventListener("click", () => void searchResistanceLocation());
-  resLocationResults?.addEventListener("change", () => void applySelectedResistanceLocation());
+  btnResistanceWaveYaw?.addEventListener("click", () => {
+    resistanceState.waveModelYawDeg = (Number(resistanceState.waveModelYawDeg) + 15) % 360;
+    if (btnResistanceWaveYaw) btnResistanceWaveYaw.textContent = `Roter modell ${Math.round(resistanceState.waveModelYawDeg)}°`;
+    if (resistanceState.visualizationEnabled) sendWavePreview(true);
+  });
+  resLocationQuery?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    void searchResistanceLocation();
+  });
+  resLocationResults?.addEventListener("change", () => void applySelectedResistanceLocation({ startNewJob: true }));
+  [
+    resObjectMode,
+    resSpeedKn,
+    resHeadingDeg,
+    resWaveHeight,
+    resWavePeriod,
+    resWaveDirection,
+    resWaterDepth,
+    resCurrentVelocity,
+    resPanelSpan,
+    resPropCount,
+    resPropDiameter,
+    resWakeFraction,
+    resThrustDeduction,
+    resExpandedAreaRatio,
+    selMaterial,
+    inpRhoWater,
+    inpRhoMat,
+    inpHydroDraft,
+    inpHydroTrim,
+    inpHydroHeel,
+    selHydroQuality,
+  ].forEach((input) => {
+    input?.addEventListener("input", () => {
+      updateResistanceRunState();
+      if (resistanceState.visualizationEnabled) sendWavePreview(true);
+    });
+    input?.addEventListener("change", () => {
+      updateResistanceRunState();
+      if (resistanceState.visualizationEnabled) sendWavePreview(true);
+    });
+  });
   resPreviewToggle?.addEventListener("change", () => {
     resistanceState.visualizationEnabled = resPreviewToggle.checked === true;
+    resistanceState.visualizationSeq += 1;
+    if (resistanceState.visualizationEnabled) {
+      void ensureDefaultResistanceLocation();
+    }
     sendWavePreview(resistanceState.visualizationEnabled);
   });
   resistanceModal?.querySelectorAll("[data-res-tab]")?.forEach((button) => {
@@ -1258,7 +1683,7 @@
   });
   chkHydroPerfMode?.addEventListener("change", () => {
     invalidateHydroReportState();
-    buildHydroReport();
+    applyHydroControlsToViewer({ includeDraftPose: true, silentEstimate: true });
     updateHydroProgressUi();
   });
   btnHydroReportClose?.addEventListener("click", () => closeHydroReportModal());
@@ -1419,6 +1844,7 @@
       label,
       subtitle: subtitleParts.join(" | "),
       description: String(item.description || "").trim(),
+      sourceLabel: String(item.sourceLabel || "").trim(),
       file: String(item.file || "").trim(),
       rootFileName: String(item.rootFileName || "").trim(),
       sourceName: String(item.sourceName || "").trim(),
@@ -1441,6 +1867,7 @@
         item.sourceName,
         item.nodePath,
         item.description,
+        item.sourceLabel,
         item.type,
         item.familyKey,
         ...aliases,
@@ -1550,7 +1977,9 @@
   function inferMaterialProfile(text) {
     const source = String(text || "");
     if (!source.trim()) return null;
-    return MATERIAL_PROFILES.find((profile) => profile.patterns.some((pattern) => pattern.test(source))) || null;
+    return getCatalogMaterialProfile(source)
+      || MATERIAL_PROFILES.find((profile) => profile.patterns.some((pattern) => pattern.test(source)))
+      || null;
   }
 
   function describeMaterialHint(hint) {
@@ -1700,6 +2129,32 @@
     } catch {
       return null;
     }
+  }
+
+  function buildStepComponentItems(step, sourceLabel = "STEP-kandidat") {
+    const names = uniqueTextValues(step?.productNames || []);
+    return names.map((name, index) => normalizeComponentItem({
+      key: `step::${index + 1}::${name}`,
+      label: name,
+      sourceName: sourceLabel,
+      sourceLabel,
+      description: `Navn hentet fra ${sourceLabel}`,
+    }, index));
+  }
+
+  function applyStepComponentHints(step, sourceLabel = "STEP-kandidat") {
+    const items = buildStepComponentItems(step, sourceLabel);
+    componentCatalog.stepItems = items;
+    if (!items.length) return;
+    componentState = {
+      ...componentState,
+      items: buildEffectiveComponentItems(),
+      mode: componentCatalog.viewerItems.length ? "mesh" : componentState.mode,
+      source: componentState.source || "metadata",
+    };
+    syncSelectionSetToCurrentItems(chosenSet);
+    syncSelectionSetToCurrentItems(mutedSet);
+    renderFilteredComponents();
   }
 
   function buildHydroReport() {
@@ -2621,12 +3076,19 @@
       ["Objekttype", "Fartoy, flytende"],
       ["Totalmotstand", fmtForce(resistance.totalResistanceN)],
       ["Effektbehov", fmtPowerKw(resistance.effectivePowerKw)],
+      ["Propulsjon", resistance.propulsion ? `${fmtPowerKw(resistance.propulsion.deliveredPowerKw)} / ${Math.round(resistance.propulsion.rpm || 0)} RPM` : "N/A"],
+      ["Friksjon / restmotstand", `${fmtForce(resistance.calmWater?.frictionResistanceN)} / ${fmtForce(resistance.calmWater?.residualResistanceN)}`],
+      ["Metode", resistance.calmWater?.method || "ITTC/Holtrop-lite konseptestimat"],
       ["Bolgecase", `${fmtUnitValue(input.waveHeightM, 2, "m")} / ${fmtUnitValue(input.wavePeriodS, 1, "s")}`],
       ["Platetykkelse", fmtUnitValue(scantling.plateThicknessMm, 1, "mm")],
       ["Beregnet", resistanceState.computedAt ? new Date(resistanceState.computedAt).toLocaleString("nb-NO") : "N/A"],
     ];
     const warningHtml = (match.warnings || []).length
       ? `<ul class="report-note-list">${match.warnings.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`
+      : "";
+    const curve = getMatchingResistanceCurve();
+    const curveHtml = curve?.points?.length
+      ? `<p class="muted" style="margin-top:10px;">Motstandskurve: ${curve.points.length} opt-in punkter 0-${Number(curve.maxKnots || 30).toFixed(0)} knop er tilgjengelig i JSON-export.</p>`
       : "";
     const html = `
       <div class="report-section-head">
@@ -2643,6 +3105,7 @@
           `).join("")}
         </tbody>
       </table>
+      ${curveHtml}
       ${warningHtml}
       <p class="muted" style="margin-top:10px;">Konseptestimat, ikke klassegodkjenning, CE, ISO eller DNV-beregning.</p>
     `;
@@ -2669,13 +3132,14 @@
   }
 
   function setResistanceTab(tab = "resistance") {
-    const normalized = ["resistance", "scantling", "preview"].includes(tab) ? tab : "resistance";
+    const normalized = ["resistance", "scantling", "propulsion", "preview"].includes(tab) ? tab : "resistance";
     resistanceModal?.querySelectorAll("[data-res-tab]")?.forEach((button) => {
       button.classList.toggle("active", button.getAttribute("data-res-tab") === normalized);
     });
     [
       ["resistance", resTabResistance],
       ["scantling", resTabScantling],
+      ["propulsion", resTabPropulsion],
       ["preview", resTabPreview],
     ].forEach(([key, panel]) => panel?.classList.toggle("active", key === normalized));
   }
@@ -2683,17 +3147,34 @@
   function openResistanceModal() {
     if (!resistanceModal) return;
     resistanceModal.hidden = false;
+    if (resLocationQuery && !String(resLocationQuery.value || "").trim()) {
+      resLocationQuery.value = "Trondheim";
+    }
     setResistanceTab("resistance");
+    if (resPreviewToggle) resPreviewToggle.checked = resistanceState.visualizationEnabled === true;
     renderResistanceResult();
+    updateResistanceRunState();
     if (resistanceState.visualizationEnabled) sendWavePreview(true);
   }
 
   function closeResistanceModal() {
     if (!resistanceModal) return;
     resistanceModal.hidden = true;
-    resistanceState.visualizationEnabled = false;
-    if (resPreviewToggle) resPreviewToggle.checked = false;
-    sendWavePreview(false);
+    if (resistanceState.visualizationEnabled) {
+      requestAnimationFrame(() => sendWavePreview(true));
+    }
+  }
+
+  async function ensureDefaultResistanceLocation() {
+    if (resistanceState.location || resistanceState.marineSnapshot) return;
+    if (resLocationQuery && !String(resLocationQuery.value || "").trim()) {
+      resLocationQuery.value = "Trondheim";
+    }
+    if (!String(resLocationQuery?.value || "").trim()) return;
+    try {
+      await searchResistanceLocation();
+      if (resistanceState.visualizationEnabled) sendWavePreview(true);
+    } catch {}
   }
 
   async function searchResistanceLocation() {
@@ -2706,11 +3187,16 @@
     resistanceState.controller?.abort?.();
     resistanceState.controller = new AbortController();
     try {
+      if (btnResistanceLocation) {
+        btnResistanceLocation.disabled = true;
+        btnResistanceLocation.textContent = "Henter...";
+      }
       setResistanceStatus("Henter lokasjoner...");
-      const { marine } = await getHydroLabModules();
-      const places = await marine.searchLocation(query);
+      const marine = await getMarineLocationModule();
+      const places = await marine.searchLocation(query, { signal: resistanceState.controller.signal });
       if (jobId !== resistanceState.jobId) return;
       if (!places.length) {
+        if (resLocationResults) resLocationResults.hidden = true;
         setResistanceStatus("Fant ingen lokasjoner. Bruk manuell bolgeinput.", true);
         return;
       }
@@ -2719,53 +3205,96 @@
         resLocationResults.innerHTML = places.map((place, index) => `
           <option value="${index}">${escapeHtml(place.name)} (${Number(place.latitude).toFixed(3)}, ${Number(place.longitude).toFixed(3)})</option>
         `).join("");
+        resLocationResults.value = "0";
         resLocationResults._places = places;
       }
       setResistanceStatus("Velg lokasjon fra listen, eller behold forste treff.");
-      await applySelectedResistanceLocation();
+      await applySelectedResistanceLocation({ jobId });
     } catch (err) {
-      if (err?.name === "AbortError") return;
+      if (err?.name === "AbortError") {
+        if (btnResistanceLocation && jobId === resistanceState.jobId) {
+          btnResistanceLocation.disabled = false;
+          btnResistanceLocation.textContent = "Hent";
+        }
+        return;
+      }
       setResistanceStatus(`Kunne ikke hente lokasjon: ${err?.message || err}`, true);
+    } finally {
+      if (btnResistanceLocation && jobId === resistanceState.jobId) {
+        btnResistanceLocation.disabled = false;
+        btnResistanceLocation.textContent = "Hent";
+      }
     }
   }
 
-  async function applySelectedResistanceLocation() {
+  async function applySelectedResistanceLocation({ jobId = null, startNewJob = false } = {}) {
     const places = resLocationResults?._places || [];
     const index = Number(resLocationResults?.value || 0);
     const place = places[index] || places[0];
     if (!place) return;
-    const jobId = resistanceState.jobId;
+    const activeJobId = startNewJob || jobId == null ? ++resistanceState.jobId : jobId;
+    if (startNewJob || jobId == null) {
+      resistanceState.controller?.abort?.();
+      resistanceState.controller = new AbortController();
+    }
     try {
       setResistanceStatus("Henter bolgedata fra Open-Meteo...");
-      const { marine } = await getHydroLabModules();
-      const snapshot = await marine.fetchMarineSnapshot(place);
-      if (jobId !== resistanceState.jobId) return;
+      const marine = await getMarineLocationModule();
+      const snapshot = await marine.fetchMarineSnapshot(place, { signal: resistanceState.controller?.signal });
+      if (activeJobId !== resistanceState.jobId) return;
       resistanceState.location = place;
       resistanceState.marineSnapshot = snapshot;
       if (Number.isFinite(snapshot.waveHeightM) && resWaveHeight) resWaveHeight.value = String(snapshot.waveHeightM);
       if (Number.isFinite(snapshot.wavePeriodS) && resWavePeriod) resWavePeriod.value = String(snapshot.wavePeriodS);
       if (Number.isFinite(snapshot.waveDirectionDeg) && resWaveDirection) resWaveDirection.value = String(snapshot.waveDirectionDeg);
       if (Number.isFinite(snapshot.currentVelocityKmh) && resCurrentVelocity) resCurrentVelocity.value = String((snapshot.currentVelocityKmh / 3.6).toFixed(2));
-      setResistanceStatus(`Bolgedata hentet for ${place.name}. Kjor beregning nar du vil.`);
+      const seaNote = snapshot.dataPointDistanceKm > 2 ? ` Sjøpunkt ${snapshot.dataPointDistanceKm.toFixed(1)} km fra valgt lokasjon.` : "";
+      setResistanceStatus(`Bolgedata hentet for ${place.name}.${seaNote} Kjor beregning nar du vil.`);
+      updateResistanceRunState();
     } catch (err) {
+      if (err?.name === "AbortError") return;
       setResistanceStatus(`Kunne ikke hente bolgedata: ${err?.message || err}. Bruk manuell input.`, true);
     }
   }
 
   async function runResistanceEstimate() {
+    const input = collectResistanceInput();
+    const signature = buildResistanceSignature(input);
+    if (resistanceState.result && resistanceState.signature === signature) {
+      resistanceState.input = input;
+      renderResistanceResult();
+      setResistanceStatus("Motstand er allerede beregnet for uendret modell/state. Endre fart, bolger, materiale, draft/trim/heel eller objekttype for a kjore pa nytt.");
+      if (resPreviewToggle?.checked) {
+        resistanceState.visualizationEnabled = true;
+        sendWavePreview(true);
+      }
+      updateResistanceRunState();
+      return;
+    }
     const jobId = ++resistanceState.jobId;
     resistanceState.controller?.abort?.();
     resistanceState.controller = new AbortController();
+    resistanceState.isRunning = true;
     const startedAt = performance.now();
     try {
       setResistanceStatus("Beregner motstand og dimensjonering...");
-      if (btnResistanceRun) btnResistanceRun.disabled = true;
-      const { estimator } = await getHydroLabModules();
+      if (btnResistanceRun) {
+        btnResistanceRun.disabled = true;
+        btnResistanceRun.textContent = "Beregner...";
+      }
       if (jobId !== resistanceState.jobId) return;
-      const input = collectResistanceInput();
-      const signature = buildResistanceSignature(input);
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      const result = estimator.estimateResistanceCase(input);
+      let result = null;
+      try {
+        result = await runResistanceWorkerTask("estimate-resistance", { input }, { signal: resistanceState.controller.signal });
+      } catch (workerErr) {
+        if (workerErr?.name === "AbortError") throw workerErr;
+        console.warn("Resistance worker unavailable, falling back to main thread", workerErr);
+      }
+      if (!result) {
+        const { estimator } = await getHydroLabModules();
+        result = estimator.estimateResistanceCase(input);
+      }
       if (jobId !== resistanceState.jobId) return;
       resistanceState.input = input;
       resistanceState.result = { ...result, signature };
@@ -2779,9 +3308,76 @@
         sendWavePreview(true);
       }
     } catch (err) {
+      if (err?.name === "AbortError" || jobId !== resistanceState.jobId) return;
       setResistanceStatus(`Motstand feilet: ${err?.message || err}`, true);
     } finally {
-      if (btnResistanceRun) btnResistanceRun.disabled = false;
+      if (jobId === resistanceState.jobId) resistanceState.isRunning = false;
+      updateResistanceRunState();
+    }
+  }
+
+  async function runResistanceCurveEstimate() {
+    const input = collectResistanceInput();
+    const signature = `${buildResistanceSignature(input)}::curve:0-30:1`;
+    if (resistanceState.curve && resistanceState.curveSignature === signature) {
+      renderResistanceResult();
+      setResistanceStatus("Motstandskurven er allerede beregnet for uendret state.");
+      return;
+    }
+    const jobId = ++resistanceState.jobId;
+    resistanceState.controller?.abort?.();
+    resistanceState.controller = new AbortController();
+    resistanceState.isCurveRunning = true;
+    try {
+      setResistanceStatus("Beregner motstandskurve 0-30 knop i worker...");
+      updateResistanceRunState();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      let curve = null;
+      try {
+        curve = await runResistanceWorkerTask("estimate-resistance-curve", {
+          input,
+          maxKnots: 30,
+          stepKnots: 1,
+        }, { signal: resistanceState.controller.signal });
+      } catch (workerErr) {
+        if (workerErr?.name === "AbortError") throw workerErr;
+        console.warn("Resistance curve worker unavailable, falling back to main thread", workerErr);
+      }
+      if (!curve) {
+        const { estimator } = await getHydroLabModules();
+        const points = [];
+        for (let speedKn = 0; speedKn <= 30; speedKn += 1) {
+          if (speedKn > 0 && speedKn % 5 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
+          const result = estimator.estimateResistanceCase({ ...input, shipSpeedMs: knotsToMs(speedKn) });
+          points.push({
+            speedKn,
+            shipSpeedMs: knotsToMs(speedKn),
+            totalResistanceN: result?.resistance?.totalResistanceN ?? null,
+            effectivePowerKw: result?.resistance?.effectivePowerKw ?? null,
+            deliveredPowerKw: result?.resistance?.propulsion?.deliveredPowerKw ?? null,
+            rpm: result?.resistance?.propulsion?.rpm ?? null,
+            frictionResistanceN: result?.resistance?.calmWater?.frictionResistanceN ?? null,
+            residualResistanceN: result?.resistance?.calmWater?.residualResistanceN ?? null,
+            addedResistanceN: result?.resistance?.added?.addedResistanceN ?? null,
+            froude: result?.resistance?.calmWater?.froude ?? null,
+            quality: result?.quality || null,
+            warnings: result?.warnings || [],
+          });
+        }
+        curve = { points, maxKnots: 30, stepKnots: 1, computedAt: new Date().toISOString() };
+      }
+      if (jobId !== resistanceState.jobId) return;
+      resistanceState.input = input;
+      resistanceState.curve = curve;
+      resistanceState.curveSignature = signature;
+      renderResistanceResult();
+      setResistanceStatus(`Motstandskurve klar med ${curve.points?.length || 0} punkter. Den ble kjort opt-in og pavirker ikke hydro-recalc.`);
+    } catch (err) {
+      if (err?.name === "AbortError" || jobId !== resistanceState.jobId) return;
+      setResistanceStatus(`Motstandskurve feilet: ${err?.message || err}`, true);
+    } finally {
+      if (jobId === resistanceState.jobId) resistanceState.isCurveRunning = false;
+      updateResistanceRunState();
     }
   }
 
@@ -2790,6 +3386,7 @@
     const blob = new Blob([JSON.stringify({
       input: resistanceState.input,
       result: resistanceState.result,
+      curve: getMatchingResistanceCurve(),
       computedAt: resistanceState.computedAt,
       location: resistanceState.location,
     }, null, 2)], { type: "application/json" });
@@ -2861,13 +3458,29 @@
 
   function downloadHydroReportJson() {
     if (!reportState.payload) return;
-    const blob = new Blob([JSON.stringify(reportState.payload, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(buildHydroReportExportPayload(reportState.payload), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `${(displayFileName || fileName || "hydro").replace(/\.[^.]+$/i, "")}-hydro.json`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  function buildHydroReportExportPayload(payload) {
+    const match = getMatchingResistanceResult();
+    if (!payload || !match) return payload;
+    return {
+      ...payload,
+      resistanceReport: {
+        computedAt: resistanceState.computedAt,
+        input: resistanceState.input,
+        location: resistanceState.location,
+        result: match,
+        curve: getMatchingResistanceCurve(),
+        note: "Motstand er inkludert fordi et matchende opt-in resultat allerede fantes. Hydro-rapporten startet ikke ny Motstand-beregning.",
+      },
+    };
   }
 
   function collectHydroCommandPayload({ includeDraftPose = true } = {}) {
@@ -2877,6 +3490,7 @@
       quality: selHydroQuality?.value || "low",
       performanceMode: chkHydroPerfMode?.checked === true,
       componentDensityOverrides: buildComponentDensityOverridePayload(),
+      componentDensityCatalog: buildComponentDensityCatalogPayload(),
     };
     if (includeDraftPose) {
       const draftZWorld = safeNumber(inpHydroDraft?.value);
@@ -2887,6 +3501,23 @@
       if (Number.isFinite(heel)) payload.heel = heel;
     }
     return payload;
+  }
+
+  function buildHydroCommandSignature(payload = {}) {
+    const normalizeNumber = (value, digits = 4) => (
+      Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : ""
+    );
+    return JSON.stringify({
+      waterDensity: normalizeNumber(payload.waterDensity, 2),
+      materialDensity: normalizeNumber(payload.materialDensity, 2),
+      quality: payload.quality || "low",
+      performanceMode: payload.performanceMode === true,
+      draftZWorld: normalizeNumber(payload.draftZWorld, 4),
+      trim: normalizeNumber(payload.trim, 4),
+      heel: normalizeNumber(payload.heel, 4),
+      componentDensityOverrides: payload.componentDensityOverrides || {},
+      componentDensityCatalog: payload.componentDensityCatalog || {},
+    });
   }
 
   function buildHydroReportRequestKey() {
@@ -2919,9 +3550,24 @@
   }
 
   function applyHydroControlsToViewer({ includeDraftPose = true, silentEstimate = false } = {}) {
+    const payload = collectHydroCommandPayload({ includeDraftPose });
+    const signature = buildHydroCommandSignature(payload);
+    const recentlySent = hydroCommandState.pendingSignature === signature && (Date.now() - hydroCommandState.lastSentAt) < 2000;
+    if (recentlySent || hydroCommandState.confirmedSignature === signature) {
+      if (!silentEstimate) buildHydroReport();
+      updateHydroProgressUi();
+      return;
+    }
+    hydroCommandState.seq += 1;
+    hydroCommandState.pendingSignature = signature;
+    hydroCommandState.lastSentAt = Date.now();
     setHydroTaskState(true, "Oppdaterer hydrostatikk...", "Bruker aktiv draft, trim og heel fra modellen.");
     postHydroVisibilityToViewer();
-    postViewerCommandToViewer("set-hydro-state", collectHydroCommandPayload({ includeDraftPose }));
+    postViewerCommandToViewer("set-hydro-state", {
+      ...payload,
+      commandSeq: hydroCommandState.seq,
+      commandSignature: signature,
+    });
     if (!silentEstimate) buildHydroReport();
     updateHydroProgressUi();
   }
@@ -2996,7 +3642,15 @@
       const materialText = analysisState.materialHint
         ? `Materialhint: ${describeMaterialHint(analysisState.materialHint)}${analysisState.materialHintSource ? ` (${analysisState.materialHintSource})` : ""}.${analysisState.materialHint.defaultedFromProfile ? " Standardprofil fra materialnavn brukes til du eventuelt overstyrer tettheten." : ""}`
         : "Materiale: bruker valgt tetthet i panelet.";
-      hydroMaterialHint.textContent = `${materialText} Massegrunnlag: ${massSummary.detail}`;
+      const sourceHint = FUSION_ARCHIVE_EXTS.has(ext)
+        ? " For F3D/F3Z brukes innebygd 3MF-materialdata når den finnes; ellers faller systemet tilbake til STEP-kandidat eller manuell overstyring."
+        : getActiveStepCandidate()
+          ? " STEP-kandidat brukes som navn-, gruppe-, material- og enhetshint der den finnes."
+          : "";
+      const catalogHint = materialCatalogState.loaded
+        ? ` Forhåndslastet materialliste: ${materialCatalogState.sourceLabel || basenameFromUrl(materialCatalogState.url)}.`
+        : "";
+      hydroMaterialHint.textContent = `${materialText}${sourceHint}${catalogHint} Massegrunnlag: ${massSummary.detail}`;
     }
     if (txtKgMode) {
       txtKgMode.textContent = massSummary.title === "Masse ikke fullt bestemt"
@@ -3009,6 +3663,7 @@
   const componentCatalog = {
     viewerItems: [],
     metadataItems: [],
+    stepItems: [],
   };
   const componentMaterialOverrides = new Map();
   restoreMaterialOverrideState();
@@ -3074,14 +3729,68 @@
     return (safeNumber(value) || 0) * 0.514444;
   }
 
+  function getResistanceWorker() {
+    if (!resistanceWorker && typeof Worker === "function") {
+      try {
+        resistanceWorker = new Worker("/includes/three/ResistanceWorker.js?v=20260527a", { type: "module" });
+        resistanceWorker.addEventListener("message", (event) => {
+          const data = event?.data || {};
+          const callback = resistanceWorkerCallbacks.get(data.id);
+          if (!callback) return;
+          resistanceWorkerCallbacks.delete(data.id);
+          if (data.ok) callback.resolve(data.result);
+          else callback.reject(new Error(data.error?.message || "Resistance worker failed"));
+        });
+        resistanceWorker.addEventListener("error", (event) => {
+          for (const callback of resistanceWorkerCallbacks.values()) {
+            callback.reject(new Error(event?.message || "Resistance worker unavailable"));
+          }
+          resistanceWorkerCallbacks.clear();
+          resistanceWorker?.terminate?.();
+          resistanceWorker = null;
+        });
+      } catch {
+        resistanceWorker = null;
+      }
+    }
+    return resistanceWorker;
+  }
+
+  async function runResistanceWorkerTask(type, payload, { signal = null } = {}) {
+    const worker = getResistanceWorker();
+    if (!worker) return null;
+    const id = `resistance-worker-${++resistanceWorkerSeq}`;
+    const promise = new Promise((resolve, reject) => {
+      resistanceWorkerCallbacks.set(id, { resolve, reject });
+    });
+    const abort = () => {
+      const callback = resistanceWorkerCallbacks.get(id);
+      if (!callback) return;
+      resistanceWorkerCallbacks.delete(id);
+      callback.reject(new DOMException("Resistance worker task aborted", "AbortError"));
+    };
+    signal?.addEventListener?.("abort", abort, { once: true });
+    worker.postMessage({ id, type, payload });
+    try {
+      return await promise;
+    } finally {
+      signal?.removeEventListener?.("abort", abort);
+    }
+  }
+
   function getHydroLabModules() {
     if (!hydroLabModulesPromise) {
-      hydroLabModulesPromise = Promise.all([
-        import("/includes/three/hydro-lab/HydroAdvancedEstimator.js"),
-        import("/includes/three/hydro-lab/MarineLocationApi.js"),
-      ]).then(([estimator, marine]) => ({ estimator, marine }));
+      hydroLabModulesPromise = import("/includes/three/hydro-lab/HydroAdvancedEstimator.js")
+        .then((estimator) => ({ estimator }));
     }
     return hydroLabModulesPromise;
+  }
+
+  function getMarineLocationModule() {
+    if (!marineLocationModulePromise) {
+      marineLocationModulePromise = import("/includes/three/hydro-lab/MarineLocationApi.js");
+    }
+    return marineLocationModulePromise;
   }
 
   function buildExtraDetailsHtml(lines = []) {
@@ -3132,6 +3841,8 @@
     if (source === "override-item") return "manuell komponentoverstyring";
     if (source === "override-group") return "manuell gruppeoverstyring";
     if (source === "override-family") return "manuell familieoverstyring";
+    if (source === "catalog-component") return "forhåndsliste per komponent";
+    if (source === "catalog-material") return "forhåndsliste per materialnavn";
     if (source === "component-density") return "eksplisitt komponenttetthet";
     if (source === "component-material-hint") return "komponenthint";
     if (source === "uniform-panel") return "lik tetthet fra hydro-panelet";
@@ -3248,10 +3959,18 @@
       hydroTaskState.stageIndex = null;
       hydroTaskState.stageCount = null;
     }
+    updateHydroProgressUi();
+  }
+
+  function setViewerCornerLoader(visible, title = "", text = "") {
+    if (!viewerCornerLoader) return;
+    viewerCornerLoader.dataset.visible = visible ? "true" : "false";
+    viewerCornerLoader.hidden = false;
+    if (viewerCornerTitle) viewerCornerTitle.textContent = title || "Hydro jobber...";
+    if (viewerCornerText) viewerCornerText.textContent = text || (visible ? "Arbeider i bakgrunnen..." : "");
   }
 
   function updateHydroProgressUi(snapshot = getActiveHydroSnapshot()) {
-    if (!hydroProgress) return;
     let active = false;
     let title = "";
     let text = "";
@@ -3270,13 +3989,17 @@
       text = hydroTaskState.text || "Bruker aktiv draft, trim og heel fra modellen.";
     }
 
+    const stageLabel = hydroTaskState.progressMode === "phase" && Number.isFinite(hydroTaskState.stageIndex) && Number.isFinite(hydroTaskState.stageCount)
+      ? ` Steg ${hydroTaskState.stageIndex}/${hydroTaskState.stageCount}.`
+      : "";
+    const fullText = `${text}${stageLabel}`.trim();
+    setViewerCornerLoader(active, title, fullText);
+
+    if (!hydroProgress) return;
     hydroProgress.hidden = !active;
     if (active) {
       if (hydroProgressTitle) hydroProgressTitle.textContent = title;
-      const stageLabel = hydroTaskState.progressMode === "phase" && Number.isFinite(hydroTaskState.stageIndex) && Number.isFinite(hydroTaskState.stageCount)
-        ? ` Steg ${hydroTaskState.stageIndex}/${hydroTaskState.stageCount}.`
-        : "";
-      if (hydroProgressText) hydroProgressText.textContent = `${text}${stageLabel}`.trim();
+      if (hydroProgressText) hydroProgressText.textContent = fullText;
       if (hydroProgressBar) {
         hydroProgressBar.style.removeProperty("width");
         hydroProgressBar.style.removeProperty("inset");
@@ -3432,7 +4155,7 @@
 
     const notes = [];
     if (!Number.isFinite(typedDraftRaw)) notes.push("Draft faller tilbake til world Z = 0 til viewer er synket.");
-    if (getActiveStepCandidate()) notes.push("STEP-kandidat brukes som material-/enhetshint der det finnes.");
+    if (getActiveStepCandidate()) notes.push("STEP-kandidat brukes som navn-, gruppe-, material- og enhetshint der det finnes.");
     if (Number.isFinite(viewerMass?.totalMassTonnes)) {
       notes.push("Masse/CG er kombinert fra komponentmesh og materialtetthet.");
     } else if (!solidVolumeM3) {
@@ -3548,6 +4271,7 @@
       volumeM3: safeNumber(hydro.submergedVolume ?? hydro.volumeM3),
       displacementKg,
       wettedAreaM2,
+      blockCoefficient: safeNumber(hydro.blockCoefficient ?? hydro.cbCoefficient ?? hydro.cb),
       waterDensityKgM3: safeNumber(hydro.waterDensity ?? inpRhoWater?.value) || 1025,
       materialSlug,
       materialDensityKgM3: safeNumber(massProps.densityKgM3 ?? inpRhoMat?.value) || null,
@@ -3559,6 +4283,12 @@
       waterDepthM: Math.max(0.5, safeNumber(resWaterDepth?.value) ?? 30),
       currentVelocityMs: Math.max(0, safeNumber(resCurrentVelocity?.value) ?? 0),
       panelSpanM: safeNumber(resPanelSpan?.value),
+      propellerCount: Math.max(1, Math.round(safeNumber(resPropCount?.value) ?? 1)),
+      propellerDiameterM: safeNumber(resPropDiameter?.value),
+      wakeFraction: clampNumber(resWakeFraction?.value, 0, 0.7, 0.2),
+      thrustDeduction: clampNumber(resThrustDeduction?.value, 0, 0.7, 0.12),
+      relativeRotativeEfficiency: 1,
+      expandedAreaRatio: clampNumber(resExpandedAreaRatio?.value, 0.25, 1.2, 0.55),
       location: resistanceState.location,
       marineSnapshot: resistanceState.marineSnapshot,
     };
@@ -3584,13 +4314,71 @@
         currentVelocityMs: Number(src.currentVelocityMs || 0).toFixed(3),
         panelSpanM: Number(src.panelSpanM || 0).toFixed(3),
         materialSlug: src.materialSlug,
+        materialDensityKgM3: Number(src.materialDensityKgM3 || 0).toFixed(2),
+        waterDensityKgM3: Number(src.waterDensityKgM3 || 0).toFixed(2),
+        blockCoefficient: Number(src.blockCoefficient || 0).toFixed(4),
+        propellerCount: Number(src.propellerCount || 1),
+        propellerDiameterM: Number(src.propellerDiameterM || 0).toFixed(3),
+        wakeFraction: Number(src.wakeFraction || 0).toFixed(3),
+        thrustDeduction: Number(src.thrustDeduction || 0).toFixed(3),
+        expandedAreaRatio: Number(src.expandedAreaRatio || 0).toFixed(3),
+        locationName: src.location?.name || "",
+        locationLat: Number(src.location?.latitude || 0).toFixed(4),
+        locationLon: Number(src.location?.longitude || 0).toFixed(4),
+        marineTime: src.marineSnapshot?.time || "",
       },
     });
   }
 
   function getMatchingResistanceResult() {
     if (!resistanceState.result || !resistanceState.signature || !resistanceState.input) return null;
-    return resistanceState.signature === buildResistanceSignature(resistanceState.input) ? resistanceState.result : null;
+    return resistanceState.signature === buildResistanceSignature(collectResistanceInput()) ? resistanceState.result : null;
+  }
+
+  function hasFreshResistanceResultForCurrentInput() {
+    if (!resistanceState.result || !resistanceState.signature) return false;
+    return resistanceState.signature === buildResistanceSignature(collectResistanceInput());
+  }
+
+  function getMatchingResistanceCurve() {
+    if (!resistanceState.curve || !resistanceState.curveSignature) return null;
+    return resistanceState.curveSignature === `${buildResistanceSignature(collectResistanceInput())}::curve:0-30:1`
+      ? resistanceState.curve
+      : null;
+  }
+
+  function updateResistanceRunState() {
+    if (resistanceState.isRunning) {
+      if (btnResistanceRun) {
+        btnResistanceRun.disabled = true;
+        btnResistanceRun.textContent = "Beregner...";
+      }
+      if (btnResistanceCurve) btnResistanceCurve.disabled = true;
+      return;
+    }
+    if (resistanceState.isCurveRunning) {
+      if (btnResistanceRun) btnResistanceRun.disabled = true;
+      if (btnResistanceCurve) {
+        btnResistanceCurve.disabled = true;
+        btnResistanceCurve.textContent = "Kurve...";
+      }
+      return;
+    }
+    const isFresh = hasFreshResistanceResultForCurrentInput();
+    if (btnResistanceRun) {
+      btnResistanceRun.disabled = isFresh;
+      btnResistanceRun.textContent = isFresh ? "Allerede beregnet" : "Beregn motstand";
+    }
+    if (btnResistanceCurve) {
+      const curveFresh = !!getMatchingResistanceCurve();
+      btnResistanceCurve.disabled = resistanceState.isCurveRunning || curveFresh;
+      btnResistanceCurve.textContent = resistanceState.isCurveRunning ? "Kurve..." : curveFresh ? "Kurve klar" : "Kjor kurve";
+    }
+    if (resistanceMeta && resistanceState.result && resistanceState.input) {
+      const modeLabel = resistanceState.input.objectMode === "fixed" ? "bunnlåst konstruksjon" : "fartoy";
+      const freshText = getMatchingResistanceResult() ? "gyldig for aktiv state" : "utdatert - endringer krever ny kjøring";
+      resistanceMeta.textContent = `Sist beregnet ${resistanceState.computedAt ? new Date(resistanceState.computedAt).toLocaleString("nb-NO") : "na"} | ${modeLabel} | ${freshText}`;
+    }
   }
 
   function setResistanceStatus(text, isError = false) {
@@ -3614,13 +4402,56 @@
     `;
   }
 
+  function renderResistanceCurveSummary(target) {
+    if (!target) return;
+    const curve = getMatchingResistanceCurve();
+    if (!curve?.points?.length) {
+      target.insertAdjacentHTML("beforeend", `
+        <div class="resistance-curve-summary muted">
+          Motstandskurve er ikke kjort for aktiv state. Bruk <strong>Kjor kurve</strong> for 0-30 knop opt-in.
+        </div>
+      `);
+      return;
+    }
+    const usable = curve.points.filter((point) => Number.isFinite(point.totalResistanceN));
+    const peakPower = usable.reduce((best, point) => (
+      Number(point.effectivePowerKw || 0) > Number(best?.effectivePowerKw || -Infinity) ? point : best
+    ), null);
+    const rows = usable
+      .filter((point) => [0, 5, 10, 15, 20, 25, 30].includes(Math.round(point.speedKn)))
+      .map((point) => `
+        <tr>
+          <th>${Number(point.speedKn).toFixed(0)} kn</th>
+          <td>${escapeHtml(fmtForce(point.totalResistanceN))}</td>
+          <td>${escapeHtml(fmtPowerKw(point.deliveredPowerKw ?? point.effectivePowerKw))}</td>
+          <td>${Number.isFinite(point.rpm) ? Math.round(point.rpm) : "N/A"}</td>
+          <td>${Number.isFinite(point.froude) ? point.froude.toFixed(3) : "N/A"}</td>
+        </tr>
+      `).join("");
+    target.insertAdjacentHTML("beforeend", `
+      <div class="resistance-curve-summary">
+        <h3>Motstandskurve 0-30 knop</h3>
+        <p class="muted">
+          ${usable.length} punkter beregnet opt-in${peakPower ? `, maks effektiv effekt ${escapeHtml(fmtPowerKw(peakPower.effectivePowerKw))} ved ${Number(peakPower.speedKn).toFixed(0)} kn` : ""}.
+        </p>
+        <table class="mini-table">
+          <thead><tr><th>Fart</th><th>Motstand</th><th>Effekt</th><th>RPM</th><th>Fn</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `);
+  }
+
   function renderResistanceResult() {
     const result = resistanceState.result;
     const input = resistanceState.input;
     if (!result || !input) {
       renderResistanceCards(resTabResistance, [{ label: "Status", value: "Ikke beregnet", note: "Motstand kjores manuelt og legges bare i rapporten etterpa." }]);
+      renderResistanceCurveSummary(resTabResistance);
       renderResistanceCards(resTabScantling, [{ label: "Dimensjonering", value: "Ikke beregnet", note: "Kjor Motstand for a lage estimert dimensjonering." }]);
+      renderResistanceCards(resTabPropulsion, [{ label: "Propulsjon", value: "Ikke beregnet", note: "Kjor Motstand for KT/J^2, RPM, effekt og kavitasjonsindikator." }]);
       renderResistanceCards(resTabPreview, [{ label: "Preview", value: "Av", note: "Bolgepreview bruker samme tall etter beregning." }]);
+      updateResistanceRunState();
       return;
     }
     const resistance = result.resistance || {};
@@ -3636,15 +4467,28 @@
     ] : [
       { label: "Totalmotstand", value: fmtForce(resistance.totalResistanceN), note: "Roligvann + grov added resistance." },
       { label: "Effektbehov", value: fmtPowerKw(resistance.effectivePowerKw), note: `${Number(resSpeedKn?.value || 0).toFixed(1)} knop effektiv effekt uten propulsjonstap.` },
-      { label: "Froude", value: Number.isFinite(resistance.added?.froude) ? resistance.added.froude.toFixed(3) : "N/A", note: "Brukes som hastighetsindikator i estimatet." },
+      { label: "Friksjon / rest", value: `${fmtForce(resistance.calmWater?.frictionResistanceN)} / ${fmtForce(resistance.calmWater?.residualResistanceN)}`, note: "ITTC-57 + Holtrop/Prohaska-inspirert restledd." },
+      { label: "Froude", value: Number.isFinite(resistance.calmWater?.froude) ? resistance.calmWater.froude.toFixed(3) : "N/A", note: `Formfaktor ${Number(resistance.calmWater?.formFactor || 0).toFixed(2)}.` },
       { label: "Bolgecase", value: `${fmtUnitValue(input.waveHeightM, 2, "m")} / ${fmtUnitValue(input.wavePeriodS, 1, "s")}`, note: resistanceState.location?.name || "Manuell bolgeinput" },
     ]);
+    renderResistanceCurveSummary(resTabResistance);
     renderResistanceCards(resTabScantling, [
       { label: "Designtrykk", value: fmtPressure(scantling.designPressurePa), note: "Hydrostatisk + enkel bolge/slam/current faktor." },
       { label: "Platetykkelse", value: fmtUnitValue(scantling.plateThicknessMm, 1, "mm"), note: `${scantling.material?.label || "Materiale"} med SF ${Number(scantling.safetyFactor || 0).toFixed(1)}.` },
       { label: "Stiveravstand", value: fmtUnitValue(scantling.stiffenerSpacingM, 2, "m"), note: `Panelspenn ${fmtUnitValue(scantling.panelSpanM, 2, "m")}.` },
       { label: "Seksjonsmodul", value: Number.isFinite(scantling.stiffenerSectionModulusM3) ? `${(scantling.stiffenerSectionModulusM3 * 1e6).toFixed(2)} cm^3` : "N/A", note: "Grov minimumsverdi per stiver." },
       ...(isFixed ? [{ label: "Bunnmoment", value: Number.isFinite(scantling.overturningMomentNm) ? `${(scantling.overturningMomentNm / 1000).toFixed(1)} kNm` : "N/A", note: "Forenklet fast konstruksjon." }] : []),
+    ]);
+    const propulsion = resistance.propulsion || {};
+    renderResistanceCards(resTabPropulsion, isFixed ? [
+      { label: "Propulsjon", value: "Ikke relevant", note: "Bunnlast konstruksjon viser last/dimensjonering, ikke fremdriftspropell." },
+    ] : [
+      { label: "Levert effekt", value: fmtPowerKw(propulsion.deliveredPowerKw), note: `Quasi eta ${Number(propulsion.quasiPropulsiveEfficiency || 0).toFixed(2)}.` },
+      { label: "RPM / J", value: `${Math.round(propulsion.rpm || 0)} / ${Number(propulsion.advanceRatio || 0).toFixed(2)}`, note: `D ${fmtUnitValue(propulsion.propellerDiameterM, 2, "m")}, ${propulsion.propellerCount || 1} prop.` },
+      { label: "KT/J^2", value: Number.isFinite(propulsion.loadingKtOverJ2) ? propulsion.loadingKtOverJ2.toFixed(3) : "N/A", note: "Kompendiemetode nar turtall er ukjent." },
+      { label: "Kavitasjon 0.7R", value: Number.isFinite(propulsion.cavitationIndex) ? propulsion.cavitationIndex.toFixed(2) : "N/A", note: `sigma ${Number(propulsion.sigma07 || 0).toFixed(2)}, CL ${Number(propulsion.liftCoefficient07 || 0).toFixed(2)}.` },
+      { label: "Datakilde", value: propulsion.openWaterPoint ? "Oving13-kurve" : "Fallback", note: propulsion.method || "Diagramfri propulsjonsfallback." },
+      { label: "Provningsref.", value: propulsion.localTrialReference ? `${Math.round(propulsion.localTrialReference.rpm || 0)} RPM` : "N/A", note: propulsion.localTrialReference ? `Ref. Pd ${fmtPowerKw(propulsion.localTrialReference.deliveredPowerKw)} ved ${(propulsion.localTrialReference.Vs * 1.94384).toFixed(1)} kn.` : "Ingen lokal referanse for denne farten." },
     ]);
     renderResistanceCards(resTabPreview, [
       { label: "Bolgelengde", value: fmtUnitValue(wave.wavelengthM, 1, "m"), note: `Amplitude ${fmtUnitValue(input.waveHeightM / 2, 2, "m")}.` },
@@ -3657,8 +4501,10 @@
       resTabPreview.insertAdjacentHTML("beforeend", `<ul class="resistance-warning-list">${warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`);
     }
     if (resistanceMeta) {
-      resistanceMeta.textContent = `Sist beregnet ${resistanceState.computedAt ? new Date(resistanceState.computedAt).toLocaleString("nb-NO") : "na"} | ${isFixed ? "bunnlåst konstruksjon" : "fartoy"}`;
+      const freshText = getMatchingResistanceResult() ? "gyldig for aktiv state" : "utdatert - endringer krever ny kjøring";
+      resistanceMeta.textContent = `Sist beregnet ${resistanceState.computedAt ? new Date(resistanceState.computedAt).toLocaleString("nb-NO") : "na"} | ${isFixed ? "bunnlåst konstruksjon" : "fartoy"} | ${freshText}`;
     }
+    updateResistanceRunState();
   }
 
   function sendWavePreview(enabled = resistanceState.visualizationEnabled) {
@@ -3666,24 +4512,63 @@
     const result = resistanceState.result;
     const wave = result?.wavePreview?.wave || {};
     const response = result?.wavePreview?.response || {};
+    const fallbackWavelength = estimatePreviewWavelength(input.wavePeriodS, input.waterDepthM);
+    const sequence = resistanceState.visualizationSeq || 0;
     postViewerCommandToViewer(enabled ? "set-wave-preview" : "clear-wave-preview", {
       enabled: !!enabled,
+      sequence,
       objectMode: input.objectMode || "vessel",
       seabedLocked: input.objectMode === "fixed",
       waveHeightM: input.waveHeightM,
       wavePeriodS: input.wavePeriodS,
-      wavelengthM: wave.wavelengthM,
+      wavelengthM: Number.isFinite(wave.wavelengthM) ? wave.wavelengthM : fallbackWavelength,
+      waveHeadingDeg: input.waveHeadingDeg,
       waveDirectionDeg: input.waveDirectionDeg,
       waterDepthM: input.waterDepthM,
       modelLengthM: input.lwlM,
       modelBeamM: input.bwlM,
       modelDraftM: input.draftM,
+      modelYawDeg: resistanceState.waveModelYawDeg,
       response,
     });
   }
 
+  function estimatePreviewWavelength(periodS, waterDepthM) {
+    const g = 9.81;
+    const period = Math.max(0.5, safeNumber(periodS) ?? 6.5);
+    const omega = (Math.PI * 2) / period;
+    let k = (omega * omega) / g;
+    const depth = safeNumber(waterDepthM);
+    if (Number.isFinite(depth) && depth > 0) {
+      for (let i = 0; i < 8; i += 1) {
+        k = (omega * omega) / (g * Math.tanh(Math.max(1e-6, k * depth)));
+      }
+    }
+    return (Math.PI * 2) / Math.max(1e-6, k);
+  }
+
   function normalizeComponentToken(value) {
     return String(value || "").trim().toLowerCase();
+  }
+
+  const COMPONENT_SEMANTIC_GROUPS = [
+    { key: "fastener:screw", label: "Skruer og bolter", pattern: /\b(skrue|skruer|screw|screws|bolt|bolts|fastener|fasteners|capscrew|setscrew|machine screw)\b/i },
+    { key: "fastener:nut", label: "Muttere", pattern: /\b(mutter|muttere|nut|nuts|locknut|nyloc)\b/i },
+    { key: "fastener:washer", label: "Skiver og avstand", pattern: /\b(skive|skiver|washer|washers|shim|spacer|spacers|avstand)\b/i },
+    { key: "propulsion", label: "Framdrift", pattern: /\b(thruster|thrusters|propell|propeller|motor|motors)\b/i },
+    { key: "hull", label: "Skrog", pattern: /\b(skrog|hull)\b/i },
+    { key: "frame", label: "Braketter og plater", pattern: /\b(frame|frames|mount|mounts|bracket|brackets|plate|plates|base|bases|kloss|klosser)\b/i },
+    { key: "arm", label: "Armer og stotter", pattern: /\b(arm|arms|mast|boom|support|supports|stotte|stotter)\b/i },
+    { key: "electronics", label: "Sensorer og elektronikk", pattern: /\b(sensor|sensors|gps|camera|cameras|sonar|antenna|electronics|elektronikk)\b/i },
+  ];
+
+  function getSemanticFamilyDescriptor(value) {
+    const text = normalizeComponentToken(value)
+      .replace(/[_/\\|]+/g, " ")
+      .replace(/[^a-z0-9.+-]+/g, " ")
+      .trim();
+    if (!text) return null;
+    return COMPONENT_SEMANTIC_GROUPS.find((entry) => entry.pattern.test(text)) || null;
   }
 
   function getMaterialLibraryEntry(slug) {
@@ -3976,6 +4861,159 @@
     return null;
   }
 
+  function buildCatalogMatchTextsForItem(item) {
+    const massInfo = getMassComponentInfo(item);
+    return [...new Set([
+      ...getComponentItemAliases(item),
+      item?.description,
+      item?.subtitle,
+      item?.sourceLabel,
+      item?.familyKey,
+      massInfo?.materialLabel,
+      massInfo?.materialSlug,
+      massInfo?.sourceLabel,
+    ].map(normalizeCatalogMatchText).filter(Boolean))];
+  }
+
+  function catalogTextIncludes(text, phrase) {
+    const haystack = normalizeCatalogMatchText(text);
+    const needle = normalizeCatalogMatchText(phrase);
+    if (!haystack || !needle) return false;
+    return (` ${haystack} `).includes(` ${needle} `);
+  }
+
+  function buildCatalogMaterialOverride({ material, source = "catalog-material", sourceLabel = "", densityKgM3 = null, materialLabel = "", supportsInfill = null, infillPercent = 100, note = "" } = {}) {
+    const slug = String(material?.slug || "custom").trim().toLowerCase() || "custom";
+    const fallbackDensity = material?.densityKgM3 || MATERIAL_LIBRARY[slug]?.density || MATERIAL_LIBRARY.custom.density;
+    const resolvedDensity = clampNumber(densityKgM3 ?? fallbackDensity, 50, 50000, fallbackDensity);
+    return normalizeStoredMaterialOverride({
+      materialSlug: slug,
+      materialLabel: materialLabel || material?.label || getMaterialLibraryEntry(slug).label,
+      baseDensityKgM3: resolvedDensity,
+      densityKgM3: resolvedDensity,
+      supportsInfill: supportsInfill ?? material?.supportsInfill ?? getMaterialLibraryEntry(slug).supportsInfill,
+      infillPercent,
+      massMode: "density",
+      massKg: null,
+      groupMassKg: null,
+      massDistribution: null,
+      source,
+      sourceLabel: sourceLabel || "Forhåndslastet materialliste",
+      note,
+    });
+  }
+
+  function matchCatalogRuleForItem(item) {
+    if (!materialCatalogState.loaded || !materialCatalogState.componentRules.length || !item) return null;
+    const texts = buildCatalogMatchTextsForItem(item);
+    if (!texts.length) return null;
+    const combined = texts.join(" | ");
+    return materialCatalogState.componentRules.find((rule) => {
+      if ((rule.excludeAny || []).some((token) => catalogTextIncludes(combined, token))) return false;
+      if ((rule.matchAll || []).some((token) => !catalogTextIncludes(combined, token))) return false;
+      if ((rule.matchAny || []).length) return rule.matchAny.some((token) => catalogTextIncludes(combined, token));
+      return true;
+    }) || null;
+  }
+
+  function getAutoCatalogMaterialOverride(itemOrKey) {
+    const item = typeof itemOrKey === "object" && itemOrKey
+      ? itemOrKey
+      : findComponentItem(itemOrKey);
+    if (!item || !materialCatalogState.loaded) return null;
+
+    const matchedRule = matchCatalogRuleForItem(item);
+    if (matchedRule) {
+      const hasNamedMaterial = matchedRule.materialSlug
+        ? Object.prototype.hasOwnProperty.call(MATERIAL_LIBRARY, matchedRule.materialSlug)
+        : false;
+      const ruleMaterial = matchedRule.materialSlug
+        ? materialCatalogState.materials.get(matchedRule.materialSlug) || (hasNamedMaterial ? getMaterialLibraryEntry(matchedRule.materialSlug) : null)
+        : null;
+      if (matchedRule.materialSlug && !ruleMaterial && !Number.isFinite(matchedRule.densityKgM3)) return null;
+      return buildCatalogMaterialOverride({
+        material: ruleMaterial || { slug: matchedRule.materialSlug || "custom", label: matchedRule.materialLabel || "Custom", densityKgM3: matchedRule.densityKgM3, supportsInfill: matchedRule.supportsInfill },
+        densityKgM3: matchedRule.densityKgM3,
+        materialLabel: matchedRule.materialLabel || ruleMaterial?.label || "",
+        supportsInfill: matchedRule.supportsInfill,
+        infillPercent: matchedRule.infillPercent,
+        source: "catalog-component",
+        sourceLabel: `${materialCatalogState.sourceLabel || "Materialliste"} - komponentregel`,
+        note: matchedRule.note || "",
+      });
+    }
+
+    const texts = buildCatalogMatchTextsForItem(item);
+    const combined = texts.join(" | ");
+    for (const material of materialCatalogState.materials.values()) {
+      if ((material.aliases || []).some((alias) => catalogTextIncludes(combined, alias))) {
+        return buildCatalogMaterialOverride({
+          material,
+          source: "catalog-material",
+          sourceLabel: `${materialCatalogState.sourceLabel || "Materialliste"} - materialmatch`,
+          note: material.note || "",
+        });
+      }
+    }
+    return null;
+  }
+
+  function getAutoCatalogSnapshot(keys = []) {
+    const normalizedKeys = [...new Set((keys || []).map(normalizeComponentToken).filter(Boolean))];
+    if (!normalizedKeys.length || !materialCatalogState.loaded) return { state: "none", override: null };
+    const matches = normalizedKeys.map((key) => getAutoCatalogMaterialOverride(findComponentItem(key))).filter(Boolean);
+    if (!matches.length) return { state: "none", override: null };
+    const signature = JSON.stringify({
+      materialSlug: matches[0].materialSlug,
+      baseDensityKgM3: matches[0].baseDensityKgM3,
+      densityKgM3: matches[0].densityKgM3,
+      infillPercent: matches[0].infillPercent,
+      supportsInfill: matches[0].supportsInfill !== false,
+      source: matches[0].source,
+      sourceLabel: matches[0].sourceLabel,
+    });
+    const allSame = matches.length === normalizedKeys.length && matches.every((entry) => JSON.stringify({
+      materialSlug: entry.materialSlug,
+      baseDensityKgM3: entry.baseDensityKgM3,
+      densityKgM3: entry.densityKgM3,
+      infillPercent: entry.infillPercent,
+      supportsInfill: entry.supportsInfill !== false,
+      source: entry.source,
+      sourceLabel: entry.sourceLabel,
+    }) === signature);
+    return {
+      state: allSame ? "uniform" : "mixed",
+      override: matches[0],
+    };
+  }
+
+  function buildComponentDensityCatalogPayload() {
+    const payload = {};
+    if (!materialCatalogState.loaded) return payload;
+    componentState.items.forEach((item) => {
+      const token = normalizeComponentToken(item?.key);
+      if (!token || componentMaterialOverrides.has(token)) return;
+      const autoEntry = getAutoCatalogMaterialOverride(item);
+      if (!autoEntry || !Number.isFinite(autoEntry.densityKgM3)) return;
+      payload[item.key] = {
+        densityKgM3: Number(autoEntry.densityKgM3),
+        materialSlug: autoEntry.materialSlug || "custom",
+        materialLabel: autoEntry.materialLabel || getMaterialLibraryEntry(autoEntry.materialSlug).label,
+        baseDensityKgM3: Number.isFinite(autoEntry.baseDensityKgM3) ? Number(autoEntry.baseDensityKgM3) : Number(autoEntry.densityKgM3),
+        infillPercent: Number.isFinite(autoEntry.infillPercent) ? Number(autoEntry.infillPercent) : 100,
+        supportsInfill: autoEntry.supportsInfill !== false,
+        massMode: autoEntry.massMode || "density",
+        massKg: Number.isFinite(autoEntry.massKg) ? Number(autoEntry.massKg) : null,
+        groupMassKg: Number.isFinite(autoEntry.groupMassKg) ? Number(autoEntry.groupMassKg) : null,
+        massDistribution: autoEntry.massDistribution || null,
+        source: autoEntry.source || "catalog-component",
+        sourceLabel: autoEntry.sourceLabel || "Forhåndslastet materialliste",
+        note: autoEntry.note || "",
+      };
+    });
+    return payload;
+  }
+
   function getMaterialEditorSnapshot(keys = []) {
     const normalizedKeys = [...new Set((keys || []).map(normalizeComponentToken).filter(Boolean))];
     if (!normalizedKeys.length) {
@@ -3992,6 +5030,19 @@
     }
     const overrides = normalizedKeys.map((key) => getComponentMaterialOverride(key)).filter(Boolean);
     if (!overrides.length) {
+      const catalogSnapshot = getAutoCatalogSnapshot(normalizedKeys);
+      if (catalogSnapshot.state === "uniform" && catalogSnapshot.override) {
+        return {
+          state: "catalog",
+          override: catalogSnapshot.override,
+        };
+      }
+      if (catalogSnapshot.state === "mixed") {
+        return {
+          state: "catalog-mixed",
+          override: catalogSnapshot.override,
+        };
+      }
       const fallbackProfile = getMaterialLibraryEntry(selMaterial?.value || "steel");
       return {
         state: "default",
@@ -4039,6 +5090,10 @@
       : override;
     const summaryText = snapshot.state === "mixed"
       ? "Varierende overstyringer i denne samlingen"
+      : snapshot.state === "catalog-mixed"
+        ? "Varierende treff fra forhåndslastet materialliste"
+        : snapshot.state === "catalog"
+        ? `${formatMaterialOverrideLabel(summaryOverride)}${override?.sourceLabel ? ` | ${override.sourceLabel}` : ""}`
       : snapshot.state === "uniform"
         ? formatMaterialOverrideLabel(summaryOverride)
         : "Ingen manuell overstyring. Bruker modellhint eller global tetthet.";
@@ -4094,30 +5149,131 @@
     ].map(normalizeComponentToken).filter(Boolean))];
   }
 
+  function isStrongComponentAlias(value) {
+    const raw = String(value || "").trim();
+    const alias = normalizeComponentToken(raw);
+    if (!alias) return false;
+    if (looksGuidish(raw)) return false;
+    if (/^(fastener:[a-z0-9:+-]+|propulsion|hull|frame|arm|electronics)$/i.test(alias)) return false;
+    if (/^(root|component|mesh|group|gruppe|family|solid|part|object)$/i.test(alias)) return false;
+    if (/\.(stl|3mf|3fm|fm3|step|stp|iges|igs|obj|f3d|f3z|3fz)$/i.test(raw)) return false;
+    return true;
+  }
+
+  function getComponentMatchAliases(item) {
+    const primary = [
+      item?.key,
+      item?.label,
+      item?.nodePath,
+    ];
+    const primarySet = new Set(primary.map(normalizeComponentToken).filter(Boolean));
+    const extraAliases = Array.isArray(item?.aliases)
+      ? item.aliases.filter((alias) => {
+          const normalized = normalizeComponentToken(alias);
+          if (!normalized || primarySet.has(normalized)) return true;
+          if (/::/.test(String(alias || ""))) return true;
+          if (/\(\d+\)/.test(String(alias || ""))) return true;
+          if (/\d/.test(String(alias || "")) && tokenizeComponentLabel(alias).length >= 1) return true;
+          return tokenizeComponentLabel(alias).length >= 2;
+        })
+      : [];
+    return [...new Set([
+      ...primary,
+      ...extraAliases,
+    ].map(normalizeComponentToken).filter((alias) => isStrongComponentAlias(alias)))];
+  }
+
+  function isWeakViewerComponentLabel(label) {
+    const source = String(label || "").trim();
+    if (!source) return true;
+    const tokens = tokenizeComponentLabel(source);
+    if (!tokens.length) return true;
+    return tokens.length === 1 && /^(body\d*|component\d*|part\d*|mesh\d*|object\d*|solid\d*)$/i.test(tokens[0]);
+  }
+
+  function getComponentSemanticFamilyData(item) {
+    const sources = [
+      item?.familyKey,
+      item?.label,
+      item?.sourceName,
+      item?.nodePath,
+      ...(Array.isArray(item?.aliases) ? item.aliases : []),
+    ];
+    for (const source of sources) {
+      const match = getSemanticFamilyDescriptor(source);
+      if (match) return match;
+    }
+    return null;
+  }
+
   function getComponentFamilyKey(item) {
-    return normalizeComponentToken(item?.familyKey)
+    return getComponentSemanticFamilyData(item)?.key
+      || normalizeComponentToken(item?.familyKey)
       || buildFamilySignature(item?.label)
       || normalizeFamilyToken(item?.label)
       || normalizeComponentToken(item?.key);
   }
 
+  function getMetadataMatchPool() {
+    return [
+      ...componentCatalog.stepItems,
+      ...componentCatalog.metadataItems,
+    ];
+  }
+
+  function resolveComponentFamilyLabel(familyKey, items = []) {
+    const semantic = getComponentSemanticFamilyData({ familyKey, label: items?.[0]?.label, aliases: items.map((item) => item?.label).filter(Boolean) });
+    if (semantic?.label) return semantic.label;
+    const stepMatches = componentCatalog.stepItems.filter((item) => getComponentFamilyKey(item) === familyKey);
+    if (stepMatches.length) {
+      const stepLabel = familyLabelFromItems(stepMatches);
+      if (stepLabel) return stepLabel;
+    }
+    return familyLabelFromItems(items);
+  }
+
   function findMetadataMatchForViewerItem(item, metadataItems = []) {
     const wantedKey = normalizeComponentToken(item?.key);
+    const wantedPath = normalizeComponentToken(item?.nodePath);
     const wantedLabel = normalizeComponentToken(item?.label);
-    const wantedFamily = getComponentFamilyKey(item);
-    return metadataItems.find((candidate) => {
+    const wantedAliases = new Set(getComponentMatchAliases(item));
+    let bestMatch = null;
+    let bestScore = 0;
+
+    metadataItems.forEach((candidate) => {
       const candidateKey = normalizeComponentToken(candidate?.key);
+      const candidatePath = normalizeComponentToken(candidate?.nodePath);
       const candidateLabel = normalizeComponentToken(candidate?.label);
-      if (wantedKey && candidateKey === wantedKey) return true;
-      if (wantedLabel && candidateLabel === wantedLabel) return true;
-      return wantedFamily && getComponentFamilyKey(candidate) === wantedFamily;
-    }) || null;
+      let score = 0;
+      if (wantedPath && candidatePath && wantedPath === candidatePath) score = Math.max(score, 140);
+      if (wantedKey && candidateKey && wantedKey === candidateKey) score = Math.max(score, 120);
+      if (wantedLabel && candidateLabel && wantedLabel === candidateLabel) score = Math.max(score, 100);
+      const candidateAliases = getComponentMatchAliases(candidate);
+      const overlapCount = candidateAliases.filter((alias) => wantedAliases.has(alias)).length;
+      if (overlapCount > 0) score = Math.max(score, 80 + overlapCount * 5);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = candidate;
+      }
+    });
+
+    if (bestScore >= 80) return bestMatch;
+    if (!isWeakViewerComponentLabel(item?.label)) return null;
+    const wantedFamily = getComponentFamilyKey(item);
+    if (!wantedFamily) return null;
+    const familyMatches = metadataItems.filter((candidate) => getComponentFamilyKey(candidate) === wantedFamily);
+    return familyMatches.length === 1 ? familyMatches[0] : null;
   }
 
   function buildEffectiveComponentItems() {
-    if (!componentCatalog.viewerItems.length) return componentCatalog.metadataItems.slice();
+    if (!componentCatalog.viewerItems.length) {
+      return componentCatalog.stepItems.length
+        ? componentCatalog.stepItems.slice()
+        : componentCatalog.metadataItems.slice();
+    }
+    const metadataPool = getMetadataMatchPool();
     return componentCatalog.viewerItems.map((item) => {
-      const meta = findMetadataMatchForViewerItem(item, componentCatalog.metadataItems);
+      const meta = findMetadataMatchForViewerItem(item, metadataPool);
       if (!meta) return item;
       const subtitle = mergeComponentText(item.subtitle, meta.subtitle);
       const description = item.description || meta.description || "";
@@ -4127,7 +5283,8 @@
       ])];
       return {
         ...item,
-        familyKey: item.familyKey || meta.familyKey || "",
+        label: meta.label || item.label,
+        familyKey: meta.familyKey || item.familyKey || "",
         aliases,
         subtitle,
         description,
@@ -4349,21 +5506,25 @@
     const total = componentState.items.length;
     const chosenCount = [...chosenSet].filter((token) => findComponentItem(token)).length;
     const mutedCount = [...mutedSet].filter((token) => findComponentItem(token)).length;
-    const visibleCount = Math.max(0, total - mutedCount);
-    const chosen = [...chosenSet].slice(0, 8).map(getComponentDisplayName).join(", ") || "ingen valgt";
-    const muted = [...mutedSet].slice(0, 8).map(getComponentDisplayName).join(", ") || "ingen dempet";
+    syncExplodeScopeToSelectionView();
+    const visibleCount = selectionToolState.isolateChosen && chosenCount > 0
+      ? chosenCount
+      : Math.max(0, total - mutedCount);
+    const chosen = [...chosenSet].slice(0, 8).map(getComponentDisplayName).join(", ") || "ingen markert";
+    const muted = [...mutedSet].slice(0, 8).map(getComponentDisplayName).join(", ") || "ingen skjult";
     chosenMuted.innerHTML = `
       <div class="component-summary">
         <span class="status-chip visible"><strong>${visibleCount}</strong> synlige</span>
-        <span class="status-chip chosen"><strong>${chosenCount}</strong> valgt</span>
-        <span class="status-chip muted"><strong>${mutedCount}</strong> dempet</span>
-        <span class="muted chosen-muted-detail">Valgt: ${escapeHtml(chosen)}. Dempet: ${escapeHtml(muted)}.</span>
+        <span class="status-chip chosen"><strong>${chosenCount}</strong> markert</span>
+        <span class="status-chip muted"><strong>${mutedCount}</strong> skjult</span>
+        <span class="muted chosen-muted-detail">Markert: ${escapeHtml(chosen)}. Skjult: ${escapeHtml(muted)}.</span>
       </div>
     `;
     postComponentStateToViewer();
     updateExplodeUi();
     updateSelectionActionUi();
     postExplodeScopeToViewer();
+    postViewerCommandToViewer("set-explode", { amount: viewerVisualState.explode || 0 });
   }
 
   function getComponentState(item) {
@@ -4384,7 +5545,7 @@
 
   function getGroupStateLabel(state) {
     if (state === "chosen") return "Markert";
-    if (state === "muted") return "Dempet";
+    if (state === "muted") return "Skjult";
     if (state === "mixed") return "Delvis";
     return "Vises";
   }
@@ -4399,6 +5560,14 @@
       return override?.sourceLabel
         ? `${formatMaterialOverrideLabel(override)} · ${override.sourceLabel}`
         : formatMaterialOverrideLabel(labelOverride);
+    }
+    if (snapshot.state === "catalog") {
+      return snapshot.override?.sourceLabel
+        ? `${formatMaterialOverrideLabel(snapshot.override)} | ${snapshot.override.sourceLabel}`
+        : formatMaterialOverrideLabel(snapshot.override);
+    }
+    if (snapshot.state === "catalog-mixed") {
+      return "Varierende treff fra forhåndslastet materialliste";
     }
     if (snapshot.state === "mixed") {
       return "Varierende materiale/infill-overstyringer";
@@ -4420,7 +5589,7 @@
 
   function getCollectionMaterialStatusText(keys = []) {
     const snapshot = getMaterialEditorSnapshot(keys);
-    if (snapshot.state !== "uniform") return getMaterialStatusTextForKeys(keys);
+    if (snapshot.state !== "uniform" && snapshot.state !== "catalog") return getMaterialStatusTextForKeys(keys);
     const override = snapshot.override;
     const labelOverride = override?.massMode === "direct" && Number.isFinite(override?.groupMassKg)
       ? { ...override, massKg: override.groupMassKg }
@@ -4505,8 +5674,21 @@
   }
 
   function componentIntroText(mode) {
-    if (mode === "mesh") return "Komponentlisten er koblet direkte til scenen. Gruppene vises sammenlagt; åpne en gruppe ved behov og bruk gruppeknappene for å markere eller dempe hele gruppen.";
-    if (mode === "fusion") return "Komponentnavn er hentet fra Fusion-metadata og vises gruppert etter familier, kopier og nærliggende deler. Åpne en gruppe for detaljdeler.";
+    if (mode === "mesh") {
+      const sourceNote = componentCatalog.stepItems.length
+        ? " Navn og familier prioriteres fra STEP-kandidat når den finnes, deretter fra aktiv viewer og øvrige metadata."
+        : " Navn og familier bygges fra aktiv viewer og tilgjengelige metadata.";
+      const catalogNote = materialCatalogState.loaded
+        ? ` Forhåndsliste for materiale/tetthet er lastet: ${materialCatalogState.sourceLabel || basenameFromUrl(materialCatalogState.url)}.`
+        : "";
+      return `Komponentlisten er koblet direkte til scenen. Marker fremhever tydelig i 3D, Vis alene isolerer valgt del eller gruppe, og Skjul skjuler bare de delene du ber om. Explode bytter automatisk til valgt scope nar du ser pa bare markerte deler.${sourceNote}${catalogNote}`;
+    }
+    if (mode === "fusion") {
+      const materialNote = FUSION_ARCHIVE_EXTS.has(ext)
+        ? " For F3Z/F3D leses materialhint fra 3MF inni arkivet når de finnes; ellers brukes STEP-kandidat eller paneloverstyring som fallback."
+        : "";
+      return `Komponentnavn bygges fra Fusion-metadata, aktiv viewer og STEP-kandidat der den finnes. Grupperingene samler like deler som skruer, braketter og skrogdeler i felles familier før de deles opp i lokale grupper.${materialNote}`;
+    }
     return "Komponentnavn er hentet fra filstruktur eller STEP/IGES-data. Viewer-kobling avhenger av scenegrafen.";
   }
 
@@ -4520,7 +5702,7 @@
 
     return [...families.entries()]
       .map(([familyKey, familyItems]) => {
-        const familyLabel = familyLabelFromItems(familyItems);
+        const familyLabel = resolveComponentFamilyLabel(familyKey, familyItems);
         const clusters = clusterFamilyByLocation(familyItems).map((cluster, clusterIndex) => ({
           key: `${familyKey}::cluster-${clusterIndex + 1}`,
           label: `Gruppe ${clusterIndex + 1}`,
@@ -4555,10 +5737,10 @@
           ${item.description ? `<span class="comp-sub">${escapeHtml(item.description)}</span>` : ""}
           <span class="comp-sub comp-material-status">${escapeHtml(materialStatus)}</span>
         </button>
-        <span class="comp-state comp-state-${state}">${state === "chosen" ? "Valgt" : state === "muted" ? "Dempet" : "Vises"}</span>
+        <span class="comp-state comp-state-${state}">${state === "chosen" ? "Markert" : state === "muted" ? "Skjult" : "Vises"}</span>
         <div class="comp-actions">
-          <button class="btn comp-toggle ${chosenSet.has(item.key) ? "is-active" : ""}" data-choose="${escapeAttr(item.key)}" type="button">${chosenSet.has(item.key) ? "Valgt" : "Velg"}</button>
-          <button class="btn comp-toggle ${mutedSet.has(item.key) ? "is-muted" : ""}" data-mute="${escapeAttr(item.key)}" type="button">${mutedSet.has(item.key) ? "Vis" : "Demp"}</button>
+          <button class="btn comp-toggle ${chosenSet.has(item.key) ? "is-active" : ""}" data-choose="${escapeAttr(item.key)}" type="button">${chosenSet.has(item.key) ? "Avmerk" : "Marker"}</button>
+          <button class="btn comp-toggle ${mutedSet.has(item.key) ? "is-muted" : ""}" data-mute="${escapeAttr(item.key)}" type="button">${mutedSet.has(item.key) ? "Vis" : "Skjul"}</button>
         </div>
         <div class="comp-row-editor">
           ${renderMaterialEditor("item", item.key, [item.key])}
@@ -4718,7 +5900,7 @@
 
     return [...families.entries()]
       .flatMap(([familyKey, familyItems]) => {
-        const familyLabel = familyLabelFromItems(familyItems);
+        const familyLabel = resolveComponentFamilyLabel(familyKey, familyItems);
         const clusters = clusterFamilyByLocation(familyItems);
         return clusters.map((cluster, clusterIndex) => ({
           key: clusters.length > 1 ? `${familyKey}::cluster-${clusterIndex + 1}` : familyKey,
@@ -4817,7 +5999,7 @@
               <span class="comp-group-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
               <span class="comp-group-heading">
                 <span class="comp-group-title">${escapeHtml(group.label)}</span>
-                <span class="comp-group-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+                <span class="comp-group-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} markert | ${mutedCount} skjult</span>
               </span>
               <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
             </button>
@@ -4826,7 +6008,7 @@
               <span class="comp-group-chevron" aria-hidden="true">=</span>
               <span class="comp-group-heading">
                 <span class="comp-group-title">${escapeHtml(group.label)}</span>
-                <span class="comp-group-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+                <span class="comp-group-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} markert | ${mutedCount} skjult</span>
               </span>
               <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
             </div>
@@ -4835,8 +6017,8 @@
             <span class="comp-state comp-state-${groupState === "mixed" ? "mixed" : groupState}">${getGroupStateLabel(groupState)}</span>
             <div class="comp-group-actions">
               <button class="btn comp-group-toggle ${hasChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(group.key)}" type="button">${allChosen ? "Fjern markering" : chosenCount > 0 ? "Marker resten" : "Marker gruppe"}</button>
-              <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(group.key)}" type="button">${hasMuted ? "Vis gruppe" : "Demp gruppe"}</button>
-              <button class="btn comp-group-toggle ${isIsolated ? "is-active" : ""}" data-isolate-group="${escapeAttr(group.key)}" type="button">${isIsolated ? "Vis alt" : "Isoler gruppe"}</button>
+              <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(group.key)}" type="button">${hasMuted ? "Vis skjult" : "Skjul gruppe"}</button>
+              <button class="btn comp-group-toggle ${isIsolated ? "is-active" : ""}" data-isolate-group="${escapeAttr(group.key)}" type="button">${isIsolated ? "Vis alt" : "Vis alene"}</button>
             </div>
           </div>
         </div>
@@ -4899,7 +6081,7 @@
               <span class="comp-group-chevron" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
               <span class="comp-family-heading">
                 <span class="comp-family-title">${escapeHtml(family.label)}</span>
-                <span class="comp-family-meta">${allItems.length} deler | ${allGroups.length} grupper${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+                <span class="comp-family-meta">${allItems.length} deler | ${allGroups.length} grupper${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} markert | ${mutedCount} skjult</span>
               </span>
               <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
             </button>
@@ -4908,7 +6090,7 @@
               <span class="comp-group-chevron" aria-hidden="true">=</span>
               <span class="comp-family-heading">
                 <span class="comp-family-title">${escapeHtml(family.label)}</span>
-                <span class="comp-family-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} valgt | ${mutedCount} dempet</span>
+                <span class="comp-family-meta">${allItems.length} deler${escapeHtml(filterNote)} | ${visibleCount} synlige | ${chosenCount} markert | ${mutedCount} skjult</span>
               </span>
               <span class="comp-group-expand-label">${escapeHtml(expandLabel)}</span>
             </div>
@@ -4917,8 +6099,8 @@
             <span class="comp-state comp-state-${familyState === "mixed" ? "mixed" : familyState}">${getGroupStateLabel(familyState)}</span>
             <div class="comp-family-actions">
               <button class="btn comp-group-toggle ${hasChosen ? "is-active" : ""}" data-choose-group="${escapeAttr(family.key)}" type="button">${allChosen ? "Fjern markering" : chosenCount > 0 ? "Marker resten" : "Marker familie"}</button>
-              <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(family.key)}" type="button">${hasMuted ? "Vis familie" : "Demp familie"}</button>
-              <button class="btn comp-group-toggle ${isIsolated ? "is-active" : ""}" data-isolate-group="${escapeAttr(family.key)}" type="button">${isIsolated ? "Vis alt" : "Isoler familie"}</button>
+              <button class="btn comp-group-toggle ${hasMuted ? "is-active" : ""}" data-mute-group="${escapeAttr(family.key)}" type="button">${hasMuted ? "Vis skjult" : "Skjul familie"}</button>
+              <button class="btn comp-group-toggle ${isIsolated ? "is-active" : ""}" data-isolate-group="${escapeAttr(family.key)}" type="button">${isIsolated ? "Vis alt" : "Vis alene"}</button>
             </div>
           </div>
         </div>
@@ -4948,6 +6130,10 @@
     syncSelectionSetToCurrentItems(chosenSet);
     syncSelectionSetToCurrentItems(mutedSet);
     renderFilteredComponents();
+    if (source === "viewer" && materialCatalogState.loaded) {
+      invalidateHydroReportState();
+      applyHydroControlsToViewer({ includeDraftPose: false, silentEstimate: true });
+    }
   }
 
   function renderFilteredComponents() {
@@ -5264,7 +6450,11 @@
   async function runGeometryChecks() {
     const items = [];
     const extra = [];
+    componentCatalog.stepItems = [];
     items.push(`<li>Formatstøtte: <span class="ok">${["stl", "step", "stp", "iges", "igs", "obj", "3mf", "3fm", "f3d", "f3z", "fbm", "fm3", "sat", "smt", "x_t", "x_b", "sldprt", "sldasm"].includes(ext) ? "Forventet CAD/mesh-format" : "Ukjent format"}</span></li>`);
+    if (materialCatalogState.loaded) {
+      items.push(`<li>Materialliste: bruker ${escapeHtml(materialCatalogState.sourceLabel || basenameFromUrl(materialCatalogState.url))} som automatisk fallback for tetthet/materiale.</li>`);
+    }
 
     const isHeavyFusionArchive =
       FUSION_ARCHIVE_EXTS.has(ext) &&
@@ -5354,7 +6544,9 @@
       if (step.lengthUnit) {
         items.push(`<li>Skalahint fra STEP: ${escapeHtml(step.lengthUnit)} (viewer regner videre i meter).</li>`);
       }
-      renderComponentList(step.productNames, "cad");
+      items.push("<li>Komponentnavn prioriteres fra STEP PRODUCT-data og brukes som gruppegrunnlag der viewer-navn er svakere.</li>");
+      renderComponentList(buildStepComponentItems(step, "STEP-fil"), "cad");
+      applyStepComponentHints(step, "STEP-fil");
     } else if (ext === "iges" || ext === "igs") {
       const iges = parseIges(decodeText(ab));
       items.push(`<li>IGES seksjoner: S=${iges.s}, G=${iges.g}, D=${iges.d}, P=${iges.p}, T=${iges.t}</li>`);
@@ -5392,7 +6584,7 @@
                 items.push(`<li>Simulation studies i metadata: ${fusionMeta.simulationStudyCount}</li>`);
                 extra.push(`Study-ID-er i Fusion-metadata: ${fusionMeta.simulationStudyIds.join(" | ")}`);
               }
-              items.push("<li>F3D/F3Z kan inneholde materialer, utseende og studiespor, men nettleserparseren leser foreløpig åpen metadata/komponentgraf og ikke alle proprietære Fusion-segmenter.</li>");
+              items.push("<li>F3D/F3Z kan gi materialhint fra innebygd 3MF når den finnes, men nettleserparseren leser fortsatt ikke alle proprietære Fusion-segmenter uten ekstra konvertering/API-løp.</li>");
               renderComponentList(fusionMeta.components, "fusion");
             } else {
               renderComponentList(zip.entries.map(e => e.name), "cad");
@@ -5412,6 +6604,9 @@
 
     if (!(ext === "step" || ext === "stp") && getActiveStepCandidate()) {
       const stepHint = await applyStepHintsFromUrl(getActiveStepCandidate(), "STEP-kandidat");
+      if (stepHint?.productNames?.length) {
+        items.push(`<li>Navn/grupper henter ekstra hints fra STEP-kandidat (${stepHint.productNames.length.toLocaleString("nb-NO")} PRODUCT-navn).</li>`);
+      }
       if (stepHint?.materialHint) {
         items.push(`<li>Materialhint fra STEP-kandidat: ${escapeHtml(describeMaterialHint(stepHint.materialHint))}</li>`);
       }
@@ -5446,11 +6641,14 @@
       resolveSiblingPreviewCandidate(),
       resolveSiblingStlCandidate(),
       resolveSiblingStepCandidate(),
+      resolveSiblingMaterialCatalogCandidate(),
     ]);
+    await loadAutoMaterialCatalog();
     updateBambuButtonState();
     addMeta("3D-kandidat", basenameFromUrl(getActivePreviewCandidate()) || "Ingen kandidat funnet");
     if (getActiveStlCandidate()) addMeta("STL-kandidat", basenameFromUrl(getActiveStlCandidate()));
     if (getActiveStepCandidate()) addMeta("STEP-kandidat", basenameFromUrl(getActiveStepCandidate()));
+    if (getActiveMaterialCatalogCandidate()) addMeta("Materialkatalog", basenameFromUrl(getActiveMaterialCatalogCandidate()));
     if (getActiveBambuCandidate()) addMeta("Bambu-kandidat", basenameFromUrl(getActiveBambuCandidate()));
 
     const headRes = await fetchHeadCached(decodedFile);
@@ -5498,6 +6696,10 @@
       analysisState.latestViewerMassProperties = payload.massProperties || payload.hydro?.massProperties || null;
       if (payload.hydro?.supported) {
         analysisState.latestViewerHydro = payload.hydro;
+        if (payload.hydro.commandSignature && payload.hydro.commandSignature === hydroCommandState.pendingSignature) {
+          hydroCommandState.confirmedSignature = payload.hydro.commandSignature;
+          hydroCommandState.pendingSignature = "";
+        }
         syncHydroControlsFromViewer(payload.hydro);
         if (hasResolvedViewerHydro(payload.hydro)) {
           setHydroTaskState(false);
@@ -5526,6 +6728,10 @@
       analysisState.latestViewerMassProperties = data.payload.currentHydro?.massProperties || analysisState.latestViewerMassProperties;
       if (data.payload.currentHydro?.supported) {
         analysisState.latestViewerHydro = data.payload.currentHydro;
+        if (data.payload.currentHydro.commandSignature && data.payload.currentHydro.commandSignature === hydroCommandState.pendingSignature) {
+          hydroCommandState.confirmedSignature = data.payload.currentHydro.commandSignature;
+          hydroCommandState.pendingSignature = "";
+        }
         syncHydroControlsFromViewer(data.payload.currentHydro);
       }
       const resolvedDetailSignature = buildHydroDetailSignature();
@@ -5562,6 +6768,14 @@
       updateHydroProgressUi();
       return;
     }
+    if (data.type === "viewer-wave-preview") {
+      if (data.state === "enabled") {
+        setResistanceStatus(`Bølgepreview aktiv i 3D (${fmtUnitValue(data.waveHeightM, 2, "m")} Hs, lambda ${fmtUnitValue(data.wavelengthM, 1, "m")}).`);
+      } else if (data.state === "disabled") {
+        setResistanceStatus("Bølgepreview slått av.");
+      }
+      return;
+    }
     if (data.type === "viewer-explode-info" && data.payload) {
       const payload = data.payload || {};
       viewerVisualState.explodeSupported = !!payload.supported;
@@ -5594,6 +6808,7 @@
     resolveSiblingPreviewCandidate(),
     resolveSiblingStlCandidate(),
     resolveSiblingStepCandidate(),
+    resolveSiblingMaterialCatalogCandidate(),
   ]).finally(() => {
     if (canAutoLoadIntegratedViewer()) {
       loadIntegratedViewer();

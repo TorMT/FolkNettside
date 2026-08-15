@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import re
 from pathlib import Path
@@ -26,8 +26,9 @@ def check_text_files(root):
     return matches
 
 if __name__ == '__main__':
-    root = sys.argv[1] if len(sys.argv) > 1 else r"Z:\\"
+    root = sys.argv[1] if len(sys.argv) > 1 else r"\\webedit.ntnu.no\\tormt\\\"
     matches = check_text_files(root)
     for m in matches:
         print(m[0], ':', m[1])
     print('\nTotal matches:', len(matches))
+

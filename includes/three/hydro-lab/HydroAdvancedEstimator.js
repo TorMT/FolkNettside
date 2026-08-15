@@ -1,5 +1,7 @@
 // Advanced standalone hydro estimator pack (ikke koblet til eksisterende viewer)
 
+import { LOCAL_OVING13_FULL_SCALE_TRIAL, LOCAL_OVING13_OPEN_WATER, LOCAL_PROPULSION_DATASET } from './PropellerSeriesData.js';
+
 const G = 9.81;
 const NU_SEAWATER = 1.19e-6;
 
@@ -32,6 +34,84 @@ function materialProfile(slug = 'custom', overrides = {}) {
     ...base,
     ...overrides,
     slug: String(slug || 'custom').toLowerCase(),
+  };
+}
+
+function interpolateSorted(points, x, xKey, yKey) {
+  const usable = points
+    .map((point) => ({ x: finiteNumber(point[xKey]), y: finiteNumber(point[yKey]), point }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    .sort((a, b) => a.x - b.x);
+  if (!usable.length || !Number.isFinite(x)) return null;
+  if (x <= usable[0].x) return { value: usable[0].y, point: usable[0].point, clamped: true };
+  const last = usable[usable.length - 1];
+  if (x >= last.x) return { value: last.y, point: last.point, clamped: true };
+  for (let i = 0; i < usable.length - 1; i += 1) {
+    const a = usable[i];
+    const b = usable[i + 1];
+    if (x < a.x || x > b.x) continue;
+    const f = (x - a.x) / Math.max(1e-9, b.x - a.x);
+    return {
+      value: a.y + (b.y - a.y) * f,
+      point: {
+        ...a.point,
+        [xKey]: x,
+        [yKey]: a.y + (b.y - a.y) * f,
+      },
+      clamped: false,
+    };
+  }
+  return null;
+}
+
+function solveOpenWaterByKtOverJ2(targetKtOverJ2, curve = LOCAL_OVING13_OPEN_WATER) {
+  const target = finiteNumber(targetKtOverJ2);
+  if (!Number.isFinite(target) || target <= 0) return null;
+  const usable = curve
+    .filter((point) => Number.isFinite(point.J) && point.J > 0 && Number.isFinite(point.ktOverJ2))
+    .sort((a, b) => b.ktOverJ2 - a.ktOverJ2);
+  if (!usable.length) return null;
+  if (target >= usable[0].ktOverJ2) return { ...usable[0], clamped: true };
+  const last = usable[usable.length - 1];
+  if (target <= last.ktOverJ2) return { ...last, clamped: true };
+  for (let i = 0; i < usable.length - 1; i += 1) {
+    const high = usable[i];
+    const low = usable[i + 1];
+    if (target > high.ktOverJ2 || target < low.ktOverJ2) continue;
+    const f = (high.ktOverJ2 - target) / Math.max(1e-9, high.ktOverJ2 - low.ktOverJ2);
+    const J = high.J + (low.J - high.J) * f;
+    const kt = interpolateSorted(curve, J, 'J', 'KT')?.value;
+    const kq = interpolateSorted(curve, J, 'J', 'KQ')?.value;
+    const eta0 = interpolateSorted(curve, J, 'J', 'eta0')?.value;
+    return {
+      J,
+      KT: kt,
+      KQ: kq,
+      eta0,
+      ktOverJ2: target,
+      clamped: false,
+    };
+  }
+  return null;
+}
+
+function interpolateTrialBySpeed(speedMs, trial = LOCAL_OVING13_FULL_SCALE_TRIAL) {
+  const speed = finiteNumber(speedMs);
+  if (!Number.isFinite(speed) || speed <= 0) return null;
+  const fields = ['wake', 'thrustDeduction', 'etaR', 'etaH', 'ktOverJ2', 'Jstar', 'KQstar', 'rpm', 'deliveredPowerKw', 'twoPropellersPowerKw'];
+  const point = { Vs: speed };
+  let clamped = false;
+  for (const field of fields) {
+    const hit = interpolateSorted(trial, speed, 'Vs', field);
+    if (hit) {
+      point[field] = hit.value;
+      clamped = clamped || hit.clamped;
+    }
+  }
+  return {
+    ...point,
+    clamped,
+    source: LOCAL_PROPULSION_DATASET.label,
   };
 }
 
@@ -120,28 +200,153 @@ export function estimateTotalResistance({ calmWaterResistanceN, addedResistanceN
   };
 }
 
+export function estimatePropulsionCase({
+  totalResistanceN,
+  shipSpeedMs,
+  waterDensityKgM3 = 1025,
+  propellerDiameterM,
+  draftM,
+  bwlM,
+  lwlM,
+  propellerCount = 1,
+  wakeFraction = 0.2,
+  thrustDeduction = 0.12,
+  relativeRotativeEfficiency = 1,
+  expandedAreaRatio = 0.55,
+  shaftDepthM = null,
+  vaporPressurePa = 2300,
+  atmosphericPressurePa = 101325,
+}) {
+  const R = Math.max(0, finiteNumber(totalResistanceN, 0));
+  const Vs = Math.max(0, finiteNumber(shipSpeedMs, 0));
+  const rho = finiteNumber(waterDensityKgM3, 1025);
+  const count = Math.max(1, Math.round(finiteNumber(propellerCount, 1)));
+  const w = clamp(finiteNumber(wakeFraction, 0.2), 0, 0.7);
+  const t = clamp(finiteNumber(thrustDeduction, 0.12), 0, 0.7);
+  const etaR = clamp(finiteNumber(relativeRotativeEfficiency, 1), 0.75, 1.15);
+  const ear = clamp(finiteNumber(expandedAreaRatio, 0.55), 0.25, 1.2);
+  const Tdraft = Math.max(0.02, finiteNumber(draftM, 0.5));
+  const B = Math.max(0.05, finiteNumber(bwlM, Tdraft * 4));
+  const L = Math.max(0.1, finiteNumber(lwlM, B * 4));
+  const D = Math.max(0.02, finiteNumber(propellerDiameterM, clamp(Tdraft * 0.62, 0.08, Math.min(B * 0.42, L * 0.08))));
+  const Va = Vs * (1 - w);
+  const thrustPerPropN = R / (count * Math.max(0.05, 1 - t));
+  const loadingKtOverJ2 = Va > 0 && D > 0 ? thrustPerPropN / (rho * Va * Va * D * D) : 0;
+  const openWaterPoint = solveOpenWaterByKtOverJ2(loadingKtOverJ2);
+  const advanceRatio = openWaterPoint?.J ?? (Va > 0 ? clamp(0.96 - 0.48 * Math.sqrt(Math.max(0, loadingKtOverJ2)), 0.35, 1.05) : 0);
+  const kt = openWaterPoint?.KT ?? (loadingKtOverJ2 * advanceRatio * advanceRatio);
+  const openWaterEfficiency = openWaterPoint?.eta0 ?? (Va > 0 ? clamp(0.72 - 0.18 * loadingKtOverJ2 - 0.08 * Math.abs(advanceRatio - 0.78), 0.32, 0.72) : 0);
+  const kq = openWaterPoint?.KQ ?? (openWaterEfficiency > 0 ? (advanceRatio * kt) / (2 * Math.PI * openWaterEfficiency) : 0);
+  const localTrialReference = interpolateTrialBySpeed(Vs);
+  const revPerSec = Va > 0 && advanceRatio > 0 && D > 0 ? Va / (advanceRatio * D) : 0;
+  const rpm = revPerSec * 60;
+  const deliveredPowerPerPropW = 2 * Math.PI * rho * (revPerSec ** 3) * (D ** 5) * kq / Math.max(0.1, etaR);
+  const deliveredPowerW = deliveredPowerPerPropW * count;
+  const quasiPropulsiveEfficiency = deliveredPowerW > 0 ? clamp((R * Vs) / deliveredPowerW, 0, 0.82) : 0;
+  const h07 = Math.max(0.05, finiteNumber(shaftDepthM, Tdraft * 0.65) - 0.7 * D);
+  const bladeSpeed07 = 0.7 * Math.PI * revPerSec * D;
+  const sigma07 = (atmosphericPressurePa + rho * G * h07 - vaporPressurePa) / Math.max(1, 0.5 * rho * (Va * Va + bladeSpeed07 * bladeSpeed07));
+  const liftCoefficient07 = ear > 0 ? kt / (1.5 * ear) : null;
+  const cavitationIndex = Number.isFinite(liftCoefficient07) ? sigma07 / Math.max(0.05, liftCoefficient07 + 0.12) : null;
+  const warnings = [];
+  if (Va <= 0 || R <= 0) warnings.push('Propulsjonspunkt krever positiv fart og motstand.');
+  if (loadingKtOverJ2 > 0.55) warnings.push('Høy KT/J^2-belastning; øk diameter, EAR eller antall propeller før endelig valg.');
+  if (openWaterPoint?.clamped) warnings.push('KT/J^2 ligger utenfor lokal Øving13-friprøvekurve; resultatet er klampet til nærmeste tabellpunkt.');
+  if (localTrialReference?.clamped) warnings.push('Farten ligger utenfor lokal Øving13 propulsjonsprøve; referansen er klampet til nærmeste prøvepunkt.');
+  if (advanceRatio <= 0.38 || advanceRatio >= 1.02) warnings.push('Estimert J ligger nær kanten av propellkurven; bruk komplett friprøvediagram/Wageningen-tabell.');
+  if (Number.isFinite(cavitationIndex) && cavitationIndex < 1.25) warnings.push('Lav kavitasjonsmargin ved 0.7R; vurder større diameter, EAR eller lavere RPM.');
+  if (!Number.isFinite(propellerDiameterM)) warnings.push('Propelldiameter er autoestimert fra draft/beam; sett D manuelt for bedre propulsjonsvalg.');
+  return {
+    propellerCount: count,
+    propellerDiameterM: D,
+    wakeFraction: w,
+    thrustDeduction: t,
+    expandedAreaRatio: ear,
+    advanceVelocityMs: Va,
+    thrustPerPropN,
+    loadingKtOverJ2,
+    advanceRatio,
+    kt,
+    kq,
+    openWaterEfficiency,
+    relativeRotativeEfficiency: etaR,
+    quasiPropulsiveEfficiency,
+    revPerSec,
+    rpm,
+    deliveredPowerPerPropW,
+    deliveredPowerW,
+    deliveredPowerKw: deliveredPowerW / 1000,
+    sigma07,
+    liftCoefficient07,
+    cavitationIndex,
+    openWaterPoint,
+    localTrialReference,
+    dataSource: LOCAL_PROPULSION_DATASET,
+    method: openWaterPoint
+      ? 'Kompendium KT/J^2 driftspunkt interpolert fra lokal Øving13 friprøvekurve'
+      : 'Kompendium KT/J^2 driftspunkt med diagramfri Wageningen/BP-fallback v1',
+    assumptions: [
+      'Bruker KT/J^2 fordi turtall normalt er ukjent i tidlig fullskala propulsjonspunkt.',
+      'J, KQ og eta0 er estimert med glatt heuristikk; endelig propellvalg krever friprøvediagram/BP/Wageningen-tabell.',
+      'Kavitasjon er grov 0.7R-indikator, ikke Burrill-/klassekontroll.',
+    ],
+    warnings,
+  };
+}
+
 export function estimateCalmWaterResistance({
   lwlM,
+  bwlM,
+  draftM,
   wettedAreaM2,
   shipSpeedMs,
   waterDensityKgM3 = 1025,
-  formFactor = 1.18,
+  formFactor = null,
+  blockCoefficient = 0.6,
+  displacementVolumeM3 = null,
+  roughnessMicrometer = 150,
 }) {
   const L = finiteNumber(lwlM);
+  const B = finiteNumber(bwlM, L * 0.25);
+  const T = finiteNumber(draftM, B * 0.18);
   const S = finiteNumber(wettedAreaM2);
   const V = finiteNumber(shipSpeedMs);
   const rho = finiteNumber(waterDensityKgM3, 1025);
-  if (![L, S, V, rho].every(Number.isFinite) || L <= 0 || S <= 0 || V < 0) return { error: 'Invalid calm-water input' };
+  if (![L, B, T, S, V, rho].every(Number.isFinite) || L <= 0 || B <= 0 || T <= 0 || S <= 0 || V < 0) return { error: 'Invalid calm-water input' };
   const reynolds = Math.max(1, (V * L) / NU_SEAWATER);
   const cf = V > 0 ? 0.075 / ((Math.log10(reynolds) - 2) ** 2) : 0;
+  const froude = V > 0 ? V / Math.sqrt(G * L) : 0;
+  const cb = clamp(finiteNumber(blockCoefficient, 0.6), 0.35, 0.95);
+  const volume = Math.max(0.01, finiteNumber(displacementVolumeM3, L * B * T * cb));
+  const slenderness = L / Math.cbrt(volume);
+  const defaultFormFactor = 1 + clamp(0.08 + 0.32 * cb + 0.08 * (B / L) + 0.04 * (T / B), 0.12, 0.48);
+  const kForm = Math.max(1, finiteNumber(formFactor, defaultFormFactor));
+  const residualCoeff = V > 0
+    ? Math.max(0, (0.0028 * cb * Math.exp(-(((froude - 0.32) / 0.13) ** 2))) + (Math.max(0, froude - 0.36) ** 2) * 0.016)
+    : 0;
+  const roughness = Math.max(0, finiteNumber(roughnessMicrometer, 150));
+  const roughnessAllowanceCoeff = V > 0 ? clamp((roughness - 100) * 1e-6, 0, 0.00045) : 0;
+  const correlationAllowanceCoeff = V > 0 ? 0.0004 + roughnessAllowanceCoeff : 0;
   const frictionResistanceN = 0.5 * rho * V * V * S * cf;
-  const calmWaterResistanceN = frictionResistanceN * Math.max(1, Number(formFactor) || 1.18);
+  const formResistanceN = frictionResistanceN * Math.max(0, kForm - 1);
+  const residualResistanceN = 0.5 * rho * V * V * S * residualCoeff;
+  const correlationAllowanceN = 0.5 * rho * V * V * S * correlationAllowanceCoeff;
+  const calmWaterResistanceN = frictionResistanceN + formResistanceN + residualResistanceN + correlationAllowanceN;
   return {
     calmWaterResistanceN,
     frictionResistanceN,
+    formResistanceN,
+    residualResistanceN,
+    correlationAllowanceN,
     cf,
+    cr: residualCoeff,
+    ca: correlationAllowanceCoeff,
     reynolds,
-    formFactor,
+    froude,
+    blockCoefficient: cb,
+    slenderness,
+    formFactor: kForm,
+    method: 'ITTC-1957 friction with Holtrop/Prohaska-inspired form, residual and roughness allowance',
   };
 }
 
@@ -237,6 +442,7 @@ export function estimateResistanceCase(input = {}) {
   const heading = finiteNumber(input.waveHeadingDeg ?? input.headingDeg, 180);
   const wettedAreaM2 = Math.max(0.1, finiteNumber(input.wettedAreaM2, 0) || (2 * (L * T + B * T) + L * B * 0.55));
   const displacementKg = Math.max(1, finiteNumber(input.displacementKg, 0) || finiteNumber(input.displacementTonnes, 0) * 1000 || rho * L * B * T * 0.55);
+  const displacementVolumeM3 = Math.max(0.01, finiteNumber(input.volumeM3, displacementKg / rho));
   const wavePreview = estimateWaveResponse({
     objectMode,
     lwlM: L,
@@ -257,7 +463,17 @@ export function estimateResistanceCase(input = {}) {
   });
   let resistance = null;
   if (objectMode === 'vessel') {
-    const calmWater = estimateCalmWaterResistance({ lwlM: L, wettedAreaM2, shipSpeedMs: speed, waterDensityKgM3: rho });
+    const calmWater = estimateCalmWaterResistance({
+      lwlM: L,
+      bwlM: B,
+      draftM: T,
+      wettedAreaM2,
+      shipSpeedMs: speed,
+      waterDensityKgM3: rho,
+      blockCoefficient: input.blockCoefficient,
+      displacementVolumeM3,
+      roughnessMicrometer: input.roughnessMicrometer,
+    });
     const added = estimateAddedResistanceInWaves({
       displacementKg,
       lwlM: L,
@@ -281,6 +497,21 @@ export function estimateResistanceCase(input = {}) {
       effectivePowerKw: (total.totalResistanceN * speed) / 1000,
       morison,
     };
+    resistance.propulsion = estimatePropulsionCase({
+      totalResistanceN: total.totalResistanceN,
+      shipSpeedMs: speed,
+      waterDensityKgM3: rho,
+      propellerDiameterM: input.propellerDiameterM,
+      draftM: T,
+      bwlM: B,
+      lwlM: L,
+      propellerCount: input.propellerCount,
+      wakeFraction: input.wakeFraction,
+      thrustDeduction: input.thrustDeduction,
+      relativeRotativeEfficiency: input.relativeRotativeEfficiency,
+      expandedAreaRatio: input.expandedAreaRatio,
+      shaftDepthM: input.shaftDepthM,
+    });
   } else {
     resistance = {
       objectMode,
@@ -294,7 +525,23 @@ export function estimateResistanceCase(input = {}) {
   const warnings = [
     ...(wavePreview.warnings || []),
     ...(scantling.warnings || []),
+    ...(resistance?.propulsion?.warnings || []),
   ];
+  const fn = resistance?.calmWater?.froude;
+  const wavelength = wavePreview?.wave?.wavelengthM;
+  const steepness = wavePreview?.response?.steepness;
+  const relativeHeight = wavePreview?.response?.relativeHeight;
+  const diameterLike = Math.max(B, T);
+  if (objectMode === 'vessel') {
+    if (Number.isFinite(fn) && fn > 0.45) warnings.push('Froudetallet er høyt for denne enkle deplasementsmetoden; planing/semi-planing er ikke modellert.');
+    if (Number.isFinite(fn) && fn < 0.05 && speed > 0) warnings.push('Svært lavt Froudetall: friksjon dominerer, restmotstandsleddet er usikkert men lite.');
+    if (!Number.isFinite(input.blockCoefficient)) warnings.push('Blokk-koeffisient mangler; bruker konservativ fallback for formfaktor/restmotstand.');
+  }
+  if (objectMode === 'fixed' && Number.isFinite(wavelength) && diameterLike / wavelength > 0.2) {
+    warnings.push('Bunnlåst konstruksjon er ikke slank relativt til bølgelengden; Morison-lignende last kan undervurdere diffraksjon/FK-effekter.');
+  }
+  if (Number.isFinite(steepness) && steepness > 1 / 20) warnings.push('Bølgen er bratt etter H/lambda-kriteriet; lineær bølgepreview bør tolkes forsiktig.');
+  if (Number.isFinite(relativeHeight) && relativeHeight > 0.35) warnings.push('Bølgecase er svært stor relativt til modellen; visualiseringen er nyttig, men tallene er grovt konservative.');
   const missing = [];
   if (!Number.isFinite(input.wettedAreaM2)) missing.push('våt flate');
   if (!Number.isFinite(input.displacementKg)) missing.push('deplasement');

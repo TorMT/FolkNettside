@@ -819,12 +819,13 @@
     import * as THREE from "/includes/three/three.module.js";
 
     import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260417f";
-    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260412e";
-    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260411d";
+    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260527a";
+    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260528-perf";
     import { UIController } from "/includes/three/UIController.js";
     import { ClippingController } from "/includes/three/ClippingController.js";
     import { MeasureController } from "/includes/three/MeasureController.js";
     import { AlignHelpers } from "/includes/three/AlignHelpers.js";
+    import { WavePreviewController } from "/includes/three/WavePreviewController.js?v=20260528e";
     import { detectLang, getHelpData } from "/includes/three/HelpMenu.i18n.js";
 
     const hud = document.getElementById("hud");
@@ -853,6 +854,12 @@
     // --- Init core ---
     const host = document.getElementById("canvasHost");
     const core = new STLViewerCore(host);
+    const hydroCommandState = { seq: 0, signature: "", runningSignature: "" };
+    const wavePreview = new WavePreviewController(core, {
+      getWaterZ: () => hydro?.draftZWorld,
+      setHud,
+      getVisualFollowers: () => [hydro?.wlContour],
+    });
 
     // PATCH: Hydro/Measure forventer disse metodene + optional mesh-arg
     if(typeof core.localToWorldPoint !== "function"){
@@ -953,7 +960,14 @@
     document.title = `${modelKind} Viewer`;
 
     function normalizeComponentName(value) {
-      return String(value || "").trim().toLowerCase();
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\.[a-z0-9]{2,4}$/i, "")
+        .replace(/[_/\\|]+/g, " ")
+        .replace(/\s*::\s*/g, " :: ")
+        .replace(/\s+/g, " ")
+        .trim();
     }
 
     function buildComponentAliasList(...values) {
@@ -967,7 +981,7 @@
       if (!item || !tokenSet?.size) return false;
       const aliases = Array.isArray(item.aliases) && item.aliases.length
         ? item.aliases
-        : buildComponentAliasList(item.key, item.label, item.nodePath, item.sourceName);
+        : buildComponentAliasList(item.key, item.label, item.familyKey, item.nodePath, item.sourceName);
       return aliases.some((alias) => tokenSet.has(alias));
     }
 
@@ -1027,6 +1041,7 @@
           aliases: buildComponentAliasList(
             child.userData?.componentKey,
             label,
+            child.userData?.componentFamilyKey,
             child.userData?.nodePath,
             child.userData?.sourceName
           ),
@@ -1068,6 +1083,29 @@
             aliases,
             center,
             size,
+          });
+        });
+      } else if (Array.isArray(root?.userData?.componentMassProps) && root.userData.componentMassProps.length) {
+        root.userData.componentMassProps.forEach((entry) => {
+          const label = String(entry?.name || entry?.label || entry?.key || "").trim();
+          if (!label) return;
+          const familyKey = normalizeComponentName(entry?.familyKey || "");
+          const nodePath = String(entry?.nodePath || "").trim();
+          const sourceName = String(entry?.sourceName || "").trim();
+          pushItem(label, {
+            key: normalizeComponentName(entry?.key || label),
+            subtitle: nodePath || sourceName,
+            description: "",
+            familyKey,
+            nodePath,
+            sourceName,
+            aliases: buildComponentAliasList(
+              entry?.key,
+              entry?.name,
+              entry?.familyKey,
+              entry?.nodePath,
+              entry?.sourceName
+            ),
           });
         });
       } else if (Array.isArray(root?.userData?.componentNames)) {
@@ -1232,6 +1270,8 @@
       const depth = ref ? Math.abs(ref.max.z - ref.min.z) : null;
       return {
         supported: true,
+        commandSeq: hydroCommandState.seq || null,
+        commandSignature: hydroCommandState.signature || "",
         source: `${modelKind} viewer`,
         modelKind,
         length: length == null ? null : roundComponentNumber(length, 6),
@@ -1348,24 +1388,28 @@
 
     async function buildHydroReportPayload(options = {}) {
       if (!hydro?.mesh) return null;
-      if (options.forceRecalc) invalidateHydroReportCache();
-      if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
-      if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
-      hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
-      const quality = options.quality || hydro.quality || "low";
-      const performanceMode = options.performanceMode === true;
-      if (quality) hydro.setQuality(String(quality));
-      if (Number.isFinite(Number(options.draftZWorld))) {
-        hydro.draftZWorld = Number(options.draftZWorld);
-        hydro.updateWaterPlane();
-        hydro._invalidateCache?.();
-      }
-      if (Number.isFinite(Number(options.trim))) hydro.setTrim(Number(options.trim));
-      if (Number.isFinite(Number(options.heel))) hydro.setHeel(Number(options.heel));
+      const resumeWavePreview = wavePreview.suspendVisualMotion?.() || (() => {});
+      try {
+        if (options.forceRecalc) invalidateHydroReportCache();
+        if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
+        if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
+        hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
+        hydro.setComponentDensityCatalog?.(options.componentDensityCatalog || {});
+        const quality = options.quality || hydro.quality || "low";
+        const performanceMode = options.performanceMode === true;
+        hydro.setPerformanceMode?.(performanceMode);
+        if (quality) hydro.setQuality(String(quality), { schedule: false });
+        if (Number.isFinite(Number(options.draftZWorld))) {
+          hydro.draftZWorld = Number(options.draftZWorld);
+          hydro.updateWaterPlane();
+          hydro._invalidateCache?.();
+        }
+        if (Number.isFinite(Number(options.trim))) hydro.setTrim(Number(options.trim));
+        if (Number.isFinite(Number(options.heel))) hydro.setHeel(Number(options.heel));
 
-      await withHydroGeometryState(async () => {
-        await hydro.recompute();
-      });
+        await withHydroGeometryState(async () => {
+          await hydro.recompute();
+        });
 
       const cacheKey = buildHydroReportCacheKey({ quality, performanceMode });
       if (!options.forceRecalc && hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
@@ -1461,6 +1505,9 @@
       } finally {
         hydroReportCachePromise = null;
       }
+      } finally {
+        resumeWavePreview();
+      }
     }
 
     function syncExplodeUiFromCore() {
@@ -1511,6 +1558,7 @@
         depthWrite: mat.depthWrite !== false,
         color: mat.color?.clone ? mat.color.clone() : null,
         emissive: mat.emissive?.clone ? mat.emissive.clone() : null,
+        emissiveIntensity: Number.isFinite(mat.emissiveIntensity) ? mat.emissiveIntensity : null,
       };
     }
 
@@ -1522,7 +1570,27 @@
       mat.depthWrite = base.depthWrite;
       if (base.color && mat.color) mat.color.copy(base.color);
       if (base.emissive && mat.emissive) mat.emissive.copy(base.emissive);
+      if (base.emissiveIntensity !== null && Number.isFinite(base.emissiveIntensity) && Number.isFinite(mat.emissiveIntensity)) {
+        mat.emissiveIntensity = base.emissiveIntensity;
+      }
       mat.needsUpdate = true;
+    }
+
+    const chosenHighlightColor = new THREE.Color(0xffb347);
+
+    function applyChosenHighlight(mat) {
+      if (!mat) return;
+      if (mat.color && mat.userData?.viewerBaseState?.color) {
+        mat.color.copy(mat.userData.viewerBaseState.color).lerp(chosenHighlightColor, 0.42);
+      }
+      if (mat.emissive) {
+        mat.emissive.setHex(0xff8a00);
+        if (Number.isFinite(mat.emissiveIntensity)) {
+          mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 1.15);
+        }
+      }
+      mat.opacity = 1;
+      mat.depthWrite = true;
     }
 
     const componentViewState = {
@@ -1623,6 +1691,7 @@
         const isChosen = componentMatchesState(item, componentViewState.chosen);
         const hideUnselected = componentViewState.isolateChosen && useChosenFocus && !isChosen;
         object.visible = !isMuted && !hideUnselected;
+        object.renderOrder = useChosenFocus && isChosen ? 8 : 0;
 
         const mats = Array.isArray(object.material) ? object.material : [object.material];
         mats.forEach((mat) => {
@@ -1635,11 +1704,11 @@
             mat.transparent = true;
             mat.depthWrite = false;
           } else if (useChosenFocus && !isChosen) {
-            mat.opacity = Math.min(mat.opacity, 0.14);
+            mat.opacity = Math.min(mat.opacity, 0.22);
             mat.transparent = true;
             mat.depthWrite = false;
-          } else if (useChosenFocus && isChosen && mat.emissive) {
-            mat.emissive.setHex(0x262626);
+          } else if (useChosenFocus && isChosen) {
+            applyChosenHighlight(mat);
           }
           mat.needsUpdate = true;
         });
@@ -1650,8 +1719,14 @@
       const data = event?.data;
       if (!data) return;
       if (data.type === "viewer-component-state") {
-        componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
-        componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.chosen = new Set([
+          ...(Array.isArray(data.chosen) ? data.chosen : []),
+          ...(Array.isArray(data.chosenAliases) ? data.chosenAliases : []),
+        ].map(normalizeComponentName).filter(Boolean));
+        componentViewState.muted = new Set([
+          ...(Array.isArray(data.muted) ? data.muted : []),
+          ...(Array.isArray(data.mutedAliases) ? data.mutedAliases : []),
+        ].map(normalizeComponentName).filter(Boolean));
         componentViewState.isolateChosen = data.isolateChosen === true;
         applyComponentState();
         return;
@@ -1688,6 +1763,16 @@
         return;
       }
 
+      if (data.action === "set-wave-preview") {
+        wavePreview.set(data);
+        return;
+      }
+
+      if (data.action === "clear-wave-preview") {
+        wavePreview.clearFromCommand(data);
+        return;
+      }
+
       if (!hydro?.mesh) return;
 
       if (data.action === "set-hydro-visibility") {
@@ -1704,36 +1789,51 @@
       }
 
       if (data.action === "set-hydro-state") {
+        const incomingSignature = String(data.commandSignature || "");
+        if (incomingSignature && hydroCommandState.runningSignature === incomingSignature) return;
+        hydroCommandState.seq = Number(data.commandSeq) || hydroCommandState.seq || 0;
+        hydroCommandState.signature = incomingSignature;
+        hydroCommandState.runningSignature = incomingSignature;
         invalidateHydroReportCache();
-        if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
-        if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
-        hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
-        if (data.quality) hydro.setQuality(String(data.quality));
-        if (Number.isFinite(Number(data.draftZWorld))) {
-          hydro.draftZWorld = Number(data.draftZWorld);
-          hydro.updateWaterPlane();
-          hydro._invalidateCache?.();
+        try {
+          if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
+          if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
+          hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
+          hydro.setComponentDensityCatalog?.(data.componentDensityCatalog || {});
+          hydro.setPerformanceMode?.(data.performanceMode === true);
+          if (data.quality) hydro.setQuality(String(data.quality), { schedule: false });
+          if (Number.isFinite(Number(data.draftZWorld))) {
+            hydro.draftZWorld = Number(data.draftZWorld);
+            hydro.updateWaterPlane();
+            hydro._invalidateCache?.();
+          }
+          if (Number.isFinite(Number(data.trim))) hydro.setTrim(Number(data.trim));
+          if (Number.isFinite(Number(data.heel))) hydro.setHeel(Number(data.heel));
+          await withHydroGeometryState(async () => {
+            await hydro.recompute();
+          });
+          syncSceneMassProperties();
+          refreshExplodeLayoutFromMassState();
+          ui._updateHydroUI?.();
+          ui._updateDraftText?.(hydro.draftZWorld);
+          postAnalysisToParent(core.mesh);
+          setHud("Hydrostatikk oppdatert", false);
+        } finally {
+          if (hydroCommandState.runningSignature === incomingSignature) hydroCommandState.runningSignature = "";
         }
-        if (Number.isFinite(Number(data.trim))) hydro.setTrim(Number(data.trim));
-        if (Number.isFinite(Number(data.heel))) hydro.setHeel(Number(data.heel));
-        await withHydroGeometryState(async () => {
-          await hydro.recompute();
-        });
-        syncSceneMassProperties();
-        refreshExplodeLayoutFromMassState();
-        ui._updateHydroUI?.();
-        ui._updateDraftText?.(hydro.draftZWorld);
-        postAnalysisToParent(core.mesh);
-        setHud("Hydrostatikk oppdatert", false);
         return;
       }
 
       if (data.action === "reset-hydro-pose") {
+        hydroCommandState.seq = Number(data.commandSeq) || hydroCommandState.seq || 0;
+        hydroCommandState.signature = String(data.commandSignature || "");
         invalidateHydroReportCache();
         hydro.zeroTrimHeel();
         if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
         if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
         hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
+        hydro.setComponentDensityCatalog?.(data.componentDensityCatalog || {});
+        hydro.setPerformanceMode?.(data.performanceMode === true);
         if (Number.isFinite(Number(data.draftZWorld))) {
           hydro.draftZWorld = Number(data.draftZWorld);
           hydro.updateWaterPlane();

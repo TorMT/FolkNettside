@@ -9,8 +9,8 @@
 
 import * as THREE from "./three.module.js";
 import { STLLoader } from "./STLLoader.js";
-import { ThreeMFLoader } from "./ThreeMFLoader.js?v=20260410a";
-import { FusionArchiveLoader } from "./FusionArchiveLoader.js?v=20260410a";
+import { ThreeMFLoader } from "./ThreeMFLoader.js?v=20260527a";
+import { FusionArchiveLoader } from "./FusionArchiveLoader.js?v=20260527a";
 import { StepLoader } from "./StepLoader.js?v=20260410a";
 
 const ARRAY_BUFFER_CACHE = new Map();
@@ -246,6 +246,24 @@ export class ModelLoader {
       .filter((token) => !/^\d+$/.test(token));
   }
 
+  _getSemanticComponentFamilyKey(value) {
+    const source = String(value || "")
+      .replace(/[_/\\|]+/g, " ")
+      .replace(/[^a-zA-Z0-9.+:-]+/g, " ")
+      .trim()
+      .toLowerCase();
+    if (!source) return null;
+    if (/\b(skrue|skruer|screw|screws|bolt|bolts|fastener|fasteners|capscrew|setscrew|machine screw)\b/i.test(source)) return "fastener:screw";
+    if (/\b(mutter|muttere|nut|nuts|locknut|nyloc)\b/i.test(source)) return "fastener:nut";
+    if (/\b(skive|skiver|washer|washers|shim|spacer|spacers|avstand)\b/i.test(source)) return "fastener:washer";
+    if (/\b(thruster|thrusters|propell|propeller|motor|motors)\b/i.test(source)) return "propulsion";
+    if (/\b(skrog|hull)\b/i.test(source)) return "hull";
+    if (/\b(frame|frames|mount|mounts|bracket|brackets|plate|plates|base|bases|kloss|klosser)\b/i.test(source)) return "frame";
+    if (/\b(arm|arms|mast|boom|support|supports|stotte|stotter)\b/i.test(source)) return "arm";
+    if (/\b(sensor|sensors|gps|camera|cameras|sonar|antenna|electronics|elektronikk|novatel)\b/i.test(source)) return "electronics";
+    return null;
+  }
+
   _buildComponentFamilyKey(component, fallbackName) {
     const sources = [
       component?.userData?.componentFamilyKey,
@@ -255,6 +273,10 @@ export class ModelLoader {
       component?.userData?.sourceName,
       component?.userData?.nodePath,
     ];
+    for (const source of sources) {
+      const semanticKey = this._getSemanticComponentFamilyKey(source);
+      if (semanticKey) return semanticKey;
+    }
     for (const source of sources) {
       const tokens = this._tokenizeComponentLabel(source);
       if (tokens.length) return tokens.slice(0, Math.min(6, tokens.length)).join(" ");
@@ -268,24 +290,28 @@ export class ModelLoader {
     const key = this._normalizeComponentToken(familyKey);
     if (!key) return null;
     const color = new THREE.Color();
-    if (/(^|\s)thruster(s)?(\s|$)/i.test(key)) {
+    if (/^propulsion$/i.test(key) || /(^|\s)thruster(s)?(\s|$)/i.test(key)) {
       color.setHSL(0.34, 0.58, 0.44);
       return color;
     }
-    if (/(^|\s)(skrog|hull)(\s|$)/i.test(key)) {
+    if (/^hull$/i.test(key) || /(^|\s)(skrog|hull)(\s|$)/i.test(key)) {
       color.setHSL(0.56, 0.42, 0.46);
       return color;
     }
-    if (/(^|\s)(frame|mount|bracket|plate|base)(\s|$)/i.test(key)) {
+    if (/^frame$/i.test(key) || /(^|\s)(frame|mount|bracket|plate|base)(\s|$)/i.test(key)) {
       color.setHSL(0.60, 0.50, 0.50);
       return color;
     }
-    if (/(^|\s)(sensor|gps|camera|sonar|antenna|novatel)(\s|$)/i.test(key)) {
+    if (/^electronics$/i.test(key) || /(^|\s)(sensor|gps|camera|sonar|antenna|novatel)(\s|$)/i.test(key)) {
       color.setHSL(0.09, 0.68, 0.56);
       return color;
     }
-    if (/(^|\s)(mast|boom|arm|support)(\s|$)/i.test(key)) {
+    if (/^arm$/i.test(key) || /(^|\s)(mast|boom|arm|support)(\s|$)/i.test(key)) {
       color.setHSL(0.78, 0.40, 0.54);
+      return color;
+    }
+    if (/^fastener:/.test(key)) {
+      color.setHSL(0.11, 0.18, 0.62);
       return color;
     }
     return null;

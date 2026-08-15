@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 navbarupdater.py — CLI for å oppdatere index.json, generere nye fagsider,
 oppdatere navbar og legge til semester-knapper.
@@ -6,7 +6,7 @@ oppdatere navbar og legge til semester-knapper.
 Før du kjører `add-course` eller `add-semester`, opprett `course-template.html` i roten.
 
 Bruk:
-  cd Z:/path/til/prosjekt
+  cd \\webedit.ntnu.no/tormt/path/til/prosjekt
   pip install beautifulsoup4 tqdm
 
   # oppdater index.json:
@@ -599,3 +599,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

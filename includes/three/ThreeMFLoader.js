@@ -129,6 +129,27 @@ class ThreeMFLoader extends Loader {
     }
   }
 
+  _buildObjectMeta( objNode, modelUnitMeta ) {
+    const partNumber = String( objNode?.getAttribute( 'partnumber' ) || '' ).trim();
+    const objectId = String( objNode?.getAttribute( 'id' ) || '' ).trim();
+    const displayName = String(
+      objNode?.getAttribute( 'name' ) ||
+      partNumber ||
+      objectId ||
+      'component'
+    ).trim() || 'component';
+    return {
+      name: displayName,
+      userData: {
+        modelUnitMeta,
+        partNumber,
+        objectId,
+        componentName: displayName,
+        nodePath: objectId ? `${displayName}::${objectId}` : displayName,
+      }
+    };
+  }
+
   async _parse3MFXMLAsync( xmlText, options = {} ) {
     const onProgress = typeof options.onProgress === 'function' ? options.onProgress : workerNoop;
     const yieldControl = typeof options.yieldControl === 'function' ? options.yieldControl : defaultYieldControl;
@@ -268,15 +289,15 @@ class ThreeMFLoader extends Loader {
     for ( let objectIndex = 0; objectIndex < objects.length; objectIndex ++ ) {
       throwIfAborted( signal );
       const objNode = objects[ objectIndex ];
-      const name = objNode.getAttribute( 'name' ) || objNode.getAttribute( 'id' ) || 'component';
+      const objectMeta = this._buildObjectMeta( objNode, modelUnitMeta );
       const meshData = resolveGeometryForObject( objNode );
       if ( !meshData?.geometry ) continue;
       const objectMaterials = this._collectObjectMaterials( objNode, materialLibrary, meshData.triangleMaterials );
       components.push( {
-        name,
+        name: objectMeta.name,
         geometry: meshData.geometry,
         materials: objectMaterials,
-        userData: { modelUnitMeta }
+        userData: objectMeta.userData
       } );
       if ( ( objectIndex + 1 ) % 12 === 0 && objectIndex + 1 < objects.length ) {
         onProgress( {
@@ -395,16 +416,15 @@ class ThreeMFLoader extends Loader {
 
     // Build component list
     const components = objects.map(objNode => {
-      // Try to get name/id
-      const name = objNode.getAttribute('name') || objNode.getAttribute('id') || 'component';
+      const objectMeta = this._buildObjectMeta( objNode, modelUnitMeta );
       const meshData = resolveGeometryForObject(objNode);
       if (!meshData?.geometry) return null;
       const objectMaterials = this._collectObjectMaterials(objNode, materialLibrary, meshData.triangleMaterials);
       return {
-        name,
+        name: objectMeta.name,
         geometry: meshData.geometry,
         materials: objectMaterials,
-        userData: { modelUnitMeta }
+        userData: objectMeta.userData
       };
     }).filter(Boolean);
 

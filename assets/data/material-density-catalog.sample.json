@@ -1,0 +1,55 @@
+{
+  "title": "Eksempel material- og tetthetsliste",
+  "materials": [
+    {
+      "slug": "aisi316",
+      "label": "AISI 316",
+      "densityKgM3": 8000,
+      "supportsInfill": false,
+      "aliases": ["aisi 316", "316", "stainless 316", "rustfritt 316"]
+    },
+    {
+      "slug": "al6061",
+      "label": "Aluminium 6061",
+      "densityKgM3": 2700,
+      "supportsInfill": false,
+      "aliases": ["al 6061", "6061", "alu 6061", "aluminium 6061"]
+    },
+    {
+      "slug": "grp-marine",
+      "label": "GRP marine",
+      "densityKgM3": 1850,
+      "supportsInfill": false,
+      "aliases": ["grp", "gfrp", "fiberglass", "glass fiber", "kompositt"]
+    }
+  ],
+  "componentRules": [
+    {
+      "key": "all-screws",
+      "matchAny": ["skrue", "screw", "bolt", "fastener"],
+      "materialSlug": "aisi316",
+      "priority": 100,
+      "note": "Alle skruer og bolter får rustfritt stål som fallback hvis modellen ikke allerede har bedre materialdata."
+    },
+    {
+      "key": "hull-shell",
+      "matchAny": ["skrog", "hull"],
+      "materialSlug": "grp-marine",
+      "priority": 80
+    },
+    {
+      "key": "mast-brackets",
+      "matchAll": ["mast"],
+      "matchAny": ["bracket", "plate", "mount"],
+      "materialSlug": "al6061",
+      "priority": 70
+    },
+    {
+      "key": "battery-pack",
+      "matchAny": ["battery pack", "batteripakke"],
+      "densityKgM3": 2200,
+      "materialLabel": "Batteripakke",
+      "priority": 90
+    }
+  ]
+}

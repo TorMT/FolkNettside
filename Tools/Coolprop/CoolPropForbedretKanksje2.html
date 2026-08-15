@@ -599,7 +599,7 @@ tr:last-child td{border-bottom:0}
       <span class="slider"></span>
       <label for="bookBasis" id="bookBasisText">Av (CoolProp absolutt H/U)</label>
     </label>
-    <div class="helpText">Justerer H/U til "Samme Basis som boken" (se Help).</div>
+    <div class="helpText" id="bookBasisHint">Luft matcher Tabell A-22 når bryteren er på.</div>
   </div>
 </div>
 
@@ -716,6 +716,8 @@ tr:last-child td{border-bottom:0}
       <label class="pill"><input type="checkbox" value="U"> U</label>
       <label class="pill"><input type="checkbox" value="Cp"> Cp</label>
       <label class="pill"><input type="checkbox" value="Cv"> Cv</label>
+      <label class="pill"><input type="checkbox" value="pr"> pr (A-22)</label>
+      <label class="pill"><input type="checkbox" value="vr"> vr (A-22)</label>
       <label class="pill"><input type="checkbox" value="Phase" checked> Phase</label>
     </div>
     <div class="helpText">Velg hvilke properties du vil ha som kolonner.</div>
@@ -1026,7 +1028,8 @@ function clearInvalid(...els){
 /* ============================================================
    Unit conversions
 ============================================================ */
-function convertInputToSI(param, val){
+function convertInputToSI(param, val, fluid = null){
+  const currentFluid = fluid || ($("fluid") ? $("fluid").value : "");
   if (param === "P"){
     const u = $("pUnit").value;
     if (u === "bar") return val * 1e5;
@@ -1041,8 +1044,8 @@ function convertInputToSI(param, val){
   }
   if (param === "H" || param === "U"){
     const u = $("eUnit").value;
-    if (u === "kJkg") return val * 1e3;
-    return val;
+    const si = u === "kJkg" ? val * 1e3 : val;
+    return convertBookInputToCoolPropBasis(currentFluid, param, si);
   }
   if (param === "S" || param === "Cp" || param === "Cv"){
     const u = $("sUnit").value;
@@ -1096,40 +1099,232 @@ function unitLabel(param){
 /* ============================================================
    Book basis calibration
 ============================================================ */
-const CALIB_T = 1000.0;
-const CALIB_P = 1e5;
-const CALIB_H_BOOK = 1046.04;
-const CALIB_U_BOOK = 758.94;
+const BOOK_BASIS_CONFIG = [
+  {
+    key: "air",
+    aliases: ["air"],
+    fluidLabel: "Luft",
+    tableLabel: "Tabell A-22",
+    basisLabel: "A-22",
+    calibrationFluid: "Air",
+    T: 1000.0,
+    P: 1e5,
+    hBookKJkg: 1046.04,
+    uBookKJkg: 758.94
+  },
+  {
+    key: "water",
+    aliases: ["water"],
+    fluidLabel: "Vann",
+    tableLabel: "Tabell A-2/A-3/A-4/A-5",
+    basisLabel: "A-2/A-3/A-4/A-5",
+    calibrationFluid: "Water",
+    T: 673.15,
+    P: 1e5,
+    hBookKJkg: 3278.2,
+    uBookKJkg: 2967.9
+  },
+  {
+    key: "ammonia",
+    aliases: ["ammonia"],
+    fluidLabel: "Ammoniakk",
+    tableLabel: "Tabell A-13/A-14/A-15",
+    basisLabel: "A-13/A-14/A-15",
+    calibrationFluid: "Ammonia",
+    T: 273.15,
+    P: 1e5,
+    hBookKJkg: 1472.37,
+    uBookKJkg: 1341.0
+  },
+  {
+    key: "propane",
+    aliases: ["propane"],
+    fluidLabel: "Propan",
+    tableLabel: "Tabell A-16/A-17/A-18",
+    basisLabel: "A-16/A-17/A-18",
+    calibrationFluid: "Propane",
+    T: 293.15,
+    P: 1e5,
+    hBookKJkg: 501.0,
+    uBookKJkg: 448.6
+  },
+  {
+    key: "r134a",
+    aliases: ["r134a"],
+    fluidLabel: "R134a",
+    tableLabel: "Tabell A-10/A-11/A-12",
+    basisLabel: "A-10/A-11/A-12",
+    calibrationFluid: "R134a",
+    T: 273.15,
+    P: 1e5,
+    hBookKJkg: 252.99,
+    uBookKJkg: 231.41
+  },
+  {
+    key: "nitrogen",
+    aliases: ["nitrogen"],
+    fluidLabel: "Nitrogen",
+    tableLabel: "Tabell A-23",
+    basisLabel: "A-23",
+    calibrationFluid: "Nitrogen",
+    T: 1000.0,
+    P: 1e5,
+    hBookKJkg: 1075.651553,
+    uBookKJkg: 778.82899
+  },
+  {
+    key: "oxygen",
+    aliases: ["oxygen"],
+    fluidLabel: "Oksygen",
+    tableLabel: "Tabell A-23",
+    basisLabel: "A-23",
+    calibrationFluid: "Oxygen",
+    T: 1000.0,
+    P: 1e5,
+    hBookKJkg: 980.90625,
+    uBookKJkg: 721.09375
+  },
+  {
+    key: "co2",
+    aliases: ["co2", "carbondioxide"],
+    fluidLabel: "CO2",
+    tableLabel: "Tabell A-23",
+    basisLabel: "A-23",
+    calibrationFluid: "CO2",
+    T: 1000.0,
+    P: 1e5,
+    hBookKJkg: 971.801863,
+    uBookKJkg: 782.890252
+  }
+];
 
-let H_OFFSET_AIR = null;
-let U_OFFSET_AIR = null;
+const BOOK_BASIS_OFFSETS = new Map();
+const AIR_A22_RELATIVE = {
+  entropyPressure: 1e5,
+  gasConstant: 287.058,
+  refTemp: 300.0,
+  refPr: 1.3860,
+  refVr: 621.2
+};
+let airRelativeScales = null;
 
-function calibrateAir(){
+function normalizeFluidKey(fluid){
+  return String(fluid || "").trim().toLowerCase();
+}
+
+function isAirFluid(fluid){
+  return normalizeFluidKey(fluid) === "air";
+}
+
+function getBookBasisConfig(fluid){
+  const key = normalizeFluidKey(fluid);
+  return BOOK_BASIS_CONFIG.find(cfg => cfg.aliases.includes(key)) || null;
+}
+
+function ensureBookBasisOffsets(fluid){
+  const cfg = getBookBasisConfig(fluid);
+  if (!cfg) return null;
+  if (BOOK_BASIS_OFFSETS.has(cfg.key)){
+    const cached = BOOK_BASIS_OFFSETS.get(cfg.key);
+    if (cached && cached.ok) return cached;
+    BOOK_BASIS_OFFSETS.delete(cfg.key);
+  }
+
   const PropsSI = getPropsSI();
-  if (!PropsSI){
-    H_OFFSET_AIR = 0;
-    U_OFFSET_AIR = 0;
-    return;
-  }
+  const fallback = { hOffset: 0, uOffset: 0, ok: false };
+  if (!PropsSI) return fallback;
+
   try {
-    const h_cp = PropsSI("H", "T", CALIB_T, "P", CALIB_P, "Air");
-    const u_cp = PropsSI("U", "T", CALIB_T, "P", CALIB_P, "Air");
-    H_OFFSET_AIR = (CALIB_H_BOOK * 1e3) - h_cp;
-    U_OFFSET_AIR = (CALIB_U_BOOK * 1e3) - u_cp;
-  } catch {
-    H_OFFSET_AIR = 0;
-    U_OFFSET_AIR = 0;
+    const hCp = PropsSI("H", "T", cfg.T, "P", cfg.P, cfg.calibrationFluid);
+    const uCp = PropsSI("U", "T", cfg.T, "P", cfg.P, cfg.calibrationFluid);
+    const offsets = {
+      hOffset: (cfg.hBookKJkg * 1e3) - hCp,
+      uOffset: (cfg.uBookKJkg * 1e3) - uCp,
+      ok: true
+    };
+    BOOK_BASIS_OFFSETS.set(cfg.key, offsets);
+    return offsets;
+  } catch (err) {
+    BOOK_BASIS_OFFSETS.set(cfg.key, fallback);
+    return fallback;
   }
+}
+
+function ensureAirRelativeScales(){
+  if (airRelativeScales) return airRelativeScales;
+  const PropsSI = getPropsSI();
+  if (!PropsSI) return null;
+
+  try {
+    const sRef = PropsSI("S", "T", AIR_A22_RELATIVE.refTemp, "P", AIR_A22_RELATIVE.entropyPressure, "Air");
+    airRelativeScales = {
+      prScale: AIR_A22_RELATIVE.refPr / Math.exp(sRef / AIR_A22_RELATIVE.gasConstant),
+      vrScale: AIR_A22_RELATIVE.refVr / (AIR_A22_RELATIVE.refTemp * Math.exp(-sRef / AIR_A22_RELATIVE.gasConstant))
+    };
+    return airRelativeScales;
+  } catch (err) {
+    return null;
+  }
+}
+
+function computeAirRelativeProps(tempSI){
+  if (!Number.isFinite(tempSI)) return null;
+  const PropsSI = getPropsSI();
+  const scales = ensureAirRelativeScales();
+  if (!PropsSI || !scales) return null;
+
+  try {
+    const sAir = PropsSI("S", "T", tempSI, "P", AIR_A22_RELATIVE.entropyPressure, "Air");
+    return {
+      pr: scales.prScale * Math.exp(sAir / AIR_A22_RELATIVE.gasConstant),
+      vr: scales.vrScale * tempSI * Math.exp(-sAir / AIR_A22_RELATIVE.gasConstant)
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+function convertBookInputToCoolPropBasis(fluid, prop, siVal){
+  if (!bookBasisEnabled()) return siVal;
+  if (prop !== "H" && prop !== "U") return siVal;
+  const offsets = ensureBookBasisOffsets(fluid);
+  if (!offsets) return siVal;
+  return siVal - (prop === "H" ? offsets.hOffset : offsets.uOffset);
 }
 
 function applyBookBasis(fluid, prop, siVal){
   if (!bookBasisEnabled()) return siVal;
-  const f = fluid.toLowerCase();
-  if ((prop === "H" || prop === "U") && f === "air"){
-    if (H_OFFSET_AIR === null) calibrateAir();
-    return siVal + (prop === "H" ? H_OFFSET_AIR : U_OFFSET_AIR);
+  if (prop !== "H" && prop !== "U") return siVal;
+  const offsets = ensureBookBasisOffsets(fluid);
+  if (!offsets) return siVal;
+  return siVal + (prop === "H" ? offsets.hOffset : offsets.uOffset);
+}
+
+function syncBookBasisLabel(){
+  const fluid = $("fluid") ? $("fluid").value.trim() : "";
+  const cfg = getBookBasisConfig(fluid);
+  const on = bookBasisEnabled();
+  const label = $("bookBasisText");
+  const hint = $("bookBasisHint");
+
+  if (label){
+    if (cfg){
+      label.textContent = on
+        ? `På (${cfg.fluidLabel}: ${cfg.basisLabel}-basis)`
+        : `Av (${cfg.fluidLabel}: CoolProp absolutt H/U)`;
+    } else {
+      const name = fluid || "Valgt fluid";
+      label.textContent = on
+        ? `På (${name}: ingen boktabell koblet)`
+        : `Av (${name}: CoolProp absolutt H/U)`;
+    }
   }
-  return siVal;
+
+  if (hint){
+    hint.textContent = cfg
+      ? `${cfg.fluidLabel} matcher ${cfg.tableLabel} når bryteren er på.`
+      : `Ingen bokkalibrering koblet for ${fluid || "valgt fluid"} ennå.`;
+  }
 }
 
 /* ============================================================
@@ -1394,14 +1589,21 @@ function computeProcess(){
     const props = ['P', 'T', 'H', 'S', 'U', 'D', 'Q'];
     for (const prop of props){
       try {
-        let val = PropsSI(prop, start_i1, start_V1, start_i2, start_V2, fluid);
-        val = applyBookBasis(fluid, prop, val);
-        startRow[prop] = val; // Store in SI
-        startRow[prop + '_display'] = convertOutputFromSI(prop, val).toFixed(4);
+        const rawVal = PropsSI(prop, start_i1, start_V1, start_i2, start_V2, fluid);
+        const displayVal = applyBookBasis(fluid, prop, rawVal);
+        startRow[prop] = displayVal;
+        startRow[prop + '_raw'] = rawVal;
+        startRow[prop + '_display'] = convertOutputFromSI(prop, displayVal).toFixed(4);
       } catch {
         startRow[prop] = null;
+        startRow[prop + '_raw'] = null;
         startRow[prop + '_display'] = "N/A";
       }
+    }
+    if (isAirFluid(fluid) && Number.isFinite(startRow.T_raw)){
+      const rel = computeAirRelativeProps(startRow.T_raw);
+      startRow.pr_display = rel ? rel.pr.toFixed(4) : "N/A";
+      startRow.vr_display = rel ? rel.vr.toFixed(4) : "N/A";
     }
     
     // Phase
@@ -1420,10 +1622,10 @@ function computeProcess(){
     prevState = startRow;
     
     // Store for diagram
-    if (startRow.P !== null && startRow.H !== null){
+    if (startRow.P_raw !== null && startRow.H_raw !== null){
       currentStatePoints.push({
-        p: startRow.P,
-        h: startRow.H,
+        p: startRow.P_raw,
+        h: startRow.H_raw,
         phase: startRow.PhaseRaw || "",
         label: '1',
         description: start_desc
@@ -1455,7 +1657,7 @@ function computeProcess(){
       if (step.processType === 'isobaric'){
         // P = constant from previous
         i1 = 'P';
-        V1 = prevState.P;
+        V1 = prevState.P_raw ?? prevState.P;
         i2 = step.targetType;
         const v2_raw = Number(step.targetValue);
         if (!Number.isFinite(v2_raw)){
@@ -1465,7 +1667,7 @@ function computeProcess(){
       } else if (step.processType === 'isothermal'){
         // T = constant from previous
         i1 = 'T';
-        V1 = prevState.T;
+        V1 = prevState.T_raw ?? prevState.T;
         i2 = step.targetType;
         const v2_raw = Number(step.targetValue);
         if (!Number.isFinite(v2_raw)){
@@ -1475,7 +1677,7 @@ function computeProcess(){
       } else if (step.processType === 'isentropic'){
         // S = constant from previous
         i1 = 'S';
-        V1 = prevState.S;
+        V1 = prevState.S_raw ?? prevState.S;
         i2 = step.targetType;
         const v2_raw = Number(step.targetValue);
         if (!Number.isFinite(v2_raw)){
@@ -1485,7 +1687,7 @@ function computeProcess(){
       } else if (step.processType === 'isochoric'){
         // D = constant from previous
         i1 = 'D';
-        V1 = prevState.D;
+        V1 = prevState.D_raw ?? prevState.D;
         i2 = step.targetType;
         const v2_raw = Number(step.targetValue);
         if (!Number.isFinite(v2_raw)){
@@ -1495,7 +1697,7 @@ function computeProcess(){
       } else if (step.processType === 'isenthalpic'){
         // H = constant from previous
         i1 = 'H';
-        V1 = prevState.H;
+        V1 = prevState.H_raw ?? prevState.H;
         i2 = step.targetType;
         const v2_raw = Number(step.targetValue);
         if (!Number.isFinite(v2_raw)){
@@ -1526,14 +1728,21 @@ function computeProcess(){
       const props = ['P', 'T', 'H', 'S', 'U', 'D', 'Q'];
       for (const prop of props){
         try {
-          let val = PropsSI(prop, i1, V1, i2, V2, fluid);
-          val = applyBookBasis(fluid, prop, val);
-          row[prop] = val;
-          row[prop + '_display'] = convertOutputFromSI(prop, val).toFixed(4);
+          const rawVal = PropsSI(prop, i1, V1, i2, V2, fluid);
+          const displayVal = applyBookBasis(fluid, prop, rawVal);
+          row[prop] = displayVal;
+          row[prop + '_raw'] = rawVal;
+          row[prop + '_display'] = convertOutputFromSI(prop, displayVal).toFixed(4);
         } catch {
           row[prop] = null;
+          row[prop + '_raw'] = null;
           row[prop + '_display'] = "N/A";
         }
+      }
+      if (isAirFluid(fluid) && Number.isFinite(row.T_raw)){
+        const rel = computeAirRelativeProps(row.T_raw);
+        row.pr_display = rel ? rel.pr.toFixed(4) : "N/A";
+        row.vr_display = rel ? rel.vr.toFixed(4) : "N/A";
       }
       
       // Phase
@@ -1552,10 +1761,10 @@ function computeProcess(){
       prevState = row;
       
       // Store for diagram
-      if (row.P !== null && row.H !== null){
+      if (row.P_raw !== null && row.H_raw !== null){
         currentStatePoints.push({
-          p: row.P,
-          h: row.H,
+          p: row.P_raw,
+          h: row.H_raw,
           phase: row.PhaseRaw || "",
           label: `${idx + 2}`,
           description: step.description
@@ -1580,6 +1789,7 @@ function computeProcess(){
 function renderProcessOutput(rows){
   const out = $("processOutput");
   if (!out || !rows.length) return;
+  const showAirRelative = rows.some(r => Object.prototype.hasOwnProperty.call(r, 'pr_display') || Object.prototype.hasOwnProperty.call(r, 'vr_display'));
   
   let html = `<div class="tableWrap"><table><thead><tr>`;
   html += `<th>Step</th><th>Description</th><th>Status</th>`;
@@ -1588,6 +1798,9 @@ function renderProcessOutput(rows){
   html += `<th>H (${unitLabel('H')})</th>`;
   html += `<th>S (${unitLabel('S')})</th>`;
   html += `<th>U (${unitLabel('U')})</th>`;
+  if (showAirRelative){
+    html += `<th>pr</th><th>vr</th>`;
+  }
   html += `<th>Phase</th>`;
   html += `</tr></thead><tbody>`;
   
@@ -1607,6 +1820,10 @@ function renderProcessOutput(rows){
       html += `<td>${r.H_display}</td>`;
       html += `<td>${r.S_display}</td>`;
       html += `<td>${r.U_display}</td>`;
+      if (showAirRelative){
+        html += `<td>${r.pr_display ?? ""}</td>`;
+        html += `<td>${r.vr_display ?? ""}</td>`;
+      }
       
       if (r.PhaseRaw){
         const phaseCls = getPhaseClass(r.PhaseRaw);
@@ -1615,7 +1832,7 @@ function renderProcessOutput(rows){
         html += `<td>${r.Phase}</td>`;
       }
     } else {
-      html += `<td colspan="6" class="bad">${r.Error || 'Feil'}</td>`;
+      html += `<td colspan="${showAirRelative ? 8 : 6}" class="bad">${r.Error || 'Feil'}</td>`;
     }
     
     html += `</tr>`;
@@ -1638,6 +1855,7 @@ function computeSingleState(fluid, i1, V1, i2, V2){
   try {
     const standardProps = ["T","P","D","H","S","U","Cp","Cv","viscosity","conductivity","speed_sound","Prandtl","Q"];
     const row = { Fluid: fluid, Status: "OK" };
+    let tempSI = null;
 
     row[i1 + "_in"] = convertOutputFromSI(i1, V1).toFixed(4);
     row[i2 + "_in"] = convertOutputFromSI(i2, V2).toFixed(4);
@@ -1647,9 +1865,18 @@ function computeSingleState(fluid, i1, V1, i2, V2){
         let val = PropsSI(pr, i1, V1, i2, V2, fluid);
         val = applyBookBasis(fluid, pr, val);
         row[pr] = convertOutputFromSI(pr, val).toFixed(4);
+        if (pr === "T"){
+          tempSI = PropsSI("T", i1, V1, i2, V2, fluid);
+        }
       } catch {
         row[pr] = "N/A";
       }
+    }
+
+    if (isAirFluid(fluid)){
+      const rel = computeAirRelativeProps(tempSI);
+      row.pr = rel ? rel.pr.toFixed(4) : "N/A";
+      row.vr = rel ? rel.vr.toFixed(4) : "N/A";
     }
 
     if (PhaseSI){
@@ -1697,6 +1924,8 @@ function renderSingleOutput(row){
     { key: "D", label: "Density (ρ)", unit: unitLabel("D") },
     { key: "H", label: "Enthalpy (h)", unit: unitLabel("H") },
     { key: "S", label: "Entropy (s)", unit: unitLabel("S") },
+    { key: "pr", label: "Relative pressure (pr)", unit: "" },
+    { key: "vr", label: "Relative specific volume (vr)", unit: "" },
     { key: "U", label: "Internal Energy (u)", unit: unitLabel("U") },
     { key: "Cp", label: "Cp", unit: unitLabel("Cp") },
     { key: "Cv", label: "Cv", unit: unitLabel("Cv") },
@@ -1763,6 +1992,7 @@ function computeBatchMulti(fluid, format, lines, selectedOutputs){
       const row = { Status: "OK" };
       row[i1 + "_in"] = convertOutputFromSI(i1, V1).toFixed(4);
       row[i2 + "_in"] = convertOutputFromSI(i2, V2).toFixed(4);
+      let airRelative = undefined;
 
       for (const out of selectedOutputs){
         if (out === "Phase"){
@@ -1778,6 +2008,20 @@ function computeBatchMulti(fluid, format, lines, selectedOutputs){
           } else {
             row.Phase = "N/A";
             row.PhaseRaw = "";
+          }
+        } else if (out === "pr" || out === "vr"){
+          if (!isAirFluid(fluid)){
+            row[out] = "N/A";
+          } else {
+            if (airRelative === undefined){
+              try {
+                const tempSI = PropsSI("T", i1, V1, i2, V2, fluid);
+                airRelative = computeAirRelativeProps(tempSI);
+              } catch {
+                airRelative = null;
+              }
+            }
+            row[out] = airRelative ? airRelative[out].toFixed(4) : "N/A";
           }
         } else {
           try {
@@ -1890,6 +2134,23 @@ function computePropsTable(fluid, i1, V1, i2, V2, bodyId, msgId){
       html += `<tr><td><strong>${label}</strong></td><td>${out}</td><td>${unit}</td></tr>`;
     } catch {
       html += `<tr><td><strong>${label}</strong></td><td class="bad">N/A</td><td></td></tr>`;
+    }
+  }
+
+  if (isAirFluid(fluid)){
+    try {
+      const tempSI = PropsSI("T", i1, V1, i2, V2, fluid);
+      const rel = computeAirRelativeProps(tempSI);
+      if (rel){
+        html += `<tr><td><strong>Relative pressure (pr)</strong></td><td>${rel.pr.toFixed(4)}</td><td></td></tr>`;
+        html += `<tr><td><strong>Relative specific volume (vr)</strong></td><td>${rel.vr.toFixed(4)}</td><td></td></tr>`;
+      } else {
+        html += `<tr><td><strong>Relative pressure (pr)</strong></td><td class="bad">N/A</td><td></td></tr>`;
+        html += `<tr><td><strong>Relative specific volume (vr)</strong></td><td class="bad">N/A</td><td></td></tr>`;
+      }
+    } catch {
+      html += `<tr><td><strong>Relative pressure (pr)</strong></td><td class="bad">N/A</td><td></td></tr>`;
+      html += `<tr><td><strong>Relative specific volume (vr)</strong></td><td class="bad">N/A</td><td></td></tr>`;
     }
   }
 
@@ -3185,7 +3446,13 @@ I UI velger du enheter, og siden konverterer automatisk.`,
     desc:"Relative H og U (lærebok-vennlig)",
     body:`CoolProp bruker en intern referansetilstand. Mange lærebøker bruker <b>relative</b> verdier.
 Når <code>Samme Basis som boken</code> er på:
-- For <b>Air</b> justeres H og U med konstant offset for å matche Table A-22.
+- H og U justeres med fluid-spesifikt offset for å matche boktabellene:
+  Air → Table A-22
+  Nitrogen / Oxygen / CO2 → Table A-23
+  Water → Table A-2/A-3/A-4/A-5
+  R134a → Table A-10/A-11/A-12
+  Ammonia → Table A-13/A-14/A-15
+  Propane → Table A-16/A-17/A-18
 
 Viktig: Dette endrer bare absolutt-nivået. Forskjeller ΔH og ΔU blir de samme.`,
     extra:`Hvis du sammenligner mot tabeller i boka: slå dette på.`
@@ -3281,7 +3548,8 @@ $("helpSearch").addEventListener("input", (e)=>renderHelpList(e.target.value));
   while (performance.now()-t0 < 15000){
     if (getPropsSI()){ 
       setEngine(true); 
-      calibrateAir();
+      ensureBookBasisOffsets($("fluid") ? $("fluid").value : "Air");
+      syncBookBasisLabel();
       return; 
     }
     await new Promise(r=>setTimeout(r, 120));
@@ -3289,16 +3557,11 @@ $("helpSearch").addEventListener("input", (e)=>renderHelpList(e.target.value));
   setEngine(false,"Feil");
 })();
 
-/* Book basis toggle */
-function syncBookBasisLabel(){
-  const on = bookBasisEnabled();
-  const t = $("bookBasisText");
-  if (t){
-    t.textContent = on ? "På (Luft: Tabell A-22-basis)" : "Av (CoolProp absolutt H/U)";
-  }
-}
 if ($("bookBasis")){
   $("bookBasis").addEventListener("change", syncBookBasisLabel);
+}
+if ($("fluid")){
+  $("fluid").addEventListener("change", syncBookBasisLabel);
 }
 
 /* Defaults */

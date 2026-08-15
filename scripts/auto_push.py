@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Simple file-watcher that auto-adds, commits and pushes changes in a repo.
 
 Usage:
-  python scripts/auto_push.py --path z:/export --interval 3 --quiet 5
+  python scripts/auto_push.py --path \\webedit.ntnu.no/tormt/export --interval 3 --quiet 5
 
 Notes:
 - Uses polling (no external deps). Excludes `.git` and common large-data folders by default.
@@ -96,3 +96,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

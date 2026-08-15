@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import argparse
 import os
 import re
@@ -53,7 +53,7 @@ def replace_in_file(path: Path, pat, repl, flags, preserve_case, dry_run, backup
 
 def main():
     p = argparse.ArgumentParser(description='Search and replace tool for workspace files and names')
-    p.add_argument('--root', '-r', default=r'Z:\\', help='Root folder to search (default Z:\\)')
+    p.add_argument('--root', '-r', default=r'\\webedit.ntnu.no\\tormt\\\', help='Root folder to search (default \\webedit.ntnu.no\\tormt\\\)')
     p.add_argument('--search', '-s', required=True, help='Search string or regex')
     p.add_argument('--replace', '-t', required=True, help='Replacement string')
     p.add_argument('--regex', action='store_true', help='Treat search as regex (default: literal)')
@@ -132,3 +132,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

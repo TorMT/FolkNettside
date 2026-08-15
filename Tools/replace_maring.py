@@ -1,9 +1,9 @@
-import os
+﻿import os
 import re
 import shutil
 from pathlib import Path
 
-ROOT = Path(r"Z:\")
+ROOT = Path(r"\\webedit.ntnu.no\\tormt\\")
 PAT = re.compile(r"maring", re.I)
 
 def preserve_case_replace(m):
@@ -90,3 +90,4 @@ print('\nModified files:')
 for p in changed_files:
     print(p)
 print('\nDone.')
+

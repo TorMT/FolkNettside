@@ -278,11 +278,12 @@
     const sourceExt = (params.get("sourceExt") || "").toLowerCase();
     const embedded = params.get("embedded") === "1";
     const useBarePreview = embedded && hostMode === "fusion";
+    const viewerCacheVersion = params.get("v") || "20260527c";
     const stage = document.getElementById("stage");
     const hudText = document.getElementById("hudText");
     const fileName = decodeDisplayText((sourceFile || "").split("/").pop());
     let previewFrame = null;
-    const pendingComponentState = { chosen: [], muted: [], isolateChosen: false };
+    const pendingComponentState = { chosen: [], muted: [], chosenAliases: [], mutedAliases: [], isolateChosen: false };
     const pendingViewerCommands = new Map();
     const existsCache = new Map();
     const jsonCache = new Map();
@@ -524,7 +525,7 @@
         ? "&fallback=1"
         : "";
       const hostFlag = hostMode ? `&host=${encodeURIComponent(hostMode)}` : "";
-      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260521b${fallbackFlag}${hostFlag}`;
+      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=${encodeURIComponent(viewerCacheVersion)}${fallbackFlag}${hostFlag}`;
     }
 
     function isBrowserRenderablePreview(url) {
@@ -538,6 +539,8 @@
           type: "viewer-component-state",
           chosen: pendingComponentState.chosen,
           muted: pendingComponentState.muted,
+          chosenAliases: pendingComponentState.chosenAliases,
+          mutedAliases: pendingComponentState.mutedAliases,
           isolateChosen: pendingComponentState.isolateChosen,
         }, "*");
       } catch {}
@@ -545,6 +548,8 @@
 
     function rememberViewerCommand(command = {}) {
       if (!command?.action) return;
+      if (command.action === "set-wave-preview") pendingViewerCommands.delete("clear-wave-preview");
+      if (command.action === "clear-wave-preview") pendingViewerCommands.delete("set-wave-preview");
       pendingViewerCommands.set(String(command.action), { ...command });
     }
 
@@ -705,6 +710,8 @@
       if (data.type === "viewer-component-state") {
         pendingComponentState.chosen = Array.isArray(data.chosen) ? [...data.chosen] : [];
         pendingComponentState.muted = Array.isArray(data.muted) ? [...data.muted] : [];
+        pendingComponentState.chosenAliases = Array.isArray(data.chosenAliases) ? [...data.chosenAliases] : [];
+        pendingComponentState.mutedAliases = Array.isArray(data.mutedAliases) ? [...data.mutedAliases] : [];
         pendingComponentState.isolateChosen = data.isolateChosen === true;
         relayComponentStateToPreview();
         return;
@@ -730,6 +737,15 @@
       }
 
       if (data.type === "viewer-analysis") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-wave-preview") {
         try {
           if (window.parent && window.parent !== window) {
             window.parent.postMessage(data, "*");

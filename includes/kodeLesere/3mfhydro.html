@@ -905,8 +905,8 @@
     import * as THREE from "/includes/three/three.module.js";
 
     import { STLViewerCore } from "/includes/three/STLViewerCore.js?v=20260417f";
-    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260412e";
-    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260411d";
+    import { ModelLoader } from "/includes/three/ModelLoader.js?v=20260527a";
+    import { HydroStatikk } from "/includes/three/HydroStatikk.js?v=20260528-perf";
     import { UIController } from "/includes/three/UIController.js";
     import { ClippingController } from "/includes/three/ClippingController.js";
     import { MeasureController } from "/includes/three/MeasureController.js";
@@ -1081,6 +1081,7 @@
       highlightJobId: 0,
       reportWorkerSeq: 0,
       reportWorkerCallbacks: new Map(),
+      hydroCommand: { seq: 0, signature: "", handledKeys: new Set() },
       hydroUi: {
         dirty: true,
         lastKey: "",
@@ -1118,6 +1119,21 @@
       runtimeState[kind]?.controller?.abort?.(createAbortError(message));
     }
 
+    function shouldHandleHydroCommand(data = {}) {
+      const key = data.commandSeq
+        ? `seq:${data.commandSeq}`
+        : data.commandSignature
+          ? String(data.commandSignature)
+          : "";
+      if (!key) return true;
+      if (runtimeState.hydroCommand.handledKeys.has(key)) return false;
+      runtimeState.hydroCommand.handledKeys.add(key);
+      if (runtimeState.hydroCommand.handledKeys.size > 24) {
+        runtimeState.hydroCommand.handledKeys = new Set([...runtimeState.hydroCommand.handledKeys].slice(-12));
+      }
+      return true;
+    }
+
     async function runHydroExclusive(label, task, { signal = null } = {}) {
       const previous = runtimeState.hydroExclusive.catch(() => {});
       let release;
@@ -1140,10 +1156,14 @@
         heelDeg: hydro.heelDeg,
         quality: hydro.quality,
         userQuality: hydro.userQuality,
+        performanceMode: hydro.performanceMode === true,
         waterDensity: hydro.waterDensity,
         materialDensity: hydro.materialDensity,
         componentDensityOverrides: hydro.componentDensityOverrides instanceof Map
           ? new Map(hydro.componentDensityOverrides)
+          : null,
+        componentDensityCatalog: hydro.componentDensityCatalog instanceof Map
+          ? new Map(hydro.componentDensityCatalog)
           : null,
         rotation: hydro.hydroRotGroup?.rotation?.clone?.() || null,
       };
@@ -1156,10 +1176,14 @@
       hydro.heelDeg = snapshot.heelDeg;
       hydro.quality = snapshot.quality;
       hydro.userQuality = snapshot.userQuality;
+      hydro.setPerformanceMode?.(snapshot.performanceMode === true);
       hydro.waterDensity = snapshot.waterDensity;
       hydro.setMaterialDensity?.(snapshot.materialDensity);
       hydro.componentDensityOverrides = snapshot.componentDensityOverrides instanceof Map
         ? new Map(snapshot.componentDensityOverrides)
+        : new Map();
+      hydro.componentDensityCatalog = snapshot.componentDensityCatalog instanceof Map
+        ? new Map(snapshot.componentDensityCatalog)
         : new Map();
       hydro._syncMassPropertiesFromMesh?.();
       if (snapshot.rotation && hydro.hydroRotGroup?.rotation) {
@@ -1291,20 +1315,6 @@
     const helpData = getHelpData(lang);
     ui.init(core, hydro, clipper, measure, { helpData, lang });
 
-    function pauseAutoRotateDuringReport() {
-      const autoToggle = document.getElementById("chkAuto");
-      const wasAutoRotating = core.controls?.autoRotate === true;
-      if (wasAutoRotating) {
-        core.setAutoRotate(false);
-        if (autoToggle) autoToggle.checked = false;
-      }
-      return () => {
-        if (!wasAutoRotating) return;
-        core.setAutoRotate(true);
-        if (autoToggle) autoToggle.checked = true;
-      };
-    }
-
     const wavePreviewState = {
       enabled: false,
       objectMode: "vessel",
@@ -1313,10 +1323,120 @@
       ghost: null,
       startedAt: performance.now(),
       params: {},
+      sequence: -1,
+      modelPose: null,
+      modelBounds: null,
+      visualFollowers: [],
+      suspended: false,
     };
 
-    function clearWavePreview() {
+    function waveMotionTarget() {
+      return core?.modelGroup || null;
+    }
+
+    function captureWaveModelPose() {
+      const target = waveMotionTarget();
+      if (!target) return;
+      target.updateMatrixWorld?.(true);
+      const bounds = core.computeBoundsWorld?.(target);
+      const center = bounds?.center || new THREE.Vector3();
+      const waterZ = Number(hydro?.draftZWorld);
+      const waterlineZ = Number.isFinite(waterZ) ? waterZ : center.z;
+      const waterlineAnchor = new THREE.Vector3(center.x, center.y, waterlineZ);
+      wavePreviewState.modelPose = {
+        position: target.position.clone(),
+        quaternion: target.quaternion.clone(),
+        matrixWorld: target.matrixWorld.clone(),
+        matrixWorldInverse: target.matrixWorld.clone().invert(),
+        waterlineAnchor,
+        waterlineLocalAnchor: target.worldToLocal(waterlineAnchor.clone()),
+      };
+      wavePreviewState.modelBounds = bounds ? {
+        center: bounds.center.clone(),
+        size: bounds.size.clone(),
+        maxDim: bounds.maxDim,
+      } : null;
+      captureWaveVisualFollowers();
+    }
+
+    function getWaveVisualFollowers() {
+      return [hydro?.wlContour].filter(Boolean);
+    }
+
+    function captureWaveVisualFollowers() {
+      restoreWaveVisualFollowers();
+      wavePreviewState.visualFollowers = getWaveVisualFollowers().map((object) => ({
+        object,
+        matrix: object.matrix.clone(),
+        matrixAutoUpdate: object.matrixAutoUpdate,
+        position: object.position.clone(),
+        quaternion: object.quaternion.clone(),
+        scale: object.scale.clone(),
+      }));
+    }
+
+    function restoreWaveVisualFollowers() {
+      (wavePreviewState.visualFollowers || []).forEach((entry) => {
+        const object = entry?.object;
+        if (!object) return;
+        object.matrixAutoUpdate = entry.matrixAutoUpdate;
+        object.matrix.copy(entry.matrix);
+        object.position.copy(entry.position);
+        object.quaternion.copy(entry.quaternion);
+        object.scale.copy(entry.scale);
+        object.updateMatrixWorld?.(true);
+      });
+      wavePreviewState.visualFollowers = [];
+    }
+
+    function applyWaveVisualFollowers() {
+      if (!wavePreviewState.modelPose?.matrixWorldInverse || !wavePreviewState.visualFollowers?.length) return;
+      const target = waveMotionTarget();
+      if (!target) return;
+      target.updateMatrixWorld?.(true);
+      const delta = new THREE.Matrix4().multiplyMatrices(target.matrixWorld, wavePreviewState.modelPose.matrixWorldInverse);
+      wavePreviewState.visualFollowers.forEach((entry) => {
+        const object = entry?.object;
+        if (!object) return;
+        object.matrixAutoUpdate = false;
+        object.matrix.copy(delta).multiply(entry.matrix);
+        object.updateMatrixWorld?.(true);
+      });
+    }
+
+    function restoreWaveModelPose() {
+      const target = waveMotionTarget();
+      if (!target || !wavePreviewState.modelPose) return;
+      target.position.copy(wavePreviewState.modelPose.position);
+      target.quaternion.copy(wavePreviewState.modelPose.quaternion);
+      target.updateMatrixWorld?.(true);
+      restoreWaveVisualFollowers();
+      wavePreviewState.modelPose = null;
+      wavePreviewState.modelBounds = null;
+    }
+
+    function suspendWavePreviewMotion() {
+      if (!wavePreviewState.enabled || wavePreviewState.suspended) return () => {};
+      wavePreviewState.suspended = true;
+      restoreWaveModelPose();
+      return () => resumeWavePreviewMotion();
+    }
+
+    function resumeWavePreviewMotion() {
+      if (!wavePreviewState.enabled || !wavePreviewState.suspended) return;
+      wavePreviewState.suspended = false;
+      captureWaveModelPose();
+      ensureWavePreviewObjects(wavePreviewState.params);
+    }
+
+    function clearWavePreview(data = {}) {
+      const nextSequence = Number(data.sequence);
+      if (!Number.isFinite(nextSequence) && wavePreviewState.sequence >= 0) return;
+      if (Number.isFinite(nextSequence) && nextSequence < wavePreviewState.sequence) return;
+      if (Number.isFinite(nextSequence)) wavePreviewState.sequence = nextSequence;
       wavePreviewState.enabled = false;
+      wavePreviewState.suspended = false;
+      restoreWaveModelPose();
       if (wavePreviewState.mesh) {
         wavePreviewState.mesh.geometry?.dispose?.();
         wavePreviewState.mesh.material?.dispose?.();
@@ -1330,11 +1450,17 @@
         wavePreviewState.ghost = null;
       }
       wavePreviewState.params = {};
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "viewer-wave-preview", state: "disabled" }, "*");
+        }
+      } catch {}
     }
 
     function ensureWavePreviewObjects(params = {}) {
-      const bounds = core.computeBoundsWorld?.(core.modelGroup);
+      const bounds = wavePreviewState.modelBounds || core.computeBoundsWorld?.(core.modelGroup);
       const center = bounds?.center || new THREE.Vector3();
+      const waterlineAnchor = wavePreviewState.modelPose?.waterlineAnchor || center;
       const size = bounds?.size || new THREE.Vector3(1, 1, 1);
       const lengthM = Math.max(0.1, Number(params.modelLengthM) || Math.max(size.x, 1));
       const beamM = Math.max(0.1, Number(params.modelBeamM) || Math.max(size.y, 1));
@@ -1349,28 +1475,32 @@
         const material = new THREE.MeshBasicMaterial({
           color: 0x1d8fbd,
           transparent: true,
-          opacity: 0.28,
+          opacity: 0.42,
           side: THREE.DoubleSide,
           wireframe: true,
           depthWrite: false,
+          depthTest: false,
         });
         wavePreviewState.mesh = new THREE.Mesh(geometry, material);
         wavePreviewState.mesh.userData.gridSize = gridSize;
-        wavePreviewState.mesh.renderOrder = 4;
+        wavePreviewState.mesh.renderOrder = 40;
         core.scene.add(wavePreviewState.mesh);
       }
-      wavePreviewState.mesh.position.set(center.x, center.y, hydro?.draftZWorld || center.z);
+      const waterZ = Number(hydro?.draftZWorld);
+      const waterlineZ = Number.isFinite(waterZ) ? waterZ : waterlineAnchor.z;
+      wavePreviewState.mesh.position.set(waterlineAnchor.x, waterlineAnchor.y, waterlineZ);
       if (!wavePreviewState.ghost && params.objectMode !== "fixed") {
         const ghostGeometry = new THREE.BoxGeometry(Math.max(size.x, 0.01), Math.max(size.y, 0.01), Math.max(size.z, 0.01));
         const ghostMaterial = new THREE.MeshBasicMaterial({
           color: 0xffb020,
           transparent: true,
-          opacity: 0.18,
+          opacity: 0.26,
           wireframe: true,
           depthWrite: false,
+          depthTest: false,
         });
         wavePreviewState.ghost = new THREE.Mesh(ghostGeometry, ghostMaterial);
-        wavePreviewState.ghost.renderOrder = 5;
+        wavePreviewState.ghost.renderOrder = 41;
         core.scene.add(wavePreviewState.ghost);
       } else if (params.objectMode === "fixed" && wavePreviewState.ghost) {
         wavePreviewState.ghost.geometry?.dispose?.();
@@ -1379,17 +1509,21 @@
         wavePreviewState.ghost = null;
       }
       if (wavePreviewState.ghost) {
-        wavePreviewState.ghost.position.copy(center);
-        wavePreviewState.ghost.rotation.set(0, 0, 0);
+        wavePreviewState.ghost.visible = false;
       }
     }
 
     function setWavePreview(data = {}) {
+      const nextSequence = Number(data.sequence);
+      if (Number.isFinite(nextSequence) && nextSequence < wavePreviewState.sequence) return;
+      if (Number.isFinite(nextSequence)) wavePreviewState.sequence = nextSequence;
       if (data.enabled === false) {
-        clearWavePreview();
+        clearWavePreview(data);
         return;
       }
+      const wasEnabled = wavePreviewState.enabled === true;
       wavePreviewState.enabled = true;
+      wavePreviewState.suspended = false;
       wavePreviewState.startedAt = performance.now();
       wavePreviewState.objectMode = data.objectMode === "fixed" ? "fixed" : "vessel";
       wavePreviewState.seabedLocked = data.seabedLocked === true || wavePreviewState.objectMode === "fixed";
@@ -1397,15 +1531,29 @@
         waveHeightM: Math.max(0, Number(data.waveHeightM) || 0),
         wavePeriodS: Math.max(0.5, Number(data.wavePeriodS) || 6.5),
         wavelengthM: Math.max(0.1, Number(data.wavelengthM) || 10),
+        waveHeadingDeg: Number(data.waveHeadingDeg) || 180,
         waveDirectionDeg: Number(data.waveDirectionDeg) || 0,
         modelLengthM: Math.max(0.1, Number(data.modelLengthM) || 1),
         modelBeamM: Math.max(0.1, Number(data.modelBeamM) || 1),
         modelDraftM: Math.max(0.01, Number(data.modelDraftM) || 0.3),
+        modelYawDeg: Number(data.modelYawDeg) || 0,
         response: data.response || {},
         objectMode: wavePreviewState.objectMode,
       };
+      if (!wasEnabled || !wavePreviewState.modelPose) captureWaveModelPose();
       ensureWavePreviewObjects(wavePreviewState.params);
       setHud(wavePreviewState.seabedLocked ? "Bølgepreview: bunnlåst konstruksjon" : "Bølgepreview: fartøyrespons", false);
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: "viewer-wave-preview",
+            state: "enabled",
+            objectMode: wavePreviewState.objectMode,
+            waveHeightM: wavePreviewState.params.waveHeightM,
+            wavelengthM: wavePreviewState.params.wavelengthM,
+          }, "*");
+        }
+      } catch {}
     }
 
     core.addFrameListener(() => {
@@ -1430,26 +1578,66 @@
       }
       pos.needsUpdate = true;
       geometry.computeVertexNormals?.();
-      if (wavePreviewState.ghost) {
-        const response = params.response || {};
-        const heave = Number(response.heaveM) || 0;
-        const roll = THREE.MathUtils.degToRad(Number(response.rollDeg) || 0);
-        const pitch = THREE.MathUtils.degToRad(Number(response.pitchDeg) || 0);
-        const phase = omega * t;
-        const bounds = core.computeBoundsWorld?.(core.modelGroup);
-        if (bounds?.center) {
-          wavePreviewState.ghost.position.set(bounds.center.x, bounds.center.y, bounds.center.z + heave * Math.sin(phase));
-        }
-        wavePreviewState.ghost.rotation.set(
-          roll * Math.sin(phase + Math.PI * 0.2),
-          pitch * Math.sin(phase),
-          0
-        );
-      }
+      if (!wavePreviewState.suspended) applyWaveModelMotion({ omega, k, dirX, dirY, amplitude, t });
     });
 
+    function applyWaveModelMotion({ omega, k, dirX, dirY, amplitude, t }) {
+      const target = waveMotionTarget();
+      if (!target || !wavePreviewState.modelPose || wavePreviewState.suspended || wavePreviewState.seabedLocked || wavePreviewState.objectMode === "fixed") return;
+      const params = wavePreviewState.params || {};
+      const response = params.response || {};
+      const bounds = wavePreviewState.modelBounds || core.computeBoundsWorld?.(core.modelGroup);
+      const center = bounds?.center || new THREE.Vector3();
+      const waterlineAnchor = wavePreviewState.modelPose.waterlineAnchor || center;
+      const L = Math.max(0.1, Number(params.modelLengthM) || bounds?.size?.x || 1);
+      const B = Math.max(0.1, Number(params.modelBeamM) || bounds?.size?.y || 1);
+      const T = Math.max(0.01, Number(params.modelDraftM) || bounds?.size?.z || 0.3);
+      const wavelength = Math.max(0.1, Number(params.wavelengthM) || 10);
+      const relativeHeading = THREE.MathUtils.degToRad((Number(params.waveHeadingDeg) || 180) - (Number(params.modelYawDeg) || 0));
+      const headGain = Math.abs(Math.cos(relativeHeading));
+      const beamGain = Math.abs(Math.sin(relativeHeading));
+      const relativeWave = amplitude / Math.max(T, 0.05);
+      const wavelengthFit = Math.min(1.2, wavelength / Math.max(L, 0.1));
+      const fallbackHeave = amplitude * Math.min(0.95, Math.max(0.12, 0.25 + 0.35 * wavelengthFit));
+      const fallbackRollDeg = THREE.MathUtils.radToDeg(Math.atan2(amplitude, Math.max(B * 0.5, 0.05))) * Math.min(1.1, 0.35 + relativeWave * 0.25);
+      const fallbackPitchDeg = THREE.MathUtils.radToDeg(Math.atan2(amplitude, Math.max(L * 0.5, 0.05))) * Math.min(1.0, 0.3 + relativeWave * 0.2);
+      const heave = Number.isFinite(Number(response.heaveM)) ? Number(response.heaveM) : fallbackHeave;
+      const rollDeg = Number.isFinite(Number(response.rollDeg)) ? Number(response.rollDeg) * Math.max(0.2, beamGain) : fallbackRollDeg * Math.max(0.15, beamGain);
+      const pitchDeg = Number.isFinite(Number(response.pitchDeg)) ? Number(response.pitchDeg) * Math.max(0.2, headGain) : fallbackPitchDeg * Math.max(0.15, headGain);
+      const roll = THREE.MathUtils.degToRad(rollDeg);
+      const pitch = THREE.MathUtils.degToRad(pitchDeg);
+      const wavePhase = k * (waterlineAnchor.x * dirX + waterlineAnchor.y * dirY) - omega * t;
+      const yaw = THREE.MathUtils.degToRad(Number(params.modelYawDeg) || 0);
+
+      const heaveOffset = heave * Math.sin(wavePhase);
+      const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), yaw);
+      const pitchQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), pitch * Math.sin(wavePhase));
+      const rollQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), roll * Math.sin(wavePhase + Math.PI * 0.2));
+      target.position.copy(wavePreviewState.modelPose.position);
+      target.quaternion.copy(wavePreviewState.modelPose.quaternion).multiply(yawQ).multiply(pitchQ).multiply(rollQ);
+      target.updateMatrixWorld?.(true);
+
+      if (wavePreviewState.modelPose.waterlineLocalAnchor) {
+        const desiredAnchor = waterlineAnchor.clone();
+        desiredAnchor.z += heaveOffset;
+        const currentAnchor = target.localToWorld(wavePreviewState.modelPose.waterlineLocalAnchor.clone());
+        target.position.add(desiredAnchor.sub(currentAnchor));
+      } else {
+        target.position.z += heaveOffset;
+      }
+      target.updateMatrixWorld?.(true);
+      applyWaveVisualFollowers();
+    }
+
     function normalizeComponentName(value) {
-      return String(value || "").trim().toLowerCase();
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\.[a-z0-9]{2,4}$/i, "")
+        .replace(/[_/\\|]+/g, " ")
+        .replace(/\s*::\s*/g, " :: ")
+        .replace(/\s+/g, " ")
+        .trim();
     }
 
     function buildComponentAliasList(...values) {
@@ -1463,7 +1651,7 @@
       if (!item || !tokenSet?.size) return false;
       const aliases = Array.isArray(item.aliases) && item.aliases.length
         ? item.aliases
-        : buildComponentAliasList(item.key, item.label, item.nodePath, item.sourceName);
+        : buildComponentAliasList(item.key, item.label, item.familyKey, item.nodePath, item.sourceName);
       return aliases.some((alias) => tokenSet.has(alias));
     }
 
@@ -1599,6 +1787,7 @@
           object: child,
           label,
           key: normalizeComponentName(child.userData?.componentKey || label),
+          familyKey: normalizeComponentName(child.userData?.componentFamilyKey || ""),
           nodePath: String(child.userData?.nodePath || "").trim(),
           sourceName: String(child.userData?.sourceName || "").trim(),
           brepFaces: Number(child.userData?.brepFaces) || 0,
@@ -1607,6 +1796,7 @@
           aliases: buildComponentAliasList(
             child.userData?.componentKey,
             label,
+            child.userData?.componentFamilyKey,
             child.userData?.nodePath,
             child.userData?.sourceName
           ),
@@ -1629,6 +1819,10 @@
           label: cleanLabel,
           subtitle: extra.subtitle || "",
           description: extra.description || "",
+          familyKey: extra.familyKey || "",
+          nodePath: extra.nodePath || "",
+          sourceName: extra.sourceName || "",
+          aliases: Array.isArray(extra.aliases) ? extra.aliases.slice() : [],
           center: extra.center || null,
           size: extra.size || null,
         });
@@ -1636,13 +1830,40 @@
 
       const renderables = await collectRenderableComponents(root, options);
       if (renderables.length) {
-        renderables.forEach(({ label, key, nodePath, sourceName, brepFaces, center, size }) => {
+        renderables.forEach(({ label, key, familyKey, nodePath, sourceName, brepFaces, center, size, aliases }) => {
           pushItem(label, {
             key,
             subtitle: nodePath || sourceName,
             description: brepFaces ? `${brepFaces} B-Rep-flater` : "",
+            familyKey,
+            nodePath,
+            sourceName,
+            aliases,
             center,
             size,
+          });
+        });
+      } else if (Array.isArray(root?.userData?.componentMassProps) && root.userData.componentMassProps.length) {
+        root.userData.componentMassProps.forEach((entry) => {
+          const label = String(entry?.name || entry?.label || entry?.key || "").trim();
+          if (!label) return;
+          const familyKey = normalizeComponentName(entry?.familyKey || "");
+          const nodePath = String(entry?.nodePath || "").trim();
+          const sourceName = String(entry?.sourceName || "").trim();
+          pushItem(label, {
+            key: normalizeComponentName(entry?.key || label),
+            subtitle: nodePath || sourceName,
+            description: "",
+            familyKey,
+            nodePath,
+            sourceName,
+            aliases: buildComponentAliasList(
+              entry?.key,
+              entry?.name,
+              entry?.familyKey,
+              entry?.nodePath,
+              entry?.sourceName
+            ),
           });
         });
       } else if (Array.isArray(root?.userData?.componentNames)) {
@@ -1678,6 +1899,8 @@
       const depth = ref ? Math.abs(ref.max.z - ref.min.z) : null;
       return {
         supported: true,
+        commandSeq: runtimeState.hydroCommand.seq || null,
+        commandSignature: runtimeState.hydroCommand.signature || "",
         source: `${MODEL_KIND} viewer`,
         modelKind: MODEL_KIND,
         length: length == null ? null : roundComponentNumber(length, 6),
@@ -1804,6 +2027,7 @@
         depthWrite: mat.depthWrite !== false,
         color: mat.color?.clone ? mat.color.clone() : null,
         emissive: mat.emissive?.clone ? mat.emissive.clone() : null,
+        emissiveIntensity: Number.isFinite(mat.emissiveIntensity) ? mat.emissiveIntensity : null,
       };
     }
 
@@ -1815,7 +2039,27 @@
       mat.depthWrite = base.depthWrite;
       if (base.color && mat.color) mat.color.copy(base.color);
       if (base.emissive && mat.emissive) mat.emissive.copy(base.emissive);
+      if (base.emissiveIntensity !== null && Number.isFinite(base.emissiveIntensity) && Number.isFinite(mat.emissiveIntensity)) {
+        mat.emissiveIntensity = base.emissiveIntensity;
+      }
       mat.needsUpdate = true;
+    }
+
+    const chosenHighlightColor = new THREE.Color(0xffb347);
+
+    function applyChosenHighlight(mat) {
+      if (!mat) return;
+      if (mat.color && mat.userData?.viewerBaseState?.color) {
+        mat.color.copy(mat.userData.viewerBaseState.color).lerp(chosenHighlightColor, 0.42);
+      }
+      if (mat.emissive) {
+        mat.emissive.setHex(0xff8a00);
+        if (Number.isFinite(mat.emissiveIntensity)) {
+          mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 1.15);
+        }
+      }
+      mat.opacity = 1;
+      mat.depthWrite = true;
     }
 
     const componentViewState = {
@@ -1911,6 +2155,7 @@
         const isChosen = componentMatchesState(item, componentViewState.chosen);
         const hideUnselected = componentViewState.isolateChosen && useChosenFocus && !isChosen;
         object.visible = !isMuted && !hideUnselected;
+        object.renderOrder = useChosenFocus && isChosen ? 8 : 0;
 
         const mats = Array.isArray(object.material) ? object.material : [object.material];
         mats.forEach((mat) => {
@@ -1923,11 +2168,11 @@
             mat.transparent = true;
             mat.depthWrite = false;
           } else if (useChosenFocus && !isChosen) {
-            mat.opacity = Math.min(mat.opacity, 0.14);
+            mat.opacity = Math.min(mat.opacity, 0.22);
             mat.transparent = true;
             mat.depthWrite = false;
-          } else if (useChosenFocus && isChosen && mat.emissive) {
-            mat.emissive.setHex(0x262626);
+          } else if (useChosenFocus && isChosen) {
+            applyChosenHighlight(mat);
           }
           mat.needsUpdate = true;
         });
@@ -2216,7 +2461,7 @@
       return String(url || "").split("?")[0].split("#")[0];
     }
 
-    /* Legacy duplicate helper block disabled in favor of the earlier async implementation.
+    if (false) { // Legacy duplicate helper block disabled in favor of the earlier async implementation.
     const modelKind = "3MF";
     let activeModelUrl = modelUrl;
     let activeSourceUrl = modelUrl;
@@ -2232,7 +2477,14 @@
     let hydroReportCachePromise = null;
 
     function normalizeComponentName(value) {
-      return String(value || "").trim().toLowerCase();
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\.[a-z0-9]{2,4}$/i, "")
+        .replace(/[_/\\|]+/g, " ")
+        .replace(/\s*::\s*/g, " :: ")
+        .replace(/\s+/g, " ")
+        .trim();
     }
 
     function buildComponentAliasList(...values) {
@@ -2246,7 +2498,7 @@
       if (!item || !tokenSet?.size) return false;
       const aliases = Array.isArray(item.aliases) && item.aliases.length
         ? item.aliases
-        : buildComponentAliasList(item.key, item.label, item.nodePath, item.sourceName);
+        : buildComponentAliasList(item.key, item.label, item.familyKey, item.nodePath, item.sourceName);
       return aliases.some((alias) => tokenSet.has(alias));
     }
 
@@ -2297,6 +2549,7 @@
           object: child,
           label,
           key: normalizeComponentName(child.userData?.componentKey || label),
+          familyKey: normalizeComponentName(child.userData?.componentFamilyKey || ""),
           nodePath: String(child.userData?.nodePath || "").trim(),
           sourceName: String(child.userData?.sourceName || "").trim(),
           brepFaces: Number(child.userData?.brepFaces) || 0,
@@ -2305,6 +2558,7 @@
           aliases: buildComponentAliasList(
             child.userData?.componentKey,
             label,
+            child.userData?.componentFamilyKey,
             child.userData?.nodePath,
             child.userData?.sourceName
           ),
@@ -2324,6 +2578,10 @@
           label: cleanLabel,
           subtitle: extra.subtitle || "",
           description: extra.description || "",
+          familyKey: extra.familyKey || "",
+          nodePath: extra.nodePath || "",
+          sourceName: extra.sourceName || "",
+          aliases: Array.isArray(extra.aliases) ? extra.aliases.slice() : [],
           center: extra.center || null,
           size: extra.size || null,
         });
@@ -2331,11 +2589,15 @@
 
       const renderables = collectRenderableComponents(root);
       if (renderables.length) {
-        renderables.forEach(({ label, key, nodePath, sourceName, brepFaces, center, size }) => {
+        renderables.forEach(({ label, key, familyKey, nodePath, sourceName, brepFaces, center, size, aliases }) => {
           pushItem(label, {
             key,
             subtitle: nodePath || sourceName,
             description: brepFaces ? `${brepFaces} B-Rep-flater` : "",
+            familyKey,
+            nodePath,
+            sourceName,
+            aliases,
             center,
             size,
           });
@@ -2457,6 +2719,8 @@
       const depth = ref ? Math.abs(ref.max.z - ref.min.z) : null;
       return {
         supported: true,
+        commandSeq: runtimeState.hydroCommand.seq || null,
+        commandSignature: runtimeState.hydroCommand.signature || "",
         source: `${modelKind} viewer`,
         modelKind,
         length: length == null ? null : roundComponentNumber(length, 6),
@@ -2729,15 +2993,20 @@
 
     async function buildHydroReportPayload(options = {}) {
       if (!hydro?.mesh) return null;
+      const resumeWavePreview = suspendWavePreviewMotion();
+      const liveSnapshot = captureHydroLiveState();
+      try {
       if (options.forceRecalc) invalidateHydroReportCache();
       if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
       if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
       hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
+      hydro.setComponentDensityCatalog?.(options.componentDensityCatalog || {});
       const quality = options.quality || hydro.quality || "low";
       const performanceMode = options.performanceMode === true;
+      hydro.setPerformanceMode?.(performanceMode);
       if (quality) {
         hydro.userQuality = String(quality);
-        hydro.quality = String(quality);
+        hydro.quality = performanceMode ? "low" : String(quality);
       }
       if (Number.isFinite(Number(options.draftZWorld))) {
         hydro.draftZWorld = Number(options.draftZWorld);
@@ -2853,16 +3122,32 @@
       } finally {
         hydroReportCachePromise = null;
       }
+      } finally {
+        restoreHydroLiveState(liveSnapshot);
+        try {
+          await hydro.recompute();
+          markHydroUiDirty();
+        } catch (restoreError) {
+          console.warn("[3mfhydro] Kunne ikke gjenopprette hydro etter rapportjobb:", restoreError);
+        }
+        resumeWavePreview();
+      }
     }
 
     window.addEventListener("message", async (event) => {
       const data = event?.data;
       if (!data) return;
       if (data.type === "viewer-component-state") {
-        componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
-        componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.chosen = new Set([
+          ...(Array.isArray(data.chosen) ? data.chosen : []),
+          ...(Array.isArray(data.chosenAliases) ? data.chosenAliases : []),
+        ].map(normalizeComponentName).filter(Boolean));
+        componentViewState.muted = new Set([
+          ...(Array.isArray(data.muted) ? data.muted : []),
+          ...(Array.isArray(data.mutedAliases) ? data.mutedAliases : []),
+        ].map(normalizeComponentName).filter(Boolean));
         componentViewState.isolateChosen = data.isolateChosen === true;
-        applyComponentState();
+        await applyComponentViewState();
         return;
       }
       if (data.type !== "viewer-command") return;
@@ -2873,7 +3158,7 @@
       }
 
       if (data.action === "clear-wave-preview") {
-        clearWavePreview();
+        clearWavePreview(data);
         return;
       }
 
@@ -2923,11 +3208,16 @@
       }
 
       if (data.action === "set-hydro-state") {
+        if (!shouldHandleHydroCommand(data)) return;
+        runtimeState.hydroCommand.seq = Number(data.commandSeq) || runtimeState.hydroCommand.seq || 0;
+        runtimeState.hydroCommand.signature = String(data.commandSignature || "");
         invalidateHydroReportCache();
         if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
         if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
         hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
-        if (data.quality) hydro.setQuality(String(data.quality));
+        hydro.setComponentDensityCatalog?.(data.componentDensityCatalog || {});
+        hydro.setPerformanceMode?.(data.performanceMode === true);
+        if (data.quality) hydro.setQuality(String(data.quality), { schedule: false });
         if (Number.isFinite(Number(data.draftZWorld))) {
           hydro.draftZWorld = Number(data.draftZWorld);
           hydro.updateWaterPlane();
@@ -2946,11 +3236,16 @@
       }
 
       if (data.action === "reset-hydro-pose") {
+        if (!shouldHandleHydroCommand(data)) return;
+        runtimeState.hydroCommand.seq = Number(data.commandSeq) || runtimeState.hydroCommand.seq || 0;
+        runtimeState.hydroCommand.signature = String(data.commandSignature || "");
         invalidateHydroReportCache();
         hydro.zeroTrimHeel();
         if (Number.isFinite(Number(data.waterDensity))) hydro.setWaterDensity(Number(data.waterDensity));
         if (Number.isFinite(Number(data.materialDensity))) hydro.setMaterialDensity(Number(data.materialDensity));
         hydro.setComponentDensityOverrides?.(data.componentDensityOverrides || {});
+        hydro.setComponentDensityCatalog?.(data.componentDensityCatalog || {});
+        hydro.setPerformanceMode?.(data.performanceMode === true);
         if (Number.isFinite(Number(data.draftZWorld))) {
           hydro.draftZWorld = Number(data.draftZWorld);
           hydro.updateWaterPlane();
@@ -2967,14 +3262,12 @@
       }
 
       if (data.action === "generate-hydro-report") {
-        const payload = await buildHydroReportPayload(data);
-        if (payload && window.parent && window.parent !== window) {
-          window.parent.postMessage({ type: "viewer-hydro-report", payload }, "*");
-        }
+        // A newer report handler below owns report jobs with abort/single-flight isolation.
+        return;
       }
     });
 
-    */
+    }
     const reportWorker = typeof Worker === "function"
       ? new Worker("/includes/three/HydroReportWorker.js?v=20260523a")
       : null;
@@ -3035,33 +3328,37 @@
       const onPartial = typeof runtime.onPartial === "function" ? runtime.onPartial : null;
 
       return runHydroExclusive("report", async () => {
-        if (options.forceRecalc) invalidateHydroReportCache();
-        const liveSnapshot = captureHydroLiveState();
-        if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
-        if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
-        hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
-        const quality = options.quality || hydro.quality || "low";
-        const performanceMode = options.performanceMode === true;
-        if (quality) {
-          hydro.userQuality = String(quality);
-          hydro.quality = String(quality);
-        }
-        if (Number.isFinite(Number(options.draftZWorld))) {
-          hydro.draftZWorld = Number(options.draftZWorld);
-        }
-        if (Number.isFinite(Number(options.trim))) {
-          const trimDeg = Number(options.trim);
-          hydro._setAxisRotation?.(hydro.axis.pitchAxis, THREE.MathUtils.degToRad(trimDeg));
-          hydro.trimDeg = trimDeg;
-        }
-        if (Number.isFinite(Number(options.heel))) {
-          const heelDeg = Number(options.heel);
-          hydro._setAxisRotation?.(hydro.axis.rollAxis, THREE.MathUtils.degToRad(heelDeg));
-          hydro.heelDeg = heelDeg;
-        }
-        hydro.updateWaterPlane();
-        hydro._invalidateCache?.();
-        cancelScheduledHydroRecalc();
+        const resumeWavePreview = suspendWavePreviewMotion();
+        try {
+          if (options.forceRecalc) invalidateHydroReportCache();
+          const liveSnapshot = captureHydroLiveState();
+          if (Number.isFinite(Number(options.waterDensity))) hydro.setWaterDensity(Number(options.waterDensity));
+          if (Number.isFinite(Number(options.materialDensity))) hydro.setMaterialDensity(Number(options.materialDensity));
+          hydro.setComponentDensityOverrides?.(options.componentDensityOverrides || {});
+          hydro.setComponentDensityCatalog?.(options.componentDensityCatalog || {});
+          const quality = options.quality || hydro.quality || "low";
+          const performanceMode = options.performanceMode === true;
+          hydro.setPerformanceMode?.(performanceMode);
+          if (quality) {
+            hydro.userQuality = String(quality);
+            hydro.quality = performanceMode ? "low" : String(quality);
+          }
+          if (Number.isFinite(Number(options.draftZWorld))) {
+            hydro.draftZWorld = Number(options.draftZWorld);
+          }
+          if (Number.isFinite(Number(options.trim))) {
+            const trimDeg = Number(options.trim);
+            hydro._setAxisRotation?.(hydro.axis.pitchAxis, THREE.MathUtils.degToRad(trimDeg));
+            hydro.trimDeg = trimDeg;
+          }
+          if (Number.isFinite(Number(options.heel))) {
+            const heelDeg = Number(options.heel);
+            hydro._setAxisRotation?.(hydro.axis.rollAxis, THREE.MathUtils.degToRad(heelDeg));
+            hydro.heelDeg = heelDeg;
+          }
+          hydro.updateWaterPlane();
+          hydro._invalidateCache?.();
+          cancelScheduledHydroRecalc();
 
         const cacheKey = buildHydroReportCacheKey({ quality, performanceMode });
         if (!options.forceRecalc && hydroReportCachePayload && hydroReportCacheKey === cacheKey) {
@@ -3279,6 +3576,9 @@
         } finally {
           hydroReportCachePromise = null;
         }
+        } finally {
+          resumeWavePreview();
+        }
       }, { signal });
     }
 
@@ -3286,8 +3586,14 @@
       const data = event?.data;
       if (!data) return;
       if (data.type === "viewer-component-state") {
-        componentViewState.chosen = new Set((Array.isArray(data.chosen) ? data.chosen : []).map(normalizeComponentName).filter(Boolean));
-        componentViewState.muted = new Set((Array.isArray(data.muted) ? data.muted : []).map(normalizeComponentName).filter(Boolean));
+        componentViewState.chosen = new Set([
+          ...(Array.isArray(data.chosen) ? data.chosen : []),
+          ...(Array.isArray(data.chosenAliases) ? data.chosenAliases : []),
+        ].map(normalizeComponentName).filter(Boolean));
+        componentViewState.muted = new Set([
+          ...(Array.isArray(data.muted) ? data.muted : []),
+          ...(Array.isArray(data.mutedAliases) ? data.mutedAliases : []),
+        ].map(normalizeComponentName).filter(Boolean));
         componentViewState.isolateChosen = data.isolateChosen === true;
         await applyComponentViewState();
         return;
@@ -3300,7 +3606,7 @@
       }
 
       if (data.action === "clear-wave-preview") {
-        clearWavePreview();
+        clearWavePreview(data);
         return;
       }
 
@@ -3351,6 +3657,9 @@
       }
 
       if (data.action === "set-hydro-state") {
+        if (!shouldHandleHydroCommand(data)) return;
+        runtimeState.hydroCommand.seq = Number(data.commandSeq) || runtimeState.hydroCommand.seq || 0;
+        runtimeState.hydroCommand.signature = String(data.commandSignature || "");
         await queueHydroStateUpdate({
           draft: Number.isFinite(Number(data.draftZWorld)) ? Number(data.draftZWorld) : null,
           trim: Number.isFinite(Number(data.trim)) ? Number(data.trim) : null,
@@ -3358,7 +3667,9 @@
           waterDensity: Number.isFinite(Number(data.waterDensity)) ? Number(data.waterDensity) : null,
           materialDensity: Number.isFinite(Number(data.materialDensity)) ? Number(data.materialDensity) : null,
           componentDensityOverrides: data.componentDensityOverrides || {},
+          componentDensityCatalog: data.componentDensityCatalog || {},
           quality: data.quality ? String(data.quality) : null,
+          performanceMode: data.performanceMode === true,
           source: "parent-state",
           useOverlay: false,
         });
@@ -3366,12 +3677,17 @@
       }
 
       if (data.action === "reset-hydro-pose") {
+        if (!shouldHandleHydroCommand(data)) return;
+        runtimeState.hydroCommand.seq = Number(data.commandSeq) || runtimeState.hydroCommand.seq || 0;
+        runtimeState.hydroCommand.signature = String(data.commandSignature || "");
         hydro.zeroTrimHeel();
         await queueHydroStateUpdate({
           draft: Number.isFinite(Number(data.draftZWorld)) ? Number(data.draftZWorld) : null,
           waterDensity: Number.isFinite(Number(data.waterDensity)) ? Number(data.waterDensity) : null,
           materialDensity: Number.isFinite(Number(data.materialDensity)) ? Number(data.materialDensity) : null,
           componentDensityOverrides: data.componentDensityOverrides || {},
+          componentDensityCatalog: data.componentDensityCatalog || {},
+          performanceMode: data.performanceMode === true,
           source: "parent-reset",
           useOverlay: false,
         });
@@ -3381,7 +3697,6 @@
 
       if (data.action === "generate-hydro-report") {
         const reportJob = startAbortableJob("reportJob");
-        const resumeAutoRotate = pauseAutoRotateDuringReport();
         try {
           const payload = await buildHydroReportPayload(data, { signal: reportJob.signal });
           if (payload && isCurrentJob(reportJob) && window.parent && window.parent !== window) {
@@ -3391,8 +3706,6 @@
           if (!isAbortError(error)) {
             console.error("[3mfhydro] Parent report generation failed:", error);
           }
-        } finally {
-          resumeAutoRotate();
         }
       }
     });
@@ -3785,7 +4098,6 @@
       resetReportUiForLoading();
       setReportStatus('Starter hydro-rapport...', formatPhaseMeta(0, 7), true);
       setHud('Genererer hydro-rapport...');
-      const resumeAutoRotate = pauseAutoRotateDuringReport();
 
       try {
         const payload = await buildHydroReportPayload({
@@ -3833,8 +4145,6 @@
         console.error('Generate full report failed:', err);
         setReportStatus('Rapportfeil', err?.message || 'Ukjent feil', true);
         setHud('Feil ved hydro-rapport', true);
-      } finally {
-        resumeAutoRotate();
       }
     }
 
@@ -4146,9 +4456,11 @@
       if (Number.isFinite(Number(state.waterDensity))) hydro.setWaterDensity(Number(state.waterDensity));
       if (Number.isFinite(Number(state.materialDensity))) hydro.setMaterialDensity(Number(state.materialDensity));
       hydro.setComponentDensityOverrides?.(state.componentDensityOverrides || {});
+      hydro.setComponentDensityCatalog?.(state.componentDensityCatalog || {});
+      if (typeof state.performanceMode === "boolean") hydro.setPerformanceMode?.(state.performanceMode);
       if (state.quality) {
         hydro.userQuality = String(state.quality);
-        hydro.quality = String(state.quality);
+        hydro.quality = hydro.performanceMode ? "low" : String(state.quality);
       }
 
       if (state.draft != null && !Number.isNaN(Number(state.draft))) {

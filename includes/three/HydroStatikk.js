@@ -58,6 +58,9 @@ export class HydroStatikk {
     this.userQuality = "med"; // "low" | "med" | "high"
     this.quality = "med";
     this.wpNy = 140;
+    this.performanceMode = false;
+    this._normalWpNy = this.wpNy;
+    this._normalWlContourMaxSeg = this._wlContourMaxSeg;
 
     // SAK: live AV (default). On-demand er OK.
     this.enableLiveSAK = false;
@@ -69,6 +72,7 @@ export class HydroStatikk {
     this.materialDensity = null; // kg/m^3 (modell / last)
     this.massProperties = null;
     this.componentDensityOverrides = new Map();
+    this.componentDensityCatalog = new Map();
     this._raycastProxy = null;
 
     // Physical params
@@ -150,13 +154,33 @@ export class HydroStatikk {
   }
 
   setWaterplaneSampling(ny) {
-    this.wpNy = Math.max(20, Math.min(400, Number(ny) || 140));
+    const next = Math.max(20, Math.min(400, Number(ny) || 140));
+    this._normalWpNy = next;
+    this.wpNy = this.performanceMode ? Math.min(56, next) : next;
     this.scheduleRecalc(false);
   }
 
   setLiveSAKEnabled(enabled) {
     this.enableLiveSAK = !!enabled;
     this.scheduleRecalc(false);
+  }
+
+  setPerformanceMode(enabled) {
+    const next = enabled === true;
+    if (this.performanceMode === next) return;
+    this.performanceMode = next;
+    if (next) {
+      this._normalWpNy = Number.isFinite(this.wpNy) ? Math.max(this.wpNy, this._normalWpNy || 140) : (this._normalWpNy || 140);
+      this.wpNy = Math.min(56, this._normalWpNy);
+      this._wlContourMaxSeg = Math.min(8000, this._normalWlContourMaxSeg || 30000);
+      this.quality = "low";
+    } else {
+      this.wpNy = this._normalWpNy || 140;
+      this._wlContourMaxSeg = this._normalWlContourMaxSeg || 30000;
+      this.quality = this.userQuality || this.quality || "med";
+    }
+    this._wlContourDirty = true;
+    this._invalidateCache?.();
   }
 
   setWaterDensity(rho) {
@@ -199,6 +223,37 @@ export class HydroStatikk {
       });
     }
     this.componentDensityOverrides = next;
+    this._syncMassPropertiesFromMesh();
+  }
+
+  setComponentDensityCatalog(catalog = {}) {
+    const next = new Map();
+    if (catalog && typeof catalog === "object") {
+      Object.entries(catalog).forEach(([key, entry]) => {
+        const token = this._normalizeComponentToken(key);
+        const density = Number(entry?.densityKgM3);
+        if (!token || !Number.isFinite(density) || density <= 0) return;
+        const baseDensity = Number(entry?.baseDensityKgM3);
+        const infillPercent = Number(entry?.infillPercent);
+        next.set(token, {
+          ...entry,
+          densityKgM3: Math.min(50000, Math.max(1, density)),
+          baseDensityKgM3: Number.isFinite(baseDensity) && baseDensity > 0 ? Math.min(50000, Math.max(1, baseDensity)) : Math.min(50000, Math.max(1, density)),
+          infillPercent: Number.isFinite(infillPercent) ? Math.min(100, Math.max(1, infillPercent)) : 100,
+          supportsInfill: entry?.supportsInfill !== false,
+          massMode: "density",
+          massKg: null,
+          groupMassKg: null,
+          massDistribution: null,
+          source: entry?.source || "catalog-component",
+          sourceLabel: entry?.sourceLabel || "Forhåndslastet materialliste",
+          materialSlug: entry?.materialSlug || "custom",
+          materialLabel: entry?.materialLabel || "Custom",
+          note: entry?.note || "",
+        });
+      });
+    }
+    this.componentDensityCatalog = next;
     this._syncMassPropertiesFromMesh();
   }
 
@@ -340,6 +395,22 @@ export class HydroStatikk {
     return null;
   }
 
+  _findComponentDensityCatalogEntry(entry) {
+    if (!this.componentDensityCatalog?.size) return null;
+    const aliases = [
+      entry?.key,
+      entry?.name,
+      entry?.nodePath,
+      entry?.sourceName,
+    ].map((value) => this._normalizeComponentToken(value)).filter(Boolean);
+    for (const alias of aliases) {
+      if (this.componentDensityCatalog.has(alias)) {
+        return this.componentDensityCatalog.get(alias);
+      }
+    }
+    return null;
+  }
+
   _zeroMoments() {
     return { xx: 0, xy: 0, xz: 0, yy: 0, yz: 0, zz: 0 };
   }
@@ -388,6 +459,7 @@ export class HydroStatikk {
     const validComponents = components.length ? components : [fallbackGeometry];
     const resolvedDensityEntries = validComponents.map((entry) => {
       const override = this._findComponentDensityOverride(entry);
+      const catalogEntry = this._findComponentDensityCatalogEntry(entry);
       const localDensity = Number(entry?.densityKgM3);
       const hintDensity = Number(entry?.materialHint?.densityKgM3 || entry?.materialHint?.profile?.density);
       const overrideMass = Number(override?.massKg);
@@ -408,6 +480,9 @@ export class HydroStatikk {
       }
       if (Number.isFinite(hintDensity) && hintDensity > 0) {
         return { density: hintDensity, source: "component-material-hint" };
+      }
+      if (catalogEntry && Number.isFinite(catalogEntry.densityKgM3) && catalogEntry.densityKgM3 > 0) {
+        return { density: catalogEntry.densityKgM3, source: catalogEntry.source || "catalog-component", override: catalogEntry };
       }
       if (Number.isFinite(defaultDensity) && defaultDensity > 0) {
         return { density: defaultDensity, source: defaultDensitySource };
@@ -1016,13 +1091,19 @@ updateWaterlineContour() {
   // QUALITY / SCHEDULING
   // ============================================================
 
-  setQuality(q) {
+  setQuality(q, { schedule = true } = {}) {
     this.userQuality = q;
+    if (this.performanceMode) {
+      this.quality = "low";
+      if (schedule) this.scheduleRecalc(false);
+      return;
+    }
     if (this.quality !== "low") this.quality = q;
-    this.scheduleRecalc(false);
+    if (schedule) this.scheduleRecalc(false);
   }
 
   qualityToGrid(qv) {
+    if (this.performanceMode) return { ny: 18, nz: 18 };
     if (qv === "low") return { ny: 22, nz: 22 };
     if (qv === "high") return { ny: 90, nz: 90 };
     return { ny: 50, nz: 50 };
@@ -1034,13 +1115,13 @@ updateWaterlineContour() {
     if (this.hydroTimer) clearTimeout(this.hydroTimer);
     if (this._hiTimer) clearTimeout(this._hiTimer);
 
-    if (interactive) this.quality = "low";
+    if (interactive || this.performanceMode) this.quality = "low";
 
     this.hydroTimer = setTimeout(() => {
       this.recompute();
-    }, 80);
+    }, this.performanceMode ? 140 : 80);
 
-    if (interactive) {
+    if (interactive && !this.performanceMode) {
       this._hiTimer = setTimeout(() => {
         this.quality = this.userQuality;
         this.recompute();
@@ -1342,8 +1423,8 @@ updateWaterlineContour() {
         quality: this.quality,
         computeWP: true,
         wpNy: this.wpNy,
-        timeSliceMs: 12,
-        computeSAK: (this.enableLiveSAK && this.quality === "low")
+        timeSliceMs: this.performanceMode ? 24 : 12,
+        computeSAK: (!this.performanceMode && this.enableLiveSAK && this.quality === "low")
       });
       this.updateMarkers();
       return res;

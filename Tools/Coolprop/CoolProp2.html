@@ -230,6 +230,51 @@ tr:last-child td{border-bottom:0}
 }
 .pill strong{font-weight:950}
 
+/* ---------------- BOOK BASIS TOGGLE ---------------- */
+.switch{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:color-mix(in srgb, var(--bg-card) 70%, var(--bg-main));
+  width:fit-content;
+}
+.switch input{ display:none; }
+.slider{
+  width:46px; height:26px;
+  border-radius:999px;
+  background:color-mix(in srgb, var(--text-muted) 35%, #fff);
+  border:1px solid var(--border);
+  position:relative;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.12);
+  flex:0 0 auto;
+}
+.slider::after{
+  content:"";
+  position:absolute;
+  top:3px; left:3px;
+  width:18px; height:18px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 2px 5px rgba(0,0,0,.2);
+  transition:.26s cubic-bezier(.4,0,.2,1);
+}
+.switch input:checked+.slider{
+  background:color-mix(in srgb, var(--primary) 65%, #fff);
+  border-color:color-mix(in srgb, var(--primary) 55%, var(--border));
+}
+.switch input:checked+.slider::after{
+  transform:translateX(20px);
+}
+.switch label{
+  font-size:13px;
+  font-weight:800;
+  color:var(--text-main);
+  cursor:pointer;
+}
+
 /* ---------------- HELP MODAL ---------------- */
 .modalBackdrop{
   position:fixed; inset:0;
@@ -435,6 +480,15 @@ window.Module = {
       </div>
 
       <div class="field" style="grid-column: span 12;">
+        <label class="switch">
+          <input type="checkbox" id="bookBasis">
+          <span class="slider"></span>
+          <label for="bookBasis" id="bookBasisText">Av (Luft: CoolProp absolutt H/U)</label>
+        </label>
+        <div class="helpText" id="bookBasisHint">Luft matcher Tabell A-22 når bryteren er på.</div>
+      </div>
+
+      <div class="field" style="grid-column: span 12;">
         <div class="actions">
           <button class="btn secondary" id="exportCSV">Export CSV</button>
           <button class="btn secondary" id="exportJSON">Export JSON</button>
@@ -542,6 +596,8 @@ For Table-4 style (T, P):
             <option value="H">H enthalpy</option>
             <option value="S">S entropy</option>
             <option value="U">U internal energy</option>
+            <option value="pr">pr (Air / A-22)</option>
+            <option value="vr">vr (Air / A-22)</option>
             <option value="C">Cp</option>
             <option value="O">Cv</option>
             <option value="V">Viscosity</option>
@@ -791,7 +847,8 @@ function unitLabel(unitKey){
   return "";
 }
 
-function convertInputToSI(key, val){
+function convertInputToSI(key, val, fluid = null){
+  const currentFluid = fluid || ($("fluid") ? $("fluid").value : "");
   const pUnit = $("pUnit").value;
   const tUnit = $("tUnit").value;
   const eUnit = $("eUnit").value;
@@ -799,7 +856,7 @@ function convertInputToSI(key, val){
 
   if (key==="P") return toPa(val, pUnit);
   if (key==="T") return toK(val, tUnit);
-  if (key==="H" || key==="U") return toJkg(val, eUnit);
+  if (key==="H" || key==="U") return convertBookInputToCoolPropBasis(currentFluid, key, toJkg(val, eUnit));
   if (key==="S" || key==="C" || key==="O") return toJkgK(val, sUnit);
   return val; // D,Q etc assumed SI or dimensionless
 }
@@ -817,11 +874,245 @@ function convertOutputFromSI(key, val){
   return val;
 }
 
+const BOOK_BASIS_CONFIG = [
+  {
+    key: "air",
+    aliases: ["air"],
+    fluidLabel: "Luft",
+    tableLabel: "Tabell A-22",
+    basisLabel: "A-22",
+    calibrationFluid: "Air",
+    T: 1000.0,
+    P: 1e5,
+    hBookKJkg: 1046.04,
+    uBookKJkg: 758.94
+  },
+  {
+    key: "water",
+    aliases: ["water"],
+    fluidLabel: "Vann",
+    tableLabel: "Tabell A-2/A-3/A-4/A-5",
+    basisLabel: "A-2/A-3/A-4/A-5",
+    calibrationFluid: "Water",
+    T: 673.15,
+    P: 1e5,
+    hBookKJkg: 3278.2,
+    uBookKJkg: 2967.9
+  },
+  {
+    key: "ammonia",
+    aliases: ["ammonia"],
+    fluidLabel: "Ammoniakk",
+    tableLabel: "Tabell A-13/A-14/A-15",
+    basisLabel: "A-13/A-14/A-15",
+    calibrationFluid: "Ammonia",
+    T: 273.15,
+    P: 1e5,
+    hBookKJkg: 1472.37,
+    uBookKJkg: 1341.0
+  },
+  {
+    key: "propane",
+    aliases: ["propane"],
+    fluidLabel: "Propan",
+    tableLabel: "Tabell A-16/A-17/A-18",
+    basisLabel: "A-16/A-17/A-18",
+    calibrationFluid: "Propane",
+    T: 293.15,
+    P: 1e5,
+    hBookKJkg: 501.0,
+    uBookKJkg: 448.6
+  },
+  {
+    key: "r134a",
+    aliases: ["r134a"],
+    fluidLabel: "R134a",
+    tableLabel: "Tabell A-10/A-11/A-12",
+    basisLabel: "A-10/A-11/A-12",
+    calibrationFluid: "R134a",
+    T: 273.15,
+    P: 1e5,
+    hBookKJkg: 252.99,
+    uBookKJkg: 231.41
+  },
+  {
+    key: "nitrogen",
+    aliases: ["nitrogen"],
+    fluidLabel: "Nitrogen",
+    tableLabel: "Tabell A-23",
+    basisLabel: "A-23",
+    calibrationFluid: "Nitrogen",
+    T: 1000.0,
+    P: 1e5,
+    hBookKJkg: 1075.651553,
+    uBookKJkg: 778.82899
+  },
+  {
+    key: "oxygen",
+    aliases: ["oxygen"],
+    fluidLabel: "Oksygen",
+    tableLabel: "Tabell A-23",
+    basisLabel: "A-23",
+    calibrationFluid: "Oxygen",
+    T: 1000.0,
+    P: 1e5,
+    hBookKJkg: 980.90625,
+    uBookKJkg: 721.09375
+  },
+  {
+    key: "co2",
+    aliases: ["co2", "carbondioxide"],
+    fluidLabel: "CO2",
+    tableLabel: "Tabell A-23",
+    basisLabel: "A-23",
+    calibrationFluid: "CO2",
+    T: 1000.0,
+    P: 1e5,
+    hBookKJkg: 971.801863,
+    uBookKJkg: 782.890252
+  }
+];
+
+const BOOK_BASIS_OFFSETS = new Map();
+const AIR_A22_RELATIVE = {
+  entropyPressure: 1e5,
+  gasConstant: 287.058,
+  refTemp: 300.0,
+  refPr: 1.3860,
+  refVr: 621.2
+};
+let airRelativeScales = null;
+
+function bookBasisEnabled(){
+  const cb = $("bookBasis");
+  return cb ? cb.checked : false;
+}
+
+function normalizeFluidKey(fluid){
+  return String(fluid || "").trim().toLowerCase();
+}
+
+function isAirFluid(fluid){
+  return normalizeFluidKey(fluid) === "air";
+}
+
+function getBookBasisConfig(fluid){
+  const key = normalizeFluidKey(fluid);
+  return BOOK_BASIS_CONFIG.find(cfg => cfg.aliases.includes(key)) || null;
+}
+
+function ensureBookBasisOffsets(fluid){
+  const cfg = getBookBasisConfig(fluid);
+  if (!cfg) return null;
+  if (BOOK_BASIS_OFFSETS.has(cfg.key)){
+    const cached = BOOK_BASIS_OFFSETS.get(cfg.key);
+    if (cached && cached.ok) return cached;
+    BOOK_BASIS_OFFSETS.delete(cfg.key);
+  }
+
+  const PropsSI = getPropsSI();
+  const fallback = { hOffset: 0, uOffset: 0, ok: false };
+  if (!PropsSI) return fallback;
+
+  try {
+    const hCp = PropsSI("H", "T", cfg.T, "P", cfg.P, cfg.calibrationFluid);
+    const uCp = PropsSI("U", "T", cfg.T, "P", cfg.P, cfg.calibrationFluid);
+    const offsets = {
+      hOffset: (cfg.hBookKJkg * 1e3) - hCp,
+      uOffset: (cfg.uBookKJkg * 1e3) - uCp,
+      ok: true
+    };
+    BOOK_BASIS_OFFSETS.set(cfg.key, offsets);
+    return offsets;
+  } catch (err) {
+    BOOK_BASIS_OFFSETS.set(cfg.key, fallback);
+    return fallback;
+  }
+}
+
+function ensureAirRelativeScales(){
+  if (airRelativeScales) return airRelativeScales;
+  const PropsSI = getPropsSI();
+  if (!PropsSI) return null;
+
+  try {
+    const sRef = PropsSI("S", "T", AIR_A22_RELATIVE.refTemp, "P", AIR_A22_RELATIVE.entropyPressure, "Air");
+    airRelativeScales = {
+      prScale: AIR_A22_RELATIVE.refPr / Math.exp(sRef / AIR_A22_RELATIVE.gasConstant),
+      vrScale: AIR_A22_RELATIVE.refVr / (AIR_A22_RELATIVE.refTemp * Math.exp(-sRef / AIR_A22_RELATIVE.gasConstant))
+    };
+    return airRelativeScales;
+  } catch (err) {
+    return null;
+  }
+}
+
+function computeAirRelativeProps(tempSI){
+  if (!Number.isFinite(tempSI)) return null;
+  const PropsSI = getPropsSI();
+  const scales = ensureAirRelativeScales();
+  if (!PropsSI || !scales) return null;
+
+  try {
+    const sAir = PropsSI("S", "T", tempSI, "P", AIR_A22_RELATIVE.entropyPressure, "Air");
+    return {
+      pr: scales.prScale * Math.exp(sAir / AIR_A22_RELATIVE.gasConstant),
+      vr: scales.vrScale * tempSI * Math.exp(-sAir / AIR_A22_RELATIVE.gasConstant)
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+function convertBookInputToCoolPropBasis(fluid, prop, siVal){
+  if (!bookBasisEnabled()) return siVal;
+  if (prop !== "H" && prop !== "U") return siVal;
+  const offsets = ensureBookBasisOffsets(fluid);
+  if (!offsets) return siVal;
+  return siVal - (prop === "H" ? offsets.hOffset : offsets.uOffset);
+}
+
+function applyBookBasis(fluid, prop, siVal){
+  if (!bookBasisEnabled()) return siVal;
+  if (prop !== "H" && prop !== "U") return siVal;
+  const offsets = ensureBookBasisOffsets(fluid);
+  if (!offsets) return siVal;
+  return siVal + (prop === "H" ? offsets.hOffset : offsets.uOffset);
+}
+
+function syncBookBasisLabel(){
+  const fluid = $("fluid") ? $("fluid").value.trim() : "";
+  const cfg = getBookBasisConfig(fluid);
+  const on = bookBasisEnabled();
+  const label = $("bookBasisText");
+  const hint = $("bookBasisHint");
+
+  if (label){
+    if (cfg){
+      label.textContent = on
+        ? `På (${cfg.fluidLabel}: ${cfg.basisLabel}-basis)`
+        : `Av (${cfg.fluidLabel}: CoolProp absolutt H/U)`;
+    } else {
+      const name = fluid || "Valgt fluid";
+      label.textContent = on
+        ? `På (${name}: ingen boktabell koblet)`
+        : `Av (${name}: CoolProp absolutt H/U)`;
+    }
+  }
+
+  if (hint){
+    hint.textContent = cfg
+      ? `${cfg.fluidLabel} matcher ${cfg.tableLabel} når bryteren er på.`
+      : `Ingen bokkalibrering koblet for ${fluid || "valgt fluid"} ennå.`;
+  }
+}
+
 /* Ideal gas constants for table4 (specific volume) */
 const R_SPEC = {
   Air: 287.058,
   Water: 461.526,
   Nitrogen: 296.803,
+  CO2: 188.924,
   CarbonDioxide: 188.924
 };
 
@@ -907,17 +1198,19 @@ function computePropsTable(fluid, i1, v1, i2, v2, bodyId, msgId){
   tbody.innerHTML = "";
 
   const rows = [];
+  let tempSI = null;
 
   for (const p of PROP_SET){
     let valSI = null, ok=true, err="";
     try{
       valSI = PropsSI(p.key, i1, v1, i2, v2, fluid);
       if (!Number.isFinite(valSI)) throw new Error("NaN");
+      if (p.key === "T") tempSI = valSI;
     }catch(e){
       ok=false; err=(e&&e.message)?e.message:String(e);
     }
 
-    const valOut = ok ? convertOutputFromSI(p.key, valSI) : null;
+    const valOut = ok ? convertOutputFromSI(p.key, applyBookBasis(fluid, p.key, valSI)) : null;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -937,6 +1230,41 @@ function computePropsTable(fluid, i1, v1, i2, v2, bodyId, msgId){
       ok,
       error: ok ? "" : err
     });
+  }
+
+  if (isAirFluid(fluid)){
+    const rel = computeAirRelativeProps(tempSI);
+    const extraRows = [
+      {
+        property: "Relative pressure",
+        key: "pr",
+        value: rel ? rel.pr : null,
+        unit: "",
+        ok: !!rel,
+        error: rel ? "" : "Kun tilgjengelig for gyldig Air-tilstand"
+      },
+      {
+        property: "Relative specific volume",
+        key: "vr",
+        value: rel ? rel.vr : null,
+        unit: "",
+        ok: !!rel,
+        error: rel ? "" : "Kun tilgjengelig for gyldig Air-tilstand"
+      }
+    ];
+
+    for (const extra of extraRows){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${extra.property}</td>
+        <td class="smallmono">${extra.key}</td>
+        <td>${extra.ok ? fmt(extra.value) : ""}</td>
+        <td>${extra.unit}</td>
+        <td>${extra.ok ? "<span class='good'>OK</span>" : "<span class='bad'>N/A</span><div class='smallmono'>"+extra.error+"</div>"}</td>
+      `;
+      tbody.appendChild(tr);
+      rows.push(extra);
+    }
   }
 
   exportPayload = { tab: (bodyId==="singleBody" ? "single" : "explore"), rows };
@@ -1092,12 +1420,25 @@ $("batchRun").addEventListener("click", ()=>{
 
     const row = { "#": outRows.length+1, "Fluid": fluid, "T_in": Traw, "P_in": Praw };
     let ok=true, err="";
+    let airRelative = undefined;
 
     try{
       for (const k of selected){
+        if (k === "pr" || k === "vr"){
+          if (!isAirFluid(fluid)){
+            row[k] = "N/A";
+            continue;
+          }
+          if (airRelative === undefined){
+            airRelative = computeAirRelativeProps(Tk);
+          }
+          row[k] = airRelative ? fmt(airRelative[k]) : "N/A";
+          continue;
+        }
+
         const valSI = PropsSI(k, "T", Tk, "P", Pa, fluid);
         if (!Number.isFinite(valSI)) throw new Error(`${k}=NaN`);
-        const valOut = convertOutputFromSI(k, valSI);
+        const valOut = convertOutputFromSI(k, applyBookBasis(fluid, k, valSI));
         row[k] = fmt(valOut);
       }
     }catch(e){
@@ -1193,6 +1534,19 @@ I UI velger du enheter, og siden konverterer:
 - H,U: J/kg eller kJ/kg
 - S,Cp,Cv: J/kg/K eller kJ/kg/K`,
     extra:`Hvis du velger kJ/kg i UI, sendes fortsatt J/kg til CoolProp internt.`
+  },
+  {
+    id:"basis",
+    title:"Samme Basis som boken",
+    desc:"Relative H og U (lærebok-vennlig)",
+    body:`CoolProp bruker en intern referansetilstand. Når <code>Samme Basis som boken</code> er på, justeres H og U med fluid-spesifikt offset for å matche boktabellene:
+- Air → Table A-22
+- Nitrogen / Oxygen / CO2 → Table A-23
+- Water → Table A-2/A-3/A-4/A-5
+- R134a → Table A-10/A-11/A-12
+- Ammonia → Table A-13/A-14/A-15
+- Propane → Table A-16/A-17/A-18`,
+    extra:`Dette endrer bare absolutt-nivået. ΔH og ΔU forblir de samme.`
   },
   {
     id:"single",
@@ -1312,14 +1666,28 @@ $("helpSearch").addEventListener("input", (e)=>renderHelpList(e.target.value));
   setEngine(false,"Laster …");
   const t0 = performance.now();
   while (performance.now()-t0 < 15000){
-    if (getPropsSI()){ setEngine(true); return; }
+    if (getPropsSI()){
+      setEngine(true);
+      ensureBookBasisOffsets($("fluid") ? $("fluid").value : "Air");
+      syncBookBasisLabel();
+      return;
+    }
     await new Promise(r=>setTimeout(r, 120));
   }
   setEngine(false,"Feil");
 })();
 
+if ($("bookBasis")){
+  $("bookBasis").addEventListener("change", syncBookBasisLabel);
+}
+if ($("fluid")){
+  $("fluid").addEventListener("input", syncBookBasisLabel);
+  $("fluid").addEventListener("change", syncBookBasisLabel);
+}
+
 /* Defaults */
 $("fluid").value = "Air";
+syncBookBasisLabel();
 </script>
 </body>
 </html>

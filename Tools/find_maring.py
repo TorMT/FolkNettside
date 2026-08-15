@@ -1,6 +1,6 @@
-import os
+﻿import os
 matches = []
-for root, dirs, files in os.walk("Z:\\"):
+for root, dirs, files in os.walk("\\webedit.ntnu.no\\tormt\\\"):
     for fname in files:
         path = os.path.join(root, fname)
         try:
@@ -13,3 +13,4 @@ for root, dirs, files in os.walk("Z:\\"):
 for p, ln, txt in matches:
     print(f"{p}:{ln}: {txt}")
 print(f"\nTotal matches: {len(matches)}")
+

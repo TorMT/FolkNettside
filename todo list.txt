@@ -1,4 +1,4 @@
-TODO LIST
+﻿TODO LIST
 
 APS / Autodesk Fusion
 - Skaff `APS_CLIENT_ID`
@@ -7,11 +7,11 @@ APS / Autodesk Fusion
 - Finn `projectId` for riktig prosjekt
 - Finn `folderId` for mappen vi vil vise på Njord-siden
 - Legg hemmeligheter lokalt, ikke i git:
-  - `Z:\secrets\aps.local.json` eller `.env.local`
+  - `\\webedit.ntnu.no\\tormt\\secrets\aps.local.json` eller `.env.local`
 - Når dette er klart kan vi koble:
-  - `Z:\diverse\Njord\aps-config.json`
-  - `Z:\includes\aps\api\token.php`
-  - `Z:\includes\aps\api\models.php`
+  - `\\webedit.ntnu.no\\tormt\\diverse\Njord\aps-config.json`
+  - `\\webedit.ntnu.no\\tormt\\includes\aps\api\token.php`
+  - `\\webedit.ntnu.no\\tormt\\includes\aps\api\models.php`
 
 OpenRouter / AI for videotitler, tags og beskrivelser
 - Skaff `OPENROUTER_API_KEY`
@@ -20,7 +20,7 @@ OpenRouter / AI for videotitler, tags og beskrivelser
   - miljøvariabel `OPENROUTER_API_KEY`
   - eventuelt `.env.local`
 - Dette brukes av:
-  - `Z:\scripts\video_topic_enricher.py`
+  - `\\webedit.ntnu.no\\tormt\\scripts\video_topic_enricher.py`
 
 Valgfritt senere
 - Lokal `Ollama` hvis vi vil kjøre metadata-generering lokalt
@@ -36,4 +36,5 @@ Når du har disse tingene
   - `folderId`
 - Send meg OpenRouter-verdien:
   - `OPENROUTER_API_KEY`
+
 
