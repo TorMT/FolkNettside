@@ -5,30 +5,62 @@
 <title>HTML viewer</title>
 <style>
   html,body{ margin:0; padding:0; height:100%; background:#fff; }
-  iframe{ width:100%; height:100%; border:none; }
+  body{ display:flex; flex-direction:column; font-family:system-ui,-apple-system,sans-serif; }
+  #external-toolbar{ display:none; align-items:center; gap:12px; padding:9px 14px; color:#e5e7eb; background:#111827; border-bottom:1px solid #374151; }
+  #external-toolbar.visible{ display:flex; }
+  #external-status{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.9rem; }
+  #open-external{ border:1px solid #60a5fa; border-radius:7px; padding:6px 10px; color:#fff; background:#2563eb; font-weight:700; cursor:pointer; }
+  iframe{ width:100%; flex:1; min-height:0; border:none; }
 </style>
   <script src="/includes/kodeLesere/locked-view.js" defer></script>
 </head>
 <body>
+<div id="external-toolbar" role="status">
+  <span id="external-status">Laster ekstern side…</span>
+  <button id="open-external" type="button">&Aring;pne i ny fane</button>
+</div>
 <iframe id="frame"></iframe>
 
 <script>
   const params = new URLSearchParams(location.search);
   const file = params.get("file");
   const frame = document.getElementById("frame");
+  const toolbar = document.getElementById("external-toolbar");
+  const externalStatus = document.getElementById("external-status");
+  const openExternal = document.getElementById("open-external");
   let _statusSent = false;
+
+  function resolveViewerUrl(value){
+    if (!String(value || '').trim()) return null;
+    try{
+      const resolved = new URL(value, location.href);
+      if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') return null;
+      return resolved;
+    }catch(e){
+      return null;
+    }
+  }
+
+  const resolvedFile = resolveViewerUrl(file);
+  const isExternal = !!resolvedFile && resolvedFile.origin !== location.origin;
 
   function sendStatus(status){
     if (_statusSent && status !== 'loaded') return;
     if (status === 'loaded') _statusSent = true;
     try{
-      window.parent.postMessage({ type: 'htmlview-status', status, file }, '*');
+      window.parent.postMessage({ type: 'htmlview-status', status, file }, location.origin);
     }catch(e){}
   }
 
-  if (!file) {
-    document.body.innerHTML = "<h3>Mangler fil</h3>";
-    throw new Error("Missing ?file=");
+  if (!resolvedFile) {
+    document.body.innerHTML = "<h3>Ugyldig eller manglende filadresse</h3>";
+    throw new Error("Invalid or missing ?file=");
+  }
+
+  if (isExternal){
+    toolbar.classList.add('visible');
+    externalStatus.textContent = `Viser ${resolvedFile.hostname}. Hvis siden blokkerer innebygd visning, bruk knappen til høyre.`;
+    openExternal.addEventListener('click', () => window.open(resolvedFile.href, '_blank', 'noopener'));
   }
 
   // --- THEME SYNC ---
@@ -76,7 +108,7 @@
   }
 
   // last inn siden
-  frame.src = file;
+  frame.src = resolvedFile.href;
 
   // fallback hvis innhold ikke kommer opp i iframe (f.eks. X-Frame-Options/CSP)
   setTimeout(() => {

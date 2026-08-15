@@ -60,9 +60,13 @@ export function validateUnitScale({ lengthM, beamM, draftM, volumeM3 }) {
 export function buildMassCase({ lightshipKg, payloadKg = 0, ballastKg = 0, kgLightshipM = null, kgPayloadM = null, kgBallastM = null }) {
   const mL = Number(lightshipKg), mP = Number(payloadKg), mB = Number(ballastKg);
   const totalMassKg = [mL,mP,mB].filter(Number.isFinite).reduce((a,b)=>a+b,0);
-  const kgNum = [[mL,Number(kgLightshipM)],[mP,Number(kgPayloadM)],[mB,Number(kgBallastM)]]
+  const nullableNumber = (value) => value == null || value === '' ? null : n(value);
+  const massPositions = [[mL,nullableNumber(kgLightshipM)],[mP,nullableNumber(kgPayloadM)],[mB,nullableNumber(kgBallastM)]];
+  const missingKg = massPositions.some(([m,kg])=>Number.isFinite(m)&&m>0&&!Number.isFinite(kg));
+  const kgNum = massPositions
     .filter(([m,kg])=>Number.isFinite(m)&&m>0&&Number.isFinite(kg))
     .reduce((a,[m,kg])=>a+m*kg,0);
-  const kgM = totalMassKg > 0 ? kgNum / totalMassKg : null;
+  // An unknown vertical position must not silently be interpreted as KG=0.
+  const kgM = totalMassKg > 0 && !missingKg ? kgNum / totalMassKg : null;
   return { totalMassKg, kgM, components: { lightshipKg:mL, payloadKg:mP, ballastKg:mB } };
 }

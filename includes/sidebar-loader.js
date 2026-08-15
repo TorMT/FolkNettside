@@ -2131,6 +2131,9 @@ async function initSidebar(){
   }
 
   window.addEventListener('message', (ev) => {
+    const viewerFrame = document.querySelector('#pdf-viewer-container #pdf-viewer');
+    const viewerWindow = viewerFrame?.contentWindow || viewerFrame?.contentDocument?.defaultView;
+    if (ev.origin !== location.origin || !viewerWindow || ev.source !== viewerWindow) return;
     const data = ev?.data;
     if (!data || data.type !== 'htmlview-status') return;
     if (!pendingKarakterwebUrl) return;
@@ -2366,5 +2369,3 @@ document.readyState==='loading'
   b.textContent=txt;
 })();
 /* -------------------------------------------------------------------- */
-
-

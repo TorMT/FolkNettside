@@ -45,11 +45,12 @@ export function resolveWaterlineFromStep({ stepText = '', bounds = null, fallbac
   let draftM = meta.draftM;
 
   if (waterlineZ == null && draftM != null && Number.isFinite(maxZ)) {
-    waterlineZ = maxZ - (draftM * unitScale);
+    // Bounds are expressed in the STEP model unit, while DRAFT_M is metres.
+    waterlineZ = maxZ - (draftM / unitScale);
   }
   if (waterlineZ == null && height != null && Number.isFinite(minZ)) {
     waterlineZ = minZ + height * fallbackDraftRatio;
-    draftM = (height * fallbackDraftRatio) / unitScale;
+    draftM = height * fallbackDraftRatio * unitScale;
   }
 
   return {
