@@ -26,7 +26,9 @@ export function estimateAddedResistanceInWaves({ displacementKg, lwlM, bwlM, shi
 
   const A = B * (H / 2);
   const q = 0.5 * rho * (V ** 2);
-  const headingGain = Math.max(0, Math.cos(beta)) ** 2; // størst i motsjø (180°)
+  // Heading convention: 180° is head sea and 0° is following sea.
+  // Negating cosine keeps the estimate at its maximum in head sea, as intended.
+  const headingGain = Math.max(0, -Math.cos(beta)) ** 2;
   const froude = V / Math.sqrt(G * L);
   const speedGain = 0.6 + 1.4 * Math.min(1.2, Math.max(0, froude));
   const raw = ca * q * A * headingGain * speedGain;

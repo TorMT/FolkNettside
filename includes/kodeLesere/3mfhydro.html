@@ -2278,7 +2278,7 @@
       const curve = report.curve;
       let csv = 'Angle,GZ,Volume,SAK\n';
       for (let i = 0; i < curve.anglesDeg.length; i++) {
-        csv += `${curve.anglesDeg[i]},${curve.gz[i] || ''},${curve.displacedVolume[i] || ''},${curve.sak[i] || ''}\n`;
+        csv += `${curve.anglesDeg[i]},${curve.gz[i] ?? ''},${curve.displacedVolume[i] ?? ''},${curve.sak[i] ?? ''}\n`;
       }
       return csv;
     }

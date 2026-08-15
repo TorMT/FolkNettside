@@ -91,7 +91,7 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 
 - Siden støtter egen **Karakterweb-knapp** i sidebaren når kurskode finnes.
 - Kurskode leses primært fra `<meta name="course-code" ...>` i kurssiden.
-- URL-mønster kan overstyres med `<meta name="karakterweb-url-template" ...>` (standard er `https://www.karakterweb.no/ntnu/{course_code}`).
+- URL-mønster kan overstyres med `<meta name="karakterweb-url-template" ...>` (standard er `https://karakterweb.no/ntnu/{course_code}`).
 - Implementasjonen ligger i `includes/sidebar-loader.js` og åpner Karakterweb i viewer når brukeren klikker knappen.
 - For at dette skal virke godt i egne kurssider, sett `{{COURSE_CODE}}` i `course-template.html`/genererte sider.
 
