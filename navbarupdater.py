@@ -1,4 +1,27 @@
-﻿#!/usr/bin/env python3
+﻿# //lagt til av AI i etterkant//
+import os, argparse
+
+def _ai_get_root():
+    p = os.environ.get('WEBEDIT_ROOT')
+    if p:
+        return p
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--root', default=None)
+    args, _ = parser.parse_known_args()
+    if args.root:
+        return args.root
+    candidates = [r'\\\\webedit.ntnu.no\\tormt', r'Z:\\']
+    for c in candidates:
+        try:
+            if os.path.exists(c):
+                return c
+        except Exception:
+            pass
+    return os.getcwd()
+
+ROOT = _ai_get_root()
+# //lagt til av AI i etterkant//
+#!/usr/bin/env python3
 """
 navbarupdater.py — CLI for å oppdatere index.json, generere nye fagsider,
 oppdatere navbar og legge til semester-knapper.
@@ -599,4 +622,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
