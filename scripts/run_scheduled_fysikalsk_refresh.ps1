@@ -1,3 +1,12 @@
+﻿# //lagt til av AI i etterkant//
+if (-not ) {
+   = '\\webedit.ntnu.no\\tormt','Z:\'
+  foreach ( in ) { if (Test-Path ) {  = ; break } }
+  if (-not ) {  = (Get-Location).Path }
+}
+ = 
+# //lagt til av AI i etterkant//
+
 $ErrorActionPreference = "Stop"
 
 $root = "\\webedit.ntnu.no\tormt"
@@ -7,3 +16,4 @@ $env:VIDEO_REFRESH_JSON_PATH = Join-Path $root "semestre\4\FysikalskKjemi\filer\
 $env:VIDEO_REFRESH_PRESERVE_TITLE_GROUPING = "false"
 
 & (Join-Path $root "scripts\run_scheduled_fluid_refresh.ps1")
+

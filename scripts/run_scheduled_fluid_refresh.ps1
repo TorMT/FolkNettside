@@ -1,3 +1,12 @@
+﻿# //lagt til av AI i etterkant//
+if (-not ) {
+   = '\\webedit.ntnu.no\\tormt','Z:\'
+  foreach ( in ) { if (Test-Path ) {  = ; break } }
+  if (-not ) {  = (Get-Location).Path }
+}
+ = 
+# //lagt til av AI i etterkant//
+
 $ErrorActionPreference = "Stop"
 
 $root = "\\webedit.ntnu.no\tormt"
@@ -360,3 +369,4 @@ catch {
     Write-Log ("FEIL: " + $_.Exception.Message)
     throw
 }
+

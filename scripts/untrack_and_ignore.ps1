@@ -1,3 +1,12 @@
+﻿# //lagt til av AI i etterkant//
+if (-not ) {
+   = '\\webedit.ntnu.no\\tormt','Z:\'
+  foreach ( in ) { if (Test-Path ) {  = ; break } }
+  if (-not ) {  = (Get-Location).Path }
+}
+ = 
+# //lagt til av AI i etterkant//
+
 Write-Host "[git] Adding .gitignore"
 git add .gitignore
 
@@ -25,3 +34,4 @@ try {
 } catch {
     Write-Host "[git] Push failed"
 }
+
