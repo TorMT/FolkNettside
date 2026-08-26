@@ -1,0 +1,13 @@
+{
+  "welcome": "/img/welcome-generic.svg",
+  "filer": {
+    "dir": "filer",
+    "beskyttet": false,
+    "files": [
+      "Øving1/Forarbeid.pdf",
+      "Øving1/MD_Exercise1_Lab1-4.pdf",
+      "Øving1/MD_exercise1_lab_kode.py"
+    ],
+    "welcome": "/img/welcome-generic.svg"
+  }
+}

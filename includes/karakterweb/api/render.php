@@ -12,7 +12,7 @@ $evaluationCard = karakterweb_query_first($xpath, '//*[contains(@class,"page-sty
 $headerBlock = karakterweb_query_first($xpath, '//*[contains(@class,"page-styles__HeaderBlock")]');
 $pageWrapper = karakterweb_query_first($xpath, '//*[contains(@class,"page-styles__PageWrapper")]');
 
-if (!($pageGrid instanceof DOMElement) || !($chartCard instanceof DOMElement) || !($evaluationCard instanceof DOMElement)) {
+if (!($pageGrid instanceof DOMElement)) {
     karakterweb_render_error_page(
         'Karakterweb i inview',
         'Kunne ikke lese Karakterweb-innholdet i det nye sideformatet.',
@@ -26,6 +26,15 @@ $evaluationSlot = karakterweb_query_first($xpath, '//*[@id="S:1"]');
 $chartHtml = trim(karakterweb_inner_html($chartSlot));
 $evaluationHtml = trim(karakterweb_inner_html($evaluationSlot));
 
+// Newer Karakterweb responses can omit the streamed slot ids. Keep the
+// server-rendered card content instead of showing an empty inview.
+if ($chartHtml === '' && $chartCard instanceof DOMElement) {
+    $chartHtml = trim(karakterweb_inner_html($chartCard));
+}
+if ($evaluationHtml === '' && $evaluationCard instanceof DOMElement) {
+    $evaluationHtml = trim(karakterweb_inner_html($evaluationCard));
+}
+
 if ($chartHtml === '') {
     $chartHtml = '<div class="kw-inview-empty"><p>Fant ingen karakterdata i Karakterweb-svaret.</p></div>';
 }
@@ -33,8 +42,12 @@ if ($evaluationHtml === '') {
     $evaluationHtml = '<div class="kw-inview-empty"><p>Fant ingen studentvurderinger i Karakterweb-svaret.</p></div>';
 }
 
-karakterweb_replace_children($chartCard, $chartHtml);
-karakterweb_replace_children($evaluationCard, $evaluationHtml);
+if ($chartCard instanceof DOMElement) {
+    karakterweb_replace_children($chartCard, $chartHtml);
+}
+if ($evaluationCard instanceof DOMElement) {
+    karakterweb_replace_children($evaluationCard, $evaluationHtml);
+}
 
 $bannerHtml = '<div class="kw-inview-banner">'
     . '<strong>Karakterweb i inview.</strong> Denne visningen rendres lokalt fordi Karakterweb blokkerer direkte iframe-embedding. '

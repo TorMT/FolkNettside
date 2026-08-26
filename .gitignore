@@ -5,6 +5,8 @@ export/
 semestre/
 temp/
 diverse/*
+!diverse/Matprissok/
+!diverse/Matprissok/**
 !diverse/portfolio-template/
 !diverse/portfolio-template/**
 !diverse/portfolio/

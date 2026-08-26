@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Sammenlign dagligvarepriser i norske butikker.">
+  <title>Matprissøk | Finn laveste pris</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="masthead">
+      <p class="eyebrow">Norske dagligvarer</p>
+      <h1>Matprissøk</h1>
+      <p class="lede">Finn laveste registrerte pris på tvers av butikker.</p>
+      <form id="search-form" class="search-form" role="search">
+        <label class="sr-only" for="search-input">Søk etter matvare</label>
+        <input id="search-input" name="q" type="search" autocomplete="off" placeholder="Søk etter en matvare..." minlength="2" maxlength="80">
+        <button type="submit">Søk</button>
+      </form>
+      <div id="autocomplete" class="autocomplete" hidden></div>
+    </header>
+
+    <section class="toolbar" aria-label="Filtre og sortering">
+      <label>Butikk <select id="store-filter"><option value="">Alle butikker</option></select></label>
+      <label>Sorter <select id="sort-select"><option value="price">Laveste pris</option><option value="unit">Laveste enhetspris</option></select></label>
+      <label class="check-label"><input id="priced-only" type="checkbox" checked> Kun varer med pris</label>
+      <button id="cart-toggle" class="cart-button" type="button">Handleliste <span id="cart-count">0</span></button>
+    </section>
+
+    <p id="status" class="status" aria-live="polite">Søk etter en vare for å sammenligne priser.</p>
+    <section id="results" class="results" aria-live="polite"></section>
+
+    <aside id="cart-panel" class="cart-panel" hidden>
+      <div class="section-head"><div><p class="eyebrow">Planlegg handelen</p><h2>Handleliste</h2></div><button id="cart-close" class="icon-button" type="button" aria-label="Lukk handleliste">×</button></div>
+      <div id="cart-items"></div>
+      <div class="cart-total"><span>Estimert totalsum</span><strong id="cart-total">0,00 kr</strong></div>
+      <button id="cart-clear" class="quiet-button" type="button">Tøm listen</button>
+    </aside>
+  </main>
+
+  <dialog id="product-dialog"><button id="dialog-close" class="dialog-close" type="button" aria-label="Lukk">×</button><div id="dialog-content"></div></dialog>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

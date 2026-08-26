@@ -1,0 +1,21 @@
+{
+  "welcome": "/img/welcome-generic.svg",
+  "Forarbeid.pdf": {
+    "beskyttet": false,
+    "files": [
+      "Forarbeid.pdf"
+    ]
+  },
+  "MD_Exercise1_Lab1-4.pdf": {
+    "beskyttet": false,
+    "files": [
+      "MD_Exercise1_Lab1-4.pdf"
+    ]
+  },
+  "MD_exercise1_lab_kode.py": {
+    "beskyttet": false,
+    "files": [
+      "MD_exercise1_lab_kode.py"
+    ]
+  }
+}

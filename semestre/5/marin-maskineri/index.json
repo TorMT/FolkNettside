@@ -1,0 +1,9 @@
+{
+  "welcome": "/img/welcome-generic.svg",
+  "filer": {
+    "dir": "filer",
+    "beskyttet": false,
+    "files": [],
+    "welcome": "/img/welcome-generic.svg"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "welcome": "/img/welcome-generic.svg",
+  "Marin-Dynamikk": {
+    "dir": "Marin-Dynamikk",
+    "beskyttet": false,
+    "files": [
+      "filer/Øving1/Forarbeid.pdf",
+      "filer/Øving1/MD_Exercise1_Lab1-4.pdf",
+      "filer/Øving1/MD_exercise1_lab_kode.py"
+    ],
+    "welcome": "/img/welcome-generic.svg"
+  },
+  "marin-maskineri": {
+    "dir": "marin-maskineri",
+    "beskyttet": false,
+    "files": [],
+    "welcome": "/img/welcome-generic.svg"
+  },
+  "marin-teknikk-4-propulsjon": {
+    "dir": "marin-teknikk-4-propulsjon",
+    "beskyttet": false,
+    "files": [],
+    "welcome": "/img/welcome-generic.svg"
+  },
+  "teknologiledelse": {
+    "dir": "teknologiledelse",
+    "beskyttet": false,
+    "files": [],
+    "welcome": "/img/welcome-generic.svg"
+  }
+}
