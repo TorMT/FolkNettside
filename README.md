@@ -25,7 +25,7 @@ python -m http.server 8000
 
 **Kompilere / bygge / deploy**
 
-- Repoet har en GitHub Actions workflow: `.github/workflows/export-and-deploy.yml`. Pushing til `main` vil trigge CI hvis workflow er aktiv.
+- Repoet har en GitHub Actions workflow: `.github/workflows/export-and-deploy.yml`. Pushing til `main` bygger nå allowlist-eksporten og publiserer den til `gh-pages`.
 - Lokalt trenger du normalt ikke "bygge" — bare push endringer til `main`.
 
 **Konfigurasjon som ofte må endres**
@@ -53,6 +53,21 @@ Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et 
 
 - Legg til/endre filer → `git add -A` → `git commit -m "Kort melding"` → `git push`
 - Hvis VS Code åpner feil editor for `git commit`, sett editor til VS Code: `git config core.editor "code --wait"`.
+
+**Egen folkside med oppdateringer**
+
+1. Lag en fork av repoet på GitHub og slå på GitHub Pages fra `gh-pages`-branchen.
+2. Gjør egne endringer i din fork og push til `main`; workflowen bygger og publiserer automatisk.
+3. Legg originalrepoet til som `upstream` og hent felles oppdateringer med:
+
+```bash
+git remote add upstream https://github.com/TorMT/FolkNettside.git
+git fetch upstream
+git rebase upstream/main
+git push origin main
+```
+
+Eksporten bruker en allowlist og tar ikke med lokale `diverse/`, `semestre/`, `temp/` eller backupfiler.
 
 **Deploy / CI**
 

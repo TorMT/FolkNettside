@@ -1,13 +1,12 @@
-name: Disabled — export-and-deploy (manual)
+name: Export and deploy
 
-# This workflow was disabled from running on push to avoid automatically
-# publishing the export/ folder. It can be triggered manually from Actions
-# if you want to run the export+deploy process.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  manual-export-deploy:
+  export-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

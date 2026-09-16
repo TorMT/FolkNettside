@@ -9,5 +9,19 @@
       "MD_exercise1_lab_kode.py"
     ],
     "welcome": "/img/welcome-generic.svg"
+  },
+  "oving03": {
+    "dir": "Øving3",
+    "beskyttet": false,
+    "files": [
+      "AogDTest.py",
+      "const_avg_acc.py",
+      "dis_state_space.py",
+      "runge_kutta4.py",
+      "tmr4182_ex9_calling.py",
+      "TMR4182_Exercise3_enkel_innlevering.docx",
+      "train_s2s.py"
+    ],
+    "welcome": "/img/welcome-generic.svg"
   }
 }

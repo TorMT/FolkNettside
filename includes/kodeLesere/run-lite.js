@@ -341,7 +341,7 @@ class WebModuleFinder(importlib.abc.MetaPathFinder):
         
         try:
             if _open_url and _url_for_local:
-                module_url = _url_for_local(module_filename)
+                module_url = _url_for_local(module_filename) + "?v=1009"
                 
                 # Forsøk å laste filen
                 try:

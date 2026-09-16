@@ -6,7 +6,14 @@
     "files": [
       "Øving1/Forarbeid.pdf",
       "Øving1/MD_Exercise1_Lab1-4.pdf",
-      "Øving1/MD_exercise1_lab_kode.py"
+      "Øving1/MD_exercise1_lab_kode.py",
+      "Øving3/AogDTest.py",
+      "Øving3/const_avg_acc.py",
+      "Øving3/dis_state_space.py",
+      "Øving3/runge_kutta4.py",
+      "Øving3/tmr4182_ex9_calling.py",
+      "Øving3/TMR4182_Exercise3_enkel_innlevering.docx",
+      "Øving3/train_s2s.py"
     ],
     "welcome": "/img/welcome-generic.svg"
   }

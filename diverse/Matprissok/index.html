@@ -6,6 +6,11 @@
   <meta name="description" content="Sammenlign dagligvarepriser i norske butikker.">
   <title>Matprissøk | Finn laveste pris</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    @media (max-width:640px){
+      body{padding:.75rem;font-size:15px}.app-shell{padding:1.25rem .75rem 2rem}.masthead{margin-bottom:1.5rem}.masthead h1{font-size:clamp(2.8rem,16vw,4.5rem);line-height:.92}.lede{font-size:1.05rem;line-height:1.4;margin:1rem 0 1.25rem}.search-form{padding:.25rem;border-radius:12px}.search-form input{padding:.8rem .7rem;font-size:1rem}.search-form button{padding:.75rem .85rem}.toolbar{display:grid;grid-template-columns:1fr;gap:.65rem;padding:.85rem 0}.toolbar label{display:flex;align-items:center;justify-content:space-between;gap:.5rem}.toolbar select{flex:1;min-width:0;margin-left:auto;padding:.65rem}.check-label{justify-content:flex-start!important}.cart-button{width:100%;margin-left:0;padding:.8rem}.results{grid-template-columns:1fr;gap:.85rem}.product-card{grid-template-columns:5.5rem 1fr;gap:.75rem;padding:.75rem;border-radius:12px}.product-card img{width:5.5rem;height:5.5rem}.product-name{font-size:1.05rem;line-height:1.2}.price{font-size:1.15rem}.card-actions{display:grid;grid-template-columns:1fr;gap:.45rem}.card-actions button{width:100%;min-height:2.7rem}.cart-panel{inset:auto .75rem .75rem;max-height:80vh;width:auto}
+    }
+  </style>
 </head>
 <body>
   <main class="app-shell">
@@ -40,6 +45,6 @@
   </main>
 
   <dialog id="product-dialog"><button id="dialog-close" class="dialog-close" type="button" aria-label="Lukk">×</button><div id="dialog-content"></div></dialog>
-  <script src="app.js" type="module"></script>
+  <script src="app.js?v=2" type="module"></script>
 </body>
 </html>
