@@ -1,0 +1,1 @@
+Kjør python enrich.py og deretter python build.py. Byggerne bruker prosjektmappen sin som rot. Tester: node tests/verify.cjs dist og LINKEDOM_PATH=/sti/til/linkedom node tests/dom.cjs dist. DOM-testen trenger npm-pakken linkedom. Kildeheftene ligger hos NTNU; de er ikke med i ZIP.

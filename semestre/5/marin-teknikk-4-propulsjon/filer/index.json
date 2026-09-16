@@ -1,3 +1,22 @@
 {
-  "welcome": "/img/welcome-generic.svg"
+  "welcome": "/img/welcome-generic.svg",
+  "Prosjekt": {
+    "dir": "Prosjekt",
+    "beskyttet": false,
+    "files": [
+      "20260911083041.csv",
+      "analysis.py",
+      "functions.py",
+      "LoggedDataInfo.docx",
+      "processedData.csv",
+      "voyageSummary.csv"
+    ],
+    "welcome": "/img/welcome-generic.svg"
+  },
+  "ØvingR1.xlsx": {
+    "beskyttet": false,
+    "files": [
+      "ØvingR1.xlsx"
+    ]
+  }
 }

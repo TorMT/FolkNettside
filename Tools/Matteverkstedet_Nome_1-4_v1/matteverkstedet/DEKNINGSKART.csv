@@ -1,0 +1,53 @@
+﻿Fag;Leksjon;Tema;Læringsmål;Oppgaver;Tallvarianter;Eksamensvarianter;Pensumhefte;Løsningsforslag
+1;1-1;Vekst, avkjøling og førsteordenslikninger;Sette opp en modell, løse den og bruke initialkravet.;10;3;0;https://folk.ntnu.no/mortano/stoff/1-1.pdf;https://folk.ntnu.no/mortano/stoff/1-1-lf.pdf
+1;1-2;Komplekse tall og svingninger;Regne med komplekse tall og knytte dem til rotasjon.;10;3;0;https://folk.ntnu.no/mortano/stoff/1-2.pdf;https://folk.ntnu.no/mortano/stoff/1-2-lf.pdf
+1;1-3;Andreordenslikninger og demping;Skille dempingstilfellene og bestemme løsningen.;9;3;1;https://folk.ntnu.no/mortano/stoff/1-3.pdf;https://folk.ntnu.no/mortano/stoff/1-3-lf.pdf
+1;1-4;Funksjoner, grenser og derivasjon;Forstå definisjonsmengde, invers og lokal endring.;8;3;0;https://folk.ntnu.no/mortano/stoff/1-4.pdf;https://folk.ntnu.no/mortano/stoff/1-4-lf.pdf
+1;1-5;Gausseliminasjon og løsningsrom;Løse lineære systemer og forstå frie variable.;8;3;0;https://folk.ntnu.no/mortano/stoff/1-5.pdf;https://folk.ntnu.no/mortano/stoff/1-5-lf.pdf
+1;1-6;Matriser og inverse avbildninger;Forstå matriseprodukt, invers og sammensetning.;8;3;0;https://folk.ntnu.no/mortano/stoff/1-6.pdf;https://folk.ntnu.no/mortano/stoff/1-6-lf.pdf
+1;1-7;Egenverdier og systemer av differensiallikninger;Løse koblede systemer ved hjelp av egenvektorer.;9;3;1;https://folk.ntnu.no/mortano/stoff/1-7.pdf;https://folk.ntnu.no/mortano/stoff/1-7-lf.pdf
+1;1-8;Determinanter, basis og dimensjon;Knytte geometri til rang og uavhengighet.;8;3;0;https://folk.ntnu.no/mortano/stoff/1-8.pdf;https://folk.ntnu.no/mortano/stoff/1-8-lf.pdf
+1;1-9;Integrasjon og analysens fundamentalteorem;Regne integraler og tolke akkumulert endring.;8;3;0;https://folk.ntnu.no/mortano/stoff/1-9.pdf;https://folk.ntnu.no/mortano/stoff/1-9-lf.pdf
+1;1-10;Numeriske metoder og enkel kode;Utføre Euler-steg og forstå feil og stabilitet.;11;3;1;https://folk.ntnu.no/mortano/stoff/1-10.pdf;https://folk.ntnu.no/mortano/stoff/1-10-lf.pdf
+1;1-11;Newton, fikspunkt og interpolasjon;Velge og kontrollere en iterativ løsningsmetode.;8;3;0;https://folk.ntnu.no/mortano/stoff/1-11.pdf;https://folk.ntnu.no/mortano/stoff/1-11-lf.pdf
+1;1-12;Følger, rekker og konvergens;Velge konvergenstest og forstå hva summen betyr.;8;3;0;https://folk.ntnu.no/mortano/stoff/1-12.pdf;https://folk.ntnu.no/mortano/stoff/1-12-lf.pdf
+1;1-13;Potensrekker og Taylorpolynomer;Bruke lokale polynomer med kontroll på gyldighet og feil.;9;3;1;https://folk.ntnu.no/mortano/stoff/1-13.pdf;https://folk.ntnu.no/mortano/stoff/1-13-lf.pdf
+2;2-1;Matriseeksponential og Jordanblokker;Løse lineære systemer også når diagonalisering feiler.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-1.pdf;https://folk.ntnu.no/mortano/stoff/2-1-lf.pdf
+2;2-2;Påtrykk, impuls og frekvensrespons;Forstå hvordan et lineært system reagerer på et signal.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-2.pdf;https://folk.ntnu.no/mortano/stoff/2-2-lf.pdf
+2;2-3;Fourierrekker og periodiske signaler;Finne frekvensinnhold med ortogonalitet og symmetri.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-3.pdf;https://folk.ntnu.no/mortano/stoff/2-3-lf.pdf
+2;2-4;Projeksjon og Gram–Schmidt;Dele opp vektorer i ortogonale retninger.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-4.pdf;https://folk.ntnu.no/mortano/stoff/2-4-lf.pdf
+2;2-5;Minste kvadrater og regresjon;Tilpasse modeller og forklare residualen.;11;3;1;https://folk.ntnu.no/mortano/stoff/2-5.pdf;
+2;2-6;Spektralteoremet, SVD og datakomprimering;Forstå hovedretninger og redusert rang.;10;3;0;https://folk.ntnu.no/mortano/stoff/2-6.pdf;https://folk.ntnu.no/mortano/stoff/2-6-lf.pdf
+2;2-7;Bølge- og varmelikningen;Utlede og løse enkle separerte PDE-problemer.;9;3;1;https://folk.ntnu.no/mortano/stoff/2-7.pdf;https://folk.ntnu.no/mortano/stoff/2-7-lf.pdf
+2;2-8;Sinusrekker, cosinusrekker og randkrav;Tilpasse Fourierutvikling til et PDE-problem.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-8.pdf;https://folk.ntnu.no/mortano/stoff/2-8-lf.pdf
+2;2-9;Funksjonsrom og ortogonale polynomer;Bruke geometri på funksjoner.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-9.pdf;https://folk.ntnu.no/mortano/stoff/2-9-lf.pdf
+2;2-10;Komplekse indreproduktrom og unitære matriser;Bruke konjugering riktig i geometri og operatorer.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-10.pdf;
+2;2-11;Fouriertransform og konvolusjon;Gå fra periodiske signaler til kontinuerlig frekvens.;10;3;2;https://folk.ntnu.no/mortano/stoff/2-11.pdf;https://folk.ntnu.no/mortano/stoff/2-11-lf.pdf
+2;2-12;Schrödingerlikningen og egenfunksjoner;Knytte norm, sannsynlighet og tidsutvikling.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-12.pdf;https://folk.ntnu.no/mortano/stoff/2-12-lf.pdf
+2;2-13;Konvergens, presisjon og bevis;Skille intuisjon fra gyldig begrunnelse.;10;3;0;https://folk.ntnu.no/mortano/stoff/2-13.pdf;https://folk.ntnu.no/mortano/stoff/2-13-lf.pdf
+2;2-14;Laplacetransform og forsinkede påtrykk;Løse initialverdiproblemer i s-domenet.;9;3;0;https://folk.ntnu.no/mortano/stoff/2-2.pdf;https://folk.ntnu.no/mortano/stoff/2-2-lf.pdf
+2;2-15;Varmekjernen på hele linjen;Løse diffusjon med Fouriertransform.;8;3;0;https://folk.ntnu.no/mortano/stoff/2-11.pdf;https://folk.ntnu.no/mortano/stoff/2-11-lf.pdf
+3;3-1;Kurver, buelengde og krumning;Beskrive bevegelse og geometrien til en romkurve.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/3-1.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-1-lf.pdf
+3;3-2;Gradient, kjerneregel og tangentplan;Regne lokal endring med riktig rad- og kolonnenotasjon.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/3-2.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-2-lf.pdf
+3;3-3;Optimering og Lagranges multiplikator;Finne og klassifisere ekstremalverdier.;11;3;1;https://folk.ntnu.no/mortano/grunnstoff/3-3.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-3-lf.pdf
+3;3-4;Vektorfelt, strømkurver og potensial;Lese et felt og finne konservative krefter.;9;3;1;https://folk.ntnu.no/mortano/grunnstoff/3-4.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-4-lf.pdf
+3;3-5;Linjeintegraler: masse og arbeid;Velge mellom skalar- og vektorlinjeintegral.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/3-5.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-5-lf.pdf
+3;3-6;Dobbeltintegraler og integrasjonsområder;Sette grenser fra geometrien og bytte integrasjonsrekkefølge.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/3-6.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-6-lf.pdf
+3;3-7;Koordinatbytte og Jacobideterminant;Forenkle integraler ved å flytte geometrien.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/3-7.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-7-lf.pdf
+3;3-8;Greens teorem: sirkulasjon;Koble arbeid rundt randen til rotasjon inne i området.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/3-8.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-8-lf.pdf
+3;3-9;Greens teorem: fluks;Koble utstrømning til divergens.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/3-9.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-9-lf.pdf
+3;3-10;Kompleks derivasjon og konturintegraler;Bruke Cauchy–Riemann og Cauchys integralformel.;9;3;1;https://folk.ntnu.no/mortano/grunnstoff/3-10.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-10-lf.pdf
+3;3-11;Laplaceoperatoren og harmoniske funksjoner;Løse et todimensjonalt randverdiproblem.;10;3;0;https://folk.ntnu.no/mortano/grunnstoff/3-11.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-11-lf.pdf
+3;3-12;Parametriserte flater og fluks;Beregne areal og felt gjennom en flate.;9;3;1;https://folk.ntnu.no/mortano/grunnstoff/3-12.pdf;https://folk.ntnu.no/mortano/grunnstoff/3-12-lf.pdf
+4;4-1;Trippelintegraler og kulekoordinater;Beregne volum, masse og gjennomsnitt i rommet.;9;3;1;https://folk.ntnu.no/mortano/grunnstoff/4-1.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-1-lf.pdf
+4;4-2;Nabla, divergens, rotasjon og koordinater;Bruke operatorene uten å miste dimensjoner og fortegn.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/4-2.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-2-lf.pdf
+4;4-3;Divergensteoremet og normalderivert;Regne fluks gjennom lukkede flater og knytte den til volum.;9;3;1;https://folk.ntnu.no/mortano/grunnstoff/4-3.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-3-lf.pdf
+4;4-4;Stokes, rotasjon og moment;Koble sirkulasjon til rotasjon gjennom en flate.;9;3;1;https://folk.ntnu.no/mortano/grunnstoff/4-4.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-4-lf.pdf
+4;4-5;Maxwells likninger;Gå mellom integralform og differensialform.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/4-5.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-5-lf.pdf
+4;4-6;Harmoniske funksjoner, middelverdi og entydighet;Forstå Laplace og Poisson gjennom fluks og energi.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/4-6.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-6-lf.pdf
+4;4-7;Fluidmekanikk og materiell derivasjon;Skille lokal tidsendring fra endring langs en partikkel.;10;3;0;https://folk.ntnu.no/mortano/grunnstoff/4-7.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-7-lf.pdf
+4;4-8;Bevaringslover, transport og diffusjon;Utlede PDE-er fra innstrømning minus utstrømning.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/4-8.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-8-lf.pdf
+4;4-9;Bølger, refleksjon og kulemiddel;Løse bølgeproblemer på linjen og forstå forplantning i rommet.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/4-9.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-9-lf.pdf
+4;4-10;Rotasjonsgeneratorer, deformasjon og symmetri;Koble skjevsymmetriske matriser til rotasjon.;9;3;1;https://folk.ntnu.no/mortano/grunnstoff/4-10.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-10-lf.pdf
+4;4-11;d’Alembertoperatoren og Lorentztransformasjon;Forstå invarians i tid og rom.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/4-11.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-11-lf.pdf
+4;4-12;Laurentrekker og residyregning;Beregne konturintegraler fra singularitetene.;8;3;0;https://folk.ntnu.no/mortano/grunnstoff/4-12.pdf;https://folk.ntnu.no/mortano/grunnstoff/4-12-lf.pdf

@@ -23,5 +23,23 @@
       "train_s2s.py"
     ],
     "welcome": "/img/welcome-generic.svg"
+  },
+  "oving04": {
+    "dir": "Øving4",
+    "beskyttet": false,
+    "files": [
+      "Oppgave1.py",
+      "Øving4.pdf"
+    ],
+    "welcome": "/img/welcome-generic.svg"
+  },
+  "oving05": {
+    "dir": "Øving5",
+    "beskyttet": false,
+    "files": [
+      "Oppgave2.py",
+      "Øving5.pdf"
+    ],
+    "welcome": "/img/welcome-generic.svg"
   }
 }

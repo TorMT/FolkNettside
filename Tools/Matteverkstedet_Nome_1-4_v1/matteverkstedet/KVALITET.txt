@@ -1,0 +1,44 @@
+TESTSTATUS — 8. september 2026, versjon 1.0.0
+
+BESTÅTT
+• 52 leksjoner og 451 unike oppgave-ID-er. Alle leksjoner har teori, formler,
+  gjennomregnet eksempel, oppgaver, løsningsforslag og en interaktiv figur.
+• 1 737 matematiske uttrykk kontrollert med KaTeX sin formelparser.
+• Oppgavedata kontrollert for gyldige svaralternativer, tall og løsninger.
+• Alle medfølgende JavaScript-filer består syntakskontroll.
+• 572 lokale filreferanser for HTML, formelfonter og offlinefiler finnes.
+• Hver av de fire pakkene kjørt separat i en DOM-test med linkedom.
+  Ti sider per pakke, samt alle 52 leksjonsfigurer ved begge slidergrenser.
+• Øvingsflyt: bussmodus, hint, svar, «vet ikke», neste oppgave og avslutning.
+• Lange svar: egenvurdering før neste oppgave; holdes utenfor automatisk score.
+• Prøvemodus: ingen hint og utsatt visning av løsningene.
+• Notater med HTML-tegn vises som tekst. Bokmerker og mobilmeny testet.
+• Svarformat: desimalkomma, desimalpunkt, brøker og vitenskapelig notasjon.
+  Divisjon på null, uendelighet, tomt svar og kjørbar kode avvises.
+• Repetisjon: feil gir kort vei tilbake; flere svar samme dag øker ikke
+  mestringens dokumenterte antall dager eller repetisjonsintervallets trinn.
+• Import: ugyldig fil avvises uten å endre resultater; resultater fra andre
+  fag bevares selv om filen importeres i en pakke med bare ett fag.
+
+MATEMATISK OG FAGLIG KONTROLL
+Kursoversikter og 50 pensumhefter er brukt til å lage dekningskartet.
+Utvalgte eksamener fra 2025 og 2026 er gjennomgått, og 16 omarbeidede
+oppgaver har direkte kildekobling. Tallvariantene er merket separat.
+Formler, tallvariantmønstre og utvalgte løsninger er gjennomgått matematisk.
+En formel som består syntakskontrollen er ikke dermed bevist riktig.
+Hele materialet er ikke eksternt fagfellevurdert eller individuelt sertifisert.
+
+BEGRENSNINGER
+Det er ikke gjennomført visuell kontroll i en faktisk nettleser, på iPhone
+eller Android. DOM-testene verifiserer funksjonene, ikke skjermgjengivelse.
+Responsivt oppsett er laget med mobilmeny, enkeltkolonner, store valgknapper
+og vannrett rulling for brede formler. Offlinefiler er kontrollert statisk;
+service worker-lagring og faktisk frakoblet bruk er ikke nettlesertestet.
+
+Innholdet dekker de 50 fagheftene på temanivå, med to ekstra leksjoner.
+Det dekker ikke automatisk alle enkeltdetaljer i hvert hefte eller alle
+mulige eksamensoppgaver. Bruk originalhefter og fullstendige eksamenssett
+som videre øving. Egenvurdering av utledninger krever at du faktisk sjekker
+besvarelsen; systemet har ingen automatisk matematisk bevisretting.
+
+Kjørbare kontrollskript ligger i kildekode/tests.

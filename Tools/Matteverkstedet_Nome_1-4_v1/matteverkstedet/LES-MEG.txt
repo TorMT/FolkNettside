@@ -1,0 +1,56 @@
+MATTEVERKSTEDET — NOME MATTE 1–4
+Versjon 1.0.0, 8. september 2026
+
+START
+Pakk ut hele ZIP-filen. Åpne matteverkstedet/index.html i nettleseren.
+Hvert fag ligger i sin egen mappe, matte1 til matte4. HTML, JavaScript,
+CSS, figurer og formelfonter følger med. Ingen installasjon eller konto trengs.
+På iPhone anbefales nettsideversjonen; Filers HTML-forhåndsvisning er ikke
+nødvendigvis en full nettleser og kan hindre JavaScript.
+
+PÅ FOLK.NETTSTEDEN
+Last opp hele mappen matteverkstedet til public_html. Behold mappestrukturen.
+Da blir startsiden normalt https://folk.ntnu.no/tormt/matteverkstedet/
+Legg en vanlig lenke til denne adressen fra din eksisterende fagoversikt.
+Du kan også lenke rett til matteverkstedet/matte1/ og tilsvarende for 2–4.
+Ingenting er publisert automatisk eller endret på den eksisterende nettsiden.
+
+BRUK
+1. Ta kartleggingen i hvert fag.
+2. Les én leksjon og prøv figuren. Regn eksemplet på papir før du åpner løsningen.
+3. Øv uten hint først; bruk hint når du står fast.
+4. Bruk bussmodus for korte teoriøkter. Følg opp feil og repetisjon senere.
+5. Ta blandede prøver, og løs originaleksamener i full lengde på papir.
+
+LAGRING
+Resultater, egne notater og bokmerker lagres i nettleseren. Det er ingen skyprofil.
+På samme nettsted beholder pakkene resultater på tvers av fag. Lokale file:-adresser
+kan behandles forskjellig av ulike nettlesere. Eksporter fremdrift jevnlig.
+Importer JSON-filen på en annen enhet; nyeste forsøk per oppgave beholdes.
+En pågående økt må fullføres før du laster siden på nytt. Registrerte svar beholdes.
+
+UTEN NETT
+Lokale filer har alle avhengigheter inkludert. Fra en HTTPS-nettside forsøker
+pakken å mellomlagre filene ved første åpning. Vent til siden er ferdig lastet,
+og sjekk Innstillinger. Nettleseren kan slette mellomlager ved plassmangel.
+Eksterne eksamenssett og NTNU-hefter krever nettilgang.
+
+INNHOLD
+52 leksjoner, 451 oppgaver. 156 av oppgavene er tallvarianter av eksisterende
+oppgavetyper. 16 har eksplisitt kobling til nyere eksamensoppgaver.
+Det finnes egne forklaringer og løsninger i alle temaene, men de korte leksjonene
+kan ikke erstatte all dybden i originalheftene. Kilder og dekningskart ligger i hvert fag.
+Automatisk score gjelder korte svar. Lange utledninger har egenvurdering med sjekkliste.
+Score er ikke en prognose for eksamenskarakter.
+
+KILDER OG VERSJONER
+TMA4101: Nomes 2024h-side, også brukt for siste eksamen høsten 2025.
+TMA4106: 2025v. TMA4111: 2025h. TMA4121: 2026v.
+Kurskontroll: 7. september 2026. Dette er de nyeste identifiserte Nome-versjonene
+for disse fagkodene, ikke en påstand om at fagkodene fortsatt undervises i 2026.
+Pensumhefter og eksamenssett lenkes hos NTNU og er ikke kopiert inn i pakken.
+KaTeX har egen MIT-lisens i vendor/LICENSE. Egne figurer er tegnet matematisk i SVG.
+
+VIDERE REDIGERING
+Kildebyggerne og kontrollskriptene følger med i kildekode/. Nettstedfilene kan
+redigeres direkte, eller bygges på nytt med Python og Node. Se kildekode/README.txt.

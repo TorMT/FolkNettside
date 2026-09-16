@@ -3,7 +3,15 @@
   "filer": {
     "dir": "filer",
     "beskyttet": false,
-    "files": [],
+    "files": [
+      "Prosjekt/20260911083041.csv",
+      "Prosjekt/analysis.py",
+      "Prosjekt/functions.py",
+      "Prosjekt/LoggedDataInfo.docx",
+      "Prosjekt/processedData.csv",
+      "Prosjekt/voyageSummary.csv",
+      "ØvingR1.xlsx"
+    ],
     "welcome": "/img/welcome-generic.svg"
   }
 }

@@ -1,0 +1,786 @@
+[
+  {
+    "course": 1,
+    "code": "TMA4101",
+    "semester": "2024h",
+    "url": "https://wiki.math.ntnu.no/tma4101/2024h/start",
+    "links": [
+      [
+        "http://www.ntnu.no/imf",
+        "Institutt for matematiske fag, NTNU"
+      ],
+      [
+        "https://wiki.math.ntnu.no/tma4101",
+        "TMA4101 Matematikk 1 (MTELSYS, MTKJ, MTTK)"
+      ],
+      [
+        "https://wiki.math.ntnu.no/tma4101/2024h/start",
+        "TMA4101 Matematikk 1 for MTELSYS, MTKJ og MTTK høsten 2024"
+      ],
+      [
+        "https://www.ntnu.no/studier/emner/TMA4101#tab=timeplan",
+        "TIMEPLAN"
+      ],
+      [
+        "https://mortano.folk.ntnu.no/eksamen",
+        "her"
+      ],
+      [
+        "https://nettskjema.no/a/476898",
+        "spørreskjema"
+      ],
+      [
+        "https://github.com/IsKaSky/Oblig-TMA4101-Isak-Stoum-Kyrkjeeide",
+        "https://github.com/IsKaSky/Oblig-TMA4101-Isak-Stoum-Kyrkjeeide"
+      ],
+      [
+        "https://www.overleaf.com/learn/latex/Tutorials",
+        "https://www.overleaf.com/learn/latex/Tutorials"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/oblig/oblig-4101.pdf",
+        "her"
+      ],
+      [
+        "https://folk.ntnu.no/davipe",
+        "Forelesningsnotater"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/eksamen",
+        "her"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/TMA4101/4101-22h-lf.pdf",
+        "løsningsforslaget"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/TMA4101/4101-22h-bm.pdf",
+        "forfjorårets eksamen"
+      ],
+      [
+        "https://code.visualstudio.com/",
+        "https://code.visualstudio.com/"
+      ],
+      [
+        "https://missing.csail.mit.edu/",
+        "https://missing.csail.mit.edu/"
+      ],
+      [
+        "https://www.universitetsforlaget.no/kalkulus-og-lineaer-algebra",
+        "Arne Hole: Kalkulus og lineær algebra"
+      ],
+      [
+        "https://www.math.ntnu.no/emner/TMA4101/2021h/notater/lin-alg.pdf",
+        "Overingeniør Skartsæterhagens Lineæralgebrakompendium"
+      ],
+      [
+        "https://tma41x1.math.ntnu.no",
+        "Temasider"
+      ],
+      [
+        "https://wiki.math.ntnu.no/oppfrisk/2024/start",
+        "IMFs oppfriskningskurs i matematikk"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-0.pdf",
+        "1 - 0 - STUDIETEKNIKK"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-1.pdf",
+        "1 - 1 - DIFFERENSIALLIKNINGER I"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-1-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-2.pdf",
+        "1 - 2 - TALL"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-2-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-3.pdf",
+        "1 - 3 - DIFFERENSIALLIKNINGER II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-3-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-4.pdf",
+        "1 - 4 - FUNKSJONER"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-4-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-5.pdf",
+        "1 - 5 - LINEÆRALGEBRA I"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-5-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-6.pdf",
+        "1 - 6 - LINEÆRALGEBRA II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-6-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://en.wikipedia.org/wiki/Invertible_matrix",
+        "Inverterbare matriser"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-7.pdf",
+        "1 - 7 - DIFFERENSIALLIKNINGER III"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-7-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-8.pdf",
+        "1 - 8 - LINEÆRALGEBRA III"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-8-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://wiki.math.ntnu.no/_media/tma4110/2024h/7-vektorrom.pdf",
+        "7"
+      ],
+      [
+        "https://wiki.math.ntnu.no/_media/tma4110/2024h/8-lineartransformasjoner.pdf",
+        "8"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-9.pdf",
+        "1 - 9 - INTEGRALET I"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-9-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-10.pdf",
+        "1 - 10 - DIFFERENSIALLIKNINGER IV"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-10-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://en.wikipedia.org/wiki/Euler_method",
+        "Eulers metoder"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-11.pdf",
+        "1 - 11 - LIKNINGER"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-11-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://en.wikipedia.org/wiki/Fixed-point_iteration",
+        "Fikspkt"
+      ],
+      [
+        "https://en.wikipedia.org/wiki/Newton%27s_method",
+        "Newton"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-12.pdf",
+        "1 - 12 - REKKER I"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-12-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/johannum/Matte1_uke46_24H.pdf",
+        "Forelesningsnotater"
+      ],
+      [
+        "https://folk.ntnu.no/johannum/Matte1_uke47_24H.pdf",
+        "Notater repitisjon"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-13.pdf",
+        "1 - 13 - REKKER II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/1-13-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://www.ntnu.no/ansatte/morten.nome",
+        "Morten Andreas Nome"
+      ]
+    ]
+  },
+  {
+    "course": 2,
+    "code": "TMA4106",
+    "semester": "2025v",
+    "url": "https://wiki.math.ntnu.no/tma4106/2025v/start",
+    "links": [
+      [
+        "http://www.ntnu.no/imf",
+        "Institutt for matematiske fag, NTNU"
+      ],
+      [
+        "https://wiki.math.ntnu.no/tma4106",
+        "TMA4106 Matematikk 2 (MTELSYS, MTKJ, MTTK)"
+      ],
+      [
+        "https://wiki.math.ntnu.no/tma4106/2025v/start",
+        "TMA4106 Matematikk 2 for MTELSYS, MTKJ og MTTK våren 2025"
+      ],
+      [
+        "https://www.ntnu.no/studier/emner/TMA4106#tab=timeplan",
+        "TIMEPLAN OG EKSAMENSINFO"
+      ],
+      [
+        "https://mortano.folk.ntnu.no/eksamen/",
+        "her"
+      ],
+      [
+        "https://nettskjema.no/a/526962",
+        "det utrolig korte spørreskjemaet"
+      ],
+      [
+        "https://mortano.folk.ntnu.no/eksamen/",
+        "her"
+      ],
+      [
+        "https://ovsys.math.ntnu.no",
+        "https://ovsys.math.ntnu.no"
+      ],
+      [
+        "https://mortano.folk.ntnu.no/oblig/oblig-4106.pdf",
+        "standardprosjekt"
+      ],
+      [
+        "https://link.springer.com/book/10.1007/978-3-319-48936-0",
+        "Borthwick"
+      ],
+      [
+        "https://www.feynmanlectures.caltech.edu",
+        "https://www.feynmanlectures.caltech.edu"
+      ],
+      [
+        "https://www.universitetsforlaget.no/kalkulus-og-lineaer-algebra",
+        "Arne Hole: Kalkulus og lineær algebra"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-1.pdf",
+        "2 - 1 - DIFFERENSIALLIKNINGER V"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-1-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://www.feynmanlectures.caltech.edu/I_25.html",
+        "25"
+      ],
+      [
+        "https://www.math.ntnu.no/emner/TMA4106/bok/kola-15.pdf",
+        "15"
+      ],
+      [
+        "https://aasmunru.folk.ntnu.no/TMA4106/matte%202%20forelesning%2013.01.2025.pdf",
+        "Notater uke 3"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/08.01.25/",
+        "Notater uke 2"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-2.pdf",
+        "2 - 2 - DIFFERENSIALLIKNINGER VI"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-2-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/15.01.25/",
+        "Notater uke 3"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-3.pdf",
+        "2 - 3 - FOURIERANALYSE I"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-3-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/22.01.25/",
+        "Notater uke 4"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-4.pdf",
+        "2 - 4 - INDREPRODUKTROM I"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-4-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://jakleven.folk.ntnu.no/studass/2025-01-28_tma4106_indreproduktrom_1.pdf",
+        "Notater"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/29.01.25/",
+        "Notater uke 5"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-5.pdf",
+        "2 - 5 - REGRESJON"
+      ],
+      [
+        "https://astrimys.folk.ntnu.no/TMA4106/LF/2_6_LF.pdf",
+        "LF"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/05.02.25/",
+        "Notater uke 6"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-6.pdf",
+        "2 - 6 - HVA ER EN KATT?"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-6-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/12.02.25/",
+        "Notater uke 7"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-7.pdf",
+        "2 - 7 - DIFFERENSIALLIKNINGER VI"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-7-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://mortano.folk.ntnu.no/notater/sivingmatte.pdf",
+        "her"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/19.02.25/",
+        "Notater uke 8"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-8.pdf",
+        "2 - 8 - FOURIERANALYSE II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-8-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/26.02.25/",
+        "Notater uke 9"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-9.pdf",
+        "2 - 9 - INDREPRODUKTROM II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-9-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-10.pdf",
+        "2 - 10 - INDREPRODUKTROM III"
+      ],
+      [
+        "https://astrimys.folk.ntnu.no/TMA4106/LF/2_9_LF.pdf",
+        "LF"
+      ],
+      [
+        "https://aasmunru.folk.ntnu.no/TMA4106/forelesning%20komplekst%20indreproduktrom.pdf",
+        "Notater"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-11.pdf",
+        "2 - 11 - FOURIERANALYSE III"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-11-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-12.pdf",
+        "2 - 12 - DIFFERENSIALLIKNINGER VI"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-12-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://aasmunru.folk.ntnu.no/TMA4106/Forelesning%20schrodinger%2025_03_2025.pdf",
+        "Notater"
+      ],
+      [
+        "https://aasmunru.folk.ntnu.no/TMA4106/Forelesning%20schrodinger%2025_03_2025.pptx",
+        "Presentasjon"
+      ],
+      [
+        "https://evenble.folk.ntnu.no/26.03.25/",
+        "Notater uke 13"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-13.pdf",
+        "2 - 13 - SKUMLE GREIER"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/stoff/2-13-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://hanstomr.folk.ntnu.no/02.04.25",
+        "Notater"
+      ],
+      [
+        "https://www.ntnu.no/ansatte/morten.nome",
+        "Morten Andreas Nome"
+      ]
+    ]
+  },
+  {
+    "course": 3,
+    "code": "TMA4111",
+    "semester": "2025h",
+    "url": "https://wiki.math.ntnu.no/tma4111/2025h/start",
+    "links": [
+      [
+        "http://www.ntnu.no/imf",
+        "Institutt for matematiske fag, NTNU"
+      ],
+      [
+        "https://wiki.math.ntnu.no/tma4111",
+        "TMA4111 Matematikk 3 (MTELSYS)"
+      ],
+      [
+        "https://wiki.math.ntnu.no/tma4111/2025h/start",
+        "TMA4111 Matematikk 3 for MTELSYS, MTKJ og MTTK høsten 2025"
+      ],
+      [
+        "https://www.ntnu.no/studier/emner/TMA4111#tab=timeplan",
+        "TIMEPLAN"
+      ],
+      [
+        "https://nettskjema.no/a/579454",
+        "https://nettskjema.no/a/579454"
+      ],
+      [
+        "https://mortano.folk.ntnu.no/grunnstoff/",
+        "her"
+      ],
+      [
+        "https://www.feynmanlectures.caltech.edu",
+        "https://www.feynmanlectures.caltech.edu"
+      ],
+      [
+        "https://www.universitetsforlaget.no/kalkulus-og-lineaer-algebra",
+        "Arne Hole: Kalkulus og lineær algebra"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-1.pdf",
+        "3 - 1 - KURVER"
+      ],
+      [
+        "https://www.jstor.org/stable/27765899",
+        "https://www.jstor.org/stable/27765899"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-2.pdf",
+        "3 - 2 - FUNKSJONER AV FLERE VARIABLE"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-3.pdf",
+        "3 - 3 - OPTIMERING"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-4.pdf",
+        "3 - 4 - VEKTORFELT"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-5.pdf",
+        "3 - 5 - LINJEINTEGRALER I"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-6.pdf",
+        "3 - 6 - DOBBELTINTEGRALER"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-7.pdf",
+        "3 - 7 - KOORDINATAVBILDNINGER"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-8.pdf",
+        "3 - 8 - ANALYSENS FUNDAMENTALTEOREM II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-9.pdf",
+        "3 - 9 - ANALYSENS FUNDAMENTALTEOREM III"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-10.pdf",
+        "3 - 10 - LINJEINTEGRALER II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-11.pdf",
+        "3 - 11 - LAPLACEOPERATOREN I"
+      ],
+      [
+        "https://www.feynmanlectures.caltech.edu/II_12.html",
+        "II-12"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/3-12.pdf",
+        "3 - 12 - FLATEINTEGRALER"
+      ],
+      [
+        "https://www.ntnu.no/ansatte/morten.nome",
+        "Morten Andreas Nome"
+      ]
+    ]
+  },
+  {
+    "course": 4,
+    "code": "TMA4121",
+    "semester": "2026v",
+    "url": "https://wiki.math.ntnu.no/tma4121/2026v/start",
+    "links": [
+      [
+        "http://www.ntnu.no/imf",
+        "Institutt for matematiske fag, NTNU"
+      ],
+      [
+        "https://wiki.math.ntnu.no/tma4121",
+        "TMA4121 Matematikk 4 (MTELSYS, MTTK og MTKJ)"
+      ],
+      [
+        "https://wiki.math.ntnu.no/tma4121/2026v/start",
+        "TMA4121 Matematikk 4 for MTELSYS, MTKJ og MTTK våren 2026"
+      ],
+      [
+        "https://www.ntnu.no/studier/emner/TMA4121#tab=timeplan",
+        "TIMEPLAN"
+      ],
+      [
+        "https://mortano.folk.ntnu.no/eksamen/",
+        "her"
+      ],
+      [
+        "https://nettskjema.no/a/633126",
+        "spørreskjema"
+      ],
+      [
+        "https://link.springer.com/book/10.1007/978-3-319-48936-0",
+        "Borthwick"
+      ],
+      [
+        "https://www.feynmanlectures.caltech.edu",
+        "https://www.feynmanlectures.caltech.edu"
+      ],
+      [
+        "https://www.universitetsforlaget.no/kalkulus-og-lineaer-algebra",
+        "Arne Hole: Kalkulus og lineær algebra"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-1.pdf",
+        "4 - 1 - TRIPPELINTEGRALER"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-1-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://helenrl.folk.ntnu.no/TMA4121/Trippelintegral_oppg_10_13_16.pdf",
+        "Oppg. 10_13_16"
+      ],
+      [
+        "https://helenrl.folk.ntnu.no/TMA4121/Trippelintegraler_oppg_4_5_7_15.pdf",
+        "Oppg. 4_5_7_15"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-2.pdf",
+        "4 - 2 - NABLAOPERATOREN I"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-2-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://caspere.folk.ntnu.no/TMA4121_2026/Nablaoperatoren_øvingsforelesning.pdf",
+        "Notater fra øvingsforelesning"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-3.pdf",
+        "4 - 3 - ANALYSENS FUNDAMENTALTEOREM IV"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-3-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://helenrl.folk.ntnu.no/TMA4121/Divergensteoremet_oppg_9_13.pdf",
+        "Oppg. 9_til_13"
+      ],
+      [
+        "https://helenrl.folk.ntnu.no/TMA4121/Divergensteoremet_oppg_8.pdf",
+        "Oppg. 8"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-4.pdf",
+        "4 - 4 - ANALYSENS FUNDAMENTALTEOREM V"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-4-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://helenrl.folk.ntnu.no/TMA4121/4-4_kommentert_øving.pdf",
+        "Redigert øving fra ø-forelesning"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-5.pdf",
+        "4 - 5 - ELEKTROMAGNETISME"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-5-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://helenrl.folk.ntnu.no/TMA4121/forelesningsnotater_maxwell.pdf",
+        "Notater fra øvingsforelesning"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-6.pdf",
+        "4 - 6 - LAPLACEOPERATOREN II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-6-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://caspere.folk.ntnu.no/TMA4121_2026/Laplaceoperatoren_øvingsforelesning.pdf",
+        "Notater fra øvingsforelesning"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-7.pdf",
+        "4 - 7 - FLUIDMEKANIKK"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-7-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-8.pdf",
+        "4 - 8 - BEVARINGSLOVER"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-8-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-9.pdf",
+        "4 - 9 - BØLGER"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-9-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://helenrl.folk.ntnu.no/TMA4121/Forelesningsnotater_bølger.pdf",
+        "Notater fra øvingsforelesning (pluss litt ekstra)"
+      ],
+      [
+        "https://www.desmos.com/calculator/uy2cxv3a2s",
+        "Desmos simulering av odd/jevn utvidelse av initialkrav"
+      ],
+      [
+        "https://www.acs.psu.edu/drussell/demos.html",
+        "Nettside med visualiseringer av ulike bølge-ting"
+      ],
+      [
+        "https://www.acs.psu.edu/drussell/Demos/Pipe-Ends/pipe-ends.html",
+        "Åpen/lukket rør-ende->inversjon/ikke-inversjon av trykket"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-10.pdf",
+        "4 - 10 - NABLAOPERATOREN II"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-10-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://mortano.folk.ntnu.no/TMA4121/kinkin.pdf",
+        "Danske Tanker"
+      ],
+      [
+        "https://caspere.folk.ntnu.no/TMA4121_2026/Skjevsymmetri_øvingsforelesning.pdf",
+        "Notater fra øvingsforelesning"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-11.pdf",
+        "4 - 11 - ALEMBERTOPERATOREN"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-11-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-12.pdf",
+        "4 - 12 - KRASJKURS I RESIDYREGNING"
+      ],
+      [
+        "https://folk.ntnu.no/mortano/grunnstoff/4-12-lf.pdf",
+        "LF"
+      ],
+      [
+        "https://davipe.folk.ntnu.no/forelesningsnotater/frekvensrespons/Frekvensrespons.pdf",
+        "Svenske Tanker"
+      ],
+      [
+        "https://www.youtube.com/watch?v=_mv0q7-WF4E&list=PLMrJAkhIeNNQBRslPb7I0yTnES981R8Cg&index=1",
+        "Steve Brunton, kræsjkurs i kompleks analyse"
+      ],
+      [
+        "https://caspere.folk.ntnu.no/TMA4121_2026/Repetisjon.pdf",
+        "Notater fra øvingsforelesning"
+      ],
+      [
+        "https://www.ntnu.no/ansatte/morten.nome",
+        "Morten Andreas Nome"
+      ],
+      [
+        "mailto:helene%20%5Bdot%5D%20r%20%5Bdot%5D%20lunde%20%5Bat%5D%20ntnu%20%5Bdot%5D%20no",
+        "helene [dot] r [dot] lunde [at] ntnu [dot] no"
+      ],
+      [
+        "mailto:casper%20%5Bdot%5D%20evensen%20%5Bat%5D%20ntnu%20%5Bdot%5D%20no",
+        "casper [dot] evensen [at] ntnu [dot] no"
+      ]
+    ]
+  }
+]
