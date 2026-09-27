@@ -6,6 +6,7 @@
     "files": [
       "20260911083041.csv",
       "analysis.py",
+      "analysisSummary.csv",
       "functions.py",
       "LoggedDataInfo.docx",
       "processedData.csv",
@@ -13,10 +14,25 @@
     ],
     "welcome": "/img/welcome-generic.svg"
   },
+  "ØvingH1.pdf": {
+    "beskyttet": false,
+    "files": [
+      "ØvingH1.pdf"
+    ]
+  },
   "ØvingR1.xlsx": {
     "beskyttet": false,
     "files": [
       "ØvingR1.xlsx"
     ]
+  },
+  "ØvingR2": {
+    "dir": "ØvingR2",
+    "beskyttet": false,
+    "files": [
+      "Oppgave2.py",
+      "ØvingR2.pdf"
+    ],
+    "welcome": "/img/welcome-generic.svg"
   }
 }

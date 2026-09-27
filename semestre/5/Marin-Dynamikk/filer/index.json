@@ -41,5 +41,15 @@
       "Øving5.pdf"
     ],
     "welcome": "/img/welcome-generic.svg"
+  },
+  "oving06": {
+    "dir": "Øving6",
+    "beskyttet": false,
+    "files": [
+      "Øving6.pdf",
+      "Øving6Oppgave1.py",
+      "Øving6Oppgave4.py"
+    ],
+    "welcome": "/img/welcome-generic.svg"
   }
 }

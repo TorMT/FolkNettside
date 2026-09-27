@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# BRUK (PowerShell / Windows):
+# Filnavnet må inkludere .py: SiteUpdater3.py.
+# Bruker du bare filnavnet, må terminalen stå i samme mappe som skriptet:
+#   python SiteUpdater3.py "semestre\5"
+# Med full sti til skriptet og målmappen fungerer kommandoen fra alle mapper:
+#   python "\\webedit.ntnu.no\tormt\SiteUpdater3.py" "\\webedit.ntnu.no\tormt\semestre\5"
+# Bytt siste sti med den kopierte stien til mappen du vil oppdatere.
+# Behold anførselstegnene, slik at også stier med mellomrom fungerer.
+# Relative målstier tolkes fra terminalens gjeldende mappe.
+# Uten målsti oppdateres terminalens gjeldende mappe rekursivt.
+# Legg til --dry-run for å se planlagte endringer uten å skrive filer.
+
 """
 site_updater.py â€“ Oppdaterer, genererer eller fjerner index.json rekursivt.
 

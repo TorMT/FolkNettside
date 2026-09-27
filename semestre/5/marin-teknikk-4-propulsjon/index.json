@@ -6,11 +6,15 @@
     "files": [
       "Prosjekt/20260911083041.csv",
       "Prosjekt/analysis.py",
+      "Prosjekt/analysisSummary.csv",
       "Prosjekt/functions.py",
       "Prosjekt/LoggedDataInfo.docx",
       "Prosjekt/processedData.csv",
       "Prosjekt/voyageSummary.csv",
-      "ØvingR1.xlsx"
+      "ØvingH1.pdf",
+      "ØvingR1.xlsx",
+      "ØvingR2/Oppgave2.py",
+      "ØvingR2/ØvingR2.pdf"
     ],
     "welcome": "/img/welcome-generic.svg"
   }

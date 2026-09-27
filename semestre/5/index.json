@@ -6,7 +6,21 @@
     "files": [
       "filer/Øving1/Forarbeid.pdf",
       "filer/Øving1/MD_Exercise1_Lab1-4.pdf",
-      "filer/Øving1/MD_exercise1_lab_kode.py"
+      "filer/Øving1/MD_exercise1_lab_kode.py",
+      "filer/Øving3/AogDTest.py",
+      "filer/Øving3/const_avg_acc.py",
+      "filer/Øving3/dis_state_space.py",
+      "filer/Øving3/runge_kutta4.py",
+      "filer/Øving3/tmr4182_ex9_calling.py",
+      "filer/Øving3/TMR4182_Exercise3_enkel_innlevering.docx",
+      "filer/Øving3/train_s2s.py",
+      "filer/Øving4/Oppgave1.py",
+      "filer/Øving4/Øving4.pdf",
+      "filer/Øving5/Oppgave2.py",
+      "filer/Øving5/Øving5.pdf",
+      "filer/Øving6/Øving6.pdf",
+      "filer/Øving6/Øving6Oppgave1.py",
+      "filer/Øving6/Øving6Oppgave4.py"
     ],
     "welcome": "/img/welcome-generic.svg"
   },
@@ -19,7 +33,19 @@
   "marin-teknikk-4-propulsjon": {
     "dir": "marin-teknikk-4-propulsjon",
     "beskyttet": false,
-    "files": [],
+    "files": [
+      "filer/Prosjekt/20260911083041.csv",
+      "filer/Prosjekt/analysis.py",
+      "filer/Prosjekt/analysisSummary.csv",
+      "filer/Prosjekt/functions.py",
+      "filer/Prosjekt/LoggedDataInfo.docx",
+      "filer/Prosjekt/processedData.csv",
+      "filer/Prosjekt/voyageSummary.csv",
+      "filer/ØvingH1.pdf",
+      "filer/ØvingR1.xlsx",
+      "filer/ØvingR2/Oppgave2.py",
+      "filer/ØvingR2/ØvingR2.pdf"
+    ],
     "welcome": "/img/welcome-generic.svg"
   },
   "teknologiledelse": {
