@@ -1,25 +1,36 @@
-name: Disabled — export-and-deploy (manual)
+name: export-and-deploy
 
-# This workflow was disabled from running on push to avoid automatically
-# publishing the export/ folder. It can be triggered manually from Actions
-# if you want to run the export+deploy process.
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: folknettside-pages-publish
+  cancel-in-progress: true
+
 jobs:
-  manual-export-deploy:
+  export-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
-      - name: Run export script
-        run: |
-          python scripts/export_repo.py
-      - name: Deploy `export/` to gh-pages
-        uses: peaceiris/actions-gh-pages@v3
+          python-version: "3.x"
+
+      - name: Export public site
+        env:
+          PAGES_BASE_PATH: /FolkNettside
+        run: python scripts/export_repo.py
+
+      - name: Deploy export to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./export
