@@ -1,0 +1,220 @@
+/* ============================================================================
+   THEMES.CSS - QUIZ EXTENSION v1.0
+   ============================================================================
+   Legg til disse variablene i din eksisterende themes.css
+   Eller inkluder denne filen ETTER themes.css:
+   <link rel="stylesheet" href="/FolkNettside/includes/themes-quiz-extension.css">
+   ============================================================================ */
+
+/* ========================================
+   LIGHT THEME - QUIZ VARIABLES
+   ======================================== */
+
+[data-theme="light"] {
+  /* Quiz-spesifikke farger */
+  --quiz-header-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --quiz-header-text: #ffffff;
+  --quiz-header-subtitle: rgba(255, 255, 255, 0.9);
+  
+  /* Svaralternativer */
+  --quiz-choice-bg: #f8f9fa;
+  --quiz-choice-hover: #e9ecef;
+  --quiz-choice-selected: #e7f0ff;
+  --quiz-choice-text: #2c3e50;
+  
+  /* Feedback */
+  --success-bg: #d4edda;
+  --success-color: #28a745;
+  --success-text: #155724;
+  
+  --error-bg: #f8d7da;
+  --error-color: #dc3545;
+  --error-text: #721c24;
+  
+  /* Tabell */
+  --table-header-bg: #f8f9fa;
+  --table-row-hover: #f8f9fa;
+  
+  /* Input */
+  --input-bg: #ffffff;
+  --focus-shadow: rgba(102, 126, 234, 0.1);
+}
+
+/* ========================================
+   DARK THEME - QUIZ VARIABLES
+   ======================================== */
+
+[data-theme="dark"] {
+  /* Quiz-spesifikke farger */
+  --quiz-header-gradient: linear-gradient(135deg, #4338ca 0%, #5b21b6 100%);
+  --quiz-header-text: #ffffff;
+  --quiz-header-subtitle: rgba(255, 255, 255, 0.85);
+  
+  /* Svaralternativer */
+  --quiz-choice-bg: #374151;
+  --quiz-choice-hover: #4b5563;
+  --quiz-choice-selected: #1e3a5f;
+  --quiz-choice-text: #f3f4f6;
+  
+  /* Feedback */
+  --success-bg: #1e4620;
+  --success-color: #4ade80;
+  --success-text: #bbf7d0;
+  
+  --error-bg: #4c1d1d;
+  --error-color: #f87171;
+  --error-text: #fecaca;
+  
+  /* Tabell */
+  --table-header-bg: #374151;
+  --table-row-hover: #374151;
+  
+  /* Input */
+  --input-bg: #374151;
+  --focus-shadow: rgba(67, 56, 202, 0.2);
+}
+
+/* ========================================
+   OCEAN THEME - QUIZ VARIABLES
+   ======================================== */
+
+[data-theme="ocean"] {
+  --quiz-header-gradient: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
+  --quiz-header-text: #ffffff;
+  --quiz-header-subtitle: rgba(255, 255, 255, 0.9);
+  
+  --quiz-choice-bg: #e0f2fe;
+  --quiz-choice-hover: #bae6fd;
+  --quiz-choice-selected: #7dd3fc;
+  --quiz-choice-text: #0c4a6e;
+  
+  --success-bg: #d1fae5;
+  --success-color: #059669;
+  --success-text: #064e3b;
+  
+  --error-bg: #fee2e2;
+  --error-color: #dc2626;
+  --error-text: #7f1d1d;
+  
+  --table-header-bg: #e0f2fe;
+  --table-row-hover: #e0f2fe;
+  
+  --input-bg: #ffffff;
+  --focus-shadow: rgba(14, 165, 233, 0.1);
+}
+
+/* ========================================
+   FOREST THEME - QUIZ VARIABLES
+   ======================================== */
+
+[data-theme="forest"] {
+  --quiz-header-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --quiz-header-text: #ffffff;
+  --quiz-header-subtitle: rgba(255, 255, 255, 0.9);
+  
+  --quiz-choice-bg: #d1fae5;
+  --quiz-choice-hover: #a7f3d0;
+  --quiz-choice-selected: #6ee7b7;
+  --quiz-choice-text: #064e3b;
+  
+  --success-bg: #d1fae5;
+  --success-color: #059669;
+  --success-text: #064e3b;
+  
+  --error-bg: #fee2e2;
+  --error-color: #dc2626;
+  --error-text: #7f1d1d;
+  
+  --table-header-bg: #d1fae5;
+  --table-row-hover: #d1fae5;
+  
+  --input-bg: #ffffff;
+  --focus-shadow: rgba(16, 185, 129, 0.1);
+}
+
+/* ========================================
+   SUNSET THEME - QUIZ VARIABLES
+   ======================================== */
+
+[data-theme="sunset"] {
+  --quiz-header-gradient: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  --quiz-header-text: #ffffff;
+  --quiz-header-subtitle: rgba(255, 255, 255, 0.9);
+  
+  --quiz-choice-bg: #ffedd5;
+  --quiz-choice-hover: #fed7aa;
+  --quiz-choice-selected: #fdba74;
+  --quiz-choice-text: #7c2d12;
+  
+  --success-bg: #d1fae5;
+  --success-color: #059669;
+  --success-text: #064e3b;
+  
+  --error-bg: #fee2e2;
+  --error-color: #dc2626;
+  --error-text: #7f1d1d;
+  
+  --table-header-bg: #ffedd5;
+  --table-row-hover: #ffedd5;
+  
+  --input-bg: #ffffff;
+  --focus-shadow: rgba(249, 115, 22, 0.1);
+}
+
+/* ========================================
+   NORD THEME - QUIZ VARIABLES
+   ======================================== */
+
+[data-theme="nord"] {
+  --quiz-header-gradient: linear-gradient(135deg, #5e81ac 0%, #81a1c1 100%);
+  --quiz-header-text: #eceff4;
+  --quiz-header-subtitle: rgba(236, 239, 244, 0.9);
+  
+  --quiz-choice-bg: #d8dee9;
+  --quiz-choice-hover: #e5e9f0;
+  --quiz-choice-selected: #88c0d0;
+  --quiz-choice-text: #2e3440;
+  
+  --success-bg: #a3be8c;
+  --success-color: #8fbcbb;
+  --success-text: #2e3440;
+  
+  --error-bg: #bf616a;
+  --error-color: #d08770;
+  --error-text: #2e3440;
+  
+  --table-header-bg: #d8dee9;
+  --table-row-hover: #d8dee9;
+  
+  --input-bg: #eceff4;
+  --focus-shadow: rgba(94, 129, 172, 0.2);
+}
+
+/* ========================================
+   HIGH CONTRAST THEME - QUIZ VARIABLES
+   ======================================== */
+
+[data-theme="high-contrast"] {
+  --quiz-header-gradient: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+  --quiz-header-text: #ffff00;
+  --quiz-header-subtitle: #ffffff;
+  
+  --quiz-choice-bg: #ffffff;
+  --quiz-choice-hover: #ffff00;
+  --quiz-choice-selected: #00ff00;
+  --quiz-choice-text: #000000;
+  
+  --success-bg: #00ff00;
+  --success-color: #008000;
+  --success-text: #000000;
+  
+  --error-bg: #ff0000;
+  --error-color: #cc0000;
+  --error-text: #ffffff;
+  
+  --table-header-bg: #ffff00;
+  --table-row-hover: #ffff00;
+  
+  --input-bg: #ffffff;
+  --focus-shadow: rgba(255, 255, 0, 0.5);
+}

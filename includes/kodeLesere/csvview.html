@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CSV-visning</title>
+  <link rel="stylesheet" href="/FolkNettside/assets/css/themes.css" />
+  <style>
+    :root{
+      --csv-bg: var(--bg-main, #f6f8fb);
+      --csv-card: var(--bg-card, #ffffff);
+      --csv-alt: var(--bg-alt, #eef2f7);
+      --csv-text: var(--text-main, #18202b);
+      --csv-muted: var(--text-muted, #64748b);
+      --csv-border: var(--border-color, rgba(15,23,42,.12));
+      --csv-accent: var(--primary, #2563eb);
+      --csv-shadow: var(--shadow-soft, 0 12px 30px -20px rgba(15,23,42,.35));
+      --csv-radius: var(--radius, 16px);
+    }
+    *{ box-sizing:border-box; }
+    html,body{ margin:0; height:100%; background:var(--csv-bg); color:var(--csv-text); font-family:system-ui,Segoe UI,Arial,sans-serif; }
+    body{ display:flex; flex-direction:column; }
+    header{
+      display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+      padding:14px 16px; border-bottom:1px solid var(--csv-border); background:color-mix(in srgb, var(--csv-card) 88%, transparent);
+      backdrop-filter: blur(8px);
+    }
+    .title-wrap{ min-width:220px; flex:1 1 320px; }
+    .title{ font-size:22px; font-weight:900; line-height:1.1; }
+    .subtitle{ margin-top:4px; color:var(--csv-muted); font-size:13px; }
+    .toolbar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .btn, .field{
+      border:1px solid var(--csv-border);
+      border-radius:12px;
+      background:var(--csv-card);
+      color:var(--csv-text);
+      min-height:42px;
+      box-shadow: var(--csv-shadow);
+    }
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:0 14px; text-decoration:none; font-weight:800; cursor:pointer;
+    }
+    .btn.primary{ background:var(--csv-accent); color:#fff; border-color:transparent; }
+    .field{
+      display:flex; align-items:center; gap:8px; padding:0 12px;
+    }
+    .field input{
+      border:0; outline:0; background:transparent; color:inherit; min-width:220px; font:inherit;
+    }
+    .stats{
+      display:flex; gap:10px; flex-wrap:wrap; padding:14px 16px 0 16px;
+    }
+    .stat{
+      padding:10px 14px; border-radius:999px; background:var(--csv-card); border:1px solid var(--csv-border); box-shadow:var(--csv-shadow); font-weight:800;
+    }
+    main{ flex:1 1 auto; min-height:0; padding:14px 16px 16px 16px; }
+    .table-wrap{
+      height:100%; background:var(--csv-card); border:1px solid var(--csv-border); border-radius:var(--csv-radius);
+      overflow:auto; box-shadow:var(--csv-shadow);
+    }
+    table{ width:max-content; min-width:100%; border-collapse:separate; border-spacing:0; }
+    thead th{
+      position:sticky; top:0; z-index:2; background:var(--csv-alt); color:var(--csv-text);
+      text-align:left; font-size:13px; font-weight:900; padding:12px 14px; border-bottom:1px solid var(--csv-border);
+    }
+    tbody td{
+      padding:11px 14px; border-bottom:1px solid var(--csv-border); vertical-align:top; font-size:14px;
+      max-width:440px; word-break:break-word;
+    }
+    tbody tr:nth-child(even) td{ background:color-mix(in srgb, var(--csv-card) 88%, var(--csv-alt) 12%); }
+    .rownum{ color:var(--csv-muted); width:72px; min-width:72px; }
+    .empty{
+      display:grid; place-items:center; min-height:240px; padding:24px; text-align:center; color:var(--csv-muted);
+    }
+    .mono{ font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+    @media (max-width: 760px){
+      header{ padding:12px; }
+      .field{ width:100%; }
+      .field input{ min-width:0; width:100%; }
+      main{ padding:12px; }
+      .title{ font-size:19px; }
+      tbody td, thead th{ padding:10px 12px; }
+    }
+  </style>
+  <script src="/FolkNettside/includes/kodeLesere/locked-view.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="title-wrap">
+      <div class="title" id="title">CSV</div>
+      <div class="subtitle" id="subtitle">Laster fil...</div>
+    </div>
+    <div class="toolbar">
+      <label class="field" aria-label="Søk i tabell">
+        <span>Søk</span>
+        <input id="search" type="search" placeholder="Filtrer rader..." />
+      </label>
+      <button class="btn" id="toggleRaw" type="button">Vis råtekst</button>
+      <a class="btn primary" id="rawLink" target="_blank" rel="noopener">Åpne råfil</a>
+    </div>
+  </header>
+  <div class="stats">
+    <div class="stat" id="rowsStat">0 rader</div>
+    <div class="stat" id="colsStat">0 kolonner</div>
+    <div class="stat" id="sepStat">separator: ?</div>
+  </div>
+  <main>
+    <div class="table-wrap" id="tableWrap">
+      <div class="empty" id="emptyState">Laster tabell...</div>
+      <table id="table" hidden>
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </main>
+  <script>
+    const qs = new URL(location.href).searchParams;
+    const file = qs.get('file') || '';
+    const titleEl = document.getElementById('title');
+    const subtitleEl = document.getElementById('subtitle');
+    const rowsStat = document.getElementById('rowsStat');
+    const colsStat = document.getElementById('colsStat');
+    const sepStat = document.getElementById('sepStat');
+    const rawLink = document.getElementById('rawLink');
+    const toggleRawBtn = document.getElementById('toggleRaw');
+    const searchInput = document.getElementById('search');
+    const table = document.getElementById('table');
+    const thead = document.getElementById('thead');
+    const tbody = document.getElementById('tbody');
+    const emptyState = document.getElementById('emptyState');
+
+    rawLink.href = file;
+    titleEl.textContent = decodeURIComponent((file.split('/FolkNettside/').pop() || 'CSV').split('?')[0]);
+
+    let rawText = '';
+    let parsedRows = [];
+    let filteredRows = [];
+    let showingRaw = false;
+    let separatorLabel = ',';
+
+    function syncThemeFromParent(){
+      try{
+        if (!window.parent || window.parent === window) return;
+        const parentRoot = window.parent.document.documentElement;
+        const style = getComputedStyle(parentRoot);
+        const root = document.documentElement;
+        for (let i = 0; i < style.length; i++) {
+          const name = style[i];
+          if (name.startsWith('--')) root.style.setProperty(name, style.getPropertyValue(name).trim());
+        }
+        const theme = parentRoot.getAttribute('data-theme');
+        if (theme) root.setAttribute('data-theme', theme);
+      }catch{}
+    }
+    window.addEventListener('message', (e) => {
+      if (e?.data?.type !== 'theme-sync') return;
+      try{
+        const root = document.documentElement;
+        if (e.data.themeAttr) root.setAttribute('data-theme', e.data.themeAttr);
+        Object.entries(e.data.vars || {}).forEach(([k, v]) => root.style.setProperty(k, v));
+      }catch{}
+    });
+    syncThemeFromParent();
+
+    function splitLine(line, delimiter){
+      const out = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        const next = line[i + 1];
+        if (ch === '"') {
+          if (inQuotes && next === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === delimiter && !inQuotes) {
+          out.push(current);
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+      out.push(current);
+      return out;
+    }
+
+    function detectDelimiter(text, fileName){
+      if (/\.tsv(?:$|[?#])/i.test(fileName)) return '\t';
+      const lines = text.split(/\r?\n/).filter(Boolean).slice(0, 8);
+      const candidates = [',', ';', '\t', '|'];
+      const scored = candidates.map((delim) => {
+        const counts = lines.map((line) => splitLine(line, delim).length);
+        const min = Math.min(...counts, 0);
+        const max = Math.max(...counts, 0);
+        const score = min > 1 ? min * 10 - (max - min) : 0;
+        return { delim, score };
+      }).sort((a, b) => b.score - a.score);
+      return scored[0]?.score > 0 ? scored[0].delim : ',';
+    }
+
+    function parseDelimited(text, delimiter){
+      const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.length > 0);
+      return lines.map((line) => splitLine(line, delimiter).map((cell) => cell.trim()));
+    }
+
+    function renderTable(rows){
+      if (!rows.length) {
+        table.hidden = true;
+        emptyState.hidden = false;
+        emptyState.textContent = 'Ingen rader å vise.';
+        return;
+      }
+      const colCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+      const header = rows[0];
+      thead.innerHTML = `<tr><th class="rownum">Rad</th>${Array.from({length: colCount}, (_, i) => `<th>${header[i] || `Kolonne ${i + 1}`}</th>`).join('')}</tr>`;
+      tbody.innerHTML = rows.slice(1).map((row, rowIndex) => {
+        const cells = Array.from({length: colCount}, (_, i) => `<td>${escapeHtml(row[i] || '')}</td>`).join('');
+        return `<tr><td class="rownum mono">${rowIndex + 1}</td>${cells}</tr>`;
+      }).join('');
+      table.hidden = false;
+      emptyState.hidden = true;
+    }
+
+    function renderRaw(text){
+      table.hidden = true;
+      emptyState.hidden = false;
+      emptyState.innerHTML = `<pre class="mono" style="margin:0;white-space:pre-wrap;text-align:left;width:100%;">${escapeHtml(text)}</pre>`;
+    }
+
+    function escapeHtml(value){
+      return String(value).replace(/[&<>"]/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+    }
+
+    function applyFilter(){
+      if (showingRaw) {
+        renderRaw(rawText);
+        return;
+      }
+      const query = searchInput.value.trim().toLowerCase();
+      if (!query) {
+        filteredRows = parsedRows.slice();
+      } else {
+        const header = parsedRows[0] ? [parsedRows[0]] : [];
+        const rows = parsedRows.slice(1).filter((row) => row.some((cell) => String(cell).toLowerCase().includes(query)));
+        filteredRows = header.concat(rows);
+      }
+      renderTable(filteredRows);
+      const bodyRows = Math.max(0, filteredRows.length - 1);
+      rowsStat.textContent = `${bodyRows} rader`;
+    }
+
+    toggleRawBtn.addEventListener('click', () => {
+      showingRaw = !showingRaw;
+      toggleRawBtn.textContent = showingRaw ? 'Vis tabell' : 'Vis råtekst';
+      applyFilter();
+    });
+    searchInput.addEventListener('input', applyFilter);
+
+    if (!file) {
+      subtitleEl.textContent = 'Mangler ?file= parameter.';
+      emptyState.textContent = 'Ingen fil valgt.';
+    } else {
+      fetch(file, { cache: 'no-store' })
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.text();
+        })
+        .then((text) => {
+          rawText = text;
+          const delimiter = detectDelimiter(text, file);
+          separatorLabel = delimiter === '\t' ? 'tab' : delimiter === ';' ? ';' : delimiter;
+          parsedRows = parseDelimited(text, delimiter);
+          subtitleEl.textContent = `${parsedRows.length > 0 ? parsedRows.length - 1 : 0} datarader lastet`;
+          rowsStat.textContent = `${Math.max(0, parsedRows.length - 1)} rader`;
+          colsStat.textContent = `${parsedRows.reduce((m, row) => Math.max(m, row.length), 0)} kolonner`;
+          sepStat.textContent = `separator: ${separatorLabel}`;
+          applyFilter();
+        })
+        .catch((err) => {
+          subtitleEl.textContent = 'Kunne ikke laste filen.';
+          emptyState.textContent = `Feil under lasting av CSV: ${err.message || err}`;
+        });
+    }
+  </script>
+</body>
+</html>

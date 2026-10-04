@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3MF Viewer</title>
+
+  <style>
+    :root{
+      --bg-main: var(--bg, #ffffff);
+      --bg-card: var(--card-bg, #f7f8fb);
+      --text-main: var(--text, #111827);
+      --text-muted: rgba(17,24,39,.60);
+      --border-color: rgba(17,24,39,.14);
+      --primary: var(--theme-accent, var(--accent, #2f6fed));
+      --primary-contrast: #fff;
+      --shadow: 0 12px 26px -14px rgba(0,0,0,.35);
+      --shadow-soft: 0 8px 18px -12px rgba(0,0,0,.25);
+      --radius: 16px;
+      --radius-sm: 12px;
+    }
+
+    html,body{
+      margin:0; padding:0; height:100%; overflow:hidden;
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: system-ui, Segoe UI, Arial;
+    }
+
+    #viewer{
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    #hud{
+      position:fixed; left:12px; top:12px; z-index:80;
+      background: var(--bg-card);
+      border:1px solid var(--border-color);
+      box-shadow: var(--shadow-soft);
+      padding:10px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      line-height: 1.35;
+      max-width: min(980px, 92vw);
+    }
+    #hud small{ color: var(--text-muted); }
+
+    #uiWrap{
+      position:fixed; left:50%; transform:translateX(-50%);
+      top: 8px; z-index:85;
+      width: min(1240px, calc(100vw - 24px));
+      pointer-events:none;
+    }
+
+    #toolbar{
+      pointer-events:auto;
+      background: var(--bg-card);
+      border:1px solid var(--border-color);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding:10px 12px;
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:10px;
+    }
+
+    .sep{
+      width:1px; height:30px;
+      background: var(--border-color);
+      margin:0 4px;
+      opacity:.9;
+    }
+
+    .btn{
+      appearance:none;
+      border:1px solid var(--border-color);
+      background: color-mix(in srgb, var(--bg-main) 70%, var(--bg-card) 30%);
+      color: var(--text-main);
+      border-radius: 999px;
+      padding:8px 12px;
+      font-size: 13px;
+      font-weight: 900;
+      cursor:pointer;
+      user-select:none;
+      white-space:nowrap;
+      transition: transform .06s ease, filter .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:hover{ filter: brightness(0.98); border-color: color-mix(in srgb, var(--border-color) 70%, var(--text-main) 30%); }
+    .btn:active{ transform: translateY(1px); }
+
+    .btn.primary{
+      background: var(--primary);
+      color: var(--primary-contrast);
+      border-color: color-mix(in srgb, var(--primary) 72%, #000 28%);
+    }
+    .btn.primary:hover{ filter: brightness(0.96); }
+
+    .btn.ghost{
+      background: transparent;
+      color: var(--text-main);
+    }
+    .btn.ghost:hover{
+      background: color-mix(in srgb, var(--bg-card) 70%, var(--bg-main) 30%);
+    }
+  </style>
+  <script src="/FolkNettside/includes/kodeLesere/locked-view.js" defer></script>
+</head>
+<body>
+  <div id="viewer"></div>
+
+  <div id="hud">
+    <strong>3MF Viewer</strong><br>
+    <small>3D Manufacturing Format viewer using 3MF Consortium's embed API</small>
+  </div>
+
+  <div id="uiWrap">
+    <div id="toolbar">
+      <button class="btn ghost" onclick="loadFile()">Load 3MF File</button>
+      <div class="sep"></div>
+      <button class="btn" onclick="fitView()">Fit View</button>
+      <button class="btn" onclick="resetView()">Reset View</button>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".3mf" style="display:none;" onchange="handleFileSelect(event)">
+
+  <script>
+    let viewer = null;
+
+    // Load embed script dynamically
+    const script = document.createElement('script');
+    script.src = 'https://3mf.io/viewer/embed.js'; // Assuming hosted there, adjust if needed
+    script.onload = initViewer;
+    document.head.appendChild(script);
+
+    function initViewer() {
+      if (typeof ThreeMFViewerEmbed !== 'undefined') {
+        viewer = ThreeMFViewerEmbed.create({
+          container: '#viewer',
+          height: '100%',
+          transparent: true
+        });
+      } else {
+        console.error('3MF Viewer embed script not loaded');
+      }
+    }
+
+    function loadFile() {
+      document.getElementById('fileInput').click();
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file && viewer) {
+        viewer.sendFile(file);
+      }
+    }
+
+    function fitView() {
+      if (viewer) viewer.fitView();
+    }
+
+    function resetView() {
+      if (viewer) viewer.resetView();
+    }
+
+    // Handle URL parameter for file
+    const urlParams = new URLSearchParams(window.location.search);
+    const fileParam = urlParams.get('file');
+    if (fileParam) {
+      // Load file from URL
+      fetch(fileParam)
+        .then(response => response.arrayBuffer())
+        .then(buffer => {
+          if (viewer) {
+            viewer.loadFromBlob(new Blob([buffer]), fileParam.split('/FolkNettside/').pop());
+          }
+        })
+        .catch(err => console.error('Failed to load file from URL:', err));
+    }
+  </script>
+
+<script type="module" src="../three/hydro-lab/HydroLabIntegration.js"></script>
+</body>
+</html>

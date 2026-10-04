@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>APS Viewer</title>
+  <style>
+    :root{--bg:#f3f7fb;--surface:#fff;--surface-soft:#eef4fb;--text:#132032;--muted:#64748b;--accent:#0b61c9;--border:#d8e2ee;--shadow:0 20px 48px rgba(15,76,129,.10)}
+    *{box-sizing:border-box} html,body{margin:0;padding:0;height:100%}
+    body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text)}
+    .shell{height:100vh;display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr)}
+    .sidebar{border-right:1px solid var(--border);background:linear-gradient(180deg,#fff,#f8fbff);padding:1rem;overflow:auto}
+    .viewer-pane{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-width:0}
+    .hero,.meta,.status{margin:1rem 1rem 0;border:1px solid var(--border);border-radius:18px;background:var(--surface);box-shadow:var(--shadow)}
+    .hero{padding:1rem 1.1rem}.hero h1{margin:0;font-size:1.45rem;color:var(--accent)}.hero p{margin:.45rem 0 0;color:var(--muted);line-height:1.5}
+    .status{padding:.85rem 1rem;color:var(--muted)} .status[data-tone="error"]{color:#9f1239}.status[data-tone="ok"]{color:#166534}.status[data-tone="warn"]{color:#92400e}
+    .meta{padding:1rem 1.1rem}.meta h3{margin:0 0 .35rem}.meta p{margin:0;color:var(--muted)} .meta a{display:inline-block;margin-top:.7rem;color:var(--accent);font-weight:700}
+    #aps-viewer{margin:1rem;min-height:0;border:1px solid var(--border);border-radius:24px;overflow:hidden;background:#dfe8f2;box-shadow:var(--shadow)}
+    .aps-placeholder{display:grid;place-items:center;height:100%;padding:2rem;color:var(--muted);text-align:center}
+    .aps-folder-group{display:grid;gap:.6rem;margin-bottom:1rem}.aps-folder-title{margin:0;font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .aps-folder-items{display:grid;gap:.6rem}.aps-model-button{display:grid;gap:.25rem;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:16px;padding:.85rem .9rem;cursor:pointer;box-shadow:var(--shadow)}
+    .aps-model-button.is-active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(11,97,201,.12)}
+    .aps-model-name{font-weight:800}.aps-model-meta{font-size:.88rem;color:var(--muted)}
+    @media (max-width: 900px){.shell{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.sidebar{border-right:none;border-bottom:1px solid var(--border)}}
+  </style>
+  <script src="/FolkNettside/includes/kodeLesere/locked-view.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <section class="hero">
+        <h1 id="title">APS Modellbrowser</h1>
+        <p id="subtitle">Generell Autodesk Platform Services-browser for hub/prosjekt/mappe. Koble til via aps-config.json.</p>
+      </section>
+      <div id="aps-model-list"></div>
+    </aside>
+    <main class="viewer-pane">
+      <div id="aps-status" class="status" data-tone="info">Laster konfigurasjon ...</div>
+      <section id="aps-meta" class="meta">
+        <h3>Velg en modell</h3>
+        <p>Her vises informasjon om valgt APS-modell eller demooppf?ring.</p>
+      </section>
+      <div id="aps-viewer"><div class="aps-placeholder">Viewer er klar. Velg en modell i listen til venstre.</div></div>
+    </main>
+  </div>
+  <script type="module">
+    import { fetchConfig, mountApsBrowser } from '/FolkNettside/includes/aps/aps-browser.js';
+    const params = new URLSearchParams(location.search);
+    const configUrl = params.get('config') || '/FolkNettside/diverse/Njord/aps-config.json';
+    const config = await fetchConfig(configUrl).catch(() => null);
+    if (config) {
+      document.getElementById('title').textContent = config.title || 'APS Modellbrowser';
+      document.getElementById('subtitle').textContent = config.subtitle || 'Generell Autodesk Platform Services-browser.';
+    }
+    mountApsBrowser({
+      configUrl,
+      listEl: document.getElementById('aps-model-list'),
+      viewerEl: document.getElementById('aps-viewer'),
+      statusEl: document.getElementById('aps-status'),
+      metaEl: document.getElementById('aps-meta')
+    });
+  </script>
+
+<script type="module" src="../three/hydro-lab/HydroLabIntegration.js"></script>
+</body>
+</html>

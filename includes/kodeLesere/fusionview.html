@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fusion fil-analyse</title>
+  <link rel="stylesheet" href="/FolkNettside/assets/css/themes.css?v=20260412j">
+  <link rel="stylesheet" href="/FolkNettside/assets/css/fusion-file-analyzer.css?v=20260412j">
+  <script src="/FolkNettside/includes/kodeLesere/locked-view.js" defer></script>
+</head>
+<body>
+  <div class="fusion-shell">
+    <section class="viewer-shell card">
+      <div class="viewer-topbar">
+        <div class="viewer-copy">
+          <p class="viewer-kicker">3D Modell</p>
+          <h1 id="viewerTitle">Fusion fil-behandler</h1>
+          <div id="headline" class="muted">Laster filinformasjon...</div>
+        </div>
+        <div class="buttons compact-buttons">
+          <button id="btnToggleDrawer" class="primary" type="button">Skjul filbehandler &#9776;</button>
+        </div>
+      </div>
+
+      <div class="viewer-stage">
+        <div id="viewerLoading" class="viewer-loading">
+          <div class="spinner" aria-hidden="true"></div>
+          <strong id="viewerLoadingTitle">Laster 3D-visning...</strong>
+          <p id="viewerLoadingText" class="muted">Velger riktig viewer og henter modell.</p>
+        </div>
+        <iframe id="viewerFrame" title="3D-modellvisning" loading="eager"></iframe>
+      </div>
+    </section>
+
+    <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+
+    <aside id="drawer" class="inspector-drawer is-open">
+      <div class="drawer-inner">
+        <div class="card">
+          <div class="drawer-brand">
+            <div class="fusion-brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 16" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                <path d="M6 11V5l5-2 5 2v6l-5 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/FolkNettside/>
+                <path d="M11 3v10M6 5l5 3 5-3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/FolkNettside/>
+              </svg>
+            </div>
+            <div class="drawer-brand-copy">
+              <p class="drawer-brand-kicker">Autodesk Fusion</p>
+              <h2>Filbehandler</h2>
+              <p class="muted drawer-brand-note">Fusion online-viewer med analyse, komponentliste og hurtigknapper.</p>
+            </div>
+          </div>
+          <div class="buttons action-buttons">
+            <a id="btnRaw" class="btn" target="_blank" rel="noopener">&#197;pne r&#229;fil</a>
+            <button id="btnFusion" class="primary" type="button">&#197;pne i Fusion</button>
+            <button id="btnBambu" type="button">&#197;pne i Bambu Studio</button>
+            <button id="btnStl" type="button">&#197;pne i 3D-viewer</button>
+            <button id="btnTabOverview" class="tab active" type="button">Tab: Oversikt</button>
+            <button id="btnTabHydro" class="tab" type="button">Tab: Hydrostatikk</button>
+            <button id="btnToggleTools" type="button">Skjul/vis verkt&#248;y &#9776;</button>
+            <button id="btnToggleInfo" type="button">Skjul/vis info &#8505;</button>
+            <a class="btn" href="/FolkNettside/includes/kodeLesere/FUSION_FORMAT_CAPABILITIES.md" target="_blank" rel="noopener">Format-matrise</a>
+          </div>
+        </div>
+
+        <div class="card" id="infoCard">
+          <h2>Fil-metadata / timeline</h2>
+          <div class="grid" id="metaGrid"></div>
+          <div id="timeline" class="muted" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card" id="toolsCard">
+          <h2>Komponent- og geometri-sjekk</h2>
+          <div id="checks">Kj&#248;rer analyser...</div>
+          <div id="details" class="muted" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card" id="studyCard" hidden>
+          <h2>Simulering / study report</h2>
+          <p id="studyStatus" class="muted">S&#248;ker etter study-rapporter...</p>
+          <div id="studyLinks" class="buttons"></div>
+          <iframe id="studyFrame" class="study-frame" title="Study report forh&#229;ndsvisning" hidden loading="lazy"></iframe>
+        </div>
+
+        <div class="card" id="hydroCard">
+          <h2>Hydrostatikk / vannlinje</h2>
+          <div id="hydroQuickGrid" class="hydro-quick-grid">
+            <div class="hydro-pill-card">
+              <span class="muted">Draft brukt</span>
+              <strong id="hydroLiveDraft">-</strong>
+              <span id="hydroLiveDraftSource" class="muted">Venter p&#229; viewer</span>
+            </div>
+            <div class="hydro-pill-card">
+              <span class="muted">Deplasement</span>
+              <strong id="hydroLiveDisp">-</strong>
+              <span id="hydroLiveVolume" class="muted">Submerged volum: -</span>
+            </div>
+            <div class="hydro-pill-card">
+              <span class="muted">Stabilitet</span>
+              <strong id="hydroLiveGM">-</strong>
+              <span id="hydroLiveBM" class="muted">BM: -</span>
+            </div>
+            <div class="hydro-pill-card">
+              <span class="muted">Vannlinje / mark&#248;rer</span>
+              <strong id="hydroLiveWaterline">-</strong>
+              <span id="hydroLiveAttitude" class="muted">Trim: - | Heel: -</span>
+            </div>
+          </div>
+
+          <div class="hydro-visual-controls">
+            <label class="hydro-toggle"><input id="chkHydroMarkers" type="checkbox" checked> Mark&#248;rer</label>
+            <label class="hydro-toggle"><input id="chkHydroWaterline" type="checkbox" checked> Vannflate</label>
+            <label class="hydro-toggle"><input id="chkHydroContour" type="checkbox" checked> Vannlinje-kontur</label>
+          </div>
+
+          <div id="hydroProgress" class="hydro-progress" hidden>
+            <div class="hydro-progress-copy">
+              <strong id="hydroProgressTitle">Regner hydrostatikk...</strong>
+              <span id="hydroProgressText" class="muted">Kj&#248;rer volum-, masse- og stabilitetsberegning fra modellen.</span>
+            </div>
+            <div class="hydro-progress-track" aria-hidden="true">
+              <span class="hydro-progress-bar"></span>
+            </div>
+          </div>
+
+          <div class="grid hydro-form-grid">
+            <div class="kv"><span class="muted">Vann-tetthet (kg/m&sup3;)</span><input id="inpRhoWater" type="number" value="1025" step="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Materiale</span>
+              <select id="selMaterial" style="width:150px;">
+                <option value="steel">St&#229;l</option>
+                <option value="aluminum">Aluminium</option>
+                <option value="pla">PLA</option>
+                <option value="petg">PETG</option>
+                <option value="abs">ABS</option>
+                <option value="nylon">Nylon</option>
+                <option value="titanium">Titan</option>
+                <option value="brass">Messing</option>
+                <option value="grfp">GRP</option>
+                <option value="wood">Tre</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="kv"><span class="muted">Material-tetthet (kg/m&sup3;)</span><input id="inpRhoMat" type="number" value="7850" step="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">KG / massepunkt</span><span id="txtKgMode" class="muted">Hentes automatisk fra komponentgeometri og massegrunnlag.</span></div>
+            <div class="kv"><span class="muted">Blokk-koeffisient (fallback)</span><input id="inpCb" type="number" value="0.60" step="0.01" min="0.1" max="1" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Skall-tykkelse (mm, valgfri)</span><input id="inpThicknessMm" type="number" value="0" step="0.1" min="0" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Draft i viewer (world Z)</span><input id="inpHydroDraft" type="number" step="0.01" value="0" placeholder="Fra viewer" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Trim i viewer (deg)</span><input id="inpHydroTrim" type="number" step="0.1" value="0" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Heel i viewer (deg)</span><input id="inpHydroHeel" type="number" step="0.1" value="0" style="width:130px;"></div>
+            <div class="kv"><span class="muted">Rapport-kvalitet</span>
+              <select id="selHydroQuality" style="width:150px;">
+                <option value="low" selected>Rask</option>
+                <option value="med">Balansert</option>
+                <option value="high">Mer n&#248;yaktig</option>
+              </select>
+            </div>
+          </div>
+          <div class="buttons" style="margin-top:10px;">
+            <button id="btnHydroCalc" class="primary" type="button">Beregn hydrostatikk</button>
+            <button id="btnHydroApply" type="button">Oppdater vannlinje</button>
+            <button id="btnHydroResetPose" type="button">Nullstill trim/heel</button>
+            <button id="btnHydroReport" type="button">Vis rapport</button>
+            <button id="btnHydroRecalc" type="button">Recalc rapport</button>
+            <label class="btn" style="display:inline-flex; align-items:center; gap:8px;">
+              <input id="chkHydroPerfMode" type="checkbox">
+              <span>Ytelsesmodus</span>
+            </label>
+          </div>
+          <div id="hydroSource" class="muted" style="margin-top:10px;">Geometri og materiale tolkes fortsatt.</div>
+          <div id="hydroMaterialHint" class="muted" style="margin-top:6px;"></div>
+          <div id="hydroWarn" class="warn" style="margin-top:8px;"></div>
+          <div id="hydroQuickSummary" class="hydro-summary-grid"></div>
+          <div id="hydroReport" class="hydro-report-shell">Venter p&#229; beregning...</div>
+        </div>
+
+        <div class="card" id="componentsCard">
+          <h2>Komponentliste</h2>
+          <div class="component-toolbar">
+            <div class="buttons compact-buttons component-scope-tools">
+              <button id="btnComponentView" type="button">Component view av</button>
+              <button id="btnSelectionExplode" type="button">Explode valgt av</button>
+              <button id="btnExportSelected" type="button">Eksporter valgt STL</button>
+              <button id="btnBambuSelected" type="button">Bambu valgt</button>
+            </div>
+            <div class="explode-toolbar">
+              <span class="muted">Explode</span>
+              <input id="inpExplode" type="range" min="0" max="1" step="0.02" value="0" />
+              <span id="txtExplodePct" class="explode-readout">0%</span>
+              <button id="btnExplodeReset" type="button">Nullstill</button>
+            </div>
+            <div id="txtExplodeHint" class="muted">Visuell separasjon av separate deler når modellen har flere komponenter.</div>
+            <input id="componentFilter" type="text" placeholder="Filtrer komponentnavn..." />
+          </div>
+          <div class="muted" id="chosenMuted" style="margin-bottom:8px;">Valgt: &ndash; | Dempet: &ndash;</div>
+          <div id="components" class="muted">Ingen komponentdata enn&#229;.</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="hydroReportModal" class="report-modal" hidden>
+    <div class="report-backdrop" data-close-report="1"></div>
+    <div class="report-dialog card">
+      <div class="report-toolbar">
+        <div>
+          <p class="viewer-kicker">Hydro Report</p>
+          <h2 id="hydroReportTitle">Hydrostatikk-rapport</h2>
+          <p id="hydroReportMeta" class="muted">Ingen rapport generert enn&#229;.</p>
+        </div>
+        <div class="buttons">
+          <button id="btnHydroReportPrint" type="button">Skriv ut / PDF</button>
+          <button id="btnHydroReportJson" type="button">JSON</button>
+          <button id="btnHydroReportClose" type="button">Lukk</button>
+        </div>
+      </div>
+      <article id="hydroReportSheet" class="report-sheet">
+        <header class="report-sheet-head">
+          <div>
+            <p class="viewer-kicker">Hydrostatikk</p>
+            <h2 id="hydroSheetTitle">Rapport</h2>
+            <p id="hydroSheetSubtitle" class="muted">Kurver og sammendrag fra aktiv viewer.</p>
+          </div>
+          <div class="report-badge">
+            <span>Fusion Marine</span>
+            <strong id="hydroSheetSource">Viewer-data</strong>
+          </div>
+        </header>
+
+        <section id="hydroReportSummary" class="report-summary-grid"></section>
+
+        <section class="report-chart-card">
+          <div class="report-section-head">
+            <h3>Stabilitetskurve</h3>
+            <p id="hydroCurveCaption" class="muted">GZ-kurve for valgt tilstand.</p>
+          </div>
+          <canvas id="hydroReportCurve" width="920" height="360"></canvas>
+        </section>
+
+        <section class="report-chart-card">
+          <div class="report-section-head">
+            <h3>Draft / Deplasement</h3>
+            <p id="hydroDraftCaption" class="muted">Skan av dypgang mot deplasement.</p>
+          </div>
+          <canvas id="hydroReportDraftCurve" width="920" height="280"></canvas>
+        </section>
+
+        <section class="report-chart-card">
+          <div class="report-section-head">
+            <h3>SAK / Vat flate</h3>
+            <p id="hydroSakCaption" class="muted">Kurve for vat overflate over vinkel og/eller draft.</p>
+          </div>
+          <canvas id="hydroReportSakCurve" width="920" height="280"></canvas>
+        </section>
+
+        <section class="report-chart-card">
+          <div class="report-section-head">
+            <h3>Vannlinjeareal over draft</h3>
+            <p id="hydroAwpCaption" class="muted">Bonjean-lignende oversikt fra draftscan.</p>
+          </div>
+          <canvas id="hydroReportAwpCurve" width="920" height="280"></canvas>
+        </section>
+
+        <section id="hydroReportPointNote" class="report-note-card">
+          <h3>Hva markerer punktene?</h3>
+          <p class="muted">Morke punkt viser aktiv tilstand i modellen akkurat na. Kurvene rundt punktet er beregnede scenarier for andre vinkler eller draft-niva.</p>
+        </section>
+
+        <section id="hydroReportEquilibriumWrap" class="report-table-wrap">
+          <div class="report-section-head">
+            <h3>Beregnet likevektsdraft</h3>
+            <p id="hydroReportEquilibriumNote" class="muted">Estimat basert pa modellvekt og Archimedes.</p>
+          </div>
+          <table class="report-table">
+            <tbody id="hydroReportEquilibrium"></tbody>
+          </table>
+        </section>
+
+        <section class="report-table-wrap">
+          <h3>Oppsummering</h3>
+          <table class="report-table">
+            <tbody id="hydroReportTable"></tbody>
+          </table>
+        </section>
+
+        <section id="hydroReportComponentsWrap" class="report-table-wrap" hidden>
+          <div class="report-section-head">
+            <h3>Komponentvis massegrunnlag</h3>
+            <p id="hydroReportComponentsNote" class="muted">Viser materiale, volum, tetthet og total vekt per komponent.</p>
+          </div>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Komponent</th>
+                <th>Volum</th>
+                <th>Materiale</th>
+                <th>Basis-tetthet</th>
+                <th>Effektiv tetthet</th>
+                <th>Total vekt</th>
+                <th>Kilde</th>
+              </tr>
+            </thead>
+            <tbody id="hydroReportComponentsBody"></tbody>
+          </table>
+        </section>
+
+        <section id="hydroReportMethodNote" class="report-note-card">
+          <h3>Hvordan GM, KG og BM er beregnet</h3>
+          <p class="muted">Forklaring legges inn nar rapporten genereres.</p>
+        </section>
+      </article>
+    </div>
+  </div>
+
+  <script src="/FolkNettside/assets/js/fusion-file-analyzer.js?v=20260412j" defer></script>
+
+<script type="module" src="../three/hydro-lab/HydroLabIntegration.js"></script>
+</body>
+</html>

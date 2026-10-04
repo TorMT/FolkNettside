@@ -1,0 +1,923 @@
+﻿:root {
+  --brew-bg: var(--bg-alt, #eef5f8);
+  --brew-panel: var(--bg-card, rgba(255, 255, 255, 0.94));
+  --brew-panel-strong: var(--bg-card, #ffffff);
+  --brew-ink: var(--text-main, #173344);
+  --brew-muted: var(--text-secondary, #567082);
+  --brew-primary: var(--primary, #1a5f83);
+  --brew-primary-soft: var(--primary-transparent, rgba(217, 237, 248, 0.85));
+  --brew-accent: var(--accent, #0f8e77);
+  --brew-success: var(--success, #0f8e77);
+  --brew-warning: var(--warning, #d97c2b);
+  --brew-border: var(--border-color, rgba(23, 51, 68, 0.12));
+  --brew-shadow: var(--shadow-lg, 0 18px 40px rgba(17, 44, 58, 0.12));
+  --chart-gravity: var(--primary-light, var(--primary, #1a5f83));
+  --chart-temp: var(--warning, #d97c2b);
+  --chart-battery: var(--success, #0f8e77);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--brew-ink);
+  background:
+    radial-gradient(circle at top right, var(--brew-primary-soft), transparent 24rem),
+    linear-gradient(180deg, var(--brew-bg) 0%, var(--bg-main, #f8fbfc) 45%, var(--bg-card, #ffffff) 100%);
+}
+
+.brew-shell {
+  max-width: 1480px;
+  margin: calc(var(--nav-h, 48px) + 1.25rem) auto 2rem;
+  padding: 0 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.brew-card {
+  background: var(--brew-panel);
+  border: 1px solid var(--brew-border);
+  border-radius: 28px;
+  box-shadow: var(--brew-shadow);
+  backdrop-filter: blur(12px);
+}
+
+.brew-hero {
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.brew-toolbar-card {
+  padding: 1rem 1.5rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.brew-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brew-primary);
+}
+
+.brew-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 1;
+  color: var(--brew-ink);
+}
+
+.brew-copy {
+  margin: 0.85rem 0 0;
+  max-width: 60rem;
+  line-height: 1.65;
+  color: var(--brew-muted);
+  font-size: 1.02rem;
+}
+
+.view-row,
+.toolbar-row,
+.meta-row,
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.view-tab,
+.range-btn,
+.action-btn,
+.device-tab,
+.list-tab {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.8rem 1rem;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.view-tab,
+.range-btn,
+.action-btn {
+  color: var(--brew-ink);
+  background: var(--brew-primary-soft);
+}
+
+.view-tab:hover,
+.range-btn:hover,
+.action-btn:hover,
+.device-tab:hover,
+.list-tab:hover,
+.view-tab:focus-visible,
+.range-btn:focus-visible,
+.action-btn:focus-visible,
+.device-tab:focus-visible,
+.list-tab:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.view-tab.active,
+.range-btn.active,
+.action-btn.primary,
+.device-tab.active,
+.list-tab.active {
+  color: var(--navbar-text, #ffffff);
+  background: var(--brew-primary);
+  box-shadow: var(--shadow-md, 0 10px 24px rgba(26, 95, 131, 0.22));
+}
+
+.subtle-action {
+  background: var(--brew-primary-soft);
+}
+
+.hydrometer-controls {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.date-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.field-inline {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 140px;
+}
+
+.field-inline span,
+.form-field span {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brew-muted);
+  font-weight: 700;
+}
+
+.sidebar-note {
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--brew-muted);
+}
+
+.field-inline input,
+.form-field input,
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  padding: 0.8rem 0.95rem;
+  border-radius: 16px;
+  border: 1px solid var(--brew-border);
+  background: var(--brew-panel-strong);
+  color: var(--brew-ink);
+  font: inherit;
+}
+
+.form-field select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--brew-muted) 50%),
+    linear-gradient(135deg, var(--brew-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.35rem) calc(50% - 0.12rem),
+    calc(100% - 0.95rem) calc(50% - 0.12rem);
+  background-size: 0.42rem 0.42rem, 0.42rem 0.42rem;
+  background-repeat: no-repeat;
+  padding-right: 2.5rem;
+}
+
+.form-field textarea {
+  min-height: 6.8rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.info-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.48rem 0.78rem;
+  font-size: 0.9rem;
+  color: var(--brew-ink);
+  background: var(--brew-primary-soft);
+}
+
+.info-pill.subtle {
+  color: var(--brew-muted);
+  background: color-mix(in srgb, var(--brew-primary-soft) 72%, var(--brew-panel-strong) 28%);
+  border: 1px solid color-mix(in srgb, var(--brew-border) 70%, transparent 30%);
+}
+
+.info-pill.offline {
+  background: color-mix(in srgb, var(--brew-warning) 16%, transparent);
+  color: color-mix(in srgb, var(--brew-warning) 75%, var(--brew-ink) 25%);
+}
+
+.view-panel {
+  display: none;
+  gap: 1rem;
+}
+
+.view-panel.active {
+  display: grid;
+}
+
+.stat-grid,
+.metrics-grid,
+.beer-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.stat-card,
+.metric-card,
+.overview-card {
+  padding: 1rem;
+  background: var(--brew-panel-strong);
+  border: 1px solid var(--brew-border);
+  border-radius: 22px;
+}
+
+.stat-card strong,
+.stat-card span,
+.stat-card small,
+.metric-card strong,
+.metric-card span,
+.metric-card small,
+.overview-card strong,
+.overview-card span,
+.overview-card small {
+  display: block;
+}
+
+.stat-card strong,
+.metric-card strong,
+.overview-card strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brew-muted);
+}
+
+.stat-card span,
+.metric-card span,
+.overview-card span {
+  margin-top: 0.32rem;
+  font-size: clamp(1.5rem, 2.4vw, 2.2rem);
+  line-height: 1;
+  color: var(--brew-ink);
+  font-weight: 800;
+}
+
+.stat-card small,
+.metric-card small,
+.overview-card small {
+  margin-top: 0.35rem;
+  color: var(--brew-muted);
+  line-height: 1.45;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.sidebar-card,
+.panel-card {
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+}
+
+.sidebar-card h2,
+.panel-card h2,
+.panel-card h3 {
+  margin: 0;
+  color: var(--brew-ink);
+}
+
+.sidebar-card p,
+.panel-card p {
+  margin: 0.35rem 0 0;
+  color: var(--brew-muted);
+  line-height: 1.55;
+}
+
+.device-list,
+.stack-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.device-tab,
+.list-tab {
+  text-align: left;
+  border-radius: 20px;
+  padding: 0.95rem 1rem;
+  color: var(--brew-ink);
+  background: color-mix(in srgb, var(--brew-primary-soft) 45%, var(--brew-panel-strong) 55%);
+  border: 1px solid var(--brew-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.device-tab:not(.active) {
+  color: var(--brew-muted);
+  background: color-mix(in srgb, var(--brew-panel-strong) 84%, var(--brew-primary-soft) 16%);
+  box-shadow: none;
+}
+
+.device-tab:not(.active) strong {
+  color: var(--brew-ink);
+}
+
+.device-tab.active {
+  border: 2px solid color-mix(in srgb, var(--brew-primary) 66%, white 34%);
+  box-shadow:
+    0 12px 28px color-mix(in srgb, var(--brew-primary) 22%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, white 28%, transparent);
+}
+
+.device-tab.active::after {
+  content: "Valgt";
+  position: absolute;
+  top: 0.65rem;
+  right: 0.8rem;
+  padding: 0.2rem 0.52rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--brew-primary);
+  background: color-mix(in srgb, white 86%, transparent);
+}
+
+.device-tab strong,
+.device-tab span,
+.device-tab small,
+.list-tab strong,
+.list-tab span,
+.list-tab small {
+  display: block;
+}
+
+.device-tab strong,
+.list-tab strong {
+  font-size: 1rem;
+}
+
+.device-tab span,
+.device-tab small,
+.list-tab span,
+.list-tab small {
+  margin-top: 0.24rem;
+  color: inherit;
+  opacity: 0.84;
+}
+
+.panel-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.chart-card {
+  padding: 1rem;
+  border-radius: 24px;
+  border: 1px solid var(--brew-border);
+  background: var(--brew-panel-strong);
+}
+
+.chart-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.chart-card header strong {
+  font-size: 1rem;
+  color: var(--brew-ink);
+}
+
+.chart-card header span {
+  font-size: 0.92rem;
+  color: var(--brew-muted);
+}
+
+.chart-svg {
+  width: 100%;
+  height: 260px;
+  display: block;
+  overflow: visible;
+}
+
+.chart-footer {
+  margin-top: 0.55rem;
+  color: var(--brew-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.section-card,
+.log-card,
+.card-lite {
+  padding: 1rem 1.05rem;
+  border-radius: 22px;
+  border: 1px solid var(--brew-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brew-panel-strong) 92%, var(--brew-primary-soft) 8%), color-mix(in srgb, var(--brew-panel-strong) 82%, var(--brew-primary-soft) 18%));
+}
+
+.log-card h3,
+.section-card h3,
+.card-lite h3 {
+  margin: 0;
+  color: var(--brew-ink);
+  font-size: 1.02rem;
+}
+
+.log-card p,
+.section-card p,
+.card-lite p {
+  margin: 0.45rem 0 0;
+  color: var(--brew-muted);
+  line-height: 1.65;
+}
+
+.log-label {
+  display: inline-block;
+  min-width: 7.4rem;
+  color: var(--brew-ink);
+  font-weight: 700;
+}
+
+.alert-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.alert-card {
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--brew-border) 85%, transparent 15%);
+  background: color-mix(in srgb, var(--brew-panel-strong) 88%, var(--brew-primary-soft) 12%);
+}
+
+.alert-card.warning {
+  background: color-mix(in srgb, var(--brew-warning) 12%, var(--brew-panel-strong) 88%);
+  border-color: color-mix(in srgb, var(--brew-warning) 28%, transparent);
+}
+
+.alert-card.info {
+  background: color-mix(in srgb, var(--brew-primary) 8%, var(--brew-panel-strong) 92%);
+  border-color: color-mix(in srgb, var(--brew-primary) 22%, transparent);
+}
+
+.alert-card strong,
+.alert-card p {
+  display: block;
+  margin: 0;
+}
+
+.alert-card p + p {
+  margin-top: 0.4rem;
+}
+
+.alert-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.alert-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.38rem 0.62rem;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--brew-primary);
+  background: color-mix(in srgb, var(--brew-primary) 12%, transparent);
+  font-size: 0.86rem;
+}
+
+.split-shell {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.form-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.action-stack {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.detail-text,
+.recipe-detail,
+.gallery-column {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+}
+
+.detail-section {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.relation-card,
+.relation-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.relation-card {
+  padding: 0.85rem 0.9rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--brew-primary-soft) 58%, var(--brew-panel-strong) 42%);
+  border: 1px solid color-mix(in srgb, var(--brew-border) 70%, transparent 30%);
+}
+
+.relation-card strong,
+.relation-card span {
+  display: block;
+}
+
+.relation-card span {
+  color: var(--brew-muted);
+}
+
+.relation-action {
+  justify-self: start;
+}
+
+.relation-link {
+  width: 100%;
+}
+
+.image-link-card {
+  grid-column: 1 / -1;
+}
+
+.detail-section h3 {
+  margin: 0;
+  color: var(--brew-ink);
+  font-size: 1rem;
+}
+
+.metric-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.metric-mini {
+  padding: 0.85rem 0.9rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--brew-primary-soft) 64%, var(--brew-panel-strong) 36%);
+  border: 1px solid color-mix(in srgb, var(--brew-border) 70%, transparent 30%);
+}
+
+.metric-mini strong,
+.metric-mini span {
+  display: block;
+}
+
+.metric-mini strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brew-muted);
+}
+
+.metric-mini span {
+  margin-top: 0.2rem;
+  font-size: 1.05rem;
+  color: var(--brew-ink);
+  font-weight: 700;
+}
+
+.gallery-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.gallery-head h3 {
+  margin: 0;
+  color: var(--brew-ink);
+}
+
+.gallery-head span {
+  font-size: 0.92rem;
+  color: var(--brew-muted);
+}
+
+.image-grid,
+.reference-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.reference-grid {
+  grid-template-columns: 1fr;
+}
+
+.image-card,
+.reference-card {
+  margin: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--brew-border);
+  background: var(--brew-panel-strong);
+}
+
+.image-card img {
+  width: 100%;
+  display: block;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--brew-bg);
+}
+
+.image-card figcaption,
+.reference-card .reference-body {
+  padding: 0.7rem 0.8rem;
+  font-size: 0.88rem;
+  color: var(--brew-muted);
+}
+
+.reference-card strong,
+.reference-card span,
+.reference-card a {
+  display: block;
+}
+
+.reference-card strong {
+  color: var(--brew-ink);
+}
+
+.reference-card a {
+  margin-top: 0.4rem;
+  color: var(--brew-primary);
+  word-break: break-word;
+}
+
+.reference-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.reference-body .meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brew-primary-soft) 64%, var(--brew-panel-strong) 36%);
+  border: 1px solid color-mix(in srgb, var(--brew-border) 70%, transparent 30%);
+  color: var(--brew-ink);
+  font-size: 0.82rem;
+}
+
+.reference-section {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid color-mix(in srgb, var(--brew-border) 70%, transparent 30%);
+}
+
+.reference-section strong {
+  margin-bottom: 0.35rem;
+}
+
+.reference-section p,
+.reference-section ul {
+  margin: 0;
+  color: var(--brew-muted);
+  line-height: 1.55;
+}
+
+.reference-section ul {
+  padding-left: 1.05rem;
+}
+
+.reference-action {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brew-primary) 12%, transparent);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.recipe-ingredients,
+.recipe-steps {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.ingredient-row {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--brew-primary-soft) 52%, var(--brew-panel-strong) 48%);
+  border: 1px solid color-mix(in srgb, var(--brew-border) 70%, transparent 30%);
+}
+
+.ingredient-row strong,
+.ingredient-row span,
+.ingredient-row small {
+  display: block;
+}
+
+.ingredient-row strong {
+  color: var(--brew-ink);
+}
+
+.ingredient-amount {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brew-primary);
+}
+
+.ingredient-row small {
+  color: var(--brew-muted);
+}
+
+.recipe-step {
+  padding: 0.8rem 0.9rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--brew-primary-soft) 58%, var(--brew-panel-strong) 42%);
+  border: 1px solid color-mix(in srgb, var(--brew-border) 70%, transparent 30%);
+}
+
+.recipe-step strong {
+  display: block;
+  color: var(--brew-ink);
+}
+
+.provider-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.provider-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.44rem 0.72rem;
+  background: color-mix(in srgb, var(--brew-primary-soft) 64%, var(--brew-panel-strong) 36%);
+  border: 1px solid color-mix(in srgb, var(--brew-border) 70%, transparent 30%);
+  font-size: 0.88rem;
+  color: var(--brew-ink);
+}
+
+.provider-pill.off {
+  background: color-mix(in srgb, var(--brew-warning) 12%, var(--brew-panel-strong) 88%);
+  color: color-mix(in srgb, var(--brew-warning) 75%, var(--brew-ink) 25%);
+}
+
+.tools-slot {
+  min-height: 420px;
+  border-radius: 22px;
+  border: 1px solid var(--brew-border);
+  background: color-mix(in srgb, var(--brew-panel-strong) 72%, transparent 28%);
+  overflow: hidden;
+}
+
+.tools-frame {
+  width: 100%;
+  height: min(74vh, 920px);
+  border: 0;
+  background: var(--brew-panel-strong);
+  display: block;
+}
+
+.loading,
+.empty-state {
+  padding: 1rem;
+  border-radius: 18px;
+  color: var(--brew-ink);
+  background: var(--brew-primary-soft);
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--brew-muted);
+  background: color-mix(in srgb, var(--brew-primary-soft) 60%, var(--brew-panel-strong) 40%);
+}
+
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 1100px) {
+  .brew-hero,
+  .content-grid,
+  .split-shell,
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .stat-grid,
+  .metrics-grid,
+  .beer-overview-grid,
+  .chart-grid,
+  .metric-mini-grid,
+  .image-grid,
+  .reference-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .brew-shell {
+    margin-top: calc(var(--nav-h, 48px) + 1rem);
+    padding: 0 0.75rem;
+  }
+
+  .brew-card {
+    border-radius: 22px;
+  }
+
+  .brew-hero,
+  .brew-toolbar-card,
+  .sidebar-card,
+  .panel-card {
+    padding: 1rem;
+  }
+
+  .stat-grid,
+  .metrics-grid,
+  .beer-overview-grid,
+  .chart-grid,
+  .metric-mini-grid,
+  .image-grid,
+  .reference-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .view-tab,
+  .range-btn,
+  .action-btn,
+  .device-tab,
+  .list-tab {
+    width: 100%;
+  }
+
+  .view-row,
+  .toolbar-row,
+  .meta-row,
+  .date-filter-group {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

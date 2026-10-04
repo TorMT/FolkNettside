@@ -1,0 +1,517 @@
+/**
+ * Mobile CSS v2.1 - FORBEDRET
+ * Komplementerer mobile-enhancer.js
+ * 
+ * FIKSER:
+ * ✅ Responsiv design for alle skjermstørrelser
+ * ✅ Theme-integration
+ * ✅ Touch-friendly elementer
+ * ✅ Optimalisert for mobil
+ */
+
+/* ========================================
+   MOBILE BREAKPOINTS
+======================================== */
+
+/* Tablets (portrait) */
+@media (max-width: 1024px) {
+  body {
+    font-size: 16px;
+  }
+}
+
+/* Mobile (large) */
+@media (max-width: 768px) {
+  
+  /* ========================================
+     LAYOUT
+  ======================================== */
+
+  html,
+  body {
+    min-height: 100%;
+    height: auto;
+  }
+  
+  body {
+    font-size: 15px;
+    padding: 0;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  
+  main, .main-content {
+    padding: 1rem !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+  
+  /* ========================================
+     NAVBAR
+  ======================================== */
+  
+  nav, .navbar, header {
+    padding: 0.75rem 1rem 0.75rem 70px !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 1000 !important;
+    background: var(--navbar-bg, linear-gradient(135deg, #004f9f 0%, #003d7a 100%)) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  nav a, .navbar a, header a {
+    font-size: 0.9rem;
+    padding: 0.5rem !important;
+    color: var(--navbar-text, #ffffff) !important;
+  }
+  
+  /* Skjul mindre viktige navbar-elementer på mobil */
+  nav .navbar-extra,
+  nav .desktop-only {
+    display: none !important;
+  }
+  
+  /* ========================================
+     SIDEBAR
+  ======================================== */
+  
+  .sidebar, aside {
+    /* mobile-enhancer.js håndterer sidebar */
+    /* Disse reglene er backup */
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    height: 100vh !important;
+    width: 280px !important;
+    max-width: 85vw !important;
+    z-index: 9999 !important;
+    overflow-y: auto !important;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    background: var(--sidebar-bg, #2c3e50) !important;
+    color: var(--sidebar-text, #ffffff) !important;
+  }
+  
+  .sidebar a, aside a {
+    color: var(--sidebar-text, #ffffff) !important;
+    font-size: 0.95rem;
+    padding: 0.75rem 1rem;
+    display: block;
+    text-decoration: none;
+  }
+  
+  .sidebar a:hover, aside a:hover {
+    background: var(--sidebar-hover, rgba(255, 255, 255, 0.1)) !important;
+  }
+
+  .content,
+  main,
+  .main-content {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  body.has-bottom-bar .content,
+  body.has-bottom-bar main,
+  body.has-bottom-bar .main-content,
+  body.has-bottom-bar .wrapper {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  
+  /* ========================================
+     TYPOGRAPHY
+  ======================================== */
+  
+  h1 {
+    font-size: 1.75rem !important;
+    margin: 1rem 0 !important;
+    color: var(--primary, #004f9f) !important;
+  }
+  
+  h2 {
+    font-size: 1.5rem !important;
+    margin: 1rem 0 !important;
+    color: var(--primary, #004f9f) !important;
+  }
+  
+  h3 {
+    font-size: 1.25rem !important;
+    margin: 0.75rem 0 !important;
+    color: var(--primary, #004f9f) !important;
+  }
+  
+  h4, h5, h6 {
+    font-size: 1.1rem !important;
+    margin: 0.5rem 0 !important;
+    color: var(--primary, #004f9f) !important;
+  }
+  
+  p {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0.75rem 0;
+    color: var(--text-main, #1a202c) !important;
+  }
+  
+  /* ========================================
+     BUTTONS & INTERACTIVE ELEMENTS
+  ======================================== */
+  
+  button, .btn, input[type="button"], input[type="submit"] {
+    min-height: 44px !important; /* Touch-friendly */
+    padding: 0.75rem 1.5rem !important;
+    font-size: 1rem !important;
+    touch-action: manipulation; /* Better touch response */
+  }
+  
+  a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    color: var(--primary, #004f9f) !important;
+  }
+  
+  /* ========================================
+     FORMS
+  ======================================== */
+  
+  input, textarea, select {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    padding: 0.75rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* ========================================
+     TABLES
+  ======================================== */
+  
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100% !important;
+  }
+  
+  table thead {
+    display: none; /* Hide on mobile, show data differently */
+  }
+  
+  table tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    padding: 0.75rem;
+  }
+  
+  table td {
+    display: block;
+    text-align: left !important;
+    padding: 0.5rem 0 !important;
+  }
+  
+  table td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    display: inline-block;
+    width: 120px;
+    color: var(--primary, #004f9f);
+  }
+  
+  /* ========================================
+     IMAGES & MEDIA
+  ======================================== */
+  
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    border-radius: 8px;
+  }
+  
+  video, iframe {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+  
+  /* ========================================
+     CARDS & CONTAINERS
+  ======================================== */
+  
+  .card, .container, .box {
+    margin: 0.75rem 0 !important;
+    padding: 1rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* ========================================
+     QUIZ
+  ======================================== */
+  
+  .quiz-container,
+  .folk-quiz,
+  [data-quiz] {
+    padding: 1rem !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  
+  .quiz-question,
+  .quiz-q-title {
+    font-size: 1.1rem !important;
+    margin: 1rem 0 !important;
+  }
+  
+  .quiz-option {
+    padding: 1rem !important;
+    margin: 0.5rem 0 !important;
+    font-size: 1rem !important;
+    min-height: 44px !important;
+  }
+  
+  .quiz-button,
+  .quiz-btn,
+  .quiz-chip-btn,
+  .quiz-btn-filter,
+  .quiz-btn-filter-clear,
+  .quiz-mode-btn {
+    width: 100% !important;
+    margin: 0.5rem 0 !important;
+    padding: 1rem !important;
+    font-size: 1rem !important;
+  }
+
+  .quiz-actions,
+  .quiz-modebar,
+  .quiz-profilebar,
+  .quiz-topcontrols {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .quiz-maxsel {
+    width: 100% !important;
+    justify-content: stretch !important;
+  }
+
+  .quiz-maxsel-input {
+    width: 100% !important;
+  }
+
+  .quiz-filter-list {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* ========================================
+     THEME SWITCHER (🎨-knapp)
+  ======================================== */
+  
+  .theme-switcher {
+    display: none !important;
+  }
+  
+  .theme-switcher-button {
+    display: none !important;
+  }
+  
+  .theme-picker {
+    display: none !important;
+  }
+  
+  .theme-option {
+    display: none !important;
+  }
+
+  #pdf-viewer-container,
+  #media-viewer-container {
+    height: min(72vh, 820px) !important;
+    border-radius: 14px;
+    overflow: hidden !important;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  }
+  
+  /* ========================================
+     UTILITIES
+  ======================================== */
+  
+  /* Hide på mobil */
+  .hide-mobile,
+  .desktop-only {
+    display: none !important;
+  }
+  
+  /* Show kun på mobil */
+  .show-mobile,
+  .mobile-only {
+    display: block !important;
+  }
+  
+  /* Spacing */
+  .mobile-spacing {
+    margin: 1rem 0 !important;
+  }
+  
+  /* Full width */
+  .mobile-full {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* ========================================
+     SCROLLING
+  ======================================== */
+  
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Prevent horizontal scroll */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* Better scroll areas */
+  .scroll-area {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+  
+  /* ========================================
+     ACCESSIBILITY
+  ======================================== */
+  
+  /* Focus visible for keyboard navigation */
+  *:focus-visible {
+    outline: 2px solid var(--primary, #004f9f) !important;
+    outline-offset: 2px !important;
+  }
+  
+  /* Skip to content link */
+  .skip-to-content {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--primary, #004f9f);
+    color: white;
+    padding: 8px;
+    text-decoration: none;
+    z-index: 100000;
+  }
+  
+  .skip-to-content:focus {
+    top: 0;
+  }
+}
+
+/* ========================================
+   MOBILE (SMALL) - < 480px
+======================================== */
+
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+  
+  h1 {
+    font-size: 1.5rem !important;
+  }
+  
+  h2 {
+    font-size: 1.25rem !important;
+  }
+  
+  h3 {
+    font-size: 1.1rem !important;
+  }
+  
+  nav, .navbar, header {
+    padding: 0.5rem 0.75rem 0.5rem 60px !important;
+  }
+  
+  .sidebar, aside {
+    width: 260px !important;
+  }
+  
+  .theme-switcher {
+    bottom: 15px;
+    right: 15px;
+  }
+  
+  .theme-switcher-button {
+    width: 45px !important;
+    height: 45px !important;
+  }
+}
+
+/* ========================================
+   LANDSCAPE MODE
+======================================== */
+
+@media (max-width: 768px) and (orientation: landscape) {
+  .sidebar, aside {
+    width: 240px !important;
+  }
+  
+  nav, .navbar, header {
+    padding: 0.5rem 1rem 0.5rem 60px !important;
+  }
+  
+  h1 {
+    font-size: 1.5rem !important;
+  }
+}
+
+/* ========================================
+   PRINT
+======================================== */
+
+@media print {
+  .mobile-hamburger,
+  .mobile-overlay,
+  .theme-switcher,
+  .sidebar,
+  nav {
+    display: none !important;
+  }
+  
+  main {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* ========================================
+   DARK MODE SUPPORT
+======================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --text-main: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --bg-main: #0f172a;
+    --bg-alt: #1e293b;
+  }
+}
+
+/* ========================================
+   REDUCED MOTION
+======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

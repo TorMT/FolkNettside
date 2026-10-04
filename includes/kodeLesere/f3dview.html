@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAD-visning</title>
+  <style>
+    :root{
+      --bg-main: var(--bg-main, var(--bgcolor, #ffffff));
+      --bg-card: var(--bg-card, var(--card-bg, #f7f8fb));
+      --bg-soft: color-mix(in srgb, var(--bg-main) 86%, var(--bg-card) 14%);
+      --text-main: var(--text-main, var(--textcolor, #111827));
+      --text-muted: var(--text-muted, rgba(17,24,39,.60));
+      --border-color: var(--border-color, rgba(17,24,39,.14));
+      --primary: var(--primary, var(--accent, #2f6fed));
+      --primary-contrast: #fff;
+      --shadow-soft: 0 8px 18px -12px rgba(0,0,0,.25);
+      --radius: 16px;
+      --radius-sm: 12px;
+    }
+
+    html, body{
+      margin:0;
+      padding:0;
+      height:100%;
+      overflow:hidden;
+      background:var(--bg-main);
+      color:var(--text-main);
+      font-family:system-ui, "Segoe UI", Arial, sans-serif;
+    }
+
+    #hud{
+      position:fixed;
+      left:12px;
+      top:12px;
+      z-index:50;
+      background:var(--bg-card);
+      border:1px solid var(--border-color);
+      box-shadow:var(--shadow-soft);
+      padding:10px 12px;
+      border-radius:var(--radius-sm);
+      font-size:13px;
+      line-height:1.35;
+      max-width:min(760px, 92vw);
+    }
+
+    body.is-embedded #hud{
+      display:none;
+    }
+    body.has-external-sidebar #hud{
+      display:none;
+    }
+
+    .stage{
+      position:fixed;
+      inset:0;
+      display:grid;
+      place-items:center;
+      background:var(--bg-main);
+    }
+
+    iframe{
+      width:100%;
+      height:100%;
+      border:none;
+      background:transparent;
+      display:block;
+    }
+
+    .card{
+      width:min(1120px, calc(100vw - 32px));
+      max-height:calc(100vh - 32px);
+      overflow:auto;
+      background:var(--bg-card);
+      border:1px solid var(--border-color);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow-soft);
+      padding:20px;
+    }
+
+    .stage > .card{
+      width:min(1180px, calc(100vw - 32px));
+      min-height:calc(100vh - 32px);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--primary) 10%, transparent 90%) 0%, transparent 42%),
+        var(--bg-card);
+    }
+
+    .card h2{
+      margin:0 0 10px 0;
+      font-size:26px;
+    }
+
+    .card p{
+      margin:0 0 12px 0;
+      color:var(--text-muted);
+      line-height:1.5;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:minmax(280px, 360px) 1fr;
+      gap:16px;
+      align-items:start;
+    }
+
+    .panel{
+      background:var(--bg-soft);
+      border:1px solid var(--border-color);
+      border-radius:var(--radius-sm);
+      padding:16px;
+    }
+
+    .panel h3{
+      margin:0 0 12px 0;
+      font-size:18px;
+    }
+
+    .thumb{
+      width:100%;
+      max-height:260px;
+      object-fit:contain;
+      border-radius:12px;
+      border:1px solid var(--border-color);
+      background:color-mix(in srgb, var(--bg-card) 78%, #000 22%);
+    }
+
+    .preview-shell{
+      width:100%;
+      min-height:360px;
+      border-radius:12px;
+      border:1px solid var(--border-color);
+      overflow:hidden;
+      background:color-mix(in srgb, var(--bg-card) 80%, #000 20%);
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.02);
+    }
+
+    .preview-shell iframe{
+      height:clamp(360px, 56vh, 700px);
+    }
+
+    body.has-external-sidebar .stage{
+      display:block;
+      background:transparent;
+    }
+    body.has-external-sidebar .preview-shell{
+      width:100%;
+      height:100%;
+      min-height:100%;
+      border:none;
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
+    }
+    body.has-external-sidebar .preview-shell iframe{
+      height:100%;
+      min-height:100%;
+    }
+    body.has-external-sidebar .stage > iframe{
+      width:100%;
+      height:100%;
+    }
+
+    .buttons{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin:16px 0;
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:10px 14px;
+      border-radius:12px;
+      border:1px solid var(--border-color);
+      background:var(--bg-main);
+      color:var(--text-main);
+      text-decoration:none;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .btn.primary{
+      background:var(--primary);
+      color:var(--primary-contrast);
+      border-color:var(--primary);
+    }
+
+    .meta-list,
+    .component-list{
+      list-style:none;
+      padding:0;
+      margin:0;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .meta-list li,
+    .component-list li{
+      padding:10px 12px;
+      border:1px solid var(--border-color);
+      border-radius:10px;
+      background:var(--bg-main);
+    }
+
+    .muted{
+      color:var(--text-muted);
+      font-size:13px;
+    }
+
+    code,
+    pre{
+      display:block;
+      margin:0;
+      padding:10px 12px;
+      background:color-mix(in srgb, var(--bg-card) 85%, #000 15%);
+      border-radius:10px;
+      overflow:auto;
+      font-size:12px;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+
+    @media (max-width: 920px){
+      .grid{
+        grid-template-columns:1fr;
+      }
+    }
+  </style>
+  <script src="/FolkNettside/includes/kodeLesere/locked-view.js" defer></script>
+</head>
+<body>
+  <div id="hud">
+    <strong>CAD-visning</strong><br>
+    <small id="hudText">Klargjør forhåndsvisning...</small>
+  </div>
+
+  <div id="stage" class="stage"></div>
+
+  <script>
+    function applyThemePayload(payload) {
+      try {
+        const root = document.documentElement;
+        if (payload && payload.themeAttr) root.setAttribute("data-theme", payload.themeAttr);
+        const vars = payload?.vars || {};
+        Object.keys(vars).forEach((k) => root.style.setProperty(k, vars[k]));
+      } catch {}
+    }
+
+    window.addEventListener("message", (e) => {
+      if (e?.data?.type === "theme-sync") applyThemePayload(e.data);
+    });
+
+    try {
+      if (window.parent && window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        const parentStyle = getComputedStyle(parentRoot);
+        const vars = {};
+        for (let i = 0; i < parentStyle.length; i++) {
+          const name = parentStyle[i];
+          if (name.startsWith("--")) vars[name] = parentStyle.getPropertyValue(name).trim();
+        }
+        applyThemePayload({ themeAttr: parentRoot.getAttribute("data-theme"), vars });
+      }
+    } catch {}
+
+    const params = new URLSearchParams(window.location.search);
+    const fileParam = params.get("file");
+    const previewFile = params.get("previewFile") || "";
+    const sourceFile = params.get("sourceFile") || fileParam || "";
+    const stlCandidate = params.get("stlCandidate") || "";
+    const hostMode = params.get("host") || "";
+    const sourceExt = (params.get("sourceExt") || "").toLowerCase();
+    const embedded = params.get("embedded") === "1";
+    const useBarePreview = embedded && hostMode === "fusion";
+    const stage = document.getElementById("stage");
+    const hudText = document.getElementById("hudText");
+    const fileName = decodeDisplayText((sourceFile || "").split("/FolkNettside/").pop());
+    let previewFrame = null;
+    const pendingComponentState = { chosen: [], muted: [], isolateChosen: false };
+    const pendingViewerCommands = new Map();
+    const existsCache = new Map();
+    const jsonCache = new Map();
+
+    if (embedded) document.body.classList.add("is-embedded");
+    if (hostMode === "fusion") document.body.classList.add("has-external-sidebar");
+
+    function escapeHtml(str) {
+      return String(str || "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[ch]));
+    }
+
+    function decodeDisplayText(value) {
+      const source = String(value || "").trim();
+      if (!source) return "";
+      try {
+        return decodeURIComponent(source);
+      } catch {
+        return source;
+      }
+    }
+
+    async function exists(url) {
+      if (!url) return false;
+      const key = String(url);
+      if (!existsCache.has(key)) {
+        existsCache.set(key, fetch(key, { method: "HEAD", cache: "default" })
+          .then((res) => res.ok)
+          .catch(() => false));
+      }
+      return existsCache.get(key);
+    }
+
+    async function ensureJsZip() {
+      if (window.JSZip) return window.JSZip;
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("Kunne ikke laste JSZip"));
+        document.head.appendChild(script);
+      });
+      return window.JSZip;
+    }
+
+    async function readJsonIfExists(zip, name) {
+      const entry = zip.file(name);
+      if (!entry) return null;
+      try {
+        return JSON.parse(await entry.async("string"));
+      } catch {
+        return null;
+      }
+    }
+
+    async function readPreviewFromF3d(zip) {
+      const entry = (zip.file(/(^|\/)Previews\/small\.png$/i) || [])[0];
+      if (!entry) return null;
+      const blob = await entry.async("blob");
+      return URL.createObjectURL(blob);
+    }
+
+    function candidateScore(url, sourceStem = "") {
+      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
+      const lower = cleanUrl.toLowerCase();
+      const stem = cleanUrl.split("/FolkNettside/").pop().replace(/\.[^/.]+$/, "").toLowerCase();
+      let score = 0;
+      if (/\.(3mf|3fm|fm3)$/i.test(lower)) score += 500;
+      else if (/\.(step|stp)$/i.test(lower)) score += 420;
+      else if (/\.(iges|igs)$/i.test(lower)) score += 390;
+      else if (/\.(obj|glb|gltf|fbx|ply)$/i.test(lower)) score += 340;
+      else if (/\.stl$/i.test(lower)) score += 300;
+      else if (/\.(sat|smt|x_t|x_b|sldprt|sldasm|slddrw)$/i.test(lower)) score += 260;
+      if (sourceStem && stem === sourceStem) score += 120;
+      else if (sourceStem && (stem.includes(sourceStem) || sourceStem.includes(stem))) score += 60;
+      return score;
+    }
+
+    function sameStemCandidates(url) {
+      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
+      const match = cleanUrl.match(/^(.*?)(\.[^./?#]+)$/);
+      if (!match) return [];
+      const stem = match[1];
+      const suffix = String(url || "").slice(cleanUrl.length);
+      return [
+        `${stem}.3mf${suffix}`,
+        `${stem}.3fm${suffix}`,
+        `${stem}.fm3${suffix}`,
+        `${stem}.step${suffix}`,
+        `${stem}.stp${suffix}`,
+        `${stem}.iges${suffix}`,
+        `${stem}.igs${suffix}`,
+        `${stem}.obj${suffix}`,
+        `${stem}.glb${suffix}`,
+        `${stem}.gltf${suffix}`,
+        `${stem}.fbx${suffix}`,
+        `${stem}.ply${suffix}`,
+        `${stem}.stl${suffix}`
+      ];
+    }
+
+    async function resolveSameStemPreview(url) {
+      const candidates = sameStemCandidates(url);
+      for (const candidate of candidates) {
+        if (await exists(candidate)) return candidate;
+      }
+      return "";
+    }
+
+    async function resolveSiblingPreviewCandidateFromIndex(url) {
+      const cleanUrl = String(url || "").split("?")[0].split("#")[0];
+      const slash = cleanUrl.lastIndexOf("/FolkNettside/");
+      if (slash < 0) return "";
+      const baseDir = cleanUrl.slice(0, slash + 1);
+      const sourceStem = cleanUrl.split("/FolkNettside/").pop().replace(/\.[^/.]+$/, "").toLowerCase();
+      try {
+        const indexUrl = `${baseDir}index.json`;
+        if (!jsonCache.has(indexUrl)) {
+          jsonCache.set(indexUrl, fetch(indexUrl, { cache: "default" })
+            .then(async (res) => res.ok ? res.json() : null)
+            .catch(() => null));
+        }
+        const data = await jsonCache.get(indexUrl);
+        if (!data) return "";
+        const candidates = [];
+        Object.entries(data || {}).forEach(([key, value]) => {
+          if (key === "welcome") return;
+          if (value && typeof value === "object" && value.dir) return;
+          const files = Array.isArray(value?.files) ? value.files : [];
+          files.forEach((file) => {
+            const entry = String(file || "").trim();
+            if (!entry) return;
+            const fullUrl = /^https?:\/\//i.test(entry) ? entry : `${baseDir}${entry}`;
+            const score = candidateScore(fullUrl, sourceStem);
+            if (score > 0) candidates.push({ url: fullUrl, score });
+          });
+        });
+        candidates.sort((a, b) => b.score - a.score || a.url.localeCompare(b.url, "nb"));
+        return candidates[0]?.url || "";
+      } catch {
+        return "";
+      }
+    }
+
+    function previewViewerUrl(url) {
+      const cleanUrl = String(url || "").split("?")[0].split("#")[0].toLowerCase();
+      const viewerPath = /\.(3mf|3fm|fm3)$/i.test(cleanUrl)
+        ? "/FolkNettside/includes/kodeLesere/3mfhydro.html"
+        : "/FolkNettside/includes/kodeLesere/stlview.html";
+      const fallbackFlag = ["f3z", "3fz", "f3d"].includes(sourceExt) && /\.(3mf|3fm|fm3)$/i.test(cleanUrl)
+        ? "&fallback=1"
+        : "";
+      const hostFlag = hostMode ? `&host=${encodeURIComponent(hostMode)}` : "";
+      return `${viewerPath}?file=${encodeURIComponent(url)}&embedded=1&v=20260412j${fallbackFlag}${hostFlag}`;
+    }
+
+    function isBrowserRenderablePreview(url) {
+      return /\.(stl|3mf|3fm|fm3|step|stp|iges|igs)(?:$|[?#])/i.test(String(url || ""));
+    }
+
+    function relayComponentStateToPreview() {
+      try {
+        if (!previewFrame?.contentWindow) return;
+        previewFrame.contentWindow.postMessage({
+          type: "viewer-component-state",
+          chosen: pendingComponentState.chosen,
+          muted: pendingComponentState.muted,
+          isolateChosen: pendingComponentState.isolateChosen,
+        }, "*");
+      } catch {}
+    }
+
+    function rememberViewerCommand(command = {}) {
+      if (!command?.action) return;
+      pendingViewerCommands.set(String(command.action), { ...command });
+    }
+
+    function relayViewerCommandToPreview(command = null) {
+      try {
+        if (!previewFrame?.contentWindow) return;
+        const commands = command ? [command] : [...pendingViewerCommands.values()];
+        commands.forEach((entry) => {
+          if (!entry?.action) return;
+          previewFrame.contentWindow.postMessage({
+            type: "viewer-command",
+            ...entry,
+          }, "*");
+        });
+      } catch {}
+    }
+
+    function renderPreviewViewer(url) {
+      hudText.textContent = `Viser 3D-forhåndsvisning for .${sourceExt || "cad"}`;
+      const iframe = document.createElement("iframe");
+      iframe.title = "CAD preview";
+      iframe.src = previewViewerUrl(url);
+      iframe.addEventListener("load", () => {
+        relayComponentStateToPreview();
+        relayViewerCommandToPreview();
+      });
+      previewFrame = iframe;
+      if (useBarePreview) {
+        stage.replaceChildren(iframe);
+        return;
+      }
+      const shell = document.createElement("div");
+      shell.className = "preview-shell";
+      shell.appendChild(iframe);
+      stage.replaceChildren(shell);
+    }
+
+    function renderFallback(reason, options = {}) {
+      previewFrame = null;
+      const previewUrl = options.previewUrl || "";
+      const previewName = previewUrl ? previewUrl.split("/FolkNettside/").pop() : "";
+      hudText.textContent = "Ingen lokal CAD-preview funnet";
+      stage.innerHTML = `
+        <div class="card">
+          <h2>Ingen direkte CAD-preview</h2>
+          <p>${escapeHtml(reason)}</p>
+          <p>Vi fant ingen lokal 3D-placeholder i samme mappe. Du kan fortsatt åpne originalfila eller prøve manuell fallback.</p>
+          <div class="buttons">
+            <a class="btn primary" href="${sourceFile}" target="_blank" rel="noopener">Åpne originalfil</a>
+            ${stlCandidate ? `<a class="btn" href="/FolkNettside/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlCandidate)}" target="_blank" rel="noopener">Prøv STL-fallback</a>` : ""}
+          </div>
+          <code>${escapeHtml(sourceFile || "Ingen fil mottatt")}</code>
+        </div>
+      `;
+    }
+
+    function renderCandidateFallback(reason, previewUrl = "") {
+      previewFrame = null;
+      const previewName = previewUrl ? previewUrl.split("/FolkNettside/").pop() : "";
+      hudText.textContent = previewName ? `Fant 3D-kandidat: ${previewName}` : "Ingen lokal CAD-preview funnet";
+      stage.innerHTML = `
+        <div class="card">
+          <h2>${previewName ? "3D-kandidat funnet" : "Ingen direkte CAD-preview"}</h2>
+          <p>${escapeHtml(reason)}</p>
+          <p>${previewName
+            ? `Lokal nettleserrendering for <code>${escapeHtml(previewName)}</code> er ikke koblet inn ennå i denne kodeveien.`
+            : "Vi fant ingen lokal 3D-kandidat i samme mappe. Du kan fortsatt åpne originalfila eller prøve manuell fallback."}</p>
+          <div class="buttons">
+            <a class="btn primary" href="${sourceFile}" target="_blank" rel="noopener">Åpne originalfil</a>
+            ${previewUrl ? `<a class="btn" href="${previewUrl}" target="_blank" rel="noopener">Åpne 3D-kandidat</a>` : ""}
+            ${stlCandidate ? `<a class="btn" href="/FolkNettside/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlCandidate)}" target="_blank" rel="noopener">Prøv STL-fallback</a>` : ""}
+          </div>
+          <code>${escapeHtml(sourceFile || "Ingen fil mottatt")}</code>
+        </div>
+      `;
+    }
+
+    async function renderFusionOpener() {
+      previewFrame = null;
+      const JSZip = await ensureJsZip();
+      hudText.textContent = "Leser Fusion-container...";
+      const res = await fetch(sourceFile, { cache: "default" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const outer = await JSZip.loadAsync(await res.arrayBuffer());
+
+      const manifest = await readJsonIfExists(outer, "Manifest.json");
+      const designDescription = await readJsonIfExists(outer, "DesignDescription.json");
+      const rootFile = manifest?.root || null;
+      const designObjects = designDescription?.designDescription?.designGraphs?.[0]?.designObjects || [];
+      const rootObject = designObjects.find((obj) => obj.relativePath === rootFile) || designObjects[0] || null;
+
+      let previewUrl = null;
+      if (rootFile) {
+        const rootEntry = outer.file(rootFile);
+        if (rootEntry) {
+          try {
+            const inner = await JSZip.loadAsync(await rootEntry.async("arraybuffer"));
+            previewUrl = await readPreviewFromF3d(inner);
+          } catch {}
+        }
+      }
+
+      const components = designObjects.map((obj) => ({
+        name: obj.displayName || obj.friendlyName || obj.relativePath || "Ukjent komponent",
+        type: obj.contentType || "ukjent",
+        file: obj.relativePath || "",
+        description: obj.metadata?.description || "",
+      }));
+      const entries = Object.keys(outer.files).sort((a, b) => a.localeCompare(b, "nb"));
+
+      hudText.textContent = "Fusion-åpner klar";
+      stage.innerHTML = `
+        <div class="card">
+          <h2>${escapeHtml(rootObject?.displayName || fileName || "Fusion-fil")}</h2>
+          <p>Lokal åpner for .${escapeHtml(sourceExt || "f3z")} med assembly-data hentet direkte fra filcontaineren. Dette er bare reservevisning hvis vi ikke fant renderbar 3D-placeholder.</p>
+          <div class="buttons">
+            <a class="btn primary" href="${sourceFile}" target="_blank" rel="noopener">Åpne originalfil</a>
+            ${stlCandidate ? `<a class="btn" href="/FolkNettside/includes/kodeLesere/stlview.html?file=${encodeURIComponent(stlCandidate)}" target="_blank" rel="noopener">Åpne STL-fallback</a>` : ""}
+          </div>
+          <div class="grid">
+            <div class="panel">
+              <h3>Preview fra filen</h3>
+              ${previewUrl
+                ? `<img class="thumb" src="${previewUrl}" alt="Preview av modellen">`
+                : `<div class="muted">Ingen intern preview funnet i filcontaineren.</div>`}
+              <ul class="meta-list" style="margin-top:12px;">
+                <li><strong>Rotfil</strong><br><span class="muted">${escapeHtml(rootFile || "ukjent")}</span></li>
+                <li><strong>Komponenter</strong><br><span class="muted">${components.length}</span></li>
+                <li><strong>Container entries</strong><br><span class="muted">${entries.length}</span></li>
+              </ul>
+            </div>
+            <div style="display:grid; gap:16px;">
+              <div class="panel">
+                <h3>Komponenter</h3>
+                <ul class="component-list">
+                  ${components.length ? components.map((item) => `
+                    <li>
+                      <strong>${escapeHtml(item.name)}</strong><br>
+                      <span class="muted">${escapeHtml(item.type)}${item.file ? ` · ${escapeHtml(item.file)}` : ""}${item.description ? `<br>${escapeHtml(item.description)}` : ""}</span>
+                    </li>
+                  `).join("") : "<li>Ingen komponenter funnet.</li>"}
+                </ul>
+              </div>
+              <div class="panel">
+                <h3>Filer i containeren</h3>
+                <pre>${escapeHtml(entries.slice(0, 140).join("\n"))}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    window.addEventListener("message", (event) => {
+      const data = event?.data;
+      if (!data) return;
+
+      if (data.type === "viewer-component-state") {
+        pendingComponentState.chosen = Array.isArray(data.chosen) ? [...data.chosen] : [];
+        pendingComponentState.muted = Array.isArray(data.muted) ? [...data.muted] : [];
+        pendingComponentState.isolateChosen = data.isolateChosen === true;
+        relayComponentStateToPreview();
+        return;
+      }
+
+      if (data.type === "viewer-command") {
+        const command = { ...data };
+        if (data.action === "set-explode") {
+          command.amount = Math.max(0, Math.min(1, Number(data.amount) || 0));
+        }
+        rememberViewerCommand(command);
+        relayViewerCommandToPreview(command);
+        return;
+      }
+
+      if (data.type === "viewer-components") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-analysis") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-hydro-report") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-hydro-progress") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-explode-info") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+        return;
+      }
+
+      if (data.type === "viewer-selection-export-status") {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(data, "*");
+          }
+        } catch {}
+      }
+    });
+
+    async function choosePreviewForFusion() {
+      const [exact, explicitPreview, sibling, stl] = await Promise.all([
+        sourceFile ? resolveSameStemPreview(sourceFile) : Promise.resolve(""),
+        previewFile ? exists(previewFile).then((ok) => ok ? previewFile : "") : Promise.resolve(""),
+        sourceFile ? resolveSiblingPreviewCandidateFromIndex(sourceFile) : Promise.resolve(""),
+        stlCandidate ? exists(stlCandidate).then((ok) => ok ? stlCandidate : "") : Promise.resolve(""),
+      ]);
+      if (exact) return exact;
+      if (explicitPreview) return explicitPreview;
+      if (sibling) return sibling;
+      if (stl) return stl;
+      return "";
+    }
+
+    async function init() {
+      hudText.textContent = "Sjekker lokal forhåndsvisning...";
+
+      if (["f3z", "3fz", "f3d"].includes(sourceExt)) {
+        const preferredPreview = await choosePreviewForFusion();
+        if (preferredPreview && isBrowserRenderablePreview(preferredPreview)) {
+          hudText.textContent = "Viser 3D-forhåndsvisning for Fusion-filen";
+          renderPreviewViewer(preferredPreview);
+          return;
+        }
+        if (embedded) {
+          renderFallback(`Fant ingen lokal 3D-forhåndsvisning for .${sourceExt || "ukjent"}.`);
+          return;
+        }
+        await renderFusionOpener();
+        return;
+      }
+
+      const preferredPreview =
+        (previewFile && await exists(previewFile) ? previewFile : "") ||
+        (fileParam && isBrowserRenderablePreview(fileParam) ? fileParam : "") ||
+        "";
+
+      if (preferredPreview) {
+        renderPreviewViewer(preferredPreview);
+        return;
+      }
+
+      renderFallback(`Filtypen .${sourceExt || "ukjent"} har foreløpig ikke en lokal nettleser-renderer som gir riktig modell uten tredjepartsgrensesnitt.`);
+    }
+
+    init = async function () {
+      hudText.textContent = "Sjekker lokal forhåndsvisning...";
+
+      if (["f3z", "3fz", "f3d"].includes(sourceExt)) {
+        const preferredPreview = await choosePreviewForFusion();
+        if (preferredPreview && isBrowserRenderablePreview(preferredPreview)) {
+          hudText.textContent = "Viser 3D-forhåndsvisning for Fusion-filen";
+          renderPreviewViewer(preferredPreview);
+          return;
+        }
+        if (preferredPreview) {
+          renderCandidateFallback(
+            `Fant en lokal 3D-kandidat for .${sourceExt || "ukjent"}, men denne kandidattypen har ikke en innebygget nettleser-renderer i denne visningen ennå.`,
+            preferredPreview
+          );
+          return;
+        }
+        if (embedded) {
+          renderFallback(`Fant ingen lokal 3D-forhåndsvisning for .${sourceExt || "ukjent"}.`);
+          return;
+        }
+        await renderFusionOpener();
+        return;
+      }
+
+      const preferredPreview =
+        (previewFile && await exists(previewFile) ? previewFile : "") ||
+        (fileParam && isBrowserRenderablePreview(fileParam) ? fileParam : "") ||
+        "";
+
+      if (preferredPreview) {
+        renderPreviewViewer(preferredPreview);
+        return;
+      }
+
+      if (fileParam && /\.(step|stp|iges|igs|obj|glb|gltf|fbx|ply|sat|smt|x_t|x_b|sldprt|sldasm|slddrw)(?:$|[?#])/i.test(fileParam)) {
+        renderCandidateFallback(
+          `Filtypen .${sourceExt || "ukjent"} er funnet og kan brukes som 3D-kandidat, men lokal renderer for denne typen er ikke koblet inn ennå.`,
+          fileParam
+        );
+        return;
+      }
+
+      renderFallback(`Filtypen .${sourceExt || "ukjent"} har foreløpig ikke en lokal nettleser-renderer som gir riktig modell uten tredjepartsgrensesnitt.`);
+    };
+
+    init().catch((err) => {
+      console.error("[f3dview] init failed", err);
+      renderFallback(`Kunne ikke åpne filtypen .${sourceExt || "ukjent"} lokalt: ${err?.message || err}`);
+    });
+  </script>
+
+<script type="module" src="../three/hydro-lab/HydroLabIntegration.js"></script>
+</body>
+</html>

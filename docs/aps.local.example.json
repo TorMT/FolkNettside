@@ -1,0 +1,6 @@
+{
+  "APS_CLIENT_ID": "replace_me",
+  "APS_CLIENT_SECRET": "replace_me",
+  "APS_CALLBACK_URL": "http://localhost:3000/auth/callback",
+  "note": "Copy this to secrets/aps.local.json locally. Do not commit the secrets file."
+}

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="no" data-theme="default">
+<head>
+  <meta charset="utf-8"/FolkNettside/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/FolkNettside/>
+  <meta name="theme-color" content="#004f9f">
+  <title>Notebook-kjøring</title>
+  <style>
+    :root{
+      --bg:#1e1e1e;--fg:#d4d4d4;--muted:#9ca3af;--btn:#2a2a2a;--btnB:#3a3a3a;
+      --kw:#c586c0;--str:#ce9178;--com:#6a9955;--num:#4fc1ff;--fn:#dcdcaa
+    }
+    *{box-sizing:border-box} html,body{height:100%;margin:0}
+    body{background:var(--bg);color:var(--fg);font:14px/1.55 ui-monospace,Consolas,monospace;display:flex;flex-direction:column}
+    .top{display:flex;gap:.5rem;align-items:center;padding:.75rem 1rem;border-bottom:1px solid #2b2b2b;background:#161616;position:sticky;top:0;z-index:2}
+    .title{font-weight:600;margin-right:auto}
+    .btn{background:var(--btn);border:1px solid var(--btnB);color:var(--fg);padding:.35rem .6rem;border-radius:.5rem;cursor:pointer;transition:opacity 0.2s,background 0.2s}
+    .btn:disabled{opacity:.5;cursor:not-allowed;background:#1a1a1a;color:#666}
+    .pill{font-size:.85em;padding:.15rem .5rem;border-radius:999px;border:1px solid #3a3a3a;background:#222;color:#ddd}
+    .wrap{width:100%;max-width:min(1600px,98vw);margin:0 auto;padding:1rem}
+    .cell{border:1px solid #2a2a2a;border-radius:.75rem;margin:1rem 0;background:#111}
+    .head{display:flex;gap:.5rem;align-items:center;padding:.5rem .75rem;border-bottom:1px solid #2a2a2a;background:#171717}
+    .code{padding:.75rem 1rem;font-family:Consolas,ui-monospace,monospace;white-space:pre;overflow:auto}
+    .lineno .code{counter-reset:line;white-space:pre}
+    .lineno .code > div { display:block }
+    .lineno .code > div::before{counter-increment:line;content:counter(line);display:inline-block;width:3ch;opacity:.5;margin-right:.75ch}
+    .softwrap .code{ white-space:pre-wrap; }
+    .out{border-top:1px dashed #2a2a2a;padding:.5rem .75rem;white-space:pre-wrap;min-height:1.2em}
+    [data-k=kw]{color:var(--kw)} [data-k=str]{color:var(--str)} [data-k=com]{color:var(--com)}
+    [data-k=num]{color:var(--num)} [data-k=fn]{color:var(--fn)}
+    .md{border:1px solid #2a2a2a;border-radius:.75rem;margin:1rem 0;background:#0f0f0f}
+    .md .mdbody{padding:1rem 1.25rem}
+    .imgbox img{max-width:100%}
+    .md{background:#0f0f0f;border:1px solid #2a2a2a;border-radius:.75rem;margin:1rem 0}
+    .md .mdbody{padding:1rem 1.25rem;line-height:1.7;color:#e0e0e0}
+    .md h1,.md h2,.md h3{margin-top:1.2em;margin-bottom:.5em;font-weight:600;color:#fff}
+    .md h1{font-size:1.8em;border-bottom:2px solid #3a3a3a;padding-bottom:.3em}
+    .md h2{font-size:1.5em;border-bottom:1px solid #2a2a2a;padding-bottom:.2em}
+    .md h3{font-size:1.3em}
+    .md p{margin:.8em 0}
+    .md code{background:#1a1a1a;padding:.15em .4em;border-radius:.3em;font-size:.9em;color:#ff9d76}
+    .md pre{background:#0a0a0a;border:1px solid #2a2a2a;border-radius:.5em;padding:1em;overflow-x:auto;margin:1em 0}
+    .md pre code{background:transparent;padding:0;color:#d4d4d4}
+    .md strong{color:#fff;font-weight:600}
+    .md em{color:#b4d4ff;font-style:italic}
+    .md img{max-width:100%;border-radius:.5em;margin:1em 0}
+    .spinner{display:inline-block;width:12px;height:12px;border:2px solid #444;border-top-color:#4fc1ff;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:0.3rem}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+  <link rel="stylesheet" href="/FolkNettside/assets/css/sidebar-flyout-fix.css">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-BJ41MZJP0L');
+</script>
+  <script src="/FolkNettside/includes/kodeLesere/locked-view.js" defer></script>
+</head>
+<body>
+  <div class="top">
+    <div class="title">Notebook-kjøring</div>
+    <button class="btn" id="runAll">Kjør alle</button>
+    <button class="btn" id="stop">Stopp</button>
+    <button class="btn" id="copyAll">Kopier alle</button>
+    <label class="btn"><input type="checkbox" id="toggleLn" checked> linjenummer</label>
+    <label class="btn"><input type="checkbox" id="toggleWrap"> myk linjebryting</label>
+    <span class="pill" id="status">Starter…</span>
+    <a id="raw" class="btn" href="#" target="_blank" rel="noopener">Åpne råfil</a>
+    <a id="vscode" class="btn" href="#" target="_blank" rel="noopener">Åpne i VSCode</a>
+  </div>
+
+  <div class="wrap lineno" id="wrap"></div>
+
+  <script>
+    window.__RUNLITE_MODE__ = "ipynb";
+    
+    // FIXED HIGHLIGHTER v2 - uses string markers instead of null bytes
+    window.__CUSTOM_HIGHLIGHT__ = function(txt) {
+      const esc = function(s) { 
+        return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); 
+      };
+      let html = esc(txt || "");
+      
+      // Use unique string markers (more reliable in HTML/JS context than null bytes)
+      const MARKER_START = "___HLPROTECT_";
+      const MARKER_END = "___";
+      let protected = [];
+      
+      function protect(match) {
+        const id = protected.length;
+        protected.push(match);
+        return MARKER_START + id + MARKER_END;
+      }
+      
+      function restore(html) {
+        let result = html;
+        for (let i = 0; i < protected.length; i++) {
+          const marker = MARKER_START + i + MARKER_END;
+          result = result.split(marker).join(protected[i]);
+        }
+        return result;
+      }
+      
+      // 1. Triple-quoted strings first
+      html = html.replace(/"""[\s\S]*?"""|'''[\s\S]*?'''/FolkNettside/g,
+        function(m) { return protect('<span data-k="str">' + m + '</span>'); });
+      
+      // 2. Prefixed strings (f, r, b, u and combinations)
+      html = html.replace(/\b([fFrRbBuU]{1,2})(["'])(?:\\[\s\S]|(?!\2)[^\\\r\n])*?\2/g,
+        function(m) { return protect('<span data-k="str">' + m + '</span>'); });
+      
+      // 3. Regular strings
+      html = html.replace(/(["'])(?:\\[\s\S]|(?!\1)[^\\\r\n])*?\1/g,
+        function(m) { return protect('<span data-k="str">' + m + '</span>'); });
+      
+      // 4. Comments (CRITICAL: must come after strings!)
+      html = html.replace(/(#[^\n]*)/g,
+        function(m) { return protect('<span data-k="com">' + m + '</span>'); });
+      
+      // 5. Numbers
+      html = html.replace(/\b(0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g,
+        function(m) { return protect('<span data-k="num">' + m + '</span>'); });
+      
+      // 6. Keywords
+      html = html.replace(
+        /\b(False|None|True|and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\b/g,
+        function(m) { return protect('<span data-k="kw">' + m + '</span>'); });
+      
+      // 7. Builtins
+      html = html.replace(
+        /\b(abs|all|any|ascii|bin|bool|bytearray|bytes|callable|chr|classmethod|compile|complex|dict|dir|divmod|enumerate|eval|exec|filter|float|format|frozenset|getattr|hasattr|hash|help|hex|id|input|int|isinstance|issubclass|iter|len|list|locals|map|max|memoryview|min|next|object|oct|open|ord|pow|print|property|range|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|vars|zip)\b/g,
+        function(m) { return protect('<span data-k="fn">' + m + '</span>'); });
+      
+      html = restore(html);
+      
+      // Wrap each line - use &nbsp; for empty lines
+      return html.split("\n").map(function(line) { 
+        return '<div>' + (line || '&nbsp;') + '</div>'; 
+      }).join("");
+    };
+  </script>
+  <script src="/FolkNettside/includes/kodeLesere/run-lite.js?v=1008"></script>
+  <script src="/FolkNettside/includes/mobile-enhancer.js"></script>
+</body>
+</html>

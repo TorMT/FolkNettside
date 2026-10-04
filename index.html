@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html data-theme="default" lang="no">
+<head>
+<meta charset="utf-8"/FolkNettside/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/FolkNettside/>
+<title>Hjem - FolkNettsideFolk</title>
+
+<style>
+    body.home main.content{
+      margin: calc(var(--nav-h, 48px) + 2rem) auto 0;
+      padding: 0 1rem 4rem;
+      max-width: min(1200px, 95vw);
+      text-align: center;
+    }
+    body.home h1{
+      font-size: 2.4rem;
+      margin-bottom: 0.75rem;
+      color: var(--primary, #004f9f);
+    }
+    body.home p{
+      font-size: 1.15rem;
+      line-height: 1.6;
+      color: var(--text-main, #1a202c);
+    }
+
+    .home-cards{
+      margin-top: 3rem;
+      display: grid;
+      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      align-items: stretch;
+    }
+
+    .card{
+      background: var(--bg-card, #f6f7fa);
+      border: 1px solid var(--border-color, #d6d8dd);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      text-align: left;
+      box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05));
+      display: flex;
+      flex-direction: column;
+      color: var(--text-main, #1a202c);
+    }
+
+    .card h2{
+      margin-top: 0;
+      font-size: 1.3rem;
+      color: var(--primary, #004f9f);
+    }
+
+    .card ul{
+      margin: 0.5rem 0 0;
+      padding-left: 1.25rem;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 599px){
+      .home-cards{ grid-template-columns: 1fr; }
+    }
+
+    .analytics-wrapper{
+      margin-top: 3rem;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      background: var(--bg-card, #ffffff);
+      border: 1px solid var(--border-color, #d6d8dd);
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow-md, 0 4px 8px rgba(0,0,0,0.08));
+    }
+
+    .analytics-wrapper h2{
+      color: var(--primary, #004f9f);
+      margin-bottom: 1rem;
+    }
+</style>
+
+<link href="/FolkNettside/assets/css/style.css" rel="stylesheet"/FolkNettside/>
+<link href="/FolkNettside/assets/css/themes.css" rel="stylesheet"/FolkNettside/>
+<link href="/FolkNettside/assets/css/mobile.css?v=4" media="(max-width: 768px)" rel="stylesheet"/FolkNettside/>
+<link rel="stylesheet" href="/FolkNettside/assets/css/sidebar-flyout-fix.css">
+<link rel="stylesheet" href="/FolkNettside/assets/css/sidebar-loader-theme-override.css">
+<link rel="stylesheet" href="/FolkNettside/assets/css/navbar-theme-fix.css">
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJ41MZJP0L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BJ41MZJP0L');
+</script>
+</head>
+
+<body class="home">
+<div id="navbar"></div>
+
+<main class="content">
+<h1>Velkommen til mi side</h1>
+<p>
+  Dette er startsiden. Her finner du informasjon, navigasjon
+  og innganger til fag og ressurser.
+</p>
+
+<section class="home-cards">
+  <div class="card">
+    <h2>Nytt nytt og funksjoner</h2>
+    <ul>
+      <li>Videoviseren grupperer nå forelesninger bedre, med søk, temaer, gruppebeskrivelser og markering som sett.</li>
+      <li>Fluid og Fysikalsk kjemi bruker nå oppgraderte forelesningslister med bedre deling av deler og tema.</li>
+      <li>3MF-viseren har fått komponentliste, highlighting, rapportskuff og bedre hydrostatikk-flyt.</li>
+      <li>Fusion- og F3Z-filer får egen lokal åpner med metadata, container-visning og STL-fallback ved behov.</li>
+      <li>SiteUpdater har backup, dry-run og rollback, og brukes nå tryggere på `diverse` og `semestre`.</li>
+      <li>Brygging er nå en samlet hub med RAPT-hydrometere, bryggelogger, oppskrifter, beer overview og gjæringsanalyse.</li>
+      <li>Oppskrifter kan skaleres automatisk, matches mot malt og humle du har på lager, og kobles til flere bryggelogger.</li>
+      <li>Eksterne øl- og bryggeridata vises nå som innebygde kort på siden i stedet for bare eksterne lenker.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Gammelt nytt og funksjoner</h2>
+    <ul>
+      <li>Passordbeskyttede mapper.</li>
+      <li>PDF-viewer med fallback.</li>
+      <li>Velkomstbilder per fagmappe.</li>
+      <li>HTML-, kode- og notebook-visere for egne filer.</li>
+      <li>Hydrometer-integrasjon med lokal cache og filtrerte grafer.</li>
+      <li>Kodekjøreren kan kjøre nestede Python-programmer med egne importerte filer.</li>
+      <li>Layout smoothness.</li>
+      <li>Mobilvennlighet på hovedsider og sidepanel.</li>
+      <li>Webstatistikk og analytics på forsiden.</li>
+      <li>Quiz til fag med historikk, temaer og grunnleggende topplisteflyt.</li>
+      <li>Du kan nå lese kode i farger.</li>
+      <li>Eksperimentell funksjon: kjør koden direkte på siden.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Pågående arbeid</h2>
+    <ul>
+      <li>Videre opprydding i tegnkoding og navn i enkelte `index.json`-filer.</li>
+      <li>Fusion/F3Z-åpner som viser selve CAD-fila enda mer direkte uten eksterne toppmenyer.</li>
+      <li>Hydrostatikk-rapport med bedre beregninger og penere eksport/PDF-flyt.</li>
+      <li>Quiz-modul med mer komplett leaderboard, studymodus og mobilforbedringer.</li>
+      <li>Autodesk APS-integrasjon for å hente Njord-modeller direkte fra hub/prosjekt.</li>
+      <li>Videre utvidelse av Brygging med flere råvarekataloger, Drive-synk og enda bedre sammenligningsmodeller.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="analytics-wrapper" data-theme-aware>
+  <h2>Webstatistikk</h2>
+  <iframe
+      width="100%"
+      height="320"
+      src="https://lookerstudio.google.com/embed/reporting/d8f6526b-0ec4-4842-a7f2-f1232bb8bfca/page/8IWgF"
+      frameborder="0"
+      style="border:0; border-radius:8px;"
+      allowfullscreen
+      sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox">
+  </iframe>
+</div>
+
+</main>
+
+<script>
+  const NAVBAR_IGNORE_PATHS = [];
+  const NAVBAR_IGNORE_PREFIXES = ['/FolkNettside/diverse/'];
+
+  const currentPath = (window.location.pathname || '').replace(/\/+$/, '');
+  const pathMatches = NAVBAR_IGNORE_PATHS
+    .map(p => p.replace(/\/+$/, ''))
+    .includes(currentPath);
+  const prefixMatches = NAVBAR_IGNORE_PREFIXES
+    .map(p => p.replace(/\/+$/, '') + '/FolkNettside/')
+    .some(prefix => (currentPath + '/FolkNettside/').startsWith(prefix));
+  const shouldSkipNavbar = pathMatches || prefixMatches;
+
+  if (shouldSkipNavbar) {
+    document.getElementById('navbar').innerHTML = '';
+    console.info('[navbar] Ignorerer global navbar for side:', currentPath);
+  } else {
+    fetch('/FolkNettside/includes/navbar.html', { cache: 'no-store' })
+      .then(r => r.text())
+      .then(html => {
+        document.getElementById('navbar').innerHTML = html;
+
+        const s = document.createElement('script');
+        s.src = '/FolkNettside/includes/mobile-enhancer.js';
+        document.body.appendChild(s);
+      });
+  }
+</script>
+
+<script src="/FolkNettside/assets/js/theme-switcher.js"></script>
+<script src="/FolkNettside/assets/js/flyout-theme-updater.js"></script>
+</body>
+</html>
