@@ -1,0 +1,1 @@
+FolkNettside synthetic staging fixture.

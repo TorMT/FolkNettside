@@ -14,7 +14,7 @@ function ensureStyles() {
   document.head.appendChild(style);
 }
 
-export function installHydroLabPlugin({ demoUrl = './hydro-lab/HydroLabDemo.html', title = 'HydroLab' } = {}) {
+export function installHydroLabPlugin({ demoUrl = new URL('./HydroLabDemo.html', import.meta.url).href, title = 'HydroLab' } = {}) {
   ensureStyles();
   if (document.querySelector('.hydro-lab-fab')) return;
 
