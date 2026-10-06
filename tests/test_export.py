@@ -1,9 +1,12 @@
 import hashlib
-import importlib.util
+import contextlib
+import io
 import json
 import subprocess
 import sys
 import unittest
+import tempfile
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -12,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from export_repo import ROOT as EXPORT_ROOT, build, rewrite_text, base_path
 from check_export import check
+import audit_repo
 
 
 class ExportTests(unittest.TestCase):
@@ -51,6 +55,20 @@ class ExportTests(unittest.TestCase):
                 build(output=output)
         with self.assertRaises(ValueError):
             base_path('/../escape')
+
+    def test_large_binary_and_fixture_guard_rejects_oversized_inputs(self):
+        with tempfile.TemporaryDirectory(prefix='folk-size-guard-') as temporary:
+            root = Path(temporary)
+            (root / 'deployment').mkdir()
+            (root / 'deployment/large-files.json').write_bytes((ROOT / 'deployment/large-files.json').read_bytes())
+            (root / 'tests/fixtures').mkdir(parents=True)
+            with (root / 'unexpected.wasm').open('wb') as stream:
+                stream.truncate(6 * 1024 * 1024)
+            with (root / 'tests/fixtures/oversized.pdf').open('wb') as stream:
+                stream.truncate(250001)
+            with patch.object(audit_repo, 'ROOT', root), patch.object(audit_repo.subprocess, 'check_output', return_value=b'unexpected.wasm\0tests/fixtures/oversized.pdf\0'), contextlib.redirect_stdout(io.StringIO()):
+                _, errors = audit_repo.audit()
+            self.assertEqual(len(errors), 2)
 
     def test_fixtures_are_valid_small_and_reproducible(self):
         fixtures = ROOT / 'tests/fixtures'
