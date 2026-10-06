@@ -4,6 +4,20 @@ Baseline branch for planning: `audit/performance-review`
 
 This roadmap supersedes the earlier informal phase ordering.
 
+## Deployment freeze — Engineering Portfolio URL
+
+**Hard constraint:** the existing Engineering Portfolio URL that has been sent in CVs and cover letters must remain stable and functional through **2027-01-01**.
+
+Until then:
+- do not change or remove the public URL used in applications
+- do not replace it with a route that may break old links
+- do not require authentication
+- do not deploy an unfinished v2 over that production entry point
+- build/test v2 in parallel on GitHub Pages or a separate preview route
+- any production change before 2027-01-01 must be backward-compatible with the existing portfolio URL
+
+After 2027-01-01, migration can switch the production entry point, provided the old URL either still resolves or redirects cleanly.
+
 ## Phase 0 — Cleanup and legacy retirement
 
 Goal: reduce the repository to code that is actually used before redesigning around it.
