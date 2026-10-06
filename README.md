@@ -1,388 +1,90 @@
-# FolkNettside — README
+﻿# FolkNettside
 
-Dette repoet inneholder en statisk nettside med tilhørende assets, scripts og verktøy. Denne README forklarer hvordan du setter opp, tilpasser og deployer siden, samt hvordan du retter et vanlig problem med Welcome-generic.svg.
+Development -> PR -> GitHub Pages staging -> NTNU production.
 
-**Rask oversikt**
+Application code lives in GitHub. GitHub Pages tests that code with tiny synthetic
+files; the full document archive and credentials remain on NTNU. The site design
+and existing viewer URLs are preserved. See [ARCHITECTURE.md](ARCHITECTURE.md) for
+file ownership, fixtures, live-service limits and the outstanding production-source
+import. The mounted NTNU working tree is not a development/build directory.
 
-- Katalogstruktur (viktig):
-  - `assets/` — CSS, JS, bilder
-  - `includes/` — felles HTML/JS-snippeter som injiseres (navbar, sidebar)
-  - `scripts/` — hjelpeskript for bygg/oppdatering
-  - `course-template.html`, `index.html` — maler
+## Local development and checks
 
-**Forutsetninger**
-
-- Git installert og konfigurert.
-- Node.js ikke påkrevd for å kjøre siden, men nyttig for verktøy. Lokalt kan du enkelt serve filene med Python eller en enkel HTTP-server.
-
-Eksempel: kjør lokal server (fra repo-roten):
-
-```bash
-# Python 3
-python -m http.server 8000
-# Åpne http://localhost:8000
-```
-
-**Kompilere / bygge / deploy**
-
-- Repoet har en GitHub Actions workflow: `.github/workflows/export-and-deploy.yml`. Pushing til `main` vil trigge CI hvis workflow er aktiv.
-- Lokalt trenger du normalt ikke "bygge" — bare push endringer til `main`.
-
-**Konfigurasjon som ofte må endres**
-
-- Tittel/metadata: sjekk `course-template.html` og `index.json` for `{{TITLE}}` / `{{DESCRIPTION}}`-verdier som systemet fyller inn ved eksport.
-- Google Analytics / Looker Studio iframes: i `course-template.html` finnes gtag-id (`G-BJ41MZJP0L`) og en iframe for webstatistikk. Bytt ID eller iframe-URL hvis nødvendig.
-- Versjonering av assets: CSS/JS i HTML har `?v=4` query-param for cache-busting — oppdater der hvis du endrer filer.
-
-**Hvordan endre Welcome-generic.svg (fjerner teksten "Tor er treg")**
-
-1. Fil: `img/welcome-generic.svg`. Åpne i en teksteditor eller et SVG-redigeringsprogram (Inkscape, Illustrator).
-2. Finn teksten i SVG-koden (ofte `<text>`-element) eller rediger visuelt i Inkscape.
-3. Fjern eller endre teksten til ønsket budskap, f.eks. "Velkommen".
-4. Lagre filen og sjekk endringer i nettleser (refresh, gjerne hard refresh / clear cache).
-
-Tips: hvis SVG er minifisert, gjør en enkel søk/grep:
-
-```bash
-grep -n "Tor er treg" -R img || true
-```
-
-Hvis du heller vil bytte bildet, erstatt filen `img/welcome-generic.svg` med et annet SVG/PNG med samme navn.
-
-**Vanlige arbeidsflyter**
-
-- Legg til/endre filer → `git add -A` → `git commit -m "Kort melding"` → `git push`
-- Hvis VS Code åpner feil editor for `git commit`, sett editor til VS Code: `git config core.editor "code --wait"`.
-
-**Deploy / CI**
-
-- Workflowen i `.github/workflows/export-and-deploy.yml` håndterer eksport og deploy. Sjekk workflow-filen for detaljer om deploy-mål (GitHub Pages eller annen hosting).
-
-**Scripts og vedlikehold**
-
-- `scripts/` inneholder verkt?y for oppdatering og eksport (`export_repo.py`, `export/`, etc.). Les filene for mer detaljer. Kj?r Python-skript med et passende virtuelt milj?.
-- `scripts/video_topic_enricher.py` kan brukes til ? gj?re en videoliste om til JSON med `description`, `themes`, `group` og `part`.
-- `scripts/video_topic_enricher.py` stotter na `--ai-provider openrouter` og kan bruke `OPENROUTER_API_KEY` for ekte metadata fra undertekster og videometadata.
-- `scripts/run_scheduled_fluid_refresh.ps1` kj?rer sikre batch-oppdateringer for Fluid ved ? bruke eksisterende JSON som fasit og bare oppdatere svake metadatafelt.
-- `scripts/scheduled_fluid_refresh_queue.json` bestemmer rekkef?lge, dagsgrense og hvor mange oppdateringer hver OpenRouter-n?kkel skal f? pr. dag.
-- Hvis en videotittel er `Ukjent` eller svak, prover enrich-scriptet forst a hente en bedre kildetittel fra `yt-dlp` metadata f?r AI/fallback brukes.
-- Eksempelfil for lokal setup finnes i `.env.openrouter.example` (ikke commit ekte nokler).
-- `SiteUpdater3.py` st?tter n? ogs? `--enrich-video-lists` for ? kj?re enrich automatisk etter indeksoppdatering (valgfritt med cookies/ollama/whisper-flagg).
-- Viewer og `SiteUpdater3.py` st?tter n? ogs? Office-pakken bedre: `.htm`, Word, Excel og PowerPoint-filer kan indekseres og ?pnes i viewer.
-- Enrich-trinnet hopper n? over filer uten endringer (bruk `--enrich-force` for ? tvinge full kj?ring).
-- Etter enrich vises en oppsummering med antall kandidater/kj?rte/skippede/feilede filer.
-- Videoviseren foretrekker `Forelesning.json` over `Forelesning.txt` n?r begge finnes, slik at gruppebeskrivelser, temaer og logiske grupper kan vises direkte.
-- S?k i videoviseren matcher p? gruppenavn, videotittel, delnavn, gruppebeskrivelse og temaer.
-- `Marker som sett` finnes b?de per video og per gruppe, og viseren husker ogs? hvor du var i videoen lokalt i nettleseren.
-- Typisk flyt for et kurs er: 1) oppdater `Forelesning.txt`, 2) generer `Forelesning.json`, 3) ?pne `Forelesning.txt` fra sidebaren, 4) bruk s?kefeltet for ? finne gruppe, del eller tema.
-
-**Feilsøking**
-
-- Push feiler med "remote contains work you do not have": kjør `git pull --rebase origin main` og løs eventuelle konflikter før `git push`.
-- Feil: VS Code Git-extension `git-editor-main.js` 500 — sett `core.editor` eller bruk `git commit -m "msg"` for å hoppe over editoren.
-
-**Hvordan bruke siden (kort)**
-
-- Navbar og sidebar: `includes/navbar.html` og `includes/sidebar.html` injiseres i sidene ved runtime (f.eks. `course-template.html`). For å endre global navigation, rediger disse filer.
-- Legg til nytt innhold i rotmapper som `diverse/`, `docs/`, `semestre/` — hvert område har en `index.json` og `index.html`.
-- Quiz-funksjoner finnes i `Quiz/` og `assets/js/course-leaderboard.js`.
-
-### Karakterweb-funksjon (i sidebar)
-
-- Siden støtter egen **Karakterweb-knapp** i sidebaren når kurskode finnes.
-- Kurskode leses primært fra `<meta name="course-code" ...>` i kurssiden.
-- URL-mønster kan overstyres med `<meta name="karakterweb-url-template" ...>` (standard er `https://karakterweb.no/ntnu/{course_code}`).
-- Implementasjonen ligger i `includes/sidebar-loader.js` og åpner Karakterweb i viewer når brukeren klikker knappen.
-- For at dette skal virke godt i egne kurssider, sett `{{COURSE_CODE}}` i `course-template.html`/genererte sider.
-
-
-### Låst visning (`locked=1`) for viewer/verktøy
-
-- Ja: med `?locked=1` (eller `locked=true`/`locked=yes`) maksimeres viewer/verktøy til hele fanen og vanlig UI (navbar/sidebar/toolbar/HUD) skjules.
-- Dette styres sentralt av `includes/kodeLesere/locked-view.js`, og er nå standard inkludert både i viewer-sidene under `includes/kodeLesere/` (inkl. Office/Word/Excel/PowerPoint-viewere) og i relevante verktøysider under `Tools/`.
-- Delte lenker beholder låst modus automatisk fordi scriptet propagere `locked=1` videre til interne lenker og iframes (samme origin).
-
-Eksempler:
-
-```
-/includes/kodeLesere/pdfview.html?file=/docs/eksempel.pdf&locked=1
-/includes/kodeLesere/stlview.html?file=/modeller/del.stl&locked=true
-/Tools/KrystallStrukturer/krystall-viewer.html?locked=1
-/Tools/Coolprop/CoolProp2.html?locked=1
-```
-
-### Ekstra tools og verktøy (ikke nødvendig for grunnoppsett)
-
-Disse er valgfrie tillegg. Du trenger dem ikke for å kjøre en enkel kursside med navbar + sidebar:
-
-- `Tools/theme-creator.html` og `Tools/image-to-theme.html` — lag/juster temaer visuelt.
-- `Tools/PeriodicTable/` og `Tools/KrystallStrukturer/` — interaktive læringsverktøy.
-- `Tools/Coolprop/` — termo/fysikk-verktøy.
-- `includes/kodeLesere/` + `includes/three/` — visere for kode/3D/formater (STL/3MF/Fusion m.m.).
-- `assets/js/fusion-file-analyzer.js` + `assets/css/fusion-file-analyzer.css` — analysevisning for Fusion-relaterte filer.
-- `scripts/video_topic_enricher.py` + `SiteUpdater3.py --enrich-video-lists` — valgfri AI-beriking av videolister.
-- `scripts/export_repo.py` / `export/` — valgfri eksportflyt for publisering.
-
-**Vedlegg / nyttige kommandoer**
-
-```bash
-# Stage + commit
-git add -A
-git commit -m "Oppdatering: ..."
-git push origin main
-
-# Sett VS Code som git-editor (valgfritt)
-git config core.editor "code --wait"
-
-# Serve lokalt
-python -m http.server 8000
-```
-
-Dette dokumentet forklarer hvordan du bruker `SiteUpdater3.py` og `navbarupdater.py`, hvilke mapper som betyr hva, og hvor du personaliserer siden.
-
-### Viktige mapper
-
-- `assets/` — CSS, JS og statiske tema-filer.
-- `includes/` — gjenbrukbare deler som injiseres i sidene: `navbar.html`, `sidebar.html`, loader-scripts.
-- `semestre/` — kursinnhold per semester; hver kursmappe inneholder `index.html` og `filer/`.
-- `img/` — delte bilder, f.eks. `welcome-generic.svg`.
-- `scripts/` — hjelpeskript for vedlikehold.
-- `Quiz/` — quiz-maler og data.
-- `export/` — minimal eksport for publisering.
-
-### Hvor personaliserer du siden?
-
-- `course-template.html` — side-mal: tittel, metadata og CSS/JS-rekkefølge.
-- `includes/navbar.html` — endre top-navigation.
-- `includes/sidebar.html` og `includes/sidebar-*.js` — sidebar og moduler.
-- `assets/css/*` — styling og tema.
-- `img/welcome-generic.svg` — bytt eller rediger for ønsket velkomstbilde.
-- `semestre/<nr>/<kurs>/filer` — legg kursfiler her og oppdater index.
-
----
-Bruk av `SiteUpdater3.py`
----
-
-Formål: Rekursivt oppdatere/bygge `index.json`, normalisere quiz-bildereferanser og velge velkomstbilder.
-
-Vanlige kommandoer:
-
-```bash
-python SiteUpdater3.py .
-python SiteUpdater3.py . --no-progress
-python SiteUpdater3.py . --no-quiz
-python SiteUpdater3.py . --only
-python SiteUpdater3.py . --shallow
-python SiteUpdater3.py . --sync-andrekok
-python SiteUpdater3.py . --sync-andrekok --sync-only
-python SiteUpdater3.py . --sync-andrekok --andrekok-target diverse/AndreKokSider/links.json
-```
-
-Hva den gjør:
-- Genererer `index.json` per mappe.
-- Velger velkomstbilde automatisk eller bruker `img/welcome-generic.svg`.
-- Normaliserer `quiz/quiz.json` bildestier.
-- Kan synke "AndreKok"-lenker fra ekstern `script.js` og bare legge til nye (fjerner ikke egne ekstra entries).
-- Hentede "AndreKok"-entries får automatisk `studiet: "MTKJ"` (kan overstyres med `--andrekok-studiet`).
-- Med `--sync-only` kan du kjøre bare synk uten vanlig `index.json`-oppdatering.
-
----
-Bruk av `navbarupdater.py`
----
-
-Formål: CLI for å opprette semester, lage kurs-sider fra `course-template.html`, og oppdatere `includes/navbar.html`.
-
-Installer (valgfritt):
-
-```bash
-pip install beautifulsoup4 tqdm
-```
-
-Eksempler:
-
-```bash
-python navbarupdater.py update-index [root]
-python navbarupdater.py add-semester 3
-python navbarupdater.py add-course <semester> <slug> "<Tittel>" "<Beskrivelse>"
-python navbarupdater.py bulk [courses.json]
-```
-
-Hva den gjør:
-- `update-index`: genererer `index.json` (lik SiteUpdater).
-- `add-semester`: legger til semester-dropdown i `includes/navbar.html` og oppretter `semestre/<nummer>`.
-- `add-course`: lager `index.html` i `semestre/<sem>/<slug>/`, oppretter `filer/index.json` med placeholder og oppdaterer navbar.
-
-### Oppsett for andre som vil bruke repoet som base
-
-Ja, andre kan bruke repoet ditt som "full rollout"-base, lage egne semestersider og samtidig pull'e nye funksjoner/tools senere.
-
-Anbefalt flyt:
-
-1. Klon repoet.
-2. Lag egne semestersider med:
-   - `python navbarupdater.py add-semester <nr>`
-   - `python navbarupdater.py add-course <semester> <slug> "<Tittel>" "<Beskrivelse>"`
-3. Legg inn egne øvinger/filer i de opprettede mappene under `semestre/<nr>/<kurs>/filer/`.
-4. Kjør:
-   - `python SiteUpdater3.py .`
-   for å regenerere `index.json` i mappene.
-5. Når nye funksjoner kommer i upstream, kan de pulles inn uten at lokale navbar-områder merket `LOCAL-ONLY` blir overskrevet.
-
-Merk:
-- `Hjem` er felles/generell.
-- semesterlenker er lokale per side (`NAVBAR_LEFT_SEMESTERS`), men `add-semester`/`add-course` er satt opp til å kunne oppdatere denne blokken lokalt.
-
----
-Praktiske tips
----
-
-- Ta backup av `includes/navbar.html` og `course-template.html` før store endringer.
-- Etter å ha lagt til filer, kjør `SiteUpdater3.py` eller `navbarupdater.py update-index`.
-- For å endre velkomstbilde, rediger eller bytt `img/welcome-generic.svg`.
-
-## Koble til NTNU webedit (nettverksområde)
-
-Hvis dere bruker NTNUs webedit-område, bruk `\\webedit.ntnu.no\\brukernavn` som mål for opplasting/redigering. Bytt `brukernavn` med ditt NTNU-brukernavn.
-
-Offisielle veiledninger (NTNU):
-
-- Lag nettside på folk-ntnu: https://i.ntnu.no/wiki/-/wiki/Norsk/Lag+nettside+p%C3%A5+folk-ntnu-no
-- Koble til nettverksområde (Windows): https://i.ntnu.no/wiki/-/wiki/Norsk/Koble+til+nettverksomr%C3%A5de+med+Windows
-- Koble til nettverksområde (Mac OS X): https://i.ntnu.no/wiki/-/wiki/Norsk/Koble+til+nettverksomr%C3%A5de+med+Mac+OS+X
-- Koble til nettverksområde (Linux): https://i.ntnu.no/wiki/-/wiki/Norsk/Koble+til+nettverksomr%C3%A5de+med+Linux
-
-Korte eksempler for tilkobling:
-
-Windows (File Explorer / PowerShell):
+Use Python 3.11+ and Node.js 22+ in a local clone. Add new application files to Git
+before exporting; only tracked website files are published.
 
 ```powershell
-net use Z: \\\\webedit.ntnu.no\\brukernavn
-New-PSDrive -Name "W" -PSProvider FileSystem -Root "\\webedit.ntnu.no\\brukernavn" -Persist
+git switch -c my-change
+python scripts/generate_fixtures.py
+python scripts/audit_repo.py
+python -m unittest discover -s tests -p test_export.py -v
+node scripts/test_hydro_modules.mjs
+node scripts/test_viewer_integrations.mjs
+python scripts/export_repo.py --target pages
+python scripts/check_export.py
+python scripts/serve_export.py --directory export --port 8000
 ```
 
-Mac (Finder eller terminal):
+Open `http://127.0.0.1:8000/FolkNettside/` and
+`http://127.0.0.1:8000/FolkNettside/preview/`. Test the course sidebar/quiz at
+`http://127.0.0.1:8000/FolkNettside/preview/course/`. The server mounts the configured
+URL prefix so local tests catch the same path errors as project Pages.
 
-```bash
-# Fra Finder: Connect to Server -> smb://webedit.ntnu.no/brukernavn
-# Terminal (eksempel):
-# mkdir -p /Volumes/webedit
-# mount_smbfs //brukernavn@webedit.ntnu.no/brukernavn /Volumes/webedit
+In another terminal, run browser integration checks:
+
+```powershell
+python -m pip install -r tests/requirements-browser.txt
+python -m playwright install chromium
+python tests/test_browser.py
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/test_deploy_ntnu.ps1
 ```
 
-Linux (GUI eller CLI):
+Fixtures include PDF, text/Python, CSV, HTML, LaTeX, notebook, STL, 3MF, Word,
+Excel, PowerPoint and quiz data. All are synthetic and reproducible. Office's
+Microsoft renderer needs public HTTPS; confirm rendered content on Pages after
+merging. Live PHP/OAuth/provider writes require NTNU; Pages tests fixture-backed
+client behavior, not those live integrations.
 
-```bash
-# GUI: smb://webedit.ntnu.no/brukernavn
-sudo mkdir -p /mnt/webedit
-sudo mount -t cifs //webedit.ntnu.no/brukernavn /mnt/webedit -o username=brukernavn,uid=$(id -u),gid=$(id -g)
+PR CI builds and verifies Pages without deploying. Main publishes the verified
+artifact to `gh-pages`. Configure repository Pages to serve that branch's root.
+The branch artifact is available in the PR Actions run. Do not merge until its
+checks pass and the source changes are reviewed.
+
+## NTNU production (manual, Windows)
+
+Run from a separate LOCAL checkout after reviewing/merging the PR and validating
+Pages. The destination must already be mounted and reachable. The production
+build includes reviewed website code and PHP, and leaves external archives alone.
+It does not include staging routes or test fixtures.
+
+```powershell
+python scripts/export_repo.py --target ntnu --base-path /~tormt
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_ntnu.ps1 -Destination Z:\ -BasePath /~tormt -DryRun
+# Inspect the list; preserve/review any uncommitted NTNU application changes first.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_ntnu.ps1 -Destination Z:\ -BasePath /~tormt
 ```
 
-Merk: noen miljøer krever ekstra opsjoner (f.eks. `domain=ntnu.no` eller `sec=ntlmssp`). Følg NTNUs offisielle guider hvis det oppstår autentiseringsproblemer.
+Use the actual deployed URL prefix if different from `/~tormt`; domain-root hosting
+uses an empty prefix. `-WhatIf` is also supported. ExecutionPolicy Bypass applies
+only to the launched process. No credentials are stored, no files are deleted,
+and unchanged files are skipped using content hashes. Inspect logical NTNU asset
+paths in `deployment/assets.json`; the initial `/docs/viewer-examples/` paths must
+be provisioned externally or mapped to real production files.
 
-Når du er koblet opp: kopier publiserbare filer (for eksempel fra `export/` eller `index.html` + `assets/`) inn i `\\webedit.ntnu.no\\brukernavn` og test via folk-ntnu.
+Never run the exporter in the mounted production directory. This PR does not
+modify the NTNU server and does not merge itself. The existing NTNU workspace has
+uncommitted application work; import its reviewed sources separately before using
+GitHub as the complete source of truth for those applications.
 
----
-## Oppsett: trinn for trinn
+## Repository maintenance
 
-1. Klon repo og gå til roten:
+`python scripts/audit_repo.py --json audit-inventory.json` produces the tracked
+size inventory. Binary commits above 5 MiB fail unless they have a documented,
+tightly bounded runtime allowance. Fixture limits are 250 KB each. Do not commit
+large course files, secrets, generated exports, Python caches or temporary dumps.
 
-```bash
-git clone https://github.com/DITT_BRUKERNAVN/repo.git
-cd repo
-```
-
-2. Installer Python (3.11+ anbefales). Lag helst venv:
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate    # Windows
-source .venv/bin/activate # macOS/Linux
-pip install -U pip
-pip install beautifulsoup4 tqdm
-```
-
-3. Kontroller `index.json`/`index.html` i `semestre/`, og kjør oppdatering:
-
-```bash
-python SiteUpdater3.py .
-python navbarupdater.py update-index .
-```
-
-4. Lokal test:
-
-```bash
-python -m http.server 8000
-# åpne http://localhost:8000
-```
-
-5. Legg til, commit og push:
-
-```bash
-git add -A
-git commit -m "Oppdatering: README og oppsett"
-git push origin main
-```
-
-6. Deploy: push til main trigger GitHub Actions (hvis workflow aktiv).
-
-
-## AI-hjelp (ekstra)
-
-- Denne repoen kan vedlikeholdes med AI-assistert arbeidsflyt. Bruk GitHub Copilot eller ChatGPT for å generere tekst, scripts eller kommandoeksempler.
-- Legg inn en lokal `scripts/ai/` mappe for eksperimenter: `scripts/ai/README.md` og `scripts/ai/quick_start.md`.
-- Gjør alltid manuell kontroll av generert kode før produksjon. AI bidrar med forslag, men du kan oppdage logiske eller sikkerhetsrelaterte feil.
-
-> Tipset: Documenter alltid endringer i `README.md` og `index.json` slik at både styringsteam og automasjoner har samme referanse.
-
----
-
-
-**OpenRouter for video-metadata**
-
-Bruk dette hvis du vil generere ekte beskrivelser, tags og bedre titler fra undertekster / videometadata.
-
-Hvor du oppretter gratis konto og n?kler:
-- Konto: `https://openrouter.ai/sign-in`
-- API-n?kler: `https://openrouter.ai/keys`
-- Dokumentasjon / Quickstart: `https://openrouter.ai/docs/quickstart`
-
-Per OpenRouter sin FAQ er gratisgrensen normalt `50` gratis API-kall per dag uten innskutte credits, og `1000` per dag hvis kontoen har minst `10` credits. Dette kan endres av OpenRouter senere, s? sjekk docs hvis dere planlegger st?rre batcher.
-
-Lokal setup i `.env.local`:
-
-```bash
-OPENROUTER_API_KEY=...
-OPENROUTER_API_KEY_2=...
-OPENROUTER_API_KEY_3=...
-OPENROUTER_API_KEY_4=...
-OPENROUTER_API_KEYS=..., ..., ..., ...
-OPENROUTER_MODEL=openrouter/free
-```
-
-Manuell enkeltkjoring:
-
-```bash
-python scripts/video_topic_enricher.py --input semestre/3/Fluid/filer/Forelesning.txt --output semestre/3/Fluid/filer/Forelesning.json --existing-json semestre/3/Fluid/filer/Forelesning.json --ai-provider openrouter --preserve-title-grouping --only-refresh-weak-fields --process-url "https://www.youtube.com/watch?v=..." --openrouter-api-key "%OPENROUTER_API_KEY%"
-```
-
-Vanlig batchflyt vi bruker:
-
-1. `Forelesning.txt` er kildelista.
-2. `Forelesning.json` er produksjonsfila som viseren faktisk bruker.
-3. `video_topic_enricher.py` leser undertekster og metadata via `yt-dlp`, sender tekstgrunnlag til AI, og skriver bare tilbake de feltene som skal forbedres.
-4. `--preserve-title-grouping` holder `title`, `group` og `part` stabile nar vi bare vil forbedre `description`, `themes` og `group_description`.
-5. `run_scheduled_fluid_refresh.ps1` leser batcher fra `scripts/scheduled_fluid_refresh_queue.json`, roterer mellom flere OpenRouter-n?kler og lager backup i `temp/` f?r f?rste vellykkede skriving.
-6. Windows-tasken `Codex Fluid API Refresh` kjorer samme batch-jobb automatisk.
-
-Eksempler:
-
-python scripts/video_topic_enricher.py --input semestre/3/Fluid/filer/Forelesning.txt --output semestre/3/Fluid/filer/Forelesning.json --existing-json semestre/3/Fluid/filer/Forelesning.json --ai-provider openrouter --preserve-title-grouping --only-refresh-weak-fields --max-items 2
-python scripts/video_topic_enricher.py --input semestre/4/FysikalskKjemi/filer/Forelesning.txt --output semestre/4/FysikalskKjemi/filer/Forelesning.json --existing-json semestre/4/FysikalskKjemi/filer/Forelesning.json --ai-provider openrouter --only-refresh-weak-fields --max-items 2
-```
-
-Tips:
-- `--cookies-from-browser chrome` hjelper for innloggede videoer som Panopto.
-- Legg til `--transcribe-with-whisper` hvis du senere installerer `whisper` lokalt og vil bruke tale-til-tekst nar undertekster mangler.
-- Batch-jobben bruker na flere n?kler hvis de finnes i `.env.local`, og respekterer `daily_success_limit` og `per_key_daily_success_limit` i queue-fila.
-- Ikke commit `.env.local` eller ekte API-n?kler.
-- Scriptet holder gruppene stabile ved a foretrekke eksisterende `group`/`part`, men kan forbedre `VL20`-lignende gruppetitler til `VL20 - tema` hvis dere kj?rer uten `--preserve-title-grouping`.
+Existing setup and maintenance notes are retained in
+[docs/LEGACY_README.md](docs/LEGACY_README.md),
+[README_SETUP.md](README_SETUP.md), [NTNU_WEBEDIT.md](NTNU_WEBEDIT.md), and
+[docs/APS_SECURITY.md](docs/APS_SECURITY.md). Development scripts and templates
+remain in the repository; public exports include website assets only.
