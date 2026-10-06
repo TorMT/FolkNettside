@@ -17,6 +17,111 @@ The same 3D model and component IDs shall be reused across:
 
 Do not build these as unrelated standalone pages.
 
+
+## 0. Primary model-ingest requirement
+
+The normal entry point to the engineering workspace should be **one uploaded assembly/archive**, not a set of manually prepared STL files.
+
+Primary targets:
+- Autodesk Fusion archive: `.f3z` / `.f3d`
+- 3MF assembly/model: `.3mf`
+- keep compatibility aliases such as `.3fm` / `.fm3` only if they are actually encountered in the existing content
+
+The importer must preserve, where available:
+- assembly/subassembly hierarchy
+- component instance identity
+- component names
+- local transforms / occurrence transforms
+- repeated instances
+- materials and material metadata
+- units
+- bodies/meshes belonging to each component
+- source/external reference identity
+- stable IDs that survive re-opening the same model revision
+
+The analysis viewer must **not flatten the assembly into a single STL/mesh as the canonical model**. A combined/aggregate mesh may be generated as a derived acceleration structure for hydro/CFD operations, but the authoritative model remains a component tree.
+
+### 0.1 3MF import
+
+3MF is ZIP/XML and can be parsed locally in the browser. The importer should parse the complete 3MF build/object graph, including:
+- `<build>` items
+- `<components>` references
+- component transforms
+- object meshes
+- material/resource references
+- repeated component instances
+
+The existing `ThreeMFLoader` is only a starting point: it currently extracts multiple objects but does not preserve the full hierarchical component/instance graph and transforms robustly enough for the final workspace.
+
+### 0.2 Native Fusion import
+
+A genuine Autodesk `.f3z` archive is a package containing one or more `.f3d` Fusion design files and references. It must not be treated as though it were simply a ZIP containing 3MF meshes.
+
+The current `FusionArchiveLoader` searches inside the archive for `.3mf` files; this is therefore a compatibility/fallback path, not a correct general Fusion-archive importer.
+
+Preferred native Fusion pipeline:
+
+```
+F3Z/F3D upload
+      ↓
+Autodesk APS Model Derivative translation
+      ↓
+SVF2 / object tree / properties
+      ↓
+component registry + render geometry
+      ↓
+optional analysis geometry derivatives
+```
+
+APS should be used when we need to retain the native Fusion component hierarchy and metadata. Model Derivative provides object hierarchy/properties and browser-renderable derivatives.
+
+For numerical analysis, generate a separate analysis representation from the selected components:
+- mesh derivative / tessellation for hydro and visualization
+- STEP/BREP/mesh derivative where available for meshing
+- never replace the semantic/native assembly tree with the analysis mesh
+
+### 0.3 Canonical internal representation
+
+After import, every source format should normalize into the same internal structure:
+
+```text
+ModelDocument
+├── source
+│   ├── format
+│   ├── revision/hash
+│   └── units
+├── assemblyTree
+├── components
+│   └── ComponentInstance[]
+├── geometryResources
+├── materials
+├── selectionSets
+└── derivedGeometry
+    ├── render
+    ├── hydro
+    ├── fem
+    └── cfd
+```
+
+A component instance should carry both source identity and engineering metadata:
+
+```json
+{
+  "id": "stable-source-or-derived-id",
+  "sourceId": "...",
+  "parentId": "...",
+  "name": "Main Thruster PS",
+  "transform": [16 values],
+  "geometryRef": "...",
+  "materialRef": "...",
+  "role": "thruster",
+  "analysis": {}
+}
+```
+
+This separation is mandatory: render geometry, hydro geometry, FEM mesh and CFD mesh can all differ, while still referring back to the same component IDs.
+
+
 ## 1. Semantic component model — prerequisite for everything
 
 Every imported component should receive a stable ID and user-editable engineering metadata.
