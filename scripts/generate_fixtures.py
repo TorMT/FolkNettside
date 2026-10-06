@@ -9,14 +9,18 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 
 def text(name, value):
-    (OUT / name).write_text(value, encoding='utf-8')
+    (OUT / name).write_text(value, encoding='utf-8', newline='\n')
 
 
 def package(name, parts):
-    with zipfile.ZipFile(OUT / name, 'w', zipfile.ZIP_DEFLATED) as archive:
+    # Stored tiny XML avoids zlib-version differences; fixed metadata avoids
+    # platform-dependent ZIP headers. These fixtures still total only kilobytes.
+    with zipfile.ZipFile(OUT / name, 'w', zipfile.ZIP_STORED) as archive:
         for path, content in sorted(parts.items()):
             info = zipfile.ZipInfo(path, (2020, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
+            info.compress_type = zipfile.ZIP_STORED
+            info.create_system = 0
+            info.external_attr = 0x20
             archive.writestr(info, content.encode())
 
 

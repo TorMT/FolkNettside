@@ -4,3 +4,11 @@
 *.pptx binary
 *.3mf binary
 *.wasm binary
+tests/fixtures/*.py text eol=lf
+tests/fixtures/*.txt text eol=lf
+tests/fixtures/*.csv text eol=lf
+tests/fixtures/*.tex text eol=lf
+tests/fixtures/*.html text eol=lf
+tests/fixtures/*.json text eol=lf
+tests/fixtures/*.ipynb text eol=lf
+tests/fixtures/*.stl text eol=lf
