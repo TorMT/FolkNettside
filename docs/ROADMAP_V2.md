@@ -75,6 +75,12 @@ Phase 0 should materially reduce duplicate files and maintenance scripts before 
 
 Goal: establish the long-lived platform shell before redesigning individual tools.
 
+### Product principle
+
+This project is a migration from a site that has grown feature-by-feature over several years into one coherent system. Preserve useful capabilities and semester organization, but stop carrying forward accidental UI, duplicated infrastructure, and one-off patches simply because they already exist.
+
+Public browsing remains the default. **No visitor should be required to sign in to use the normal public site, course pages, portfolio pages or public tools.** Authentication is optional and only unlocks connected/personal features such as Google Drive sync, saved cloud state, Autodesk access or future private integrations.
+
 ### 1.1 Site modes
 
 One site, shared content model, two user-facing experiences:
@@ -196,6 +202,14 @@ Do not put client secrets or refresh tokens in the Pages build.
 
 ### 1.5 Connection model
 
+Authentication is opt-in:
+- signed-out users get the complete public experience
+- sign-in is never a gate in front of semesters, course pages, portfolio pages, viewers or public engineering tools
+- features that truly require a provider must show a clear disabled/disconnected state and a voluntary Connect action
+- do not show repeated login prompts while browsing
+
+
+
 Use a common connector state shape:
 
 ```json
@@ -293,3 +307,82 @@ Examples:
 - hydro quality -> Engineering settings + case-specific override
 - viewer fullscreen/download -> shared ViewerShell
 - old theme/fix utilities -> developer/archive or delete
+
+
+---
+
+## Final migration pass — regenerate every course page
+
+After the shared v2 shell, ViewerShell, Settings, navigation and course data model are stable, regenerate **all semester/course pages** from one canonical course skeleton.
+
+Requirements:
+- one canonical course template/component tree; do not keep hand-diverged copies
+- preserve semester -> course organization and existing course URLs where practical
+- migrate course title, code, description and course-specific metadata into data/config rather than duplicated page markup
+- all generated pages use the same navbar, sidebar/course navigation, ViewerShell, Settings access, theme bridge and responsive shell
+- course-specific content remains content; common UI remains shared infrastructure
+- generator output must be deterministic and testable
+- regenerate the entire site in one controlled migration PR after representative courses pass validation
+
+### Karakterweb
+
+Karakterweb remains a standard course capability, not ad-hoc sidebar code.
+
+Target behaviour:
+- course code comes from canonical course metadata
+- one reusable Karakterweb component/action for all courses
+- canonical URL stays `https://karakterweb.no/ntnu/{course_code}`
+- prefer a clean in-view presentation when browser/security headers allow embedding
+- if Karakterweb cannot be embedded, fail gracefully with an explicit open-in-new-tab action rather than a broken/blank in-view
+- no course-specific copies of Karakterweb integration
+- automated tests should verify URL generation and both embed/fallback states
+
+### Course migration validation
+
+Before final regeneration:
+1. choose representative old/new semesters and courses
+2. verify PDFs, code, notebooks, videos, quiz, protected sections and unusual file types
+3. verify mobile/desktop navigation
+4. verify Karakterweb in-view/fallback
+5. verify GitHub Pages staging with fixture assets
+6. only then regenerate all course pages
+
+The end state should be a common skeleton plus course data, not hundreds of pages that merely happen to look similar.
+
+---
+
+## Agent ownership markers
+
+### CLAUDE — primary owner for Phase 0 planning and UI/UX direction
+
+Claude should:
+- begin by reading `docs/ROADMAP_V2.md`, `docs/TECHNICAL_AUDIT.md`, `docs/CLAUDE_PHASE0_BRIEF.md` and the current repository
+- create a concrete Phase 0 cleanup plan before deleting/refactoring code
+- audit visible UI and identify controls that should move into Settings, merge into shared components, or disappear
+- later own the main visual/design-system proposal for v2, including Portfolio, Study, Settings and shared viewer/workspace shells
+- preserve the semester-first Study experience
+- design signed-out states as the normal/default experience and connected-account states as optional enhancements
+- propose the canonical regenerated course-page skeleton and Karakterweb in-view/fallback UX
+
+Claude should **not** in Phase 0:
+- perform the full visual redesign
+- rewrite hydro/FEM/CFD
+- flatten or reorganize semester/course content without a migration plan
+- require authentication
+- delete files without reference/runtime evidence
+- merge its own work directly to `main`
+
+### CODEX — implementation/performance/infrastructure owner after plans are accepted
+
+Codex is expected to handle or review:
+- reference/dependency tooling
+- safe mechanical cleanup/migrations
+- build/test/export/deployment infrastructure
+- performance-critical rewrites
+- viewer architecture implementation
+- course regeneration tooling
+- solver/integration work
+
+### Human review
+
+Major deletion, information-architecture changes, visual design direction, authentication scope and final course regeneration should remain reviewable in PRs before production deployment.
