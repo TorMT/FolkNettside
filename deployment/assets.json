@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "assets": {
+    "pdf": {
+      "fixture": "tests/fixtures/sample.pdf",
+      "pages": "preview/files/sample.pdf",
+      "ntnu": "/docs/viewer-examples/sample.pdf",
+      "viewer": "includes/kodeLesere/pdfview.html"
+    },
+    "txt": {
+      "fixture": "tests/fixtures/sample.txt",
+      "pages": "preview/files/sample.txt",
+      "ntnu": "/docs/viewer-examples/sample.txt",
+      "viewer": "includes/kodeLesere/codeview.html"
+    },
+    "py": {
+      "fixture": "tests/fixtures/sample.py",
+      "pages": "preview/files/sample.py",
+      "ntnu": "/docs/viewer-examples/sample.py",
+      "viewer": "includes/kodeLesere/pyview.html"
+    },
+    "csv": {
+      "fixture": "tests/fixtures/sample.csv",
+      "pages": "preview/files/sample.csv",
+      "ntnu": "/docs/viewer-examples/sample.csv",
+      "viewer": "includes/kodeLesere/csvview.html"
+    },
+    "tex": {
+      "fixture": "tests/fixtures/sample.tex",
+      "pages": "preview/files/sample.tex",
+      "ntnu": "/docs/viewer-examples/sample.tex",
+      "viewer": "includes/kodeLesere/latexview.html"
+    },
+    "html": {
+      "fixture": "tests/fixtures/sample.html",
+      "pages": "preview/files/sample.html",
+      "ntnu": "/docs/viewer-examples/sample.html",
+      "viewer": "includes/kodeLesere/htmlview.html"
+    },
+    "ipynb": {
+      "fixture": "tests/fixtures/sample.ipynb",
+      "pages": "preview/files/sample.ipynb",
+      "ntnu": "/docs/viewer-examples/sample.ipynb",
+      "viewer": "includes/kodeLesere/nbview.html"
+    },
+    "stl": {
+      "fixture": "tests/fixtures/sample.stl",
+      "pages": "preview/files/sample.stl",
+      "ntnu": "/docs/viewer-examples/sample.stl",
+      "viewer": "includes/kodeLesere/stlview.html"
+    },
+    "3mf": {
+      "fixture": "tests/fixtures/sample.3mf",
+      "pages": "preview/files/sample.3mf",
+      "ntnu": "/docs/viewer-examples/sample.3mf",
+      "viewer": "includes/kodeLesere/3mfhydro.html"
+    },
+    "docx": {
+      "fixture": "tests/fixtures/sample.docx",
+      "pages": "preview/files/sample.docx",
+      "ntnu": "/docs/viewer-examples/sample.docx",
+      "viewer": "includes/kodeLesere/officeview.html"
+    },
+    "xlsx": {
+      "fixture": "tests/fixtures/sample.xlsx",
+      "pages": "preview/files/sample.xlsx",
+      "ntnu": "/docs/viewer-examples/sample.xlsx",
+      "viewer": "includes/kodeLesere/officeview.html"
+    },
+    "pptx": {
+      "fixture": "tests/fixtures/sample.pptx",
+      "pages": "preview/files/sample.pptx",
+      "ntnu": "/docs/viewer-examples/sample.pptx",
+      "viewer": "includes/kodeLesere/officeview.html"
+    },
+    "aps": {
+      "fixture": "tests/fixtures/aps-config.json",
+      "pages": "preview/files/aps-config.json",
+      "ntnu": "/diverse/Njord/aps-config.json",
+      "viewer": "includes/kodeLesere/aps-viewer.html",
+      "parameter": "config"
+    }
+  },
+  "pagesApi": {
+    "/Quiz/leaderboard.php": {
+      "body": {
+        "top": [
+          {
+            "name": "Fixture user",
+            "score": 100
+          }
+        ],
+        "you": null,
+        "staging": true
+      }
+    },
+    "/includes/rapt/api/dashboard.php": {
+      "body": {
+        "devices": [],
+        "username": "Staging fixture",
+        "generatedAt": "2020-01-01T00:00:00Z",
+        "staging": true
+      }
+    },
+    "/includes/rapt/api/hydrometers.php": {
+      "body": {
+        "devices": [],
+        "staging": true
+      }
+    },
+    "/includes/aps/api/models.php": {
+      "body": {
+        "models": [
+          {
+            "name": "Fixture model",
+            "folderPath": "Staging",
+            "urn": "",
+            "note": "No live Autodesk account needed"
+          }
+        ],
+        "notice": "Staging catalog; live APS rendering requires NTNU."
+      }
+    },
+    "/includes/aps/api/token.php": {
+      "status": 503,
+      "body": {
+        "error": "Live Autodesk authentication requires NTNU."
+      }
+    }
+  }
+}
