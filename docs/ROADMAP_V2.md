@@ -353,36 +353,46 @@ The end state should be a common skeleton plus course data, not hundreds of page
 
 ## Agent ownership markers
 
-### CLAUDE — primary owner for Phase 0 planning and UI/UX direction
+### ChatGPT — Phase 0 audit/review owner
 
-Claude should:
-- begin by reading `docs/ROADMAP_V2.md`, `docs/TECHNICAL_AUDIT.md`, `docs/CLAUDE_PHASE0_BRIEF.md` and the current repository
-- create a concrete Phase 0 cleanup plan before deleting/refactoring code
-- audit visible UI and identify controls that should move into Settings, merge into shared components, or disappear
-- later own the main visual/design-system proposal for v2, including Portfolio, Study, Settings and shared viewer/workspace shells
-- preserve the semester-first Study experience
-- design signed-out states as the normal/default experience and connected-account states as optional enhancements
-- propose the canonical regenerated course-page skeleton and Karakterweb in-view/fallback UX
+ChatGPT owns:
+- technical audit direction
+- cleanup criteria and classification rules
+- architecture decisions
+- review of Codex findings and PRs
+- deciding what is safe to delete, archive, merge or defer
+- maintaining the long-term roadmap across phases
 
-Claude should **not** in Phase 0:
-- perform the full visual redesign
-- rewrite hydro/FEM/CFD
-- flatten or reorganize semester/course content without a migration plan
-- require authentication
-- delete files without reference/runtime evidence
-- merge its own work directly to `main`
+### CODEX — Phase 0 implementation owner
 
-### CODEX — implementation/performance/infrastructure owner after plans are accepted
-
-Codex is expected to handle or review:
-- reference/dependency tooling
-- safe mechanical cleanup/migrations
+Codex owns:
+- repository-wide dependency/reference analysis
+- baseline build/test/export checks
+- creation of `docs/PHASE0_CLEANUP_PLAN.md`
+- safe cleanup branch and draft PR
+- mechanical deletion/archive/refactor work after review
+- dead-code/reference tooling
 - build/test/export/deployment infrastructure
-- performance-critical rewrites
-- viewer architecture implementation
-- course regeneration tooling
-- solver/integration work
+- later performance-critical rewrites and course regeneration tooling
+
+Phase 0 should be performed by ChatGPT + Codex. Claude is not required for Phase 0.
+
+### CLAUDE — Phase 1 UI/UX design owner
+
+Claude enters after Phase 0 is accepted.
+
+Claude should then focus on:
+- visual/design-system proposal for v2
+- Portfolio and Study shells
+- Settings UX
+- shared viewer/workspace UI
+- responsive/mobile interaction design
+- canonical course-page visual skeleton
+- visual treatment of selected/muted model components
+- UI polish and consistency
+
+Claude should not redefine the technical architecture or undo Phase 0 cleanup without an explicit reviewed reason.
 
 ### Human review
 
-Major deletion, information-architecture changes, visual design direction, authentication scope and final course regeneration should remain reviewable in PRs before production deployment.
+Major deletion, information-architecture changes, visual design direction, authentication scope and final course regeneration remain reviewable in PRs before production deployment.
