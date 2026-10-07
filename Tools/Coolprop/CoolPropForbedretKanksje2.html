@@ -528,6 +528,37 @@ tr:last-child td{border-bottom:0}
   .helpContent{flex-direction:column;}
   .helpNav{width:100%; border-right:0; border-bottom:1px solid var(--border); max-height:180px;}
 }
+
+/* Compact workspace refinement */
+.header{align-items:center;margin-bottom:10px}
+.header h1{font-size:36px}
+.header .sub{margin-top:5px;font-size:13px}
+.container{max-width:1320px;padding-top:14px}
+.globalSettings{padding:12px 14px;box-shadow:var(--shadow-soft)}
+.globalSettings .settingsStrip{display:grid;grid-template-columns:1.15fr repeat(4,minmax(110px,.8fr));gap:8px;align-items:end}
+.globalSettings .field{gap:4px}
+.globalSettings .label{font-size:11px;letter-spacing:.02em;color:var(--text-muted)}
+.globalSettings select{padding:9px 10px;border-radius:9px}
+.bookBasisRow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.bookBasisRow .switch{padding:7px 9px;border-radius:10px}
+.bookBasisRow .helpText{margin:0;max-width:560px;text-align:right}
+.bookBasisRow .switch.disabled{opacity:.55;cursor:not-allowed}
+.bookBasisRow .switch.disabled label{cursor:not-allowed}
+.tabs{gap:5px;margin:10px 0}
+.tab{padding:8px 11px;border-radius:9px;font-size:12px}
+.card.tabContent{padding:14px}
+.actions{gap:7px}
+.btn{padding:10px 12px;border-radius:10px;font-size:13px}
+@media(max-width:900px){
+  .globalSettings .settingsStrip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bookBasisRow{align-items:flex-start;flex-direction:column}
+  .bookBasisRow .helpText{text-align:left}
+}
+@media(max-width:560px){
+  .header h1{font-size:30px}
+  .globalSettings .settingsStrip{grid-template-columns:1fr}
+}
+
 </style>
   <script src="/includes/kodeLesere/locked-view.js" defer></script>
 </head>
@@ -547,8 +578,8 @@ tr:last-child td{border-bottom:0}
 </div>
 
 <!-- Global settings -->
-<div class="card">
-  <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;">
+<div class="card globalSettings">
+  <div class="settingsStrip">
     <div class="field">
       <label class="label">Fluid</label>
       <select id="fluid">
@@ -594,13 +625,13 @@ tr:last-child td{border-bottom:0}
     </div>
   </div>
 
-  <div class="field" style="margin-top:14px;">
-    <label class="switch">
+  <div class="bookBasisRow">
+    <label class="switch" id="bookBasisSwitch">
       <input type="checkbox" id="bookBasis">
       <span class="slider"></span>
-      <label for="bookBasis" id="bookBasisText">Av (CoolProp absolutt H/U)</label>
+      <label for="bookBasis" id="bookBasisText">Av · CoolProp standardreferanse</label>
     </label>
-    <div class="helpText">Justerer H/U til "Samme Basis som boken" (se Help).</div>
+    <div class="helpText" id="bookBasisHelp">Velg et stoff med fagtabellprofil for å bruke samme H/U/S-referanse som boka.</div>
   </div>
 </div>
 
@@ -1095,42 +1126,68 @@ function unitLabel(param){
 }
 
 /* ============================================================
-   Book basis calibration
+   Course-table reference basis
+   OFF: native CoolProp reference state.
+   ON: constant H/U/S reference shift to the selected course table.
 ============================================================ */
-const CALIB_T = 1000.0;
-const CALIB_P = 1e5;
-const CALIB_H_BOOK = 1046.04;
-const CALIB_U_BOOK = 758.94;
+const BOOK_REFERENCE_PROFILES = {
+  Air:{
+    label:"Air · Table A-22",
+    source:"Ideal Gas Properties of Air",
+    calibration:{ i1:"T",v1:1000.0,i2:"P",v2:1e5,H:1046.04e3,U:758.94e3,S:2.96770e3 }
+  },
+  Water:{
+    label:"Water · Tables A-2 / A-3 / A-4 / A-5",
+    source:"Saturated, superheated and compressed water tables",
+    calibration:{ i1:"T",v1:473.15,i2:"P",v2:1e5,H:2875.3e3,U:2658.1e3,S:7.8343e3 }
+  },
+  Ammonia:{
+    label:"Ammonia · Tables A-13 / A-14 / A-15",
+    source:"Saturated and superheated ammonia tables",
+    calibration:{ i1:"T",v1:243.15,i2:"P",v2:1e5,H:1406.44e3,U:1290.71e3,S:5.8723e3 }
+  }
+};
 
-let H_OFFSET_AIR = null;
-let U_OFFSET_AIR = null;
+const BOOK_OFFSET_CACHE = new Map();
 
-function calibrateAir(){
+function bookReferenceProfile(fluid){
+  return BOOK_REFERENCE_PROFILES[String(fluid||"").trim()] || null;
+}
+
+function bookReferenceOffsets(fluid){
+  const profile = bookReferenceProfile(fluid);
   const PropsSI = getPropsSI();
-  if (!PropsSI){
-    H_OFFSET_AIR = 0;
-    U_OFFSET_AIR = 0;
-    return;
+  if (!profile || !PropsSI) return null;
+  if (BOOK_OFFSET_CACHE.has(fluid)) return BOOK_OFFSET_CACHE.get(fluid);
+
+  const c = profile.calibration;
+  const offsets = {};
+  for (const prop of ["H","U","S"]){
+    try{
+      const raw = PropsSI(prop,c.i1,c.v1,c.i2,c.v2,fluid);
+      offsets[prop] = c[prop] - raw;
+    }catch{
+      offsets[prop] = 0;
+    }
   }
-  try {
-    const h_cp = PropsSI("H", "T", CALIB_T, "P", CALIB_P, "Air");
-    const u_cp = PropsSI("U", "T", CALIB_T, "P", CALIB_P, "Air");
-    H_OFFSET_AIR = (CALIB_H_BOOK * 1e3) - h_cp;
-    U_OFFSET_AIR = (CALIB_U_BOOK * 1e3) - u_cp;
-  } catch {
-    H_OFFSET_AIR = 0;
-    U_OFFSET_AIR = 0;
-  }
+  BOOK_OFFSET_CACHE.set(fluid,offsets);
+  return offsets;
 }
 
 function applyBookBasis(fluid, prop, siVal){
-  if (!bookBasisEnabled()) return siVal;
-  const f = fluid.toLowerCase();
-  if ((prop === "H" || prop === "U") && f === "air"){
-    if (H_OFFSET_AIR === null) calibrateAir();
-    return siVal + (prop === "H" ? H_OFFSET_AIR : U_OFFSET_AIR);
-  }
-  return siVal;
+  if (!bookBasisEnabled() || !["H","U","S"].includes(prop)) return siVal;
+  const offsets = bookReferenceOffsets(fluid);
+  return offsets ? siVal + (offsets[prop] || 0) : siVal;
+}
+
+function removeBookBasis(fluid, prop, siVal){
+  if (!bookBasisEnabled() || !["H","U","S"].includes(prop)) return siVal;
+  const offsets = bookReferenceOffsets(fluid);
+  return offsets ? siVal - (offsets[prop] || 0) : siVal;
+}
+
+function convertInputForFluid(fluid,param,val){
+  return removeBookBasis(fluid,param,convertInputToSI(param,val));
 }
 
 /* ============================================================
@@ -1379,8 +1436,8 @@ function computeProcess(){
   currentStatePoints = [];
   
   // Compute starting point
-  const start_V1 = convertInputToSI(start_i1, start_v1_raw);
-  const start_V2 = convertInputToSI(start_i2, start_v2_raw);
+  const start_V1 = convertInputForFluid(fluid, start_i1, start_v1_raw);
+  const start_V2 = convertInputForFluid(fluid, start_i2, start_v2_raw);
   
   let prevState = null;
   
@@ -1462,7 +1519,7 @@ function computeProcess(){
         if (!Number.isFinite(v2_raw)){
           throw new Error("Ugyldig målverdi");
         }
-        V2 = convertInputToSI(i2, v2_raw);
+        V2 = convertInputForFluid(fluid, i2, v2_raw);
       } else if (step.processType === 'isothermal'){
         // T = constant from previous
         i1 = 'T';
@@ -1472,17 +1529,17 @@ function computeProcess(){
         if (!Number.isFinite(v2_raw)){
           throw new Error("Ugyldig målverdi");
         }
-        V2 = convertInputToSI(i2, v2_raw);
+        V2 = convertInputForFluid(fluid, i2, v2_raw);
       } else if (step.processType === 'isentropic'){
         // S = constant from previous
         i1 = 'S';
-        V1 = prevState.S;
+        V1 = removeBookBasis(fluid, 'S', prevState.S);
         i2 = step.targetType;
         const v2_raw = Number(step.targetValue);
         if (!Number.isFinite(v2_raw)){
           throw new Error("Ugyldig målverdi");
         }
-        V2 = convertInputToSI(i2, v2_raw);
+        V2 = convertInputForFluid(fluid, i2, v2_raw);
       } else if (step.processType === 'isochoric'){
         // D = constant from previous
         i1 = 'D';
@@ -1492,17 +1549,17 @@ function computeProcess(){
         if (!Number.isFinite(v2_raw)){
           throw new Error("Ugyldig målverdi");
         }
-        V2 = convertInputToSI(i2, v2_raw);
+        V2 = convertInputForFluid(fluid, i2, v2_raw);
       } else if (step.processType === 'isenthalpic'){
         // H = constant from previous
         i1 = 'H';
-        V1 = prevState.H;
+        V1 = removeBookBasis(fluid, 'H', prevState.H);
         i2 = step.targetType;
         const v2_raw = Number(step.targetValue);
         if (!Number.isFinite(v2_raw)){
           throw new Error("Ugyldig målverdi");
         }
-        V2 = convertInputToSI(i2, v2_raw);
+        V2 = convertInputForFluid(fluid, i2, v2_raw);
       } else { // custom
         // User specifies both
         i1 = step.targetType;
@@ -1511,7 +1568,7 @@ function computeProcess(){
         if (!Number.isFinite(v1_raw)){
           throw new Error("Ugyldig målverdi");
         }
-        V1 = convertInputToSI(i1, v1_raw);
+        V1 = convertInputForFluid(fluid, i1, v1_raw);
         // For custom, we need another value - this is a limitation
         // For now, use a reasonable default or let it fail
         throw new Error("Custom mode krever to verdier - ikke implementert ennå");
@@ -1757,8 +1814,8 @@ function computeBatchMulti(fluid, format, lines, selectedOutputs){
       continue;
     }
 
-    const V1 = convertInputToSI(i1, v1raw);
-    const V2 = convertInputToSI(i2, v2raw);
+    const V1 = convertInputForFluid(fluid, i1, v1raw);
+    const V2 = convertInputForFluid(fluid, i2, v2raw);
 
     try {
       const row = { Status: "OK" };
@@ -1932,8 +1989,8 @@ function generateSaturationCurve(fluid, numPoints = 60){
         const h_liq = PropsSI("H", "T", T, "Q", 0, fluid);
         const h_vap = PropsSI("H", "T", T, "Q", 1, fluid);
         
-        liquidCurve.push({ x: h_liq / 1000, y: P / 1e5 });
-        vaporCurve.push({ x: h_vap / 1000, y: P / 1e5 });
+        liquidCurve.push({ x: applyBookBasis(fluid,'H',h_liq) / 1000, y: P / 1e5 });
+        vaporCurve.push({ x: applyBookBasis(fluid,'H',h_vap) / 1000, y: P / 1e5 });
       } catch (e) {
         // Skip points that fail
       }
@@ -1971,7 +2028,7 @@ function generateIsotherms(fluid, numLines = 8){
         const P = Pmin + (Psat_at_T - Pmin) * (j / 19);
         try {
           const h = PropsSI("H", "T", T, "P", P, fluid);
-          points.push({ x: h / 1000, y: P / 1e5 });
+          points.push({ x: applyBookBasis(fluid,'H',h) / 1000, y: P / 1e5 });
         } catch {}
       }
       
@@ -1981,7 +2038,7 @@ function generateIsotherms(fluid, numLines = 8){
         const P = Psat_at_T + (Pmax - Psat_at_T) * (j / 19);
         try {
           const h = PropsSI("H", "T", T, "P", P, fluid);
-          points.push({ x: h / 1000, y: P / 1e5 });
+          points.push({ x: applyBookBasis(fluid,'H',h) / 1000, y: P / 1e5 });
         } catch {}
       }
       
@@ -2034,7 +2091,7 @@ function generateIsobars(fluid, numLines = 8){
         const T = Tmin + (Tmax - Tmin) * (j / 39);
         try {
           const h = PropsSI("H", "T", T, "P", P, fluid);
-          points.push({ x: h / 1000, y: P / 1e5 });
+          points.push({ x: applyBookBasis(fluid,'H',h) / 1000, y: P / 1e5 });
         } catch {}
       }
       
@@ -2076,7 +2133,7 @@ function generateQualityLines(fluid, qualities = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 
         try {
           const P = PropsSI("P", "T", T, "Q", q, fluid);
           const h = PropsSI("H", "T", T, "Q", q, fluid);
-          points.push({ x: h / 1000, y: P / 1e5 });
+          points.push({ x: applyBookBasis(fluid,'H',h) / 1000, y: P / 1e5 });
         } catch {}
       }
       
@@ -2239,10 +2296,10 @@ function showDiagram(canvasId, statePoints, fluid, isProcess = false, diagramTyp
       
       // X-axis
       if (diagramType === 'log-ph' || diagramType === 'ph'){
-        x = pt.h / 1000; // kJ/kg
+        x = applyBookBasis(fluid,'H',pt.h) / 1000; // selected reference basis
       } else if (diagramType === 'ts'){
         const s = PropsSI('S', 'P', pt.p, 'H', pt.h, fluid);
-        x = s / 1000; // kJ/kg/K
+        x = applyBookBasis(fluid,'S',s) / 1000; // selected reference basis
       } else if (diagramType === 'pv'){
         const d = PropsSI('D', 'P', pt.p, 'H', pt.h, fluid);
         x = 1 / d; // m³/kg
@@ -2691,8 +2748,8 @@ $("singleRun").addEventListener("click", ()=>{
     return;
   }
 
-  const V1 = convertInputToSI(i1, v1raw);
-  const V2 = convertInputToSI(i2, v2raw);
+  const V1 = convertInputForFluid(fluid, i1, v1raw);
+  const V2 = convertInputForFluid(fluid, i2, v2raw);
 
   // Check for two-phase underdetermination
   const twoPhaseWarning = checkTwoPhaseWarning(fluid, i1, V1, i2, V2);
@@ -2853,8 +2910,8 @@ $("batchRun").addEventListener("click", ()=>{
         const v2raw = Number(parts[1]);
         if (!Number.isFinite(v1raw) || !Number.isFinite(v2raw)) continue;
         
-        const V1 = convertInputToSI(i1, v1raw);
-        const V2 = convertInputToSI(i2, v2raw);
+        const V1 = convertInputForFluid(fluid, i1, v1raw);
+        const V2 = convertInputForFluid(fluid, i2, v2raw);
         
         try {
           const p = PropsSI("P", i1, V1, i2, V2, fluid);
@@ -3084,8 +3141,8 @@ $("exploreRun").addEventListener("click", ()=>{
     return;
   }
 
-  const V1 = convertInputToSI(i1, v1raw);
-  const V2 = convertInputToSI(i2, v2raw);
+  const V1 = convertInputForFluid(fluid, i1, v1raw);
+  const V2 = convertInputForFluid(fluid, i2, v2raw);
 
   const container = document.createElement("div");
   container.id = "exploreBody";
@@ -3185,8 +3242,11 @@ I UI velger du enheter, og siden konverterer automatisk.`,
     title:"Samme Basis som boken",
     desc:"Relative H og U (lærebok-vennlig)",
     body:`CoolProp bruker en intern referansetilstand. Mange lærebøker bruker <b>relative</b> verdier.
-Når <code>Samme Basis som boken</code> er på:
-- For <b>Air</b> justeres H og U med konstant offset for å matche Table A-22.
+Når <code>Samme Basis som boken</code> er på brukes en egen referanseprofil for valgt stoff:
+- <b>Air:</b> Table A-22.
+- <b>Water:</b> Tables A-2/A-3/A-4/A-5.
+- <b>Ammonia:</b> Tables A-13/A-14/A-15.
+H, U og S flyttes med en konstant referanse-offset. Når bryteren er av brukes native CoolProp-referanse.
 
 Viktig: Dette endrer bare absolutt-nivået. Forskjeller ΔH og ΔU blir de samme.`,
     extra:`Hvis du sammenligner mot tabeller i boka: slå dette på.`
@@ -3282,7 +3342,7 @@ $("helpSearch").addEventListener("input", (e)=>renderHelpList(e.target.value));
   while (performance.now()-t0 < 15000){
     if (getPropsSI()){ 
       setEngine(true); 
-      calibrateAir();
+      syncBookBasisLabel();
       return; 
     }
     await new Promise(r=>setTimeout(r, 120));
@@ -3290,16 +3350,38 @@ $("helpSearch").addEventListener("input", (e)=>renderHelpList(e.target.value));
   setEngine(false,"Feil");
 })();
 
-/* Book basis toggle */
+/* Course-table basis toggle */
 function syncBookBasisLabel(){
-  const on = bookBasisEnabled();
-  const t = $("bookBasisText");
-  if (t){
-    t.textContent = on ? "På (Luft: Tabell A-22-basis)" : "Av (CoolProp absolutt H/U)";
+  const fluid = $("fluid")?.value?.trim() || "Air";
+  const profile = bookReferenceProfile(fluid);
+  const cb = $("bookBasis");
+  const text = $("bookBasisText");
+  const help = $("bookBasisHelp");
+  const shell = $("bookBasisSwitch");
+
+  if (!cb || !text) return;
+
+  if (!profile){
+    cb.checked = false;
+    cb.disabled = true;
+    shell?.classList.add("disabled");
+    text.textContent = `${fluid} · CoolProp standardreferanse`;
+    if (help) help.textContent = "Ingen verifisert fagtabellprofil er lagt inn for dette stoffet ennå.";
+    return;
   }
+
+  cb.disabled = false;
+  shell?.classList.remove("disabled");
+  text.textContent = cb.checked ? `På · ${profile.label}` : `Av · ${profile.label} tilgjengelig`;
+  if (help) help.textContent = cb.checked
+    ? `H/U/S vises med samme referanse som ${profile.label}. Slå av for native CoolProp-basis.`
+    : `Slå på for å flytte H/U/S til samme referanse som ${profile.label}.`;
 }
 if ($("bookBasis")){
-  $("bookBasis").addEventListener("change", syncBookBasisLabel);
+  $("bookBasis").addEventListener("change", ()=>{
+    syncBookBasisLabel();
+    redrawCurrentDiagram();
+  });
 }
 
 /* Defaults */
@@ -3354,6 +3436,7 @@ function redrawCurrentDiagram(){
 const fluidEl = $('fluid');
 if (fluidEl){
   fluidEl.addEventListener('change', () => {
+    syncBookBasisLabel();
     redrawCurrentDiagram();
   });
 }
