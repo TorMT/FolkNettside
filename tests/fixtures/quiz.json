@@ -1,0 +1,1 @@
+{"title": "Fixture quiz", "select": 1, "questions": [{"id": "fixture-1", "type": "single", "text": "2 + 2?", "options": ["3", "4"], "answer": [1], "explanation": "Two plus two equals four."}]}

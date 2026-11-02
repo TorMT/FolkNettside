@@ -1,43 +1,61 @@
-## Local and generated data (merged)
-# Ignore export/ (we deploy from CI) and other local data
-export/
-
-semestre/
-temp/
-diverse/
+# Reproducible build outputs and local caches
+/export*/
+**/__pycache__/
+*.py[cod]
+**/.cache/
+/.siteupdater-backups/
+/_siteupdater_dryrun.txt
+/tmp_*
+/temp/
+/temp_subs/
 *.bak
-index.json
+*.bak.*
+*.backup_*
+*.orig.html
+.venv/
+venv/
+node_modules/
+/playwright-report/
+/test-results/
+/audit-inventory.json
 
-# Personal or local folders not to push
-kontakt/
-om/
+# Production document archive (application code/indexes are tracked normally)
+*.pdf
+*.stl
+*.3mf
+*.step
+*.stp
+*.iges
+*.igs
+*.f3d
+*.f3z
+*.fbm
+*.fm3
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.zip
+*.7z
+*.rar
+*.gcode
+!tests/fixtures/**
+!assets/pdf/goyplassholder.pdf
 
-# Secrets / API credentials (must never be committed)
+# Secrets and private/local configuration; keep these last
 .env
 .env.*
 !.env*.example
 *.secret
-secrets/
-
-# VS Code local-only secrets/config
+**/secrets/
+**/private/
+*.local.json
+*.private.json
+**/linkedin-token.json
+**/linkedin-refresh-token.json
+**/github-token.json
+**/github-refresh-token.json
 .vscode/settings.json
 .vscode/launch.json
-
-
-# Portfolio template: keep generic template tracked, keep personal variants ignored
-!diverse/
-!diverse/portfolio-template/
-!diverse/portfolio-template/**
-diverse/portfolio-template/portfolio-data.local.json
-diverse/portfolio-template/portfolio-data.private.json
-diverse/portfolio-template/portfolio-linkedin.local.json
-diverse/portfolio-template/portfolio-linkedin.private.json
-diverse/portfolio-template/linkedin-token.json
-diverse/portfolio-template/linkedin-refresh-token.json
-diverse/portfolio-template/github-token.json
-diverse/portfolio-template/github-refresh-token.json
-diverse/portfolio-template/.env.linkedin
-diverse/portfolio-template/.env.portfolio
-diverse/portfolio-template/.env.github
-diverse/portfolio-template/private/
-diverse/portfolio-template/secrets/
