@@ -1,6 +1,7 @@
 # ignore local and large data
 semestre/
 temp/
-diverse/
+diverse/*
+!diverse/Dykkecomputer/
 *.bak
 index.json
