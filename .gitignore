@@ -28,6 +28,9 @@ secrets/
 !diverse/
 !diverse/portfolio-template/
 !diverse/portfolio-template/**
+# Dive computer demo: published on GitHub Pages under Diverse
+!diverse/Dykkecomputer/
+!diverse/Dykkecomputer/**
 diverse/portfolio-template/portfolio-data.local.json
 diverse/portfolio-template/portfolio-data.private.json
 diverse/portfolio-template/portfolio-linkedin.local.json
