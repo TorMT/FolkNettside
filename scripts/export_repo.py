@@ -21,13 +21,6 @@ ALLOW = [
     "navbarupdater.py",
     "index.html",
     "course-template.html",
-    "diverse/Dykkecomputer",
-]
-
-# Published as-is: self-contained pages whose scripts hold strings starting with "/" (and embedded
-# WebAssembly), which the root-path rewrite below would corrupt. They only use relative links.
-NO_REWRITE = [
-    "diverse/Dykkecomputer",
 ]
 
 SKIP_PATTERNS = [
@@ -55,9 +48,6 @@ def rewrite_root_paths_for_pages():
 
     for path in EXPORT.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES:
-            continue
-        rel = path.relative_to(EXPORT).as_posix()
-        if any(rel == p or rel.startswith(p + "/") for p in NO_REWRITE):
             continue
 
         try:
@@ -103,8 +93,7 @@ def main():
 # ignore local and large data
 semestre/
 temp/
-diverse/*
-!diverse/Dykkecomputer/
+diverse/
 *.bak
 index.json
 """.lstrip())
