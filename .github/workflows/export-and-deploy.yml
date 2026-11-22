@@ -4,13 +4,15 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: folknettside-pages-publish
+  group: folknettside-pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -24,10 +26,55 @@ jobs:
         with:
           python-version: "3.x"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Audit tracked file budgets
+        run: python scripts/audit_repo.py
+
+      - name: Export and fixture regression tests
+        run: python -m unittest discover -s tests -p 'test_export.py' -v
+
+      - name: Existing application checks
+        run: |
+          node scripts/test_hydro_modules.mjs
+          node scripts/test_viewer_integrations.mjs
+
       - name: Export public site
         env:
           PAGES_BASE_PATH: /FolkNettside
-        run: python scripts/export_repo.py
+        run: python scripts/export_repo.py --target pages
+
+      - name: Verify Pages references and fixtures
+        run: python scripts/check_export.py
+
+      - name: Install browser test dependencies
+        run: |
+          pip install -r tests/requirements-browser.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Verify viewers in the project-path preview
+        run: python tests/test_browser.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pages-export
+          path: export/
+          include-hidden-files: true
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [export-deploy, deploy-safety]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pages-export
+          path: export/
 
       - name: Deploy export to gh-pages
         uses: peaceiris/actions-gh-pages@v4
@@ -35,3 +82,14 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./export
           publish_branch: gh-pages
+
+  deploy-safety:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify NTNU copy logic in a local sandbox
+        shell: pwsh
+        run: ./tests/test_deploy_ntnu.ps1

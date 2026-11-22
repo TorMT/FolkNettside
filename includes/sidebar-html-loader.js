@@ -51,6 +51,10 @@
         throw new Error('Tom eller ugyldig sidebar.html');
       }
       
+      // The JSON-backed sidebar can finish while this request is in flight.
+      // Do not replace its live fixture/course links with the static template.
+      if (sidebar.querySelector('.dropdown-oving, nav a')) return;
+
       // Inject innholdet
       sidebar.innerHTML = asideContent.innerHTML;
       

@@ -1,0 +1,16 @@
+{
+  "warnBytes": 1048576,
+  "maxBinaryBytes": 5242880,
+  "maxFileBytes": 10485760,
+  "maxFixtureBytes": 250000,
+  "exceptions": {
+    "includes/vendor/occt-import-js/occt-import-js.wasm": {
+      "maxBytes": 8000000,
+      "reason": "Required client-side CAD parser; vendored runtime, not document archive."
+    },
+    "Tools/Coolprop/coolprop.wasm": {
+      "maxBytes": 4500000,
+      "reason": "Required thermodynamic calculator runtime, not document archive."
+    }
+  }
+}
